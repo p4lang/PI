@@ -19,12 +19,12 @@
 #include "PI/pi.h"
 
 struct pi_match_key_s {
-  pi_table_id_t table_id;
+  pi_p4_id_t table_id;
   pi_value_t data[1];
 };
 
 struct pi_action_data_s {
-  pi_action_id_t action_id;
+  pi_p4_id_t action_id;
   pi_value_t data[1];
 };
 

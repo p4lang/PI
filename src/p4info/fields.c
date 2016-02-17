@@ -13,22 +13,19 @@
  * limitations under the License.
  */
 
-#ifndef PI_INC_PI_PI_BASE_H_
-#define PI_INC_PI_PI_BASE_H_
+#include "PI/p4info/fields.h"
 
-#include <stdint.h>
-#include <stdbool.h>
-#include <stddef.h>
+pi_p4_id_t pi_p4info_field_id_from_name(const char *name) {
+  (void) name;
+  return 0;
+}
 
-typedef enum {
-  PI_STATUS_SUCCESS
-} pi_status_t;
+const char *pi_p4info_field_name_from_id(pi_p4_id_t field_id) {
+  (void) field_id;
+  return NULL;
+}
 
-typedef uint32_t pi_p4_id_t;
-
-typedef struct {
-  uint16_t dev_id;
-  uint16_t dev_pipe_mask;
-} pi_dev_tgt_t;
-
-#endif  // PI_INC_PI_PI_BASE_H_
+size_t pi_p4info_field_bitwidth(pi_p4_id_t field_id) {
+  (void) field_id;
+  return 0;
+}

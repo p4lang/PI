@@ -31,10 +31,6 @@ void pi_entry_properties_set(pi_entry_properties_t *properties,
                              const pi_entry_property_type_t property_type,
                              const pi_value_t *property_value);
 
-
-typedef pi_p4_id_t pi_table_id_t;
-typedef pi_p4_id_t pi_action_id_t;
-
 typedef uint32_t pi_entry_handle_t;
 typedef struct pi_match_key_s pi_match_key_t;
 typedef struct pi_action_data_s pi_action_data_t;
@@ -42,7 +38,7 @@ typedef struct pi_action_data_s pi_action_data_t;
 typedef int pi_res_config_t;
 
 typedef struct {
-  pi_action_id_t action_id;
+  pi_p4_id_t action_id;
   const pi_action_data_t *action_data;
   const pi_entry_properties_t *entry_properties;
   const pi_res_config_t *direct_res_config;  /* not defined yet */
@@ -51,7 +47,7 @@ typedef struct {
 /* trying to add an entry that already exists returns an error, unless the */
 /* ‘overwrite’ flag is set */
 pi_status_t pi_table_entry_add(const pi_dev_tgt_t dev_tgt,
-                               const pi_table_id_t table_id,
+                               const pi_p4_id_t table_id,
                                const pi_match_key_t *match_key,
                                const pi_table_entry_t *table_entry,
                                const int overwrite,
@@ -59,27 +55,27 @@ pi_status_t pi_table_entry_add(const pi_dev_tgt_t dev_tgt,
 
 /* no need for a ‘clear’ method, would not match default action definition */
 pi_status_t pi_table_default_action_set(const pi_dev_tgt_t dev_tgt,
-                                        const pi_table_id_t table_id,
+                                        const pi_p4_id_t table_id,
                                         const pi_table_entry_t *table_entry);
 
 pi_status_t pi_table_default_action_get(const pi_dev_tgt_t dev_tgt,
-                                        const pi_table_id_t table_id,
+                                        const pi_p4_id_t table_id,
                                         pi_table_entry_t *table_entry);
 
 pi_status_t pi_table_entry_delete(const uint16_t dev_id,
-                                  const pi_table_id_t table_id,
+                                  const pi_p4_id_t table_id,
                                   const pi_entry_handle_t entry_handle);
 
 /* should we just get rid of this and use the above entry_add with overwrite? */
 pi_status_t pi_table_entry_modify(const uint16_t dev_id,
-                                  const pi_table_id_t table_id,
+                                  const pi_p4_id_t table_id,
                                   const pi_entry_handle_t entry_handle,
                                   const pi_table_entry_t *table_entry);
 
 typedef struct pi_table_retrieve_res_s pi_table_retrieve_res_t;
 
 pi_status_t pi_table_retrieve(const uint16_t dev_id,
-                              const pi_table_id_t table_id,
+                              const pi_p4_id_t table_id,
                               pi_table_retrieve_res_t **res);
 
 #endif  // PI_INC_PI_PI_TABLES_H_

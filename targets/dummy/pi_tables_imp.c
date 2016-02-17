@@ -18,7 +18,7 @@
 #include <stdio.h>
 
 pi_status_t _pi_table_entry_add(const pi_dev_tgt_t dev_tgt,
-                                const pi_table_id_t table_id,
+                                const pi_p4_id_t table_id,
                                 const pi_match_key_t *match_key,
                                 const pi_table_entry_t *table_entry,
                                 const int overwrite,
@@ -27,32 +27,32 @@ pi_status_t _pi_table_entry_add(const pi_dev_tgt_t dev_tgt,
 }
 
 pi_status_t _pi_table_default_action_set(const pi_dev_tgt_t dev_tgt,
-                                         const pi_table_id_t table_id,
+                                         const pi_p4_id_t table_id,
                                          const pi_table_entry_t *table_entry) {
   printf("_pi_table_default_action_set\n");
 }
 
 pi_status_t _pi_table_default_action_get(const pi_dev_tgt_t dev_tgt,
-                                         const pi_table_id_t table_id,
+                                         const pi_p4_id_t table_id,
                                          pi_table_entry_t *table_entry) {
   printf("_pi_table_default_action_get\n");
 }
 
 pi_status_t _pi_table_entry_delete(const uint16_t dev_id,
-                                   const pi_table_id_t table_id,
+                                   const pi_p4_id_t table_id,
                                    const pi_entry_handle_t entry_handle) {
   printf("_pi_table_entry_delete\n");
 }
 
 pi_status_t _pi_table_entry_modify(const uint16_t dev_id,
-                                   const pi_table_id_t table_id,
+                                   const pi_p4_id_t table_id,
                                    const pi_entry_handle_t entry_handle,
                                    const pi_table_entry_t *table_entry) {
   printf("_pi_table_entry_modify\n");
 }
 
 pi_status_t _pi_table_retrieve(const uint16_t dev_id,
-                               const pi_table_id_t table_id,
+                               const pi_p4_id_t table_id,
                                pi_table_retrieve_res_t **res) {
   printf("_pi_table_retrieve\n");
 }

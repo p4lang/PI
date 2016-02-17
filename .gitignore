@@ -54,3 +54,4 @@ test-driver
 tests/test-suite.log
 tests/test_*[^c]
 m4/
+.dirstamp

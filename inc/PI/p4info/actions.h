@@ -13,22 +13,22 @@
  * limitations under the License.
  */
 
-#ifndef PI_INC_PI_PI_BASE_H_
-#define PI_INC_PI_PI_BASE_H_
+#ifndef PI_INC_PI_P4INFO_ACTIONS_H_
+#define PI_INC_PI_P4INFO_ACTIONS_H_
 
-#include <stdint.h>
-#include <stdbool.h>
-#include <stddef.h>
+#include "PI/pi_base.h"
 
-typedef enum {
-  PI_STATUS_SUCCESS
-} pi_status_t;
+pi_p4_id_t pi_p4info_action_id_from_name(const char *name);
 
-typedef uint32_t pi_p4_id_t;
+const char *pi_p4info_action_name_from_id(pi_p4_id_t action_id);
 
-typedef struct {
-  uint16_t dev_id;
-  uint16_t dev_pipe_mask;
-} pi_dev_tgt_t;
+size_t pi_p4info_action_num_params(pi_p4_id_t action_id);
 
-#endif  // PI_INC_PI_PI_BASE_H_
+const pi_p4_id_t *pi_p4info_action_get_params(pi_p4_id_t action_id,
+                                              size_t *num_params);
+
+pi_p4_id_t pi_p4info_action_param_id_from_name(const char *name);
+
+bool pi_p4info_action_is_param_of(pi_p4_id_t action_id, pi_p4_id_t param_id);
+
+#endif  // PI_INC_PI_P4INFO_ACTIONS_H_
