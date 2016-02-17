@@ -15,11 +15,47 @@
 
 #include "PI/pi.h"
 #include "target/pi_imp.h"
+#include "p4info/p4info_struct.h"
+#include "p4info/actions_int.h"
+#include "p4info/tables_int.h"
 
-pi_status_t pi_init(const char *config) {
-  return _pi_init(config);
+#include <stdlib.h>
+
+#define MAX_DEVICES 256
+
+pi_p4info_t *_device_mapping[MAX_DEVICES];
+
+const pi_p4info_t *pi_get_device_p4info(uint16_t dev_id) {
+  return _device_mapping[dev_id];
 }
 
-pi_status_t pi_init_from_file(const char *config_path) {
-  (void) config_path;
+pi_status_t pi_init() {
+  return _pi_init();
+}
+
+pi_status_t pi_add_config(const char *config, const pi_p4info_t **p4info) {
+  (void) config;
+  pi_p4info_t *p4info_ = malloc(sizeof(pi_p4info_t));
+  size_t num_actions = 9;  // read from JSON
+  pi_p4info_action_init(p4info_, num_actions);
+  size_t num_tables = 9;  // read from JSON
+  pi_p4info_table_init(p4info_, num_tables);
+  *p4info = p4info_;
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_add_config_from_file(const char *config_path,
+                                    const pi_p4info_t **p4info) {
+  (void) config_path; (void) p4info;
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_assign_device(uint16_t dev_id, const pi_p4info_t *p4info) {
+  (void) dev_id; (void) p4info;
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_remove_device(uint16_t dev_id) {
+  (void) dev_id;
+  return PI_STATUS_SUCCESS;
 }

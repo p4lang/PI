@@ -20,6 +20,8 @@ AC_CHECK_HEADERS([stdlib.h string.h assert.h stdio.h stdint.h stdbool.h\
                   stddef.h],
                  [], [AC_MSG_ERROR([Missing header file])])
 
+AC_CHECK_FUNCS([malloc free assert])
+
 # Check for libjudy
 AC_CHECK_LIB([Judy], [Judy1Next], [], [AC_MSG_ERROR([Missing libJudy])])
 
@@ -28,6 +30,8 @@ AC_TYPE_UINT16_T
 AC_TYPE_UINT32_T
 AC_TYPE_UINT64_T
 AC_TYPE_SIZE_T
+
+AC_SUBST([AM_CFLAGS], ["-Wall -Werror -Wextra"])
 
 # Generate makefiles
 AC_CONFIG_FILES([Makefile

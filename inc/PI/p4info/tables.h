@@ -18,23 +18,39 @@
 
 #include "PI/pi_base.h"
 
-pi_p4_id_t pi_p4info_table_id_from_name(const char *name);
+typedef enum {
+  PI_P4INFO_MATCH_TYPE_VALID,
+  PI_P4INFO_MATCH_TYPE_EXACT,
+  PI_P4INFO_MATCH_TYPE_LPM,
+  PI_P4INFO_MATCH_TYPE_TERNARY,
+  PI_P4INFO_MATCH_TYPE_RANGE
+} pi_p4info_match_type_t;
 
-const char *pi_p4info_table_name_from_id(pi_p4_id_t table_id);
+pi_p4_id_t pi_p4info_table_id_from_name(const pi_p4info_t *p4info,
+                                        const char *name);
 
-size_t pi_p4info_table_num_match_fields(pi_p4_id_t table_id);
+const char *pi_p4info_table_name_from_id(const pi_p4info_t *p4info,
+                                         pi_p4_id_t table_id);
 
-const pi_p4_id_t *pi_p4info_table_get_match_fields(pi_p4_id_t table_id,
+size_t pi_p4info_table_num_match_fields(const pi_p4info_t *p4info,
+                                        pi_p4_id_t table_id);
+
+const pi_p4_id_t *pi_p4info_table_get_match_fields(const pi_p4info_t *p4info,
+                                                   pi_p4_id_t table_id,
                                                    size_t *num_match_fields);
 
-bool pi_p4info_table_is_match_field_of(pi_p4_id_t table_id,
+bool pi_p4info_table_is_match_field_of(const pi_p4info_t *p4info,
+                                       pi_p4_id_t table_id,
                                        pi_p4_id_t field_id);
 
-size_t pi_p4info_table_num_actions(pi_p4_id_t table_id);
+size_t pi_p4info_table_num_actions(const pi_p4info_t *p4info,
+                                   pi_p4_id_t table_id);
 
-bool pi_p4info_table_is_action_of(pi_p4_id_t table_id, pi_p4_id_t action_id);
+bool pi_p4info_table_is_action_of(const pi_p4info_t *p4info,
+                                  pi_p4_id_t table_id, pi_p4_id_t action_id);
 
-const pi_p4_id_t *pi_p4info_table_get_actions(pi_p4_id_t table_id,
+const pi_p4_id_t *pi_p4info_table_get_actions(const pi_p4info_t *p4info,
+                                              pi_p4_id_t table_id,
                                               size_t *num_actions);
 
 #endif  // PI_INC_PI_P4INFO_TABLES_H_

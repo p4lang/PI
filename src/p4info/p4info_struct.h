@@ -13,31 +13,16 @@
  * limitations under the License.
  */
 
-#ifndef PI_SRC_PI_INT_H_
-#define PI_SRC_PI_INT_H_
+#ifndef PI_SRC_P4INFO_P4INFO_STRUCT_H_
+#define PI_SRC_P4INFO_P4INFO_STRUCT_H_
 
-#include "PI/pi.h"
+#include <stddef.h>
 
-struct pi_match_key_s {
-  pi_p4_id_t table_id;
-  pi_value_t data[1];
+struct pi_p4info_s {
+  size_t num_actions;
+  struct _action_data_s *actions;
+  size_t num_tables;
+  struct _table_data_s *tables;
 };
 
-struct pi_action_data_s {
-  pi_p4_id_t action_id;
-  pi_value_t data[1];
-};
-
-struct pi_entry_properties_s {
-  uint32_t valid_properties;
-  uint32_t priority;
-  uint32_t ttl;
-};
-
-struct pi_table_retrive_res_s {
-  int dummy;
-};
-
-const pi_p4info_t *pi_get_device_p4info(uint16_t dev_id);
-
-#endif  // PI_SRC_PI_INT_H_
+#endif // PI_SRC_P4INFO_P4INFO_STRUCT_H_

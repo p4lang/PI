@@ -15,17 +15,20 @@
 
 #include "PI/p4info/fields.h"
 
-pi_p4_id_t pi_p4info_field_id_from_name(const char *name) {
-  (void) name;
+pi_p4_id_t pi_p4info_field_id_from_name(const pi_p4info_t *p4info,
+                                        const char *name) {
+  (void) p4info; (void) name;
   return 0;
 }
 
-const char *pi_p4info_field_name_from_id(pi_p4_id_t field_id) {
-  (void) field_id;
+const char *pi_p4info_field_name_from_id(const pi_p4info_t *p4info,
+                                         pi_p4_id_t field_id) {
+  (void) p4info; (void) field_id;
   return NULL;
 }
 
-size_t pi_p4info_field_bitwidth(pi_p4_id_t field_id) {
-  (void) field_id;
+size_t pi_p4info_field_bitwidth(const pi_p4info_t *p4info,
+                                pi_p4_id_t field_id) {
+  (void) p4info; (void) field_id;
   return 0;
 }

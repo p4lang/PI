@@ -17,6 +17,7 @@
 
 #include <stdio.h>
 
-pi_status_t _pi_init(const char *config) {
+pi_status_t _pi_init() {
   printf("_pi_init\n");
+  return PI_STATUS_SUCCESS;
 }

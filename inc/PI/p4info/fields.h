@@ -1,6 +1,6 @@
 /* Copyright 2013-present Barefoot Networks, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
+ * Licensed under the Apache License, Version 2.0 (const pi_p4info_t *p4info, the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -18,10 +18,12 @@
 
 #include "PI/pi_base.h"
 
-pi_p4_id_t pi_p4info_field_id_from_name(const char *name);
+pi_p4_id_t pi_p4info_field_id_from_name(const pi_p4info_t *p4info,
+                                        const char *name);
 
-const char *pi_p4info_field_name_from_id(pi_p4_id_t field_id);
+const char *pi_p4info_field_name_from_id(const pi_p4info_t *p4info,
+                                         pi_p4_id_t field_id);
 
-size_t pi_p4info_field_bitwidth(pi_p4_id_t field_id);
+size_t pi_p4info_field_bitwidth(const pi_p4info_t *p4info, pi_p4_id_t field_id);
 
 #endif  // PI_INC_PI_P4INFO_FIELDS_H_

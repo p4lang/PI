@@ -31,4 +31,6 @@ typedef struct {
   uint16_t dev_pipe_mask;
 } pi_dev_tgt_t;
 
+typedef struct pi_p4info_s pi_p4info_t;
+
 #endif  // PI_INC_PI_PI_BASE_H_

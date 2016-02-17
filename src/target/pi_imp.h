@@ -18,6 +18,6 @@
 
 #include "PI/pi.h"
 
-pi_status_t _pi_init(const char *config);
+pi_status_t _pi_init();
 
 #endif  // PI_SRC_TARGET_PI_IMP_H_

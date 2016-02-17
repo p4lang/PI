@@ -16,6 +16,9 @@
 #include "PI/pi.h"
 
 int main(int argc, char *argv[]) {
-  pi_init("antonin");
+  (void) argc; (void) argv;
+  pi_init();
+  const pi_p4info_t *p4info;
+  pi_add_config("", &p4info);
   return 0;
 }
