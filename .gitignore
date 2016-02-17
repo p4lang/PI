@@ -30,3 +30,27 @@
 
 # Debug files
 *.dSYM/
+
+# Emacs files
+*~
+
+# autotools files
+Makefile
+Makefile.in
+.deps/
+.libs/
+config.*
+configure
+aclocal.m4
+autom4te.cache/
+compile
+depcomp
+install-sh
+libtool
+ltmain.sh
+missing
+stamp-h1
+test-driver
+tests/test-suite.log
+tests/test_*[^c]
+m4/
