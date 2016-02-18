@@ -18,11 +18,16 @@
 
 #include <stddef.h>
 
+#include <Judy.h>
+
 struct pi_p4info_s {
   size_t num_actions;
   struct _action_data_s *actions;
+  Pvoid_t action_name_map;
+
   size_t num_tables;
   struct _table_data_s *tables;
+  Pvoid_t table_name_map;
 };
 
 #endif // PI_SRC_P4INFO_P4INFO_STRUCT_H_

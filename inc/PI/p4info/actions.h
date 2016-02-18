@@ -32,8 +32,10 @@ const pi_p4_id_t *pi_p4info_action_get_params(const pi_p4info_t *p4info,
                                               size_t *num_params);
 
 pi_p4_id_t pi_p4info_action_param_id_from_name(const pi_p4info_t *p4info,
+                                               pi_p4_id_t action_id,
                                                const char *name);
 
+// TODO(antonin): needed?
 bool pi_p4info_action_is_param_of(const pi_p4info_t *p4info,
                                   pi_p4_id_t action_id, pi_p4_id_t param_id);
 

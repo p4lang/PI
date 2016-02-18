@@ -2,12 +2,12 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.68])
-AC_INIT([bm_sim], [0.1], [antonin@barefootnetworks.com])
+AC_INIT([PI], [0.1], [antonin@barefootnetworks.com])
 AM_INIT_AUTOMAKE([foreign subdir-objects])
 AC_CONFIG_HEADERS([config.h])
 
 AC_PROG_CC
-# AC_PROG_CC_C99
+AC_PROG_CC_C99
 # AC_PROG_CC_STDC
 LT_INIT
 
@@ -20,7 +20,7 @@ AC_CHECK_HEADERS([stdlib.h string.h assert.h stdio.h stdint.h stdbool.h\
                   stddef.h],
                  [], [AC_MSG_ERROR([Missing header file])])
 
-AC_CHECK_FUNCS([malloc free assert])
+AC_CHECK_FUNCS([malloc free strcmp strdup])
 
 # Check for libjudy
 AC_CHECK_LIB([Judy], [Judy1Next], [], [AC_MSG_ERROR([Missing libJudy])])
