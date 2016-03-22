@@ -1,3 +1,3 @@
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 
-SUBDIRS = inc src targets tests
+SUBDIRS = third_party inc src targets tests
