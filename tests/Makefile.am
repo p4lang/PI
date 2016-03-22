@@ -1,4 +1,6 @@
-AM_CPPFLAGS = -I$(top_srcdir)/inc/
+AM_CPPFLAGS += \
+-I$(top_srcdir)/inc \
+-DTESTDATADIR=\"$(abs_srcdir)/testdata\"
 
 TESTS = test_temp
 

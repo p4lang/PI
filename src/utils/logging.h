@@ -13,20 +13,14 @@
  * limitations under the License.
  */
 
-#ifndef PI_SRC_P4INFO_ACTIONS_INT_H_
-#define PI_SRC_P4INFO_ACTIONS_INT_H_
+#include <stdio.h>
 
-#include "PI/p4info/actions.h"
+// TODO: temporary placeholder
 
-void pi_p4info_action_init(pi_p4info_t *p4info, size_t num_actions);
-
-void pi_p4info_action_free(pi_p4info_t *p4info);
-
-void pi_p4info_action_add(pi_p4info_t *p4info, pi_p4_id_t action_id,
-                          const char *name, size_t num_params);
-
-void pi_p4info_action_add_param(pi_p4info_t *p4info, pi_p4_id_t action_id,
-                                pi_p4_id_t param_id, const char *name,
-                                size_t bitwidth);
-
-#endif  // PI_SRC_P4INFO_ACTIONS_INT_H_
+#ifdef PI_LOG_ON
+#define PI_LOG_DEBUG printf
+#define PI_LOG_ERROR printf
+#else
+#define PI_LOG_DEBUG
+#define PI_LOG_ERROR
+#endif

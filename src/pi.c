@@ -18,6 +18,7 @@
 #include "p4info/p4info_struct.h"
 #include "p4info/actions_int.h"
 #include "p4info/tables_int.h"
+#include "config_readers/readers.h"
 
 #include <stdlib.h>
 
@@ -33,20 +34,23 @@ pi_status_t pi_init() {
   return _pi_init();
 }
 
-pi_status_t pi_add_config(const char *config, const pi_p4info_t **p4info) {
-  (void) config;
+pi_status_t pi_add_config(const char *config, pi_p4info_t **p4info) {
   pi_p4info_t *p4info_ = malloc(sizeof(pi_p4info_t));
-  size_t num_actions = 9;  // read from JSON
-  pi_p4info_action_init(p4info_, num_actions);
-  size_t num_tables = 9;  // read from JSON
-  pi_p4info_table_init(p4info_, num_tables);
+  pi_bmv2_json_reader(config, p4info_);
   *p4info = p4info_;
   return PI_STATUS_SUCCESS;
 }
 
 pi_status_t pi_add_config_from_file(const char *config_path,
-                                    const pi_p4info_t **p4info) {
+                                      pi_p4info_t **p4info) {
   (void) config_path; (void) p4info;
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_destroy_config(pi_p4info_t *p4info) {
+  pi_p4info_action_free(p4info);
+  pi_p4info_table_free(p4info);
+  free(p4info);
   return PI_STATUS_SUCCESS;
 }
 

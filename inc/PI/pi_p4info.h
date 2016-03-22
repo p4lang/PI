@@ -16,8 +16,8 @@
 #ifndef PI_INC_PI_PI_P4INFO_H_
 #define PI_INC_PI_PI_P4INFO_H_
 
-#include "actions.h"
-#include "fields.h"
-#include "tables.h"
+#include "p4info/actions.h"
+#include "p4info/fields.h"
+#include "p4info/tables.h"
 
 #endif  // PI_INC_PI_PI_P4INFO_H_

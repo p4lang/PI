@@ -20,6 +20,8 @@
 
 void pi_p4info_table_init(pi_p4info_t *p4info, size_t num_tables);
 
+void pi_p4info_table_free(pi_p4info_t *p4info);
+
 void pi_p4info_table_add(pi_p4info_t *p4info, pi_p4_id_t table_id,
                          const char *name, size_t num_match_fields,
                          size_t num_actions);

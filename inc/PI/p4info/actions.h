@@ -18,6 +18,8 @@
 
 #include "PI/pi_base.h"
 
+size_t pi_p4info_action_get_num(const pi_p4info_t *p4info);
+
 pi_p4_id_t pi_p4info_action_id_from_name(const pi_p4info_t *p4info,
                                          const char *name);
 

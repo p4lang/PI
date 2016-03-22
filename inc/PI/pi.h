@@ -21,10 +21,12 @@
 
 pi_status_t pi_init();
 
-pi_status_t pi_add_config(const char *config, const pi_p4info_t **p4info);
+pi_status_t pi_add_config(const char *config, pi_p4info_t **p4info);
 
 pi_status_t pi_add_config_from_file(const char *config_path,
-                                    const pi_p4info_t **p4info);
+                                    pi_p4info_t **p4info);
+
+pi_status_t pi_destroy_config(pi_p4info_t *p4info);
 
 pi_status_t pi_assign_device(uint16_t dev_id, const pi_p4info_t *p4info);
 

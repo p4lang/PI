@@ -47,8 +47,12 @@ typedef struct _table_data_s {
 
 void pi_p4info_table_init(pi_p4info_t *p4info, size_t num_tables) {
   p4info->num_tables = num_tables;
-  p4info->tables = malloc(sizeof(_table_data_t) * num_tables);
+  p4info->tables = calloc(num_tables, sizeof(_table_data_t));
   p4info->table_name_map = (Pvoid_t) NULL;
+}
+
+void pi_p4info_table_free(pi_p4info_t *p4info) {
+  free(p4info->tables);
 }
 
 void pi_p4info_table_add(pi_p4info_t *p4info, pi_p4_id_t table_id,

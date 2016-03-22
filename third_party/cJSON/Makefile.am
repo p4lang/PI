@@ -4,4 +4,6 @@ noinst_LTLIBRARIES = libcjson.la
 
 libcjson_la_SOURCES = src/cJSON.c include/cJSON/cJSON.h
 
-AM_CFLAGS += -I$(srcdir)/include/cJSON
+libcjson_la_LIBADD = -lm
+
+AM_CPPFLAGS = -I$(srcdir)/include/cJSON
