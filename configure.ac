@@ -43,6 +43,7 @@ AC_CONFIG_FILES([Makefile
                  targets/dummy/Makefile
                  tests/Makefile
                  third_party/Makefile
-                 third_party/cJSON/Makefile])
+                 third_party/cJSON/Makefile
+                 third_party/unity/Makefile])
 
 AC_OUTPUT
