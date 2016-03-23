@@ -16,6 +16,8 @@
 #include "PI/pi.h"
 #include "PI/pi_p4info.h"
 
+#include "unity/unity_fixture.h"
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,7 +26,7 @@
 #define TESTDATADIR "testdata"
 #endif
 
-char *read_json(const char *path) {
+static char *read_json(const char *path) {
   char *source = NULL;
   FILE *fp = fopen(path, "r");
   if (fp != NULL) {
@@ -53,14 +55,27 @@ char *read_json(const char *path) {
   return source;
 }
 
-int main(int argc, char *argv[]) {
-  (void) argc; (void) argv;
+TEST_GROUP(SimpleRouter);
+
+TEST_SETUP(SimpleRouter) {
   pi_init();
+}
+
+TEST_TEAR_DOWN(SimpleRouter) { }
+
+TEST(SimpleRouter, Base) {
   pi_p4info_t *p4info;
   char *config = read_json(TESTDATADIR "/" "simple_router.json");
-  assert(pi_add_config(config, &p4info) == PI_STATUS_SUCCESS);
-  assert(pi_p4info_action_get_num(p4info) == 4u);
-  assert(pi_destroy_config(p4info) == PI_STATUS_SUCCESS);
+  TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS, pi_add_config(config, &p4info));
+  TEST_ASSERT_EQUAL_UINT(4u, pi_p4info_action_get_num(p4info));
+  TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS, pi_destroy_config(p4info));
   free(config);
-  return 0;
+}
+
+TEST_GROUP_RUNNER(SimpleRouter) {
+  RUN_TEST_CASE(SimpleRouter, Base);
+}
+
+void test_bmv2_json_reader() {
+  RUN_TEST_GROUP(SimpleRouter);
 }
