@@ -4,4 +4,4 @@ libpi_dummy_la_SOURCES = \
 pi_imp.c \
 pi_tables_imp.c
 
-lib_LTLIBRARIES = libpi_dummy.la
+noinst_LTLIBRARIES = libpi_dummy.la

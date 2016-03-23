@@ -22,7 +22,8 @@
 
 typedef enum {
   PI_STATUS_SUCCESS,
-  PI_STATUS_CONFIG_READER_ERROR
+  PI_STATUS_CONFIG_READER_ERROR,
+  PI_STATUS_BUFFER_ERROR
 } pi_status_t;
 
 typedef uint32_t pi_p4_id_t;

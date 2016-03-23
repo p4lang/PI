@@ -20,7 +20,7 @@ AC_CHECK_HEADERS([stdlib.h string.h assert.h stdio.h stdint.h stdbool.h\
                   stddef.h],
                  [], [AC_MSG_ERROR([Missing header file])])
 
-AC_CHECK_FUNCS([malloc free strcmp strdup calloc])
+AC_CHECK_FUNCS([malloc free strcmp strncmp strdup calloc])
 AC_CHECK_FUNCS([fopen fseek fread fputs])
 
 # Check for libjudy
@@ -32,7 +32,7 @@ AC_TYPE_UINT32_T
 AC_TYPE_UINT64_T
 AC_TYPE_SIZE_T
 
-AC_SUBST([AM_CPPFLAGS], ["-g -O0 -DPI_LOG_ON"])
+AC_SUBST([AM_CPPFLAGS], ["-DPI_LOG_ON"])
 AC_SUBST([AM_CFLAGS], ["-Wall -Werror -Wextra"])
 
 # Generate makefiles

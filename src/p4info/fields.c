@@ -14,21 +14,74 @@
  */
 
 #include "PI/p4info/fields.h"
+#include "p4info/p4info_struct.h"
+
+#include <assert.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct _field_data_s {
+  char *name;
+  pi_p4_id_t field_id;
+  size_t bitwidth;
+} _field_data_t;
+
+static size_t get_field_idx(pi_p4_id_t field_id) {
+  return field_id & 0xFFFF;
+}
+
+static _field_data_t *get_field(const pi_p4info_t *p4info,
+                                pi_p4_id_t field_id) {
+  size_t field_idx = get_field_idx(field_id);
+  assert(field_idx < p4info->num_fields);
+  return &p4info->fields[field_idx];
+}
+
+void pi_p4info_field_init(pi_p4info_t *p4info, size_t num_fields) {
+  p4info->num_fields = num_fields;
+  p4info->fields = calloc(num_fields, sizeof(_field_data_t));
+  p4info->field_name_map = (Pvoid_t) NULL;
+}
+
+void pi_p4info_field_free(pi_p4info_t *p4info) {
+  for (size_t i = 0; i < p4info->num_fields; i++) {
+    _field_data_t *field = &p4info->fields[i];
+    if (!field->name) continue;
+    free(field->name);
+  }
+  free(p4info->fields);
+  Word_t Rc_word;
+  JSLFA(Rc_word, p4info->field_name_map);
+}
+
+void pi_p4info_field_add(pi_p4info_t *p4info, pi_p4_id_t field_id,
+                         const char *name, size_t bitwidth) {
+  _field_data_t *field = get_field(p4info, field_id);
+  field->name = strdup(name);
+  field->field_id = field_id;
+  field->bitwidth = bitwidth;
+
+  Word_t *field_id_ptr;
+  JSLI(field_id_ptr, p4info->field_name_map, (const uint8_t *) field->name);
+  *field_id_ptr = field_id;
+}
 
 pi_p4_id_t pi_p4info_field_id_from_name(const pi_p4info_t *p4info,
                                         const char *name) {
-  (void) p4info; (void) name;
-  return 0;
+  Word_t *field_id_ptr;
+  JSLG(field_id_ptr, p4info->field_name_map, (const uint8_t *) name);
+  assert (field_id_ptr);
+  return *field_id_ptr;
 }
 
 const char *pi_p4info_field_name_from_id(const pi_p4info_t *p4info,
                                          pi_p4_id_t field_id) {
-  (void) p4info; (void) field_id;
-  return NULL;
+  _field_data_t *field = get_field(p4info, field_id);
+  return field->name;
 }
 
 size_t pi_p4info_field_bitwidth(const pi_p4info_t *p4info,
                                 pi_p4_id_t field_id) {
-  (void) p4info; (void) field_id;
-  return 0;
+  _field_data_t *field = get_field(p4info, field_id);
+  return field->bitwidth;
 }

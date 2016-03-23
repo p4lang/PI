@@ -13,25 +13,16 @@
  * limitations under the License.
  */
 
-#ifndef PI_SRC_P4INFO_P4INFO_STRUCT_H_
-#define PI_SRC_P4INFO_P4INFO_STRUCT_H_
+#ifndef PI_SRC_P4INFO_FIELDS_INT_H_
+#define PI_SRC_P4INFO_FIELDS_INT_H_
 
-#include <stddef.h>
+#include "PI/p4info/fields.h"
 
-#include <Judy.h>
+void pi_p4info_field_init(pi_p4info_t *p4info, size_t num_fields);
 
-struct pi_p4info_s {
-  size_t num_actions;
-  struct _action_data_s *actions;
-  Pvoid_t action_name_map;
+void pi_p4info_field_free(pi_p4info_t *p4info);
 
-  size_t num_tables;
-  struct _table_data_s *tables;
-  Pvoid_t table_name_map;
+void pi_p4info_field_add(pi_p4info_t *p4info, pi_p4_id_t field_id,
+                         const char *name, size_t bitwidth);
 
-  size_t num_fields;
-  struct _field_data_s *fields;
-  Pvoid_t field_name_map;
-};
-
-#endif // PI_SRC_P4INFO_P4INFO_STRUCT_H_
+#endif  // PI_SRC_P4INFO_FIELDS_INT_H_

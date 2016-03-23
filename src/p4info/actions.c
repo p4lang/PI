@@ -124,9 +124,6 @@ void pi_p4info_action_add(pi_p4info_t *p4info, pi_p4_id_t action_id,
     action->param_ids.indirect = calloc(num_params, sizeof(pi_p4_id_t));
     action->param_data.indirect =
         calloc(num_params, sizeof(_action_param_data_t));
-  } else {
-    action->param_ids.indirect = NULL;
-    action->param_data.indirect = NULL;
   }
 
   Word_t *action_id_ptr;
@@ -141,6 +138,9 @@ void pi_p4info_action_add_param(pi_p4info_t *p4info, pi_p4_id_t action_id,
   _action_param_data_t *param_data = get_param_data_at(action, param_id);
   param_data->name = strdup(name);
   param_data->bitwidth = bitwidth;
+  size_t param_idx = get_param_idx(param_id);
+  pi_p4_id_t *param_ids = get_param_ids(action);
+  param_ids[param_idx] = param_id;
 }
 
 size_t pi_p4info_action_get_num(const pi_p4info_t *p4info) {
@@ -180,10 +180,4 @@ pi_p4_id_t pi_p4info_action_param_id_from_name(const pi_p4info_t *p4info,
                                                const char *name) {
   _action_data_t *action = get_action(p4info, action_id);
   return get_param_id(action, name);
-}
-
-bool pi_p4info_action_is_param_of(const pi_p4info_t *p4info,
-                                  pi_p4_id_t action_id, pi_p4_id_t param_id) {
-  (void) p4info; (void) action_id; (void) param_id;
-  return true;
 }

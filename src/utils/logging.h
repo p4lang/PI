@@ -13,9 +13,12 @@
  * limitations under the License.
  */
 
-#include <stdio.h>
-
 // TODO: temporary placeholder
+
+#ifndef PI_SRC_UTILS_LOGGING_H_
+#define PI_SRC_UTILS_LOGGING_H_
+
+#include <stdio.h>
 
 #ifdef PI_LOG_ON
 #define PI_LOG_DEBUG printf
@@ -24,3 +27,5 @@
 #define PI_LOG_DEBUG
 #define PI_LOG_ERROR
 #endif
+
+#endif  // PI_SRC_UTILS_LOGGING_H_
