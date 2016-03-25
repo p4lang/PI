@@ -18,14 +18,21 @@
 
 #include "PI/pi.h"
 
+typedef union {
+  char bytes[8];
+  uint64_t v;
+  char *more_bytes;
+} _compact_v_t;
+
 struct pi_match_key_s {
   pi_p4_id_t table_id;
-  pi_value_t data[1];
+  uint32_t nset;
+  _compact_v_t data[];
 };
 
 struct pi_action_data_s {
   pi_p4_id_t action_id;
-  pi_value_t data[1];
+  _compact_v_t data[];
 };
 
 struct pi_entry_properties_s {

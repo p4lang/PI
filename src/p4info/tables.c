@@ -206,6 +206,18 @@ size_t pi_p4info_table_match_field_index(const pi_p4info_t *p4info,
   return (size_t) -1;
 }
 
+void pi_p4info_table_match_field_info(const pi_p4info_t *p4info,
+                                      pi_p4_id_t table_id,
+                                      size_t index,
+                                      pi_p4info_match_field_info_t *info) {
+  _table_data_t *table = get_table(p4info, table_id);
+  _match_field_data_t *data = &get_match_field_data(table)[index];
+  info->name = data->name;
+  info->field_id = data->field_id;
+  info->match_type = data->match_type;
+  info->bitwidth = data->bitwidth;
+}
+
 size_t pi_p4info_table_num_actions(const pi_p4info_t *p4info,
                                    pi_p4_id_t table_id) {
   _table_data_t *table = get_table(p4info, table_id);

@@ -17,13 +17,27 @@ AC_CONFIG_MACRO_DIR([m4])
 AC_LANG_PUSH(C)
 
 AC_CHECK_HEADERS([stdlib.h string.h assert.h stdio.h stdint.h stdbool.h\
-                  stddef.h time.h],
+                  stddef.h time.h arpa/inet.h],
                  [], [AC_MSG_ERROR([Missing header file])])
 
 AC_CHECK_FUNCS([malloc free strcmp strncmp strcpy strncpy strdup calloc \
-                sprintf snprintf printf])
+                sprintf snprintf printf memcpy])
 AC_CHECK_FUNCS([fopen fseek fread fputs])
 AC_CHECK_FUNCS([rand srand time atoi])
+AC_CHECK_FUNCS([ntohs htons ntohl htonl])
+
+# FIXME(antonin): this is gcc specific
+# check for __BYTE_ORDER__
+AC_PREPROC_IFELSE(
+  [AC_LANG_SOURCE([[
+    #ifndef __BYTE_ORDER__
+      #error bad
+    #endif
+    #ifndef __ORDER_BIG_ENDIAN__
+      #error bad
+    #endif]])],
+  [],
+  [AC_MSG_FAILURE([Compiler does not define '__BYTE_ORDER__' preprocessor macro])])
 
 # Check for libjudy
 AC_CHECK_LIB([Judy], [Judy1Next], [], [AC_MSG_ERROR([Missing libJudy])])
@@ -41,6 +55,8 @@ AC_SUBST([AM_CFLAGS], ["-Wall -Werror -Wextra"])
 AC_CONFIG_FILES([Makefile
                  inc/Makefile
                  src/Makefile
+                 src/frontends/Makefile
+                 src/frontends/generic/Makefile
                  targets/Makefile
                  targets/dummy/Makefile
                  tests/Makefile

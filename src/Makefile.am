@@ -1,3 +1,5 @@
+SUBDIRS = frontends
+
 AM_CPPFLAGS += \
 -I$(top_srcdir)/inc \
 -isystem$(top_srcdir)/third_party/cJSON/include

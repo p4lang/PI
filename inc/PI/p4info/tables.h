@@ -27,6 +27,13 @@ typedef enum {
   PI_P4INFO_MATCH_TYPE_END
 } pi_p4info_match_type_t;
 
+typedef struct {
+  const char *name;
+  pi_p4_id_t field_id;
+  pi_p4info_match_type_t match_type;
+  size_t bitwidth;
+} pi_p4info_match_field_info_t;
+
 pi_p4_id_t pi_p4info_table_id_from_name(const pi_p4info_t *p4info,
                                         const char *name);
 
@@ -47,6 +54,11 @@ bool pi_p4info_table_is_match_field_of(const pi_p4info_t *p4info,
 size_t pi_p4info_table_match_field_index(const pi_p4info_t *p4info,
                                          pi_p4_id_t table_id,
                                          pi_p4_id_t field_id);
+
+void pi_p4info_table_match_field_info(const pi_p4info_t *p4info,
+                                      pi_p4_id_t table_id,
+                                      size_t index,
+                                      pi_p4info_match_field_info_t *info);
 
 size_t pi_p4info_table_num_actions(const pi_p4info_t *p4info,
                                    pi_p4_id_t table_id);

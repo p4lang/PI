@@ -21,9 +21,10 @@
 #include <stddef.h>
 
 typedef enum {
-  PI_STATUS_SUCCESS,
+  PI_STATUS_SUCCESS = 0,
   PI_STATUS_CONFIG_READER_ERROR,
-  PI_STATUS_BUFFER_ERROR
+  PI_STATUS_BUFFER_ERROR,
+  PI_STATUS_FVALUE_INVALID_SIZE
 } pi_status_t;
 
 typedef uint32_t pi_p4_id_t;

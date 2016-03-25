@@ -21,6 +21,7 @@
 
 extern void test_bmv2_json_reader();
 extern void test_p4info();
+extern void test_frontends_generic();
 
 static void run() {
 #ifdef TEST_BMV2_JSON_READER
@@ -28,6 +29,9 @@ static void run() {
 #endif
 #ifdef TEST_P4INFO
   test_p4info();
+#endif
+#ifdef TEST_FRONTENDS_GENERIC
+  test_frontends_generic();
 #endif
 }
 

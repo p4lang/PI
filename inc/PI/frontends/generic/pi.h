@@ -17,15 +17,21 @@
 #define PI_INC_PI_FRONTENDS_GENERIC_PI_H_
 
 #include "PI/pi_base.h"
+#include "PI/pi_tables.h"
+
+typedef uint16_t pi_prefix_length_t;
 
 ////////// MATCH KEY //////////
 
-pi_status_t pi_match_key_init(const pi_p4_id_t table_id,
-                              pi_match_key_t **key);
+pi_status_t pi_match_key_allocate(const pi_p4info_t *p4info,
+                                  const pi_p4_id_t table_id,
+                                  pi_match_key_t **key);
 
-pi_status_t pi_match_key_exact_set(pi_match_key_t *key,
-                                   pi_p4_id_t field_id,
-                                   const pi_value_t *value);
+pi_status_t pi_match_key_init(const pi_p4info_t *p4info, pi_match_key_t *key);
+
+pi_status_t pi_match_key_exact_set(const pi_p4info_t *p4info,
+                                   pi_match_key_t *key,
+                                   const pi_fvalue_t *fv);
 
 pi_status_t pi_match_key_lpm_set(pi_match_key_t *key,
                                  pi_p4_id_t field_id,

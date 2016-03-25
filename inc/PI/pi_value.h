@@ -16,7 +16,12 @@
 #ifndef PI_INC_PI_PI_VALUE_H_
 #define PI_INC_PI_PI_VALUE_H_
 
+#include <PI/pi_p4info.h>
+
 #include <assert.h>
+#include <string.h>
+
+#include <arpa/inet.h>
 
 typedef enum {
   PI_VALUE_TYPE_U8 = 0,
@@ -66,6 +71,97 @@ inline void pi_getv_ptr(const char *ptr, uint32_t size, pi_value_t *v) {
   v->type_and_size = ((uint8_t) PI_VALUE_TYPE_PTR) << 24;
   v->type_and_size |= size;
   v->value.ptr = ptr;
+}
+
+// in byte order
+typedef struct {
+  int is_ptr;
+  pi_p4_id_t fid;
+  size_t size;
+  union {
+    char data[8];
+    const char *ptr;
+  } v;
+} pi_fvalue_t;
+
+
+// TODO(antonin): mask extra bits
+inline pi_status_t pi_getfv_u8(const pi_p4info_t *p4info, pi_p4_id_t fid,
+                               uint8_t u8, pi_fvalue_t *fv) {
+  size_t bitwidth = pi_p4info_field_bitwidth(p4info, fid);
+  if (bitwidth > 8) return PI_STATUS_FVALUE_INVALID_SIZE;
+  fv->is_ptr = 0;
+  fv->fid = fid;
+  fv->size = 1;
+  memcpy(&fv->v.data[0], &u8, 1);
+  return PI_STATUS_SUCCESS;
+}
+
+inline pi_status_t pi_getfv_u16(const pi_p4info_t *p4info, pi_p4_id_t fid,
+                                uint16_t u16, pi_fvalue_t *fv) {
+  size_t bitwidth = pi_p4info_field_bitwidth(p4info, fid);
+  if (bitwidth <= 8 || bitwidth > 16) return PI_STATUS_FVALUE_INVALID_SIZE;
+  fv->is_ptr = 0;
+  fv->fid = fid;
+  fv->size = 2;
+  u16 = htons(16);
+  memcpy(&fv->v.data[0], &u16, 2);
+  return PI_STATUS_SUCCESS;
+}
+
+inline pi_status_t pi_getfv_u32(const pi_p4info_t *p4info, pi_p4_id_t fid,
+                                uint32_t u32, pi_fvalue_t *fv) {
+  size_t bitwidth = pi_p4info_field_bitwidth(p4info, fid);
+  if (bitwidth <= 16 || bitwidth > 32) return PI_STATUS_FVALUE_INVALID_SIZE;
+  fv->is_ptr = 0;
+  fv->fid = fid;
+  fv->size = (bitwidth + 7) / 8;
+  u32 = htonl(32);
+  memcpy(&fv->v.data[0], &u32, fv->size);
+  return PI_STATUS_SUCCESS;
+}
+
+inline uint64_t htonll(uint64_t n) {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+  return n;
+#else
+  return (((uint64_t)htonl(n)) << 32) + htonl(n >> 32);
+#endif
+}
+
+inline uint64_t ntohll(uint64_t n) {
+#if __BYTE_ORDER__ == __BIG_ENDIAN__
+  return n;
+#else
+  return (((uint64_t)ntohl(n)) << 32) + ntohl(n >> 32);
+#endif
+}
+
+inline pi_status_t pi_getfv_u64(const pi_p4info_t *p4info, pi_p4_id_t fid,
+                                uint64_t u64, pi_fvalue_t *fv) {
+  size_t bitwidth = pi_p4info_field_bitwidth(p4info, fid);
+  if (bitwidth > 64) return PI_STATUS_FVALUE_INVALID_SIZE;
+  fv->is_ptr = 0;
+  fv->fid = fid;
+  fv->size = 8;
+  u64 = htonll(64);
+  memcpy(&fv->v.data[0], &u64, 8);
+  return PI_STATUS_SUCCESS;
+}
+
+
+// we borrow the pointer, client is still responsible for deleting memory when
+// he is done with the value
+inline pi_status_t pi_getfv_ptr(pi_p4info_t *p4info, pi_p4_id_t fid,
+                                const char *ptr, size_t size,
+                                pi_fvalue_t *fv) {
+  size_t bitwidth = pi_p4info_field_bitwidth(p4info, fid);
+  if ((bitwidth + 7) / 8 != size) return PI_STATUS_FVALUE_INVALID_SIZE;
+  fv->is_ptr = 1;
+  fv->fid = fid;
+  fv->size = size;
+  fv->v.ptr = ptr;
+  return PI_STATUS_SUCCESS;
 }
 
 #endif  // PI_INC_PI_PI_VALUE_H_

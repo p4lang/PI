@@ -161,6 +161,7 @@ char *unity_strdup(const char *s) {
   return new_s;
 }
 
+#undef strdup
 #define strdup unity_strdup
 
 TEST(P4Info, ActionsStress) {
@@ -278,12 +279,11 @@ TEST(P4Info, TablesStress) {
     gen_rand_ids(tdata[i].match_fields, num_fields, tdata[i].num_match_fields);
     for (size_t j = 0; j < tdata[i].num_match_fields; j++) {
       pi_p4_id_t id = tdata[i].match_fields[j];
-      pi_p4info_match_type_t match_type =
-          (pi_p4info_match_type_t) (rand() % PI_P4INFO_MATCH_TYPE_END);
+      pi_p4info_match_type_t match_type = (i + j) % PI_P4INFO_MATCH_TYPE_END;
       snprintf(name, sizeof(name), "f%zu", (size_t) id);
       // name and bw consistent with field initialization above
       pi_p4info_table_add_match_field(p4info, tdata[i].id, id, name, match_type,
-                                      1 + i % 128);
+                                      1 + j % 128);
     }
     gen_rand_ids(tdata[i].actions, num_actions, tdata[i].num_actions);
     for (size_t j = 0; j < tdata[i].num_actions; j++) {
@@ -325,6 +325,17 @@ TEST(P4Info, TablesStress) {
     TEST_ASSERT_EQUAL_UINT(
         (size_t) -1,
         pi_p4info_table_match_field_index(p4info, tdata[i].id, num_fields + 1));
+    for (size_t j = 0; j < tdata[i].num_match_fields; j++) {
+      pi_p4info_match_field_info_t finfo;
+      pi_p4info_table_match_field_info(p4info, tdata[i].id, j, &finfo);
+      TEST_ASSERT_EQUAL_UINT(tdata[i].match_fields[j], finfo.field_id);
+      TEST_ASSERT_EQUAL_STRING(
+          pi_p4info_field_name_from_id(p4info, tdata[i].match_fields[j]),
+          finfo.name);
+      pi_p4info_match_type_t match_type = (i + j) % PI_P4INFO_MATCH_TYPE_END;
+      TEST_ASSERT_EQUAL_INT(match_type, finfo.match_type);
+      TEST_ASSERT_EQUAL_UINT(1 + j % 128, finfo.bitwidth);
+    }
 
     TEST_ASSERT_EQUAL_UINT(tdata[i].num_actions,
                            pi_p4info_table_num_actions(p4info, tdata[i].id));
