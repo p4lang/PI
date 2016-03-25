@@ -44,6 +44,10 @@ bool pi_p4info_table_is_match_field_of(const pi_p4info_t *p4info,
                                        pi_p4_id_t table_id,
                                        pi_p4_id_t field_id);
 
+size_t pi_p4info_table_match_field_index(const pi_p4info_t *p4info,
+                                         pi_p4_id_t table_id,
+                                         pi_p4_id_t field_id);
+
 size_t pi_p4info_table_num_actions(const pi_p4info_t *p4info,
                                    pi_p4_id_t table_id);
 

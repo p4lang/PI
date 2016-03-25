@@ -22,6 +22,7 @@
 #include "unity/unity_fixture.h"
 
 #include <string.h>
+#include <Judy.h>
 
 static pi_p4info_t *p4info;
 
@@ -225,6 +226,22 @@ typedef struct {
   pi_p4_id_t actions[32];
 } tdata_t;
 
+void gen_rand_ids(pi_p4_id_t *ids, pi_p4_id_t max, size_t num) {
+  Pvoid_t set = (Pvoid_t) NULL;
+  for (size_t i = 0; i < num; i++) {
+    int Rc = 1;
+    pi_p4_id_t v;
+    while (Rc) {
+      v = rand() % max;
+      J1T(Rc, set, v);
+    }
+    J1S(Rc, set, v);
+    ids[i] = v;
+  }
+  Word_t Rc_word;
+  J1FA(Rc_word, set);
+}
+
 TEST(P4Info, TablesStress) {
   // tables are more complex than fields & actions, because tables reference
   // actions and fields
@@ -258,9 +275,9 @@ TEST(P4Info, TablesStress) {
     tdata[i].num_actions = rand() % (max_actions + 1);
     pi_p4info_table_add(p4info, tdata[i].id, tdata[i].name,
                         tdata[i].num_match_fields, tdata[i].num_actions);
+    gen_rand_ids(tdata[i].match_fields, num_fields, tdata[i].num_match_fields);
     for (size_t j = 0; j < tdata[i].num_match_fields; j++) {
-      pi_p4_id_t id = rand() % num_fields;
-      tdata[i].match_fields[j] = id;
+      pi_p4_id_t id = tdata[i].match_fields[j];
       pi_p4info_match_type_t match_type =
           (pi_p4info_match_type_t) (rand() % PI_P4INFO_MATCH_TYPE_END);
       snprintf(name, sizeof(name), "f%zu", (size_t) id);
@@ -268,9 +285,9 @@ TEST(P4Info, TablesStress) {
       pi_p4info_table_add_match_field(p4info, tdata[i].id, id, name, match_type,
                                       1 + i % 128);
     }
+    gen_rand_ids(tdata[i].actions, num_actions, tdata[i].num_actions);
     for (size_t j = 0; j < tdata[i].num_actions; j++) {
-      pi_p4_id_t id = rand() % num_actions;
-      tdata[i].actions[j] = id;
+      pi_p4_id_t id = tdata[i].actions[j];
       pi_p4info_table_add_action(p4info, tdata[i].id, id);
     }
   }
@@ -299,6 +316,15 @@ TEST(P4Info, TablesStress) {
     }
     TEST_ASSERT_FALSE(
         pi_p4info_table_is_match_field_of(p4info, tdata[i].id, num_fields + 1));
+    for (size_t j = 0; j < tdata[i].num_match_fields; j++) {
+      TEST_ASSERT_EQUAL_UINT(
+          j,
+          pi_p4info_table_match_field_index(p4info, tdata[i].id,
+                                            tdata[i].match_fields[j]));
+    }
+    TEST_ASSERT_EQUAL_UINT(
+        (size_t) -1,
+        pi_p4info_table_match_field_index(p4info, tdata[i].id, num_fields + 1));
 
     TEST_ASSERT_EQUAL_UINT(tdata[i].num_actions,
                            pi_p4info_table_num_actions(p4info, tdata[i].id));

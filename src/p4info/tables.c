@@ -196,6 +196,16 @@ bool pi_p4info_table_is_match_field_of(const pi_p4info_t *p4info,
   return false;
 }
 
+size_t pi_p4info_table_match_field_index(const pi_p4info_t *p4info,
+                                         pi_p4_id_t table_id,
+                                         pi_p4_id_t field_id) {
+  _table_data_t *table = get_table(p4info, table_id);
+  pi_p4_id_t *ids = get_match_field_ids(table);
+  for (size_t i = 0; i < table->num_match_fields; i++)
+    if (ids[i] == field_id) return i;
+  return (size_t) -1;
+}
+
 size_t pi_p4info_table_num_actions(const pi_p4info_t *p4info,
                                    pi_p4_id_t table_id) {
   _table_data_t *table = get_table(p4info, table_id);
