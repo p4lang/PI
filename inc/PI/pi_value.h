@@ -16,17 +16,18 @@
 #ifndef PI_INC_PI_PI_VALUE_H_
 #define PI_INC_PI_PI_VALUE_H_
 
+#include <assert.h>
+
 typedef enum {
-  PI_VALUE_TYPE_U8,
+  PI_VALUE_TYPE_U8 = 0,
   PI_VALUE_TYPE_U16,
   PI_VALUE_TYPE_U32,
   PI_VALUE_TYPE_U64,
-  PI_VALUE_TYPE_UPTR,
+  PI_VALUE_TYPE_PTR,
 } pi_value_type_t;
 
 /* 64 bit option can be disabled for 32-bit architecture */
 /* implementation can be hidden from user */
-/* integers in this struct are stored in network-byte order */
 typedef struct {
   uint32_t type_and_size;  // first byte is type, rest is size
   union {
@@ -34,17 +35,37 @@ typedef struct {
     uint16_t u16;
     uint32_t u32;
     uint64_t u64;
-    char *ptr;
+    const char *ptr;
   } value;
 } pi_value_t;
 
-void pi_build_value_u8(const uint8_t u8, pi_value_t *value);
-void pi_build_value_u16(const uint16_t u16, pi_value_t *value);
-void pi_build_value_u32(const uint32_t u32, pi_value_t *value);
-void pi_build_value_u64(const uint64_t u64, pi_value_t *value);
+inline void pi_getv_u8(const uint8_t u8, pi_value_t *v) {
+  v->type_and_size = ((uint8_t) PI_VALUE_TYPE_U8) << 24;
+  v->value.u8 = u8;
+}
+
+inline void pi_getv_u16(const uint16_t u16, pi_value_t *v) {
+  v->type_and_size = ((uint8_t) PI_VALUE_TYPE_U16) << 24;
+  v->value.u16 = u16;
+}
+
+inline void pi_getv_u32(const uint32_t u32, pi_value_t *v) {
+  v->type_and_size = ((uint8_t) PI_VALUE_TYPE_U32) << 24;
+  v->value.u32 = u32;
+}
+
+inline void pi_getv_u64(const uint64_t u64, pi_value_t *v) {
+  v->type_and_size = ((uint8_t) PI_VALUE_TYPE_U64) << 24;
+  v->value.u64 = u64;
+}
 
 // we borrow the pointer, client is still responsible for deleting memory when
 // he is done with the value
-void pi_build_value_ptr(const char *ptr, uint32_t size, pi_value_t *value);
+inline void pi_getv_ptr(const char *ptr, uint32_t size, pi_value_t *v) {
+  assert(size < (1 << 24));
+  v->type_and_size = ((uint8_t) PI_VALUE_TYPE_PTR) << 24;
+  v->type_and_size |= size;
+  v->value.ptr = ptr;
+}
 
 #endif  // PI_INC_PI_PI_VALUE_H_
