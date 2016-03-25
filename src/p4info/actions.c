@@ -181,3 +181,17 @@ pi_p4_id_t pi_p4info_action_param_id_from_name(const pi_p4info_t *p4info,
   _action_data_t *action = get_action(p4info, action_id);
   return get_param_id(action, name);
 }
+
+const char *pi_p4info_action_param_name_from_id(const pi_p4info_t *p4info,
+                                                pi_p4_id_t action_id,
+                                                pi_p4_id_t param_id) {
+  _action_data_t *action = get_action(p4info, action_id);
+  return get_param_data_at(action, param_id)->name;
+}
+
+size_t pi_p4info_action_param_bitwidth(const pi_p4info_t *p4info,
+                                       pi_p4_id_t action_id,
+                                       pi_p4_id_t param_id) {
+  _action_data_t *action = get_action(p4info, action_id);
+  return get_param_data_at(action, param_id)->bitwidth;
+}

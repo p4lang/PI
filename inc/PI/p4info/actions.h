@@ -29,6 +29,8 @@ const char *pi_p4info_action_name_from_id(const pi_p4info_t *p4info,
 size_t pi_p4info_action_num_params(const pi_p4info_t *p4info,
                                    pi_p4_id_t action_id);
 
+// really useful, given the (not yet documented) constraint that param ids are
+// 0 -> (num_params -1)
 const pi_p4_id_t *pi_p4info_action_get_params(const pi_p4info_t *p4info,
                                               pi_p4_id_t action_id,
                                               size_t *num_params);
@@ -36,5 +38,13 @@ const pi_p4_id_t *pi_p4info_action_get_params(const pi_p4info_t *p4info,
 pi_p4_id_t pi_p4info_action_param_id_from_name(const pi_p4info_t *p4info,
                                                pi_p4_id_t action_id,
                                                const char *name);
+
+const char *pi_p4info_action_param_name_from_id(const pi_p4info_t *p4info,
+                                                pi_p4_id_t action_id,
+                                                pi_p4_id_t param_id);
+
+size_t pi_p4info_action_param_bitwidth(const pi_p4info_t *p4info,
+                                       pi_p4_id_t action_id,
+                                       pi_p4_id_t param_id);
 
 #endif  // PI_INC_PI_P4INFO_ACTIONS_H_

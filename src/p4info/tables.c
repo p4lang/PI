@@ -73,7 +73,7 @@ static _match_field_data_t *get_match_field_data(_table_data_t *table) {
 }
 
 static pi_p4_id_t *get_action_ids(_table_data_t *table) {
-  return (table->num_match_fields <= INLINE_ACTIONS) ?
+  return (table->num_actions <= INLINE_ACTIONS) ?
       table->action_ids.direct : table->action_ids.indirect;
 }
 
@@ -146,16 +146,16 @@ void pi_p4info_table_add_match_field(pi_p4info_t *p4info, pi_p4_id_t table_id,
   match_field->field_id = field_id;
   match_field->match_type = match_type;
   match_field->bitwidth = bitwidth;
-  get_match_field_ids(table)[table->num_match_fields] = field_id;
-  table->num_match_fields++;
+  get_match_field_ids(table)[table->match_fields_added] = field_id;
+  table->match_fields_added++;
 }
 
 void pi_p4info_table_add_action(pi_p4info_t *p4info, pi_p4_id_t table_id,
                                 pi_p4_id_t action_id) {
   _table_data_t *table = get_table(p4info, table_id);
   assert(table->actions_added < table->num_actions);
-  get_action_ids(table)[table->num_actions] = action_id;
-  table->num_actions++;
+  get_action_ids(table)[table->actions_added] = action_id;
+  table->actions_added++;
 }
 
 pi_p4_id_t pi_p4info_table_id_from_name(const pi_p4info_t *p4info,

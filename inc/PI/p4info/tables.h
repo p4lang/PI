@@ -19,11 +19,12 @@
 #include "PI/pi_base.h"
 
 typedef enum {
-  PI_P4INFO_MATCH_TYPE_VALID,
+  PI_P4INFO_MATCH_TYPE_VALID = 0,
   PI_P4INFO_MATCH_TYPE_EXACT,
   PI_P4INFO_MATCH_TYPE_LPM,
   PI_P4INFO_MATCH_TYPE_TERNARY,
-  PI_P4INFO_MATCH_TYPE_RANGE
+  PI_P4INFO_MATCH_TYPE_RANGE,
+  PI_P4INFO_MATCH_TYPE_END
 } pi_p4info_match_type_t;
 
 pi_p4_id_t pi_p4info_table_id_from_name(const pi_p4info_t *p4info,

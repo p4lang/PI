@@ -17,11 +17,13 @@ AC_CONFIG_MACRO_DIR([m4])
 AC_LANG_PUSH(C)
 
 AC_CHECK_HEADERS([stdlib.h string.h assert.h stdio.h stdint.h stdbool.h\
-                  stddef.h],
+                  stddef.h time.h],
                  [], [AC_MSG_ERROR([Missing header file])])
 
-AC_CHECK_FUNCS([malloc free strcmp strncmp strdup calloc])
+AC_CHECK_FUNCS([malloc free strcmp strncmp strcpy strncpy strdup calloc \
+                sprintf snprintf printf])
 AC_CHECK_FUNCS([fopen fseek fread fputs])
+AC_CHECK_FUNCS([rand srand time atoi])
 
 # Check for libjudy
 AC_CHECK_LIB([Judy], [Judy1Next], [], [AC_MSG_ERROR([Missing libJudy])])
