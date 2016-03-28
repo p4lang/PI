@@ -26,4 +26,6 @@ const char *pi_p4info_field_name_from_id(const pi_p4info_t *p4info,
 
 size_t pi_p4info_field_bitwidth(const pi_p4info_t *p4info, pi_p4_id_t field_id);
 
+char pi_p4info_field_byte0_mask(const pi_p4info_t *p4info, pi_p4_id_t field_id);
+
 #endif  // PI_INC_PI_P4INFO_FIELDS_H_

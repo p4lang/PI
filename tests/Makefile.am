@@ -6,6 +6,7 @@ AM_CPPFLAGS += \
 
 TESTS = \
 test_bmv2_json_reader \
+test_getfv \
 test_p4info \
 test_frontends_generic
 
@@ -13,6 +14,9 @@ common_source = main.c
 
 test_bmv2_json_reader_SOURCES = $(common_source) test_bmv2_json_reader.c
 test_bmv2_json_reader_CPPFLAGS = $(AM_CPPFLAGS) -DTEST_BMV2_JSON_READER
+
+test_getfv_SOURCES = $(common_source) test_getfv.c
+test_getfv_CPPFLAGS = $(AM_CPPFLAGS) -DTEST_GETFV
 
 test_p4info_SOURCES = $(common_source) test_p4info.c
 test_p4info_CPPFLAGS = $(AM_CPPFLAGS) -DTEST_P4INFO
@@ -22,10 +26,12 @@ test_frontends_generic_CPPFLAGS = $(AM_CPPFLAGS) -DTEST_FRONTENDS_GENERIC
 
 test_all_SOURCES = $(common_source) \
 test_bmv2_json_reader.c \
+test_getfv.c \
 test_p4info.c \
 frontends/generic/test.c
 test_all_CPPFLAGS = $(AM_CPPFLAGS) \
 -DTEST_BMV2_JSON_READER \
+-DTEST_GETFV \
 -DTEST_P4INFO \
 -DTEST_FRONTENDS_GENERIC
 
@@ -39,6 +45,7 @@ $(top_builddir)/third_party/unity/libunity.la
 
 check_PROGRAMS = \
 test_bmv2_json_reader \
+test_getfv \
 test_p4info \
 test_frontends_generic \
 test_all

@@ -64,6 +64,35 @@ TEST(P4Info, Fields) {
   pi_p4info_field_free(p4info);
 }
 
+TEST(P4Info, FieldsByte0Mask) {
+  const size_t num_fields = 128;
+
+  pi_p4info_field_init(p4info, num_fields);
+
+  for (size_t i = 0; i < num_fields; i++) {
+    char name[16];
+    snprintf(name, sizeof(name), "f%zu", i);
+    pi_p4info_field_add(p4info, i, name, i + 1);
+  }
+
+  TEST_ASSERT_EQUAL_HEX8(0x01, pi_p4info_field_byte0_mask(p4info, 0));
+  TEST_ASSERT_EQUAL_HEX8(0x03, pi_p4info_field_byte0_mask(p4info, 1));
+  TEST_ASSERT_EQUAL_HEX8(0x07, pi_p4info_field_byte0_mask(p4info, 2));
+  TEST_ASSERT_EQUAL_HEX8(0x0f, pi_p4info_field_byte0_mask(p4info, 3));
+  TEST_ASSERT_EQUAL_HEX8(0x1f, pi_p4info_field_byte0_mask(p4info, 4));
+  TEST_ASSERT_EQUAL_HEX8(0x3f, pi_p4info_field_byte0_mask(p4info, 5));
+  TEST_ASSERT_EQUAL_HEX8(0x7f, pi_p4info_field_byte0_mask(p4info, 6));
+  TEST_ASSERT_EQUAL_HEX8(0xff, pi_p4info_field_byte0_mask(p4info, 7));
+  for (size_t i = 8; i < num_fields; i++) {
+    char mask;
+    size_t bitwidth = i + 1;
+    mask = (bitwidth % 8 == 0) ? 0xff : ((1 << (bitwidth % 8)) - 1);
+    TEST_ASSERT_EQUAL_HEX8(mask, pi_p4info_field_byte0_mask(p4info, i));
+  }
+
+  pi_p4info_field_free(p4info);
+}
+
 TEST(P4Info, FieldsStress) {
   const size_t num_fields = 4096;
 
@@ -361,6 +390,7 @@ TEST(P4Info, TablesStress) {
 
 TEST_GROUP_RUNNER(P4Info) {
   RUN_TEST_CASE(P4Info, Fields);
+  RUN_TEST_CASE(P4Info, FieldsByte0Mask);
   RUN_TEST_CASE(P4Info, FieldsStress);
   RUN_TEST_CASE(P4Info, Actions);
   RUN_TEST_CASE(P4Info, ActionsStress);

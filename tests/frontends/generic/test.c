@@ -73,20 +73,14 @@ TEST(FrontendGeneric_OneExact, U8) {
       pi_match_key_init(p4info, mkey);
       rc = pi_getfv_u8(p4info, 0, test_v, &fv);
       TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
-      // TODO(antonin): pi_getfv_* should have its own tests
-      TEST_ASSERT_FALSE(fv.is_ptr);
-      TEST_ASSERT_EQUAL_UINT(0, fv.fid);
-      TEST_ASSERT_EQUAL_UINT(1, fv.size);
-      char expected_data[1];
-      expected_data[0] = test_v;
-      TEST_ASSERT_EQUAL_MEMORY(&expected_data[0], fv.v.data,
-                               sizeof(expected_data));
       rc = pi_match_key_exact_set(p4info, mkey, &fv);
       TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
       TEST_ASSERT_EQUAL_UINT(0, mkey->table_id);
       TEST_ASSERT_EQUAL_UINT(1, mkey->nset);
       _compact_v_t *cv = &mkey->data[0];
-      TEST_ASSERT_EQUAL_MEMORY(&expected_data[0], cv->bytes,
+      char expected_data[1];
+      expected_data[0] = test_v;
+      TEST_ASSERT_EQUAL_MEMORY(&expected_data, cv->bytes,
                                sizeof(expected_data));
     }
     p4info_destroy();
@@ -95,8 +89,8 @@ TEST(FrontendGeneric_OneExact, U8) {
 
 TEST(FrontendGeneric_OneExact, U128) {
   pi_status_t rc;
-  size_t bitwidth = 128;
   char test_v[16];
+  size_t bitwidth = 8 * sizeof(test_v);
   for (size_t i = 0; i < sizeof(test_v); i++)
     test_v[i] = rand() % 256;
   pi_fvalue_t fv;

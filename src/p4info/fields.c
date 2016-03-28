@@ -24,6 +24,7 @@ typedef struct _field_data_s {
   char *name;
   pi_p4_id_t field_id;
   size_t bitwidth;
+  char byte0_mask;
 } _field_data_t;
 
 static size_t get_field_idx(pi_p4_id_t field_id) {
@@ -54,12 +55,19 @@ void pi_p4info_field_free(pi_p4info_t *p4info) {
   JSLFA(Rc_word, p4info->field_name_map);
 }
 
+static char get_byte0_mask(size_t bitwidth) {
+  if (bitwidth % 8 == 0) return 0xff;
+  int nbits = bitwidth % 8;
+  return ((1 << nbits) - 1);
+}
+
 void pi_p4info_field_add(pi_p4info_t *p4info, pi_p4_id_t field_id,
                          const char *name, size_t bitwidth) {
   _field_data_t *field = get_field(p4info, field_id);
   field->name = strdup(name);
   field->field_id = field_id;
   field->bitwidth = bitwidth;
+  field->byte0_mask = get_byte0_mask(bitwidth);
 
   Word_t *field_id_ptr;
   JSLI(field_id_ptr, p4info->field_name_map, (const uint8_t *) field->name);
@@ -84,4 +92,10 @@ size_t pi_p4info_field_bitwidth(const pi_p4info_t *p4info,
                                 pi_p4_id_t field_id) {
   _field_data_t *field = get_field(p4info, field_id);
   return field->bitwidth;
+}
+
+char pi_p4info_field_byte0_mask(const pi_p4info_t *p4info,
+                                pi_p4_id_t field_id) {
+  _field_data_t *field = get_field(p4info, field_id);
+  return field->byte0_mask;
 }
