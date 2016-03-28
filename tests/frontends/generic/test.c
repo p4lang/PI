@@ -112,6 +112,92 @@ TEST_GROUP_RUNNER(FrontendGeneric_OneExact) {
   RUN_TEST_CASE(FrontendGeneric_OneExact, U128);
 }
 
+
+TEST_GROUP(FrontendGeneric_OneLPM);
+
+TEST_SETUP(FrontendGeneric_OneLPM) {
+  p4info = calloc(1, sizeof(pi_p4info_t));
+  num_fields = 1; num_actions = 1; num_tables = 1;
+}
+
+TEST_TEAR_DOWN(FrontendGeneric_OneLPM) {
+  free(p4info);
+}
+
+TEST(FrontendGeneric_OneLPM, U8) {
+  pi_status_t rc;
+  size_t bitwidth = 7;
+  pi_prefix_length_t prefix_length = 5;
+  p4info_init(bitwidth);
+  uint8_t test_v = 0x5b;
+  pi_fvalue_t fv;
+  pi_match_key_init(p4info, mkey);
+  rc = pi_getfv_u8(p4info, 0, test_v, &fv);
+  TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
+  rc = pi_match_key_lpm_set(p4info, mkey, &fv, prefix_length);
+  TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
+  TEST_ASSERT_EQUAL_UINT(0, mkey->table_id);
+  TEST_ASSERT_EQUAL_UINT(1, mkey->nset);
+  _compact_v_t *cv = &mkey->data[0];
+  char expected_data[1];
+  expected_data[0] = test_v;
+  TEST_ASSERT_EQUAL_MEMORY(&expected_data, cv->bytes,
+                           sizeof(expected_data));
+  cv = &mkey->data[1];
+  TEST_ASSERT_EQUAL_UINT64(prefix_length, cv->v);
+  p4info_destroy();
+}
+
+TEST_GROUP_RUNNER(FrontendGeneric_OneLPM) {
+  RUN_TEST_CASE(FrontendGeneric_OneLPM, U8);
+}
+
+
+TEST_GROUP(FrontendGeneric_OneTernary);
+
+TEST_SETUP(FrontendGeneric_OneTernary) {
+  p4info = calloc(1, sizeof(pi_p4info_t));
+  num_fields = 1; num_actions = 1; num_tables = 1;
+}
+
+TEST_TEAR_DOWN(FrontendGeneric_OneTernary) {
+  free(p4info);
+}
+
+TEST(FrontendGeneric_OneTernary, U8) {
+  pi_status_t rc;
+  size_t bitwidth = 7;
+  p4info_init(bitwidth);
+  uint8_t test_v = 0x5b;
+  uint8_t test_mask = 0x72;
+  pi_fvalue_t fv, mask;
+  pi_match_key_init(p4info, mkey);
+  rc = pi_getfv_u8(p4info, 0, test_v, &fv);
+  TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
+  rc = pi_getfv_u8(p4info, 0, test_mask, &mask);
+  TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
+  rc = pi_match_key_ternary_set(p4info, mkey, &fv, &mask);
+  TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
+  TEST_ASSERT_EQUAL_UINT(0, mkey->table_id);
+  TEST_ASSERT_EQUAL_UINT(1, mkey->nset);
+  _compact_v_t *cv = &mkey->data[0];
+  char expected_data[1];
+  expected_data[0] = test_v;
+  TEST_ASSERT_EQUAL_MEMORY(&expected_data, cv->bytes,
+                           sizeof(expected_data));
+  cv = &mkey->data[1];
+  expected_data[0] = test_mask;
+  TEST_ASSERT_EQUAL_MEMORY(&expected_data, cv->bytes,
+                           sizeof(expected_data));
+  p4info_destroy();
+}
+
+TEST_GROUP_RUNNER(FrontendGeneric_OneTernary) {
+  RUN_TEST_CASE(FrontendGeneric_OneTernary, U8);
+}
+
 void test_frontends_generic() {
   RUN_TEST_GROUP(FrontendGeneric_OneExact);
+  RUN_TEST_GROUP(FrontendGeneric_OneLPM);
+  RUN_TEST_GROUP(FrontendGeneric_OneTernary);
 }

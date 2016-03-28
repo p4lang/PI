@@ -33,20 +33,20 @@ pi_status_t pi_match_key_exact_set(const pi_p4info_t *p4info,
                                    pi_match_key_t *key,
                                    const pi_fvalue_t *fv);
 
-pi_status_t pi_match_key_lpm_set(pi_match_key_t *key,
-                                 pi_p4_id_t field_id,
-                                 const pi_value_t *value,
+pi_status_t pi_match_key_lpm_set(const pi_p4info_t *p4info,
+                                 pi_match_key_t *key,
+                                 const pi_fvalue_t *fv,
                                  const pi_prefix_length_t prefix_length);
 
-pi_status_t pi_match_key_ternary_set(pi_match_key_t *key,
-                                     pi_p4_id_t field_id,
-                                     const pi_value_t *value,
-                                     const pi_value_t *mask);
+pi_status_t pi_match_key_ternary_set(const pi_p4info_t *p4info,
+                                     pi_match_key_t *key,
+                                     const pi_fvalue_t *fv,
+                                     const pi_fvalue_t *mask);
 
-pi_status_t pi_match_key_range_set(pi_match_key_t *key,
-                                   pi_p4_id_t field_id,
-                                   const pi_value_t *start,
-                                   const pi_value_t *end);
+pi_status_t pi_match_key_range_set(const pi_p4info_t *p4info,
+                                   pi_match_key_t *key,
+                                   const pi_fvalue_t *start,
+                                   const pi_fvalue_t *end);
 
 pi_status_t pi_match_key_destroy(pi_match_key_t *key);
 

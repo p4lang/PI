@@ -37,7 +37,8 @@ pi_status_t pi_match_key_allocate(const pi_p4info_t *p4info,
                                   pi_match_key_t **key) {
   size_t s = sizeof(pi_match_key_t);
   size_t num_match_fields = pi_p4info_table_num_match_fields(p4info, table_id);
-  s += num_match_fields * sizeof(_compact_v_t);
+  // 2 compact blobs per field to accomodate all match types
+  s += 2 * num_match_fields * sizeof(_compact_v_t);
   size_t data_offset = s;
   for (size_t i = 0; i < num_match_fields; i++) {
     pi_p4info_match_field_info_t finfo;
@@ -81,14 +82,9 @@ pi_status_t pi_match_key_init(const pi_p4info_t *p4info, pi_match_key_t *key) {
 
 #define SIZEOF_DST_ARR sizeof(((_compact_v_t *) 0)->bytes)
 
-pi_status_t pi_match_key_exact_set(const pi_p4info_t *p4info,
-                                   pi_match_key_t *key,
-                                   const pi_fvalue_t *fv) {
+static void dump_fv(pi_match_key_t *key, size_t index,
+                    const pi_fvalue_t *fv) {
   _fe_prefix_t *prefix = get_prefix(key);
-  check_prefix(prefix);
-  size_t index = pi_p4info_table_match_field_index(p4info, key->table_id,
-                                                   fv->fid);
-  int is_set = prefix->fset & ((uint64_t) 1 << index);
   const char *src = fv->is_ptr ? fv->v.ptr : &fv->v.data[0];
   char *dst;
   if (fv->size <= SIZEOF_DST_ARR) {
@@ -99,25 +95,74 @@ pi_status_t pi_match_key_exact_set(const pi_p4info_t *p4info,
     dst = key->data[index].more_bytes;
   }
   memcpy(dst, src, fv->size);
-  if (!is_set) key->nset++;
-  prefix->fset |= ((uint64_t) 1 << index);
+}
+
+static int is_set(const _fe_prefix_t *prefix, size_t index) {
+  return prefix->fset & ((uint64_t) 1 << index);
+}
+
+static void update_fset(pi_match_key_t *key, size_t index) {
+  _fe_prefix_t *prefix = get_prefix(key);
+  if(!is_set(prefix, index)) {
+    key->nset++;
+    prefix->fset |= ((uint64_t) 1 << index);
+  }
+}
+
+pi_status_t pi_match_key_exact_set(const pi_p4info_t *p4info,
+                                   pi_match_key_t *key,
+                                   const pi_fvalue_t *fv) {
+  size_t f_index = pi_p4info_table_match_field_index(p4info, key->table_id,
+                                                     fv->fid);
+  size_t index = f_index * 2;
+  dump_fv(key, index, fv);
+  update_fset(key, index);
   return PI_STATUS_SUCCESS;
 }
 
-/* pi_status_t pi_match_key_lpm_set(pi_match_key_t *key, */
-/*                                  pi_p4_id_t field_id, */
-/*                                  const pi_value_t *value, */
-/*                                  const pi_prefix_length_t prefix_length); */
+pi_status_t pi_match_key_lpm_set(const pi_p4info_t *p4info,
+                                 pi_match_key_t *key,
+                                 const pi_fvalue_t *fv,
+                                 const pi_prefix_length_t prefix_length) {
+  size_t f_index = pi_p4info_table_match_field_index(p4info, key->table_id,
+                                                     fv->fid);
+  size_t index = f_index * 2;
+  dump_fv(key, index, fv);
+  index += 1;
+  key->data[index].v = prefix_length;
+  update_fset(key, index);
+  return PI_STATUS_SUCCESS;
+}
 
-/* pi_status_t pi_match_key_ternary_set(pi_match_key_t *key, */
-/*                                      pi_p4_id_t field_id, */
-/*                                      const pi_value_t *value, */
-/*                                      const pi_value_t *mask); */
+pi_status_t pi_match_key_ternary_set(const pi_p4info_t *p4info,
+                                     pi_match_key_t *key,
+                                     const pi_fvalue_t *fv,
+                                     const pi_fvalue_t *mask) {
+  assert(fv->fid == mask->fid);
+  size_t f_index = pi_p4info_table_match_field_index(p4info, key->table_id,
+                                                     fv->fid);
+  size_t index = f_index * 2;
+  dump_fv(key, index, fv);
+  index += 1;
+  dump_fv(key, index, mask);
+  update_fset(key, index);
+  return PI_STATUS_SUCCESS;
+}
 
-/* pi_status_t pi_match_key_range_set(pi_match_key_t *key, */
-/*                                    pi_p4_id_t field_id, */
-/*                                    const pi_value_t *start, */
-/*                                    const pi_value_t *end); */
+pi_status_t pi_match_key_range_set(const pi_p4info_t *p4info,
+                                   pi_match_key_t *key,
+                                   const pi_fvalue_t *start,
+                                   const pi_fvalue_t *end) {
+  assert(start->fid == end->fid);
+  size_t f_index = pi_p4info_table_match_field_index(p4info, key->table_id,
+                                                     start->fid);
+  size_t index = f_index * 2;
+  dump_fv(key, index, start);
+  index += 1;
+  dump_fv(key, index, end);
+  update_fset(key, index);
+  return PI_STATUS_SUCCESS;
+}
 
 pi_status_t pi_match_key_destroy(pi_match_key_t *key) {
   _fe_prefix_t *prefix = get_prefix(key);
