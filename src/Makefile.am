@@ -16,10 +16,12 @@ libpi_la_SOURCES = \
 pi.c \
 pi_int.h \
 pi_tables.c \
+pi_value.c \
 config_readers/bmv2_json_reader.c \
 config_readers/readers.h \
 target/pi_imp.h \
-target/pi_tables_imp.h
+target/pi_tables_imp.h \
+utils/utils.h
 
 libpi_la_LIBADD = \
 $(top_srcdir)/third_party/cJSON/libcjson.la \

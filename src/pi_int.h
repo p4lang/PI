@@ -56,6 +56,7 @@ struct pi_match_key_s {
 
 struct pi_action_data_s {
   pi_p4_id_t action_id;
+  uint32_t nset;
   _compact_v_t data[];
 };
 
@@ -65,7 +66,7 @@ struct pi_entry_properties_s {
   uint32_t ttl;
 };
 
-struct pi_table_retrive_res_s {
+struct pi_table_retrieve_res_s {
   int dummy;
 };
 

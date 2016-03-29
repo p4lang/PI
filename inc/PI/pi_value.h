@@ -19,9 +19,6 @@
 #include <PI/pi_p4info.h>
 
 #include <assert.h>
-#include <string.h>
-
-#include <arpa/inet.h>
 
 typedef enum {
   PI_VALUE_TYPE_U8 = 0,
@@ -76,108 +73,32 @@ inline void pi_getv_ptr(const char *ptr, uint32_t size, pi_value_t *v) {
 // in byte order
 typedef struct {
   int is_ptr;
-  pi_p4_id_t fid;
+  pi_p4_id_t obj_id;
   size_t size;
   union {
     char data[8];
     const char *ptr;
   } v;
-} pi_fvalue_t;
+} pi_netv_t;
 
+pi_status_t pi_getnetv_u8(const pi_p4info_t *p4info, pi_p4_id_t obj_id,
+                          uint8_t u8, pi_netv_t *fv);
 
-// we are masking the extra bits in the first byte
-inline pi_status_t pi_getfv_u8(const pi_p4info_t *p4info, pi_p4_id_t fid,
-                               uint8_t u8, pi_fvalue_t *fv) {
-  size_t bitwidth = pi_p4info_field_bitwidth(p4info, fid);
-  char byte0_mask = pi_p4info_field_byte0_mask(p4info, fid);
-  if (bitwidth > 8) return PI_STATUS_FVALUE_INVALID_SIZE;
-  fv->is_ptr = 0;
-  fv->fid = fid;
-  fv->size = 1;
-  u8 &= byte0_mask;
-  memcpy(&fv->v.data[0], &u8, 1);
-  return PI_STATUS_SUCCESS;
-}
+pi_status_t pi_getnetv_u16(const pi_p4info_t *p4info, pi_p4_id_t obj_id,
+                           uint16_t u16, pi_netv_t *fv);
 
-inline pi_status_t pi_getfv_u16(const pi_p4info_t *p4info, pi_p4_id_t fid,
-                                uint16_t u16, pi_fvalue_t *fv) {
-  size_t bitwidth = pi_p4info_field_bitwidth(p4info, fid);
-  char byte0_mask = pi_p4info_field_byte0_mask(p4info, fid);
-  if (bitwidth <= 8 || bitwidth > 16) return PI_STATUS_FVALUE_INVALID_SIZE;
-  fv->is_ptr = 0;
-  fv->fid = fid;
-  fv->size = 2;
-  u16 = htons(u16);
-  char *data = (char *) &u16;
-  data[0] &= byte0_mask;
-  memcpy(&fv->v.data[0], data, 2);
-  return PI_STATUS_SUCCESS;
-}
+pi_status_t pi_getnetv_u32(const pi_p4info_t *p4info, pi_p4_id_t obj_id,
+                           uint32_t u32, pi_netv_t *fv);
 
-inline pi_status_t pi_getfv_u32(const pi_p4info_t *p4info, pi_p4_id_t fid,
-                                uint32_t u32, pi_fvalue_t *fv) {
-  size_t bitwidth = pi_p4info_field_bitwidth(p4info, fid);
-  char byte0_mask = pi_p4info_field_byte0_mask(p4info, fid);
-  if (bitwidth <= 16 || bitwidth > 32) return PI_STATUS_FVALUE_INVALID_SIZE;
-  fv->is_ptr = 0;
-  fv->fid = fid;
-  fv->size = (bitwidth + 7) / 8;
-  u32 = htonl(u32);
-  char *data = (char *) &u32;
-  data += (4 - fv->size);
-  data[0] &= byte0_mask;
-  memcpy(&fv->v.data[0], data, fv->size);
-  return PI_STATUS_SUCCESS;
-}
-
-inline uint64_t htonll(uint64_t n) {
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-  return n;
-#else
-  return (((uint64_t)htonl(n)) << 32) + htonl(n >> 32);
-#endif
-}
-
-inline uint64_t ntohll(uint64_t n) {
-#if __BYTE_ORDER__ == __BIG_ENDIAN__
-  return n;
-#else
-  return (((uint64_t)ntohl(n)) << 32) + ntohl(n >> 32);
-#endif
-}
-
-inline pi_status_t pi_getfv_u64(const pi_p4info_t *p4info, pi_p4_id_t fid,
-                                uint64_t u64, pi_fvalue_t *fv) {
-  size_t bitwidth = pi_p4info_field_bitwidth(p4info, fid);
-  char byte0_mask = pi_p4info_field_byte0_mask(p4info, fid);
-  if (bitwidth <= 32 || bitwidth > 64) return PI_STATUS_FVALUE_INVALID_SIZE;
-  fv->is_ptr = 0;
-  fv->fid = fid;
-  fv->size = (bitwidth + 7) / 8;
-  u64 = htonll(u64);
-  char *data = (char *) &u64;
-  data += (8 - fv->size);
-  data[0] &= byte0_mask;
-  memcpy(&fv->v.data[0], data, fv->size);
-  return PI_STATUS_SUCCESS;
-}
-
+pi_status_t pi_getnetv_u64(const pi_p4info_t *p4info, pi_p4_id_t obj_id,
+                           uint64_t u64, pi_netv_t *fv);
 
 // we borrow the pointer, client is still responsible for deleting memory when
 // he is done with the value
 // unlike for previous cases, I am not masking the first byte, because I do not
 // want to write to the client's memory
 // FIXME(antonin)
-inline pi_status_t pi_getfv_ptr(pi_p4info_t *p4info, pi_p4_id_t fid,
-                                const char *ptr, size_t size,
-                                pi_fvalue_t *fv) {
-  size_t bitwidth = pi_p4info_field_bitwidth(p4info, fid);
-  if ((bitwidth + 7) / 8 != size) return PI_STATUS_FVALUE_INVALID_SIZE;
-  fv->is_ptr = 1;
-  fv->fid = fid;
-  fv->size = size;
-  fv->v.ptr = ptr;
-  return PI_STATUS_SUCCESS;
-}
+pi_status_t pi_getnetv_ptr(pi_p4info_t *p4info, pi_p4_id_t obj_id,
+                           const char *ptr, size_t size, pi_netv_t *fv);
 
 #endif  // PI_INC_PI_PI_VALUE_H_
