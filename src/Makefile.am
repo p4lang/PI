@@ -17,14 +17,25 @@ pi.c \
 pi_int.h \
 pi_tables.c \
 pi_value.c \
-config_readers/bmv2_json_reader.c \
-config_readers/readers.h \
 target/pi_imp.h \
-target/pi_tables_imp.h \
-utils/utils.h
+target/pi_tables_imp.h
+
+libpiutils_la_SOURCES = \
+utils/utils.h \
+utils/utils.c
+
+libpireaders_la_SOURCES = \
+config_readers/bmv2_json_reader.c \
+config_readers/readers.h
+
+libpireaders_la_LIBADD = \
+$(top_srcdir)/third_party/cJSON/libcjson.la
 
 libpi_la_LIBADD = \
-$(top_srcdir)/third_party/cJSON/libcjson.la \
-libpip4info.la
+libpip4info.la \
+libpireaders.la \
+libpiutils.la
 
 lib_LTLIBRARIES = libpi.la libpip4info.la
+
+noinst_LTLIBRARIES = libpiutils.la libpireaders.la

@@ -222,3 +222,21 @@ char pi_p4info_action_param_byte0_mask(const pi_p4info_t *p4info,
       &p4info->actions[get_action_idx_from_param_id(param_id)];
   return get_param_data_at(action, param_id)->byte0_mask;
 }
+
+#define PI_P4INFO_A_ITERATOR_FIRST (PI_ACTION_ID << 24)
+#define PI_P4INFO_A_ITERATOR_END ((PI_ACTION_ID << 24) | 0xffffff)
+
+pi_p4_id_t pi_p4info_action_begin(const pi_p4info_t *p4info) {
+  return (p4info->num_actions == 0) ? PI_P4INFO_A_ITERATOR_END
+      : PI_P4INFO_A_ITERATOR_FIRST;
+}
+
+pi_p4_id_t pi_p4info_action_next(const pi_p4info_t *p4info, pi_p4_id_t id) {
+  return ((id & 0xffffff) == p4info->num_actions - 1) ? PI_P4INFO_A_ITERATOR_END
+      : (id + 1);
+}
+
+pi_p4_id_t pi_p4info_action_end(const pi_p4info_t *p4info) {
+  (void) p4info;
+  return PI_P4INFO_A_ITERATOR_END;
+}

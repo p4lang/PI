@@ -1,6 +1,6 @@
 /* Copyright 2013-present Barefoot Networks, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (const pi_p4info_t *p4info, the "License");
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -27,5 +27,9 @@ const char *pi_p4info_field_name_from_id(const pi_p4info_t *p4info,
 size_t pi_p4info_field_bitwidth(const pi_p4info_t *p4info, pi_p4_id_t field_id);
 
 char pi_p4info_field_byte0_mask(const pi_p4info_t *p4info, pi_p4_id_t field_id);
+
+pi_p4_id_t pi_p4info_field_begin(const pi_p4info_t *p4info);
+pi_p4_id_t pi_p4info_field_next(const pi_p4info_t *p4info, pi_p4_id_t id);
+pi_p4_id_t pi_p4info_field_end(const pi_p4info_t *p4info);
 
 #endif  // PI_INC_PI_P4INFO_FIELDS_H_

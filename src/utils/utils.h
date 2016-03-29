@@ -13,6 +13,9 @@
  * limitations under the License.
  */
 
+#ifndef PI_SRC_UTILS_UTILS_H_
+#define PI_SRC_UTILS_UTILS_H_
+
 #include <arpa/inet.h>
 
 inline uint64_t htonll(uint64_t n) {
@@ -30,3 +33,7 @@ inline uint64_t ntohll(uint64_t n) {
   return (((uint64_t)ntohl(n)) << 32) + ntohl(n >> 32);
 #endif
 }
+
+char *read_file(const char *path);
+
+#endif  // pi_p4info_field_next

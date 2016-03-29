@@ -15,44 +15,19 @@
 
 #include "PI/pi.h"
 #include "PI/pi_p4info.h"
-
-#include "unity/unity_fixture.h"
+#include "utils/utils.h"
 
 #include <assert.h>
-#include <stdio.h>
 #include <stdlib.h>
+
+#include "unity/unity_fixture.h"
 
 #ifndef TESTDATADIR
 #define TESTDATADIR "testdata"
 #endif
 
 static char *read_json(const char *path) {
-  char *source = NULL;
-  FILE *fp = fopen(path, "r");
-  if (fp != NULL) {
-    /* Go to the end of the file. */
-    if (fseek(fp, 0L, SEEK_END) == 0) {
-      /* Get the size of the file. */
-      long bufsize = ftell(fp);
-      if (bufsize == -1) { /* Error */ }
-
-      /* Allocate our buffer to that size. */
-      source = malloc(sizeof(char) * (bufsize + 1));
-
-      /* Go back to the start of the file. */
-      if (fseek(fp, 0L, SEEK_SET) != 0) { /* Error */ }
-
-      /* Read the entire file into memory. */
-      size_t newLen = fread(source, sizeof(char), bufsize, fp);
-      if (newLen == 0) {
-        fputs("Error reading file", stderr);
-      } else {
-        source[newLen++] = '\0'; /* Just to be safe. */
-      }
-    }
-    fclose(fp);
-  }
-  return source;
+  return read_file(path);
 }
 
 TEST_GROUP(SimpleRouter);
@@ -69,6 +44,8 @@ TEST(SimpleRouter, Base) {
   TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS, pi_add_config(config, &p4info));
   TEST_ASSERT_EQUAL_UINT(4u, pi_p4info_action_get_num(p4info));
   TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS, pi_destroy_config(p4info));
+  // FIXME(antonin)
+#undef free  // unity weirdness
   free(config);
 }
 

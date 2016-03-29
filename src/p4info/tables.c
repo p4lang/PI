@@ -243,3 +243,21 @@ const pi_p4_id_t *pi_p4info_table_get_actions(const pi_p4info_t *p4info,
   *num_actions = table->num_actions;
   return get_action_ids(table);
 }
+
+#define PI_P4INFO_T_ITERATOR_FIRST (PI_TABLE_ID << 24)
+#define PI_P4INFO_T_ITERATOR_END ((PI_TABLE_ID << 24) | 0xffffff)
+
+pi_p4_id_t pi_p4info_table_begin(const pi_p4info_t *p4info) {
+  return (p4info->num_tables == 0) ? PI_P4INFO_T_ITERATOR_END
+      : PI_P4INFO_T_ITERATOR_FIRST;
+}
+
+pi_p4_id_t pi_p4info_table_next(const pi_p4info_t *p4info, pi_p4_id_t id) {
+  return ((id & 0xffffff) == p4info->num_tables - 1) ? PI_P4INFO_T_ITERATOR_END
+      : (id + 1);
+}
+
+pi_p4_id_t pi_p4info_table_end(const pi_p4info_t *p4info) {
+  (void) p4info;
+  return PI_P4INFO_T_ITERATOR_END;
+}

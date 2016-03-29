@@ -70,4 +70,8 @@ const pi_p4_id_t *pi_p4info_table_get_actions(const pi_p4info_t *p4info,
                                               pi_p4_id_t table_id,
                                               size_t *num_actions);
 
+pi_p4_id_t pi_p4info_table_begin(const pi_p4info_t *p4info);
+pi_p4_id_t pi_p4info_table_next(const pi_p4info_t *p4info, pi_p4_id_t id);
+pi_p4_id_t pi_p4info_table_end(const pi_p4info_t *p4info);
+
 #endif  // PI_INC_PI_P4INFO_TABLES_H_

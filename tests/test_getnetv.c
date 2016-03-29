@@ -252,6 +252,6 @@ TEST_GROUP_RUNNER(GetNetv) {
   RUN_TEST_CASE(GetNetv, BadObjType);
 }
 
-void test_getfv() {
+void test_getnetv() {
   RUN_TEST_GROUP(GetNetv);
 }

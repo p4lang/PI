@@ -135,6 +135,30 @@ TEST(P4Info, FieldsStress) {
   pi_p4info_field_free(p4info);
 }
 
+TEST(P4Info, FieldsIterator) {
+  const size_t num_fields = 4096;
+
+  pi_p4info_field_init(p4info, num_fields);
+
+  char name[16];
+  for (size_t i = 0; i < num_fields; i++) {
+    snprintf(name, sizeof(name), "f%zu", i);
+    pi_p4info_field_add(p4info, pi_make_field_id(i), name, 1 + (i % 128));
+  }
+
+  size_t cnt = 0;
+  for (pi_p4_id_t id = pi_p4info_field_begin(p4info);
+       id != pi_p4info_field_end(p4info);
+       id = pi_p4info_field_next(p4info, id)) {
+    snprintf(name, sizeof(name), "f%zu", cnt++);
+    TEST_ASSERT_EQUAL_UINT(id, pi_p4info_field_id_from_name(p4info, name));
+  }
+
+  TEST_ASSERT_EQUAL_UINT(num_fields, cnt);
+
+  pi_p4info_field_free(p4info);
+}
+
 typedef struct {
   pi_p4_id_t id;
   char *name;
@@ -262,6 +286,30 @@ TEST(P4Info, ActionsStress) {
     free(adata[i].name);
   }
   free(adata);
+}
+
+TEST(P4Info, ActionsIterator) {
+  const size_t num_actions = 4096;
+
+  pi_p4info_action_init(p4info, num_actions);
+
+  char name[16];
+  for (size_t i = 0; i < num_actions; i++) {
+    snprintf(name, sizeof(name), "a%zu", i);
+    pi_p4info_action_add(p4info, pi_make_action_id(i), name, 0);
+  }
+
+  size_t cnt = 0;
+  for (pi_p4_id_t id = pi_p4info_action_begin(p4info);
+       id != pi_p4info_action_end(p4info);
+       id = pi_p4info_action_next(p4info, id)) {
+    snprintf(name, sizeof(name), "a%zu", cnt++);
+    TEST_ASSERT_EQUAL_UINT(id, pi_p4info_action_id_from_name(p4info, name));
+  }
+
+  TEST_ASSERT_EQUAL_UINT(num_actions, cnt);
+
+  pi_p4info_action_free(p4info);
 }
 
 typedef struct {
@@ -408,13 +456,40 @@ TEST(P4Info, TablesStress) {
   free(tdata);
 }
 
+TEST(P4Info, TablesIterator) {
+  const size_t num_tables = 4096;
+
+  pi_p4info_table_init(p4info, num_tables);
+
+  char name[16];
+  for (size_t i = 0; i < num_tables; i++) {
+    snprintf(name, sizeof(name), "a%zu", i);
+    pi_p4info_table_add(p4info, pi_make_table_id(i), name, 0, 1);
+  }
+
+  size_t cnt = 0;
+  for (pi_p4_id_t id = pi_p4info_table_begin(p4info);
+       id != pi_p4info_table_end(p4info);
+       id = pi_p4info_table_next(p4info, id)) {
+    snprintf(name, sizeof(name), "a%zu", cnt++);
+    TEST_ASSERT_EQUAL_UINT(id, pi_p4info_table_id_from_name(p4info, name));
+  }
+
+  TEST_ASSERT_EQUAL_UINT(num_tables, cnt);
+
+  pi_p4info_table_free(p4info);
+}
+
 TEST_GROUP_RUNNER(P4Info) {
   RUN_TEST_CASE(P4Info, Fields);
   RUN_TEST_CASE(P4Info, FieldsByte0Mask);
   RUN_TEST_CASE(P4Info, FieldsStress);
+  RUN_TEST_CASE(P4Info, FieldsIterator);
   RUN_TEST_CASE(P4Info, Actions);
   RUN_TEST_CASE(P4Info, ActionsStress);
+  RUN_TEST_CASE(P4Info, ActionsIterator);
   RUN_TEST_CASE(P4Info, TablesStress);
+  RUN_TEST_CASE(P4Info, TablesIterator);
 }
 
 void test_p4info() {

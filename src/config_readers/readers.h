@@ -13,4 +13,6 @@
  * limitations under the License.
  */
 
+#include "PI/pi_base.h"
+
 pi_status_t pi_bmv2_json_reader(const char *config,  pi_p4info_t *p4info);
