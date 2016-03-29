@@ -58,6 +58,7 @@ AC_SUBST([AM_CFLAGS], ["-Wall -Werror -Wextra"])
 
 # Generate makefiles
 AC_CONFIG_FILES([Makefile
+                 examples/Makefile
                  generators/Makefile
                  inc/Makefile
                  src/Makefile

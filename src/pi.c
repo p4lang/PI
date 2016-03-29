@@ -21,6 +21,7 @@
 #include "p4info/fields_int.h"
 #include "config_readers/readers.h"
 #include "pi_int.h"
+#include "utils/utils.h"
 
 #include <stdlib.h>
 
@@ -47,9 +48,11 @@ pi_status_t pi_add_config(const char *config, pi_p4info_t **p4info) {
 }
 
 pi_status_t pi_add_config_from_file(const char *config_path,
-                                      pi_p4info_t **p4info) {
-  (void) config_path; (void) p4info;
-  return PI_STATUS_SUCCESS;
+                                    pi_p4info_t **p4info) {
+  char *config_tmp = read_file(config_path);
+  pi_status_t rc = pi_add_config(config_tmp, p4info);
+  free(config_tmp);
+  return rc;
 }
 
 pi_status_t pi_destroy_config(pi_p4info_t *p4info) {
