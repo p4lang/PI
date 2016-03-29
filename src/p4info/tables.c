@@ -15,6 +15,7 @@
 
 #include "PI/p4info/tables.h"
 #include "p4info/p4info_struct.h"
+#include "pi_int.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -52,6 +53,7 @@ typedef struct _table_data_s {
 } _table_data_t;
 
 static size_t get_table_idx(pi_p4_id_t table_id) {
+  assert(PI_GET_TYPE_ID(table_id) == PI_TABLE_ID);
   return table_id & 0xFFFF;
 }
 

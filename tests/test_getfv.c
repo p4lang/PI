@@ -16,6 +16,7 @@
 #include "PI/pi_value.h"
 #include "p4info/p4info_struct.h"
 #include "p4info/fields_int.h"
+#include "pi_int.h"
 
 #include "unity/unity_fixture.h"
 
@@ -32,7 +33,7 @@ TEST_SETUP(GetFv) {
   for (size_t i = 0; i < 256; i++) {
     char name[16];
     snprintf(name, sizeof(name), "f%zu", i);
-    pi_p4info_field_add(p4info, i, name, i + 1);
+    pi_p4info_field_add(p4info, pi_make_field_id(i), name, i + 1);
   }
 }
 
@@ -53,7 +54,7 @@ TEST(GetFv, U8) {
     for (uint32_t v = 0; v < (uint32_t) (1 << bitwidth); v++)  {
       uint8_t test_v = v;
       pi_fvalue_t fv;
-      pi_p4_id_t fid = bitwidth - 1;
+      pi_p4_id_t fid = pi_make_field_id(bitwidth - 1);
       rc = pi_getfv_u8(p4info, fid, test_v, &fv);
       TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
       // test internals
@@ -71,7 +72,7 @@ TEST(GetFv, U8_ExtraBits) {
     for (uint32_t v = (uint32_t) (1 << bitwidth) - 1; v < 256; v++)  {
       uint8_t test_v = v;
       pi_fvalue_t fv;
-      pi_p4_id_t fid = bitwidth - 1;
+      pi_p4_id_t fid = pi_make_field_id(bitwidth - 1);
       rc = pi_getfv_u8(p4info, fid, test_v, &fv);
       TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
       test_v &= get_byte0_mask(bitwidth);
@@ -84,7 +85,7 @@ TEST(GetFv, U8_BadInput) {
   pi_status_t rc;
   uint8_t test_v = 0;
   pi_fvalue_t fv;
-  pi_p4_id_t fid_too_wide = 9 - 1;
+  pi_p4_id_t fid_too_wide = pi_make_field_id(9 - 1);
   rc = pi_getfv_u8(p4info, fid_too_wide, test_v, &fv);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_FVALUE_INVALID_SIZE, rc);
 }
@@ -95,7 +96,7 @@ TEST(GetFv, U16) {
     for (uint32_t v = 0; v < (uint32_t) (1 << bitwidth); v++)  {
       uint16_t test_v = v;
       pi_fvalue_t fv;
-      pi_p4_id_t fid = bitwidth - 1;
+      pi_p4_id_t fid = pi_make_field_id(bitwidth - 1);
       rc = pi_getfv_u16(p4info, fid, test_v, &fv);
       TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
       // test internals
@@ -113,11 +114,11 @@ TEST(GetFv, U16_BadInput) {
   pi_status_t rc;
   uint16_t test_v = 0;
   pi_fvalue_t fv;
-  pi_p4_id_t fid_too_wide = 17 - 1;
+  pi_p4_id_t fid_too_wide = pi_make_field_id(17 - 1);
   rc = pi_getfv_u16(p4info, fid_too_wide, test_v, &fv);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_FVALUE_INVALID_SIZE, rc);
   // whether this is an error is still up for debate
-  pi_p4_id_t fid_too_narrow = 8 - 1;
+  pi_p4_id_t fid_too_narrow = pi_make_field_id(8 - 1);
   rc = pi_getfv_u16(p4info, fid_too_narrow, test_v, &fv);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_FVALUE_INVALID_SIZE, rc);
 }
@@ -135,7 +136,7 @@ TEST(GetFv, U32) {
   for (size_t bitwidth = 17; bitwidth <= 32; bitwidth++) {
     uint32_t test_v = get_rand_u32();
     pi_fvalue_t fv;
-    pi_p4_id_t fid = bitwidth - 1;
+    pi_p4_id_t fid = pi_make_field_id(bitwidth - 1);
     rc = pi_getfv_u32(p4info, fid, test_v, &fv);
     TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
     TEST_ASSERT_FALSE(fv.is_ptr);
@@ -153,11 +154,11 @@ TEST(GetFv, U32_BadInput) {
   pi_status_t rc;
   uint32_t test_v = 0;
   pi_fvalue_t fv;
-  pi_p4_id_t fid_too_wide = 33 - 1;
+  pi_p4_id_t fid_too_wide = pi_make_field_id(33 - 1);
   rc = pi_getfv_u32(p4info, fid_too_wide, test_v, &fv);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_FVALUE_INVALID_SIZE, rc);
   // whether this is an error is still up for debate
-  pi_p4_id_t fid_too_narrow = 16 - 1;
+  pi_p4_id_t fid_too_narrow = pi_make_field_id(16 - 1);
   rc = pi_getfv_u32(p4info, fid_too_narrow, test_v, &fv);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_FVALUE_INVALID_SIZE, rc);
 }
@@ -173,7 +174,7 @@ TEST(GetFv, U64) {
   for (size_t bitwidth = 33; bitwidth <= 64; bitwidth++) {
     uint64_t test_v = get_rand_u64();
     pi_fvalue_t fv;
-    pi_p4_id_t fid = bitwidth - 1;
+    pi_p4_id_t fid = pi_make_field_id(bitwidth - 1);
     rc = pi_getfv_u64(p4info, fid, test_v, &fv);
     TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
     TEST_ASSERT_FALSE(fv.is_ptr);
@@ -191,11 +192,11 @@ TEST(GetFv, U64_BadInput) {
   pi_status_t rc;
   uint64_t test_v = 0;
   pi_fvalue_t fv;
-  pi_p4_id_t fid_too_wide = 65 - 1;
+  pi_p4_id_t fid_too_wide = pi_make_field_id(65 - 1);
   rc = pi_getfv_u64(p4info, fid_too_wide, test_v, &fv);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_FVALUE_INVALID_SIZE, rc);
   // whether this is an error is still up for debate
-  pi_p4_id_t fid_too_narrow = 32 - 1;
+  pi_p4_id_t fid_too_narrow = pi_make_field_id(32 - 1);
   rc = pi_getfv_u64(p4info, fid_too_narrow, test_v, &fv);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_FVALUE_INVALID_SIZE, rc);
 }
@@ -207,7 +208,7 @@ TEST(GetFv, Ptr) {
   for (size_t i = 0; i < sizeof(test_v); i++)
     test_v[i] = rand() % 256;
   pi_fvalue_t fv;
-  pi_p4_id_t fid = bitwidth - 1;
+  pi_p4_id_t fid = pi_make_field_id(bitwidth - 1);
   rc = pi_getfv_ptr(p4info, fid, test_v, sizeof(test_v), &fv);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
   TEST_ASSERT_TRUE(fv.is_ptr);
@@ -221,7 +222,7 @@ TEST(GetFv, Ptr_BadInput) {
   char test_v[16];
   memset(test_v, 0, sizeof(test_v));
   pi_fvalue_t fv;
-  pi_p4_id_t fid_96 = 96 - 1;
+  pi_p4_id_t fid_96 = pi_make_field_id(96 - 1);
   rc = pi_getfv_ptr(p4info, fid_96, test_v, sizeof(test_v), &fv);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_FVALUE_INVALID_SIZE, rc);
 }

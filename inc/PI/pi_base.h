@@ -36,4 +36,9 @@ typedef struct {
 
 typedef struct pi_p4info_s pi_p4info_t;
 
+bool pi_is_action_id(pi_p4_id_t id);
+bool pi_is_table_id(pi_p4_id_t id);
+bool pi_is_action_param_id(pi_p4_id_t id);
+bool pi_is_field_id(pi_p4_id_t id);
+
 #endif  // PI_INC_PI_PI_BASE_H_

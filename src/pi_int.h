@@ -18,6 +18,30 @@
 
 #include "PI/pi.h"
 
+#define PI_ACTION_ID        0x01
+#define PI_TABLE_ID         0x02
+#define PI_ACTION_PARAM_ID  0x03
+#define PI_FIELD_ID         0x04
+
+inline pi_p4_id_t pi_make_action_id(uint16_t index) {
+  return (PI_ACTION_ID << 24) | index;
+}
+
+inline pi_p4_id_t pi_make_table_id(uint16_t index) {
+  return (PI_TABLE_ID << 24) | index;
+}
+
+inline pi_p4_id_t pi_make_action_param_id(pi_p4_id_t action_id, uint8_t index) {
+  uint16_t action_index = action_id & 0xffff;
+  return (PI_ACTION_PARAM_ID << 24) | (action_index << 8) | index;
+}
+
+inline pi_p4_id_t pi_make_field_id(uint16_t index) {
+  return (PI_FIELD_ID << 24) | index;
+}
+
+#define PI_GET_TYPE_ID(id) (id >> 24)
+
 typedef union {
   char bytes[8];
   uint64_t v;

@@ -15,6 +15,7 @@
 
 #include "PI/p4info/fields.h"
 #include "p4info/p4info_struct.h"
+#include "pi_int.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -28,6 +29,7 @@ typedef struct _field_data_s {
 } _field_data_t;
 
 static size_t get_field_idx(pi_p4_id_t field_id) {
+  assert(PI_GET_TYPE_ID(field_id) == PI_FIELD_ID);
   return field_id & 0xFFFF;
 }
 

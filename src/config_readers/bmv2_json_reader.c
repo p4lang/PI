@@ -18,6 +18,7 @@
 #include "p4info/tables_int.h"
 #include "p4info/fields_int.h"
 #include "utils/logging.h"
+#include "pi_int.h"
 
 #include <cJSON/cJSON.h>
 #include <Judy.h>
@@ -34,22 +35,25 @@ static pi_status_t read_actions(cJSON *root, pi_p4info_t *p4info) {
   pi_p4info_action_init(p4info, num_actions);
 
   cJSON *action;
+  int id = 0;
   cJSON_ArrayForEach(action, actions) {
     const cJSON *item;
     item = cJSON_GetObjectItem(action, "name");
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
     const char *name = item->valuestring;
 
-    item = cJSON_GetObjectItem(action, "id");
-    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
-    int id = item->valueint;
+    // ignore the JSON id
+    /* item = cJSON_GetObjectItem(action, "id"); */
+    /* if (!item) return PI_STATUS_CONFIG_READER_ERROR; */
+    /* pi_p4_id_t pi_id = item->valueint; */
+    pi_p4_id_t pi_id = pi_make_action_id(id++);
 
     cJSON *params = cJSON_GetObjectItem(action, "runtime_data");
     if (!params) return PI_STATUS_CONFIG_READER_ERROR;
     size_t num_params = cJSON_GetArraySize(params);
 
     PI_LOG_DEBUG("Adding action '%s'\n", name);
-    pi_p4info_action_add(p4info, id, name, num_params);
+    pi_p4info_action_add(p4info, pi_id, name, num_params);
 
     int param_id = 0;
     cJSON *param;
@@ -62,8 +66,9 @@ static pi_status_t read_actions(cJSON *root, pi_p4info_t *p4info) {
       if (!item) return PI_STATUS_CONFIG_READER_ERROR;
       int param_bitwidth = item->valueint;
 
-      pi_p4info_action_add_param(p4info, id, param_id++, param_name,
-                                 param_bitwidth);
+      pi_p4info_action_add_param(p4info, pi_id,
+                                 pi_make_action_param_id(pi_id, param_id++),
+                                 param_name, param_bitwidth);
     }
   }
 
@@ -110,7 +115,7 @@ static pi_status_t read_fields(cJSON *root, pi_p4info_t *p4info) {
   PI_LOG_DEBUG("Number of fields found: %zu\n", num_fields);
   pi_p4info_field_init(p4info, num_fields);
 
-  pi_p4_id_t id = 0;
+  int id = 0;
 
   cJSON_ArrayForEach(header, headers) {
     item = cJSON_GetObjectItem(header, "name");
@@ -131,7 +136,7 @@ static pi_status_t read_fields(cJSON *root, pi_p4info_t *p4info) {
       if (n <= 0 || (size_t) n >= sizeof(fname)) return PI_STATUS_BUFFER_ERROR;
       size_t bitwidth = (size_t) cJSON_GetArrayItem(field, 1)->valueint;
       PI_LOG_DEBUG("Adding field '%s'\n", fname);
-      pi_p4info_field_add(p4info, id++, fname, bitwidth);
+      pi_p4info_field_add(p4info, pi_make_field_id(id++), fname, bitwidth);
     }
     num_fields += cJSON_GetArraySize(item);
   }
@@ -170,6 +175,7 @@ static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
   pi_p4info_table_init(p4info, num_tables);
 
   cJSON *table;
+  int id = 0;
   cJSON_ArrayForEach(pipe, pipelines) {
     cJSON *tables = cJSON_GetObjectItem(pipe, "tables");
     cJSON_ArrayForEach(table, tables) {
@@ -178,9 +184,11 @@ static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
       if (!item) return PI_STATUS_CONFIG_READER_ERROR;
       const char *name = item->valuestring;
 
-      item = cJSON_GetObjectItem(table, "id");
-      if (!item) return PI_STATUS_CONFIG_READER_ERROR;
-      int id = item->valueint;
+      // ignore the JSON id
+      /* item = cJSON_GetObjectItem(table, "id"); */
+      /* if (!item) return PI_STATUS_CONFIG_READER_ERROR; */
+      /* pi_p4_id_t pi_id = item->valueint; */
+      pi_p4_id_t pi_id = pi_make_table_id(id++);
 
       cJSON *json_match_key = cJSON_GetObjectItem(table, "key");
       if (!json_match_key) return PI_STATUS_CONFIG_READER_ERROR;
@@ -191,7 +199,7 @@ static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
       size_t num_actions = cJSON_GetArraySize(json_actions);
 
       PI_LOG_DEBUG("Adding table '%s'\n", name);
-      pi_p4info_table_add(p4info, id, name, num_match_fields, num_actions);
+      pi_p4info_table_add(p4info, pi_id, name, num_match_fields, num_actions);
 
       cJSON *match_field;
       cJSON_ArrayForEach(match_field, json_match_key) {
@@ -210,7 +218,7 @@ static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
           return PI_STATUS_BUFFER_ERROR;
         pi_p4_id_t fid = pi_p4info_field_id_from_name(p4info, fname);
         size_t bitwidth = pi_p4info_field_bitwidth(p4info, fid);
-        pi_p4info_table_add_match_field(p4info, id, fid, fname,
+        pi_p4info_table_add_match_field(p4info, pi_id, fid, fname,
                                         match_type, bitwidth);
       }
     }

@@ -28,6 +28,7 @@ static size_t num_fields;
 static size_t num_actions;
 static size_t num_tables;
 static pi_match_key_t *mkey;
+static pi_p4_id_t fid, aid, tid;
 
 TEST_GROUP(FrontendGeneric_OneExact);
 
@@ -45,14 +46,17 @@ static void p4info_init(size_t bitwidth) {
   pi_p4info_action_init(p4info, num_actions);
   pi_p4info_table_init(p4info, num_tables);
 
-  pi_p4info_field_add(p4info, 0, "f0", bitwidth);
-  pi_p4info_action_add(p4info, 0, "a0", 0);
-  pi_p4info_table_add(p4info, 0, "t0", 1, 1);
-  pi_p4info_table_add_match_field(p4info, 0, 0, "f0",
+  fid = pi_make_field_id(0);
+  pi_p4info_field_add(p4info, fid, "f0", bitwidth);
+  aid = pi_make_action_id(0);
+  pi_p4info_action_add(p4info, aid, "a0", 0);
+  tid = pi_make_table_id(0);
+  pi_p4info_table_add(p4info, tid, "t0", 1, 1);
+  pi_p4info_table_add_match_field(p4info, tid, fid, "f0",
                                   PI_P4INFO_MATCH_TYPE_EXACT, bitwidth);
-  pi_p4info_table_add_action(p4info, 0, 0);
+  pi_p4info_table_add_action(p4info, tid, aid);
 
-  pi_match_key_allocate(p4info, 0, &mkey);
+  pi_match_key_allocate(p4info, tid, &mkey);
 }
 
 static void p4info_destroy() {
@@ -71,11 +75,11 @@ TEST(FrontendGeneric_OneExact, U8) {
       uint8_t test_v = v;
       pi_fvalue_t fv;
       pi_match_key_init(p4info, mkey);
-      rc = pi_getfv_u8(p4info, 0, test_v, &fv);
+      rc = pi_getfv_u8(p4info, fid, test_v, &fv);
       TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
       rc = pi_match_key_exact_set(p4info, mkey, &fv);
       TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
-      TEST_ASSERT_EQUAL_UINT(0, mkey->table_id);
+      TEST_ASSERT_EQUAL_UINT(tid, mkey->table_id);
       TEST_ASSERT_EQUAL_UINT(1, mkey->nset);
       _compact_v_t *cv = &mkey->data[0];
       char expected_data[1];
@@ -96,11 +100,11 @@ TEST(FrontendGeneric_OneExact, U128) {
   pi_fvalue_t fv;
   p4info_init(bitwidth);
   pi_match_key_init(p4info, mkey);
-  rc = pi_getfv_ptr(p4info, 0, test_v, sizeof(test_v), &fv);
+  rc = pi_getfv_ptr(p4info, fid, test_v, sizeof(test_v), &fv);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
   rc = pi_match_key_exact_set(p4info, mkey, &fv);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
-  TEST_ASSERT_EQUAL_UINT(0, mkey->table_id);
+  TEST_ASSERT_EQUAL_UINT(tid, mkey->table_id);
   TEST_ASSERT_EQUAL_UINT(1, mkey->nset);
   _compact_v_t *cv = &mkey->data[0];
   TEST_ASSERT_EQUAL_MEMORY(test_v, cv->more_bytes, sizeof(test_v));
@@ -132,11 +136,11 @@ TEST(FrontendGeneric_OneLPM, U8) {
   uint8_t test_v = 0x5b;
   pi_fvalue_t fv;
   pi_match_key_init(p4info, mkey);
-  rc = pi_getfv_u8(p4info, 0, test_v, &fv);
+  rc = pi_getfv_u8(p4info, fid, test_v, &fv);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
   rc = pi_match_key_lpm_set(p4info, mkey, &fv, prefix_length);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
-  TEST_ASSERT_EQUAL_UINT(0, mkey->table_id);
+  TEST_ASSERT_EQUAL_UINT(tid, mkey->table_id);
   TEST_ASSERT_EQUAL_UINT(1, mkey->nset);
   _compact_v_t *cv = &mkey->data[0];
   char expected_data[1];
@@ -172,13 +176,13 @@ TEST(FrontendGeneric_OneTernary, U8) {
   uint8_t test_mask = 0x72;
   pi_fvalue_t fv, mask;
   pi_match_key_init(p4info, mkey);
-  rc = pi_getfv_u8(p4info, 0, test_v, &fv);
+  rc = pi_getfv_u8(p4info, fid, test_v, &fv);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
-  rc = pi_getfv_u8(p4info, 0, test_mask, &mask);
+  rc = pi_getfv_u8(p4info, fid, test_mask, &mask);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
   rc = pi_match_key_ternary_set(p4info, mkey, &fv, &mask);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
-  TEST_ASSERT_EQUAL_UINT(0, mkey->table_id);
+  TEST_ASSERT_EQUAL_UINT(tid, mkey->table_id);
   TEST_ASSERT_EQUAL_UINT(1, mkey->nset);
   _compact_v_t *cv = &mkey->data[0];
   char expected_data[1];

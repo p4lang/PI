@@ -20,6 +20,7 @@
 #include "p4info/tables_int.h"
 #include "p4info/fields_int.h"
 #include "config_readers/readers.h"
+#include "pi_int.h"
 
 #include <stdlib.h>
 
@@ -67,4 +68,20 @@ pi_status_t pi_assign_device(uint16_t dev_id, const pi_p4info_t *p4info) {
 pi_status_t pi_remove_device(uint16_t dev_id) {
   (void) dev_id;
   return PI_STATUS_SUCCESS;
+}
+
+bool pi_is_action_id(pi_p4_id_t id) {
+  return (id >> 24) == PI_ACTION_ID;
+}
+
+bool pi_is_table_id(pi_p4_id_t id) {
+  return (id >> 24) == PI_TABLE_ID;
+}
+
+bool pi_is_action_param_id(pi_p4_id_t id) {
+  return (id >> 24) == PI_ACTION_PARAM_ID;
+}
+
+bool pi_is_field_id(pi_p4_id_t id) {
+  return (id >> 24) == PI_FIELD_ID;
 }

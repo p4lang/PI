@@ -15,6 +15,7 @@
 
 #include "PI/p4info/actions.h"
 #include "p4info/p4info_struct.h"
+#include "pi_int.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -25,6 +26,7 @@
 typedef struct {
   char *name;
   size_t bitwidth;
+  char byte0_mask;
 } _action_param_data_t;
 
 typedef struct _action_data_s {
@@ -42,11 +44,17 @@ typedef struct _action_data_s {
 } _action_data_t;
 
 static size_t get_action_idx(pi_p4_id_t action_id) {
+  assert(PI_GET_TYPE_ID(action_id) == PI_ACTION_ID);
   return action_id & 0xFFFF;
 }
 
 static size_t get_param_idx(pi_p4_id_t param_id) {
-  return param_id & 0xFFFF;
+  assert(PI_GET_TYPE_ID(param_id) == PI_ACTION_PARAM_ID);
+  return param_id & 0xFF;
+}
+
+static size_t get_action_idx_from_param_id(pi_p4_id_t param_id) {
+  return ((param_id & 0xffff00) >> 8);
 }
 
 static _action_data_t *get_action(const pi_p4info_t *p4info,
@@ -131,13 +139,25 @@ void pi_p4info_action_add(pi_p4info_t *p4info, pi_p4_id_t action_id,
   *action_id_ptr = action_id;
 }
 
+static char get_byte0_mask(size_t bitwidth) {
+  if (bitwidth % 8 == 0) return 0xff;
+  int nbits = bitwidth % 8;
+  return ((1 << nbits) - 1);
+}
+
+static bool param_matches_action(pi_p4_id_t action_id, pi_p4_id_t param_id) {
+  return get_action_idx(action_id) == get_action_idx_from_param_id(param_id);
+}
+
 void pi_p4info_action_add_param(pi_p4info_t *p4info, pi_p4_id_t action_id,
                                 pi_p4_id_t param_id, const char *name,
                                 size_t bitwidth) {
+  assert(param_matches_action(action_id, param_id));
   _action_data_t *action = get_action(p4info, action_id);
   _action_param_data_t *param_data = get_param_data_at(action, param_id);
   param_data->name = strdup(name);
   param_data->bitwidth = bitwidth;
+  param_data->byte0_mask = get_byte0_mask(bitwidth);
   size_t param_idx = get_param_idx(param_id);
   pi_p4_id_t *param_ids = get_param_ids(action);
   param_ids[param_idx] = param_id;
@@ -183,15 +203,22 @@ pi_p4_id_t pi_p4info_action_param_id_from_name(const pi_p4info_t *p4info,
 }
 
 const char *pi_p4info_action_param_name_from_id(const pi_p4info_t *p4info,
-                                                pi_p4_id_t action_id,
                                                 pi_p4_id_t param_id) {
-  _action_data_t *action = get_action(p4info, action_id);
+  _action_data_t *action =
+      &p4info->actions[get_action_idx_from_param_id(param_id)];
   return get_param_data_at(action, param_id)->name;
 }
 
 size_t pi_p4info_action_param_bitwidth(const pi_p4info_t *p4info,
-                                       pi_p4_id_t action_id,
                                        pi_p4_id_t param_id) {
-  _action_data_t *action = get_action(p4info, action_id);
+  _action_data_t *action =
+      &p4info->actions[get_action_idx_from_param_id(param_id)];
   return get_param_data_at(action, param_id)->bitwidth;
+}
+
+char pi_p4info_action_param_byte0_mask(const pi_p4info_t *p4info,
+                                       pi_p4_id_t param_id) {
+  _action_data_t *action =
+      &p4info->actions[get_action_idx_from_param_id(param_id)];
+  return get_param_data_at(action, param_id)->byte0_mask;
 }
