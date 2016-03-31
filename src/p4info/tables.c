@@ -164,6 +164,7 @@ pi_p4_id_t pi_p4info_table_id_from_name(const pi_p4info_t *p4info,
                                         const char *name) {
   Word_t *table_id_ptr;
   JSLG(table_id_ptr, p4info->table_name_map, (const uint8_t *) name);
+  if (!table_id_ptr) return PI_INVALID_ID;
   assert (table_id_ptr);
   return *table_id_ptr;
 }

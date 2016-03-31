@@ -221,6 +221,13 @@ static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
         pi_p4info_table_add_match_field(p4info, pi_id, fid, fname,
                                         match_type, bitwidth);
       }
+
+      cJSON *action;
+      cJSON_ArrayForEach(action, json_actions) {
+        const char *aname = action->valuestring;
+        pi_p4_id_t aid = pi_p4info_action_id_from_name(p4info, aname);
+        pi_p4info_table_add_action(p4info, pi_id, aid);
+      }
     }
   }
 

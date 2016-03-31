@@ -66,6 +66,14 @@ TEST(P4Info, Fields) {
   pi_p4info_field_free(p4info);
 }
 
+TEST(P4Info, FieldsInvalidId) {
+  const size_t num_fields = 1;
+  pi_p4info_field_init(p4info, num_fields);
+  TEST_ASSERT_EQUAL_UINT(PI_INVALID_ID,
+                         pi_p4info_field_id_from_name(p4info, "bad_name"));
+  pi_p4info_field_free(p4info);
+}
+
 TEST(P4Info, FieldsByte0Mask) {
   const size_t num_fields = 128;
 
@@ -222,6 +230,14 @@ TEST(P4Info, Actions) {
   pi_p4info_action_free(p4info);
 }
 
+TEST(P4Info, ActionsInvalidId) {
+  const size_t num_actions = 1;
+  pi_p4info_action_init(p4info, num_actions);
+  TEST_ASSERT_EQUAL_UINT(PI_INVALID_ID,
+                         pi_p4info_action_id_from_name(p4info, "bad_name"));
+  pi_p4info_action_free(p4info);
+}
+
 // unity uses a wrapper for the heap allocator, which does not cover strdup
 char *unity_strdup(const char *s) {
   char *new_s = malloc(strlen(s) + 1);
@@ -310,6 +326,14 @@ TEST(P4Info, ActionsIterator) {
   TEST_ASSERT_EQUAL_UINT(num_actions, cnt);
 
   pi_p4info_action_free(p4info);
+}
+
+TEST(P4Info, TablesInvalidId) {
+  const size_t num_tables = 1;
+  pi_p4info_table_init(p4info, num_tables);
+  TEST_ASSERT_EQUAL_UINT(PI_INVALID_ID,
+                         pi_p4info_table_id_from_name(p4info, "bad_name"));
+  pi_p4info_table_free(p4info);
 }
 
 typedef struct {
@@ -482,12 +506,15 @@ TEST(P4Info, TablesIterator) {
 
 TEST_GROUP_RUNNER(P4Info) {
   RUN_TEST_CASE(P4Info, Fields);
+  RUN_TEST_CASE(P4Info, FieldsInvalidId);
   RUN_TEST_CASE(P4Info, FieldsByte0Mask);
   RUN_TEST_CASE(P4Info, FieldsStress);
   RUN_TEST_CASE(P4Info, FieldsIterator);
   RUN_TEST_CASE(P4Info, Actions);
+  RUN_TEST_CASE(P4Info, ActionsInvalidId);
   RUN_TEST_CASE(P4Info, ActionsStress);
   RUN_TEST_CASE(P4Info, ActionsIterator);
+  RUN_TEST_CASE(P4Info, TablesInvalidId);
   RUN_TEST_CASE(P4Info, TablesStress);
   RUN_TEST_CASE(P4Info, TablesIterator);
 }

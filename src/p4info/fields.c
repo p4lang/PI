@@ -80,7 +80,7 @@ pi_p4_id_t pi_p4info_field_id_from_name(const pi_p4info_t *p4info,
                                         const char *name) {
   Word_t *field_id_ptr;
   JSLG(field_id_ptr, p4info->field_name_map, (const uint8_t *) name);
-  assert (field_id_ptr);
+  if (!field_id_ptr) return PI_INVALID_ID;
   return *field_id_ptr;
 }
 

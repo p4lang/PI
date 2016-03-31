@@ -13,35 +13,20 @@
  * limitations under the License.
  */
 
-#ifndef PI_INC_PI_PI_BASE_H_
-#define PI_INC_PI_PI_BASE_H_
+#ifndef PI_CLI_UTILS_H_
+#define PI_CLI_UTILS_H_
 
-#include <stdint.h>
-#include <stdbool.h>
 #include <stddef.h>
 
-#define PI_INVALID_ID 0
+int count_tokens(const char *str);
 
-typedef enum {
-  PI_STATUS_SUCCESS = 0,
-  PI_STATUS_CONFIG_READER_ERROR,
-  PI_STATUS_BUFFER_ERROR,
-  PI_STATUS_NETV_INVALID_SIZE,
-  PI_STATUS_NETV_INVALID_OBJ_ID
-} pi_status_t;
+// client needs to free memory when done using it
+char *get_token_from_buffer(char *buffer, size_t index);
 
-typedef uint32_t pi_p4_id_t;
+char *complete_p4_table(const char *text, int len, int state);
+char *complete_p4_action(const char *text, int len, int state,
+                         const char *table);
 
-typedef struct {
-  uint16_t dev_id;
-  uint16_t dev_pipe_mask;
-} pi_dev_tgt_t;
+size_t parse_fixed_args(char *s, const char **dest, size_t expected);
 
-typedef struct pi_p4info_s pi_p4info_t;
-
-bool pi_is_action_id(pi_p4_id_t id);
-bool pi_is_table_id(pi_p4_id_t id);
-bool pi_is_action_param_id(pi_p4_id_t id);
-bool pi_is_field_id(pi_p4_id_t id);
-
-#endif  // PI_INC_PI_PI_BASE_H_
+#endif  // PI_CLI_UTILS_H_

@@ -27,7 +27,8 @@ AC_CHECK_FUNCS([fopen fseek fread fputs])
 AC_CHECK_FUNCS([rand srand time atoi])
 AC_CHECK_FUNCS([ntohs htons ntohl htonl])
 AC_CHECK_FUNCS([getopt isprint abort exit])
-AC_CHECK_FUNCS([fopen stat toupper])
+AC_CHECK_FUNCS([stat toupper])
+AC_CHECK_FUNCS([strtok strchr])
 # TODO: make this portable
 AC_CHECK_FUNC([strnlen], [], [AC_MSG_ERROR([No strnlen implementation found])])
 
@@ -47,6 +48,8 @@ AC_PREPROC_IFELSE(
 # Check for libjudy
 AC_CHECK_LIB([Judy], [Judy1Next], [], [AC_MSG_ERROR([Missing libJudy])])
 
+AC_CHECK_LIB([readline], [readline], [], [AC_MSG_ERROR([Missing readline lib])])
+
 AC_TYPE_UINT8_T
 AC_TYPE_UINT16_T
 AC_TYPE_UINT32_T
@@ -58,6 +61,7 @@ AC_SUBST([AM_CFLAGS], ["-Wall -Werror -Wextra"])
 
 # Generate makefiles
 AC_CONFIG_FILES([Makefile
+                 CLI/Makefile
                  examples/Makefile
                  generators/Makefile
                  inc/Makefile

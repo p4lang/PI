@@ -171,7 +171,7 @@ pi_p4_id_t pi_p4info_action_id_from_name(const pi_p4info_t *p4info,
                                          const char *name) {
   Word_t *action_id_ptr;
   JSLG(action_id_ptr, p4info->action_name_map, (const uint8_t *) name);
-  assert (action_id_ptr);
+  if (!action_id_ptr) return PI_INVALID_ID;
   return *action_id_ptr;
 }
 
