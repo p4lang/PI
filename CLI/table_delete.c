@@ -19,15 +19,38 @@
 #include "PI/pi.h"
 #include "PI/frontends/generic/pi.h"
 
+#include <string.h>
+#include <stdlib.h>
+#include <inttypes.h>
+
 #include <readline/readline.h>
 
 extern pi_p4info_t *p4info;
+extern pi_dev_tgt_t dev_tgt;
 
 char table_delete_hs[] =
     "Delete entry from a match table: table_delete <table name> <entry handle>";
 
 pi_cli_status_t do_table_delete(char *subcmd) {
-  (void) subcmd;
+  const char *args[2];
+  size_t num_args = sizeof(args) / sizeof(char *);
+  if (parse_fixed_args(subcmd, args, num_args) < num_args)
+    return PI_CLI_STATUS_TOO_FEW_ARGS;
+  const char *t_name = args[0];
+  const char *handle_str = args[1];
+  pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, t_name);
+  if (t_id == PI_INVALID_ID) return PI_CLI_STATUS_INVALID_TABLE_NAME;
+  char *endptr;
+  pi_entry_handle_t handle = strtoll(handle_str, &endptr, 0);
+  if (*endptr != '\0') return PI_CLI_STATUS_INVALID_ENTRY_HANDLE;
+
+  pi_status_t rc;
+  rc = pi_table_entry_delete(dev_tgt.dev_id, t_id, handle);
+  if (rc == PI_STATUS_SUCCESS)
+    printf("Entry with handle %" PRIu64 " was successfully removed.\n", handle);
+  else
+    printf("Error when trying to remove entry %" PRIu64 ".\n", handle);
+
   return PI_CLI_STATUS_SUCCESS;
 };
 

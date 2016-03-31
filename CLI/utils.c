@@ -16,6 +16,7 @@
 #include "PI/pi.h"
 
 #include <string.h>
+#include <stdlib.h>
 
 int count_tokens(const char *str) {
   int count = 0;
@@ -83,4 +84,107 @@ size_t parse_fixed_args(char *s, const char **dest, size_t expected) {
     if (!dest[i]) return i;
   }
   return expected;
+}
+
+static int try_to_parse_ipv4(char *param, char *bytes) {
+  const char *end = strchr(param, '\0');
+  char *saveptr;
+  const char *b;
+  for (int i = 0; i < 4; i++) {
+    b = strtok_r(param, ".", &saveptr);
+    if (!b || b[0] == '\0') return 1;
+    param = NULL;
+    char *endptr;
+    long int v = strtol(b, &endptr, 10);
+    if (*endptr != '\0') return 1;
+    if (v < 0 || v >= 256) return 1;
+    *bytes++ = (char) v;
+  }
+  // check that all of the input has been parsed
+  if (end != strchr(b, '\0')) return 1;
+  return 0;
+}
+
+static int try_to_parse_macAddr(char *param, char *bytes) {
+  const char *end = strchr(param, '\0');
+  char *saveptr;
+  const char *b;
+  for (int i = 0; i < 6; i++) {
+    b = strtok_r(param, ":", &saveptr);
+    if (!b || b[0] == '\0') return 1;
+    param = NULL;
+    char *endptr;
+    long int v = strtol(b, &endptr, 16);
+    if (*endptr != '\0') return 1;
+    if (v < 0 || v >= 256) return 1;
+    *bytes++ = (char) v;
+  }
+  // check that all of the input has been parsed
+  if (end != strchr(b, '\0')) return 1;
+  return 0;
+}
+
+#include <arpa/inet.h>
+
+// is this portable enough?
+// from http://stackoverflow.com/questions/3736335/tell-whether-a-text-string-is-an-ipv6-address-or-ipv4-address-using-standard-c-s
+static int try_to_parse_ipv6(char *param, char *bytes) {
+  return (inet_pton(AF_INET6, param, bytes) == 1) ? 0 : 1;
+}
+
+static char char2digit(char c, int *err) {
+  *err = 0;
+  if (c >= '0' && c <= '9')
+    return (c - '0');
+  if (c >= 'A' && c <= 'F')
+    return (c - 'A' + 10);
+  if (c >= 'a' && c <= 'f')
+    return (c - 'a' + 10);
+  *err = 1;
+  return 0;
+}
+
+static int hexstr_to_bytes(char *param, char *bytes, size_t max_s) {
+  int err = 0;
+  size_t idx = 0;
+  size_t s = strlen(param);
+  if (s >= 2 && param[idx] == '0' && param[idx + 1] == 'x')
+    idx += 2;
+
+  memset(bytes, 0, max_s);
+  if (((s - idx) + 1) / 2 > max_s) return 1;
+
+  bytes += max_s - (((s - idx) + 1) / 2);
+
+  if ((s - idx) % 2 != 0) {
+    char c = char2digit(param[idx++], &err);
+    if (err) return 1;
+    *bytes++ = c;
+  }
+
+  for (; idx < s; ) {
+    char c = char2digit(param[idx++], &err) << 4;
+    if (err) return 1;
+    c += char2digit(param[idx++], &err);
+    if (err) return 1;
+    *bytes++ = c;
+  }
+
+  return 0;
+}
+
+int param_to_bytes(const char *param, char *bytes, size_t bitwidth) {
+  size_t s = (bitwidth + 7) / 8;
+  // making a copy, so that we can call strtok on it
+  char param_copy[128];
+  strncpy(param_copy, param, sizeof(param_copy));
+  if (param_copy[sizeof(param_copy) - 1] != '\0') return 1;
+  if (bitwidth == 32) {
+    if (!try_to_parse_ipv4(param_copy, bytes)) return 0;
+  } else if (bitwidth == 48) {
+    if (!try_to_parse_macAddr(param_copy, bytes)) return 0;
+  } else if (bitwidth == 128) {
+    if (!try_to_parse_ipv6(param_copy, bytes)) return 0;
+  }
+  return hexstr_to_bytes(param_copy, bytes, s);
 }

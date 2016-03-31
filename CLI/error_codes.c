@@ -25,6 +25,24 @@ const char *error_code_to_string(pi_cli_status_t error) {
       return "Invalid table name";
     case PI_CLI_STATUS_INVALID_ACTION_NAME:
       return "Invalid action name";
+    case PI_CLI_STATUS_TOO_FEW_MATCH_FIELDS:
+      return "Too few match fields";
+    case PI_CLI_STATUS_INVALID_VALID_MATCH_FIELD:
+      return "Invalid valid match field";
+    case PI_CLI_STATUS_INVALID_EXACT_MATCH_FIELD:
+      return "Invalid exact match field";
+    case PI_CLI_STATUS_INVALID_LPM_MATCH_FIELD:
+      return "Invalid LPM match field";
+    case PI_CLI_STATUS_INVALID_TERNARY_MATCH_FIELD:
+      return "Invalid ternary match field";
+    case PI_CLI_STATUS_INVALID_RANGE_MATCH_FIELD:
+      return "Invalid range match field";
+    case PI_CLI_STATUS_INVALID_COMMAND_FORMAT:
+      return "Invalid command format";
+    case PI_CLI_STATUS_TOO_FEW_ACTION_PARAMS:
+      return "Too few action params";
+    case PI_CLI_STATUS_INVALID_ENTRY_HANDLE:
+      return "Inavlid entry handle";
   }
   return "Unknown error";
 }

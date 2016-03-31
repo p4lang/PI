@@ -18,7 +18,7 @@ AC_LANG_PUSH(C)
 
 AC_CHECK_HEADERS([stdlib.h string.h assert.h stdio.h stdint.h stdbool.h\
                   stddef.h time.h ctype.h unistd.h arpa/inet.h\
-                  sys/types.h sys/stat.h],
+                  sys/types.h sys/stat.h inttypes.h],
                  [], [AC_MSG_ERROR([Missing header file])])
 
 AC_CHECK_FUNCS([malloc free strcmp strncmp strcpy strncpy strdup calloc \
@@ -28,7 +28,9 @@ AC_CHECK_FUNCS([rand srand time atoi])
 AC_CHECK_FUNCS([ntohs htons ntohl htonl])
 AC_CHECK_FUNCS([getopt isprint abort exit])
 AC_CHECK_FUNCS([stat toupper])
-AC_CHECK_FUNCS([strtok strchr])
+AC_CHECK_FUNCS([strtok strtok_r strchr strstr strtol strtoll])
+AC_CHECK_FUNCS([inet_pton])
+AC_CHECK_FUNCS([strncasecmp])
 # TODO: make this portable
 AC_CHECK_FUNC([strnlen], [], [AC_MSG_ERROR([No strnlen implementation found])])
 

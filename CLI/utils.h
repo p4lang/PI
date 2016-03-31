@@ -29,4 +29,6 @@ char *complete_p4_action(const char *text, int len, int state,
 
 size_t parse_fixed_args(char *s, const char **dest, size_t expected);
 
+int param_to_bytes(const char *param, char *bytes, size_t bitwidth);
+
 #endif  // PI_CLI_UTILS_H_

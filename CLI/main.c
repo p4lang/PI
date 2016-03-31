@@ -30,6 +30,8 @@
 // this contains all the needed P4 information
 pi_p4info_t *p4info = NULL;
 
+pi_dev_tgt_t dev_tgt = {0, 0xffff};
+
 typedef pi_cli_status_t (*CLIFnPtr)(char *);
 typedef char *(*CLICompPtr)(const char *text, int state);
 
