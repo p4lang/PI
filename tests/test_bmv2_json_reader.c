@@ -41,7 +41,8 @@ TEST_TEAR_DOWN(SimpleRouter) { }
 TEST(SimpleRouter, Base) {
   pi_p4info_t *p4info;
   char *config = read_json(TESTDATADIR "/" "simple_router.json");
-  TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS, pi_add_config(config, &p4info));
+  TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS,
+                    pi_add_config(config, PI_CONFIG_TYPE_BMV2_JSON, &p4info));
   TEST_ASSERT_EQUAL_UINT(4u, pi_p4info_action_get_num(p4info));
   TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS, pi_destroy_config(p4info));
   // FIXME(antonin)

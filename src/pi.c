@@ -37,10 +37,20 @@ pi_status_t pi_init() {
   return _pi_init();
 }
 
-pi_status_t pi_add_config(const char *config, pi_p4info_t **p4info) {
+pi_status_t pi_add_config(const char *config, pi_config_type_t config_type,
+                          pi_p4info_t **p4info) {
   pi_status_t status;
   pi_p4info_t *p4info_ = malloc(sizeof(pi_p4info_t));
-  if ((status = pi_bmv2_json_reader(config, p4info_)) != PI_STATUS_SUCCESS) {
+  switch (config_type) {
+    case PI_CONFIG_TYPE_BMV2_JSON:
+      status = pi_bmv2_json_reader(config, p4info_);
+      break;
+    default:
+      status = PI_STATUS_INVALID_CONFIG_TYPE;
+      break;
+  }
+  if (status != PI_STATUS_SUCCESS) {
+    free(p4info_);
     return status;
   }
   *p4info = p4info_;
@@ -48,9 +58,10 @@ pi_status_t pi_add_config(const char *config, pi_p4info_t **p4info) {
 }
 
 pi_status_t pi_add_config_from_file(const char *config_path,
+                                    pi_config_type_t config_type,
                                     pi_p4info_t **p4info) {
   char *config_tmp = read_file(config_path);
-  pi_status_t rc = pi_add_config(config_tmp, p4info);
+  pi_status_t rc = pi_add_config(config_tmp, config_type, p4info);
   free(config_tmp);
   return rc;
 }

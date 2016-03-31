@@ -62,7 +62,8 @@ static int add_route(uint32_t prefix, int pLen, uint32_t nhop, uint16_t port,
 
 int main() {
   pi_init();
-  pi_add_config_from_file(TESTDATADIR "/" "simple_router.json", &p4info);
+  pi_add_config_from_file(TESTDATADIR "/" "simple_router.json",
+                          PI_CONFIG_TYPE_BMV2_JSON, &p4info);
 
   pi_match_key_allocate(p4info, PI_ROUTER_TABLE_IPV4_LPM, &mkey_ipv4_lpm);
   pi_action_data_allocate(p4info, PI_ROUTER_ACTION_SET_NHOP, &adata_set_nhop);
