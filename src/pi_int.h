@@ -18,6 +18,10 @@
 
 #include "PI/pi.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define PI_ACTION_ID        0x01
 #define PI_TABLE_ID         0x02
 #define PI_ACTION_PARAM_ID  0x03
@@ -71,5 +75,9 @@ struct pi_table_retrieve_res_s {
 };
 
 const pi_p4info_t *pi_get_device_p4info(uint16_t dev_id);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // PI_SRC_PI_INT_H_

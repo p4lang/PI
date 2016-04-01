@@ -20,6 +20,10 @@
 
 #include <assert.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum {
   PI_VALUE_TYPE_U8 = 0,
   PI_VALUE_TYPE_U16,
@@ -41,29 +45,29 @@ typedef struct {
   } value;
 } pi_value_t;
 
-inline void pi_getv_u8(const uint8_t u8, pi_value_t *v) {
+static inline void pi_getv_u8(const uint8_t u8, pi_value_t *v) {
   v->type_and_size = ((uint8_t) PI_VALUE_TYPE_U8) << 24;
   v->value.u8 = u8;
 }
 
-inline void pi_getv_u16(const uint16_t u16, pi_value_t *v) {
+static inline void pi_getv_u16(const uint16_t u16, pi_value_t *v) {
   v->type_and_size = ((uint8_t) PI_VALUE_TYPE_U16) << 24;
   v->value.u16 = u16;
 }
 
-inline void pi_getv_u32(const uint32_t u32, pi_value_t *v) {
+static inline void pi_getv_u32(const uint32_t u32, pi_value_t *v) {
   v->type_and_size = ((uint8_t) PI_VALUE_TYPE_U32) << 24;
   v->value.u32 = u32;
 }
 
-inline void pi_getv_u64(const uint64_t u64, pi_value_t *v) {
+static inline void pi_getv_u64(const uint64_t u64, pi_value_t *v) {
   v->type_and_size = ((uint8_t) PI_VALUE_TYPE_U64) << 24;
   v->value.u64 = u64;
 }
 
 // we borrow the pointer, client is still responsible for deleting memory when
 // he is done with the value
-inline void pi_getv_ptr(const char *ptr, uint32_t size, pi_value_t *v) {
+static inline void pi_getv_ptr(const char *ptr, uint32_t size, pi_value_t *v) {
   assert(size < (1 << 24));
   v->type_and_size = ((uint8_t) PI_VALUE_TYPE_PTR) << 24;
   v->type_and_size |= size;
@@ -100,5 +104,9 @@ pi_status_t pi_getnetv_u64(const pi_p4info_t *p4info, pi_p4_id_t obj_id,
 // FIXME(antonin)
 pi_status_t pi_getnetv_ptr(pi_p4info_t *p4info, pi_p4_id_t obj_id,
                            const char *ptr, size_t size, pi_netv_t *fv);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // PI_INC_PI_PI_VALUE_H_

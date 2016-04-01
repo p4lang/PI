@@ -31,15 +31,19 @@
 pi_p4info_t *p4info = NULL;
 
 pi_dev_tgt_t dev_tgt = {0, 0xffff};
+int is_device_attached = 0;
 
 typedef pi_cli_status_t (*CLIFnPtr)(char *);
 typedef char *(*CLICompPtr)(const char *text, int state);
+
+#define PI_CLI_CMD_FLAGS_REQUIRES_DEVICE (1 << 0)
 
 typedef struct {
   const char *name;
   CLIFnPtr fn_ptr;
   const char *help_str;
   CLICompPtr comp_ptr;
+  int flags;
 } cmd_data_t;
 
 static Pvoid_t J_cmd_name_map = (Pvoid_t) NULL;
@@ -96,12 +100,13 @@ static char *complete_help(const char *text, int state) {
 }
 
 static void register_cmd(const char *name, CLIFnPtr fn, const char *help_str,
-                         CLICompPtr comp) {
+                         CLICompPtr comp, int flags) {
   cmd_data_t *cmd_data = &cmd_map[num_cmds];
   cmd_data->name = name;
   cmd_data->fn_ptr = fn;
   cmd_data->help_str = help_str;
   cmd_data->comp_ptr = comp;
+  cmd_data->flags = flags;
   Word_t *cmd_data_ptr;
   JSLI(cmd_data_ptr, J_cmd_name_map, (const uint8_t *) name);
   *cmd_data_ptr = (Word_t) cmd_data;
@@ -109,24 +114,36 @@ static void register_cmd(const char *name, CLIFnPtr fn, const char *help_str,
 }
 
 static void init_cmd_map() {
-  register_cmd("quit", NULL, "Exits CLI", NULL);
-  register_cmd("help", do_help, "Print this message", complete_help);
-  register_cmd("table_add", do_table_add, table_add_hs, complete_table_add);
+  register_cmd("quit", NULL, "Exits CLI", NULL, 0);
+  register_cmd("help", do_help, "Print this message", complete_help, 0);
+  register_cmd("select_device", do_select_device, select_device_hs, NULL, 0);
+  register_cmd("table_add", do_table_add, table_add_hs, complete_table_add,
+               PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
   register_cmd("table_delete", do_table_delete, table_delete_hs,
-               complete_table_delete);
+               complete_table_delete, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
 }
 
 static void cleanup() {
   Word_t bytes;
   JSLFA(bytes, J_cmd_name_map);
 
+  if (is_device_attached) pi_remove_device(dev_tgt.dev_id);
+
   pi_destroy_config(p4info);
+
+  pi_destroy();
 }
 
 static void dispatch_command(const char *first_word, char *subcmd) {
   assert(first_word);
   const cmd_data_t *cmd_data = get_cmd_data(first_word);
   if (cmd_data) {
+    if ((cmd_data->flags & PI_CLI_CMD_FLAGS_REQUIRES_DEVICE) &&
+        !is_device_attached) {
+      fprintf(stderr, "Cannot execute this command without selecting a device "
+              "first with the 'select_device' command.\n");
+      return;
+    }
     pi_cli_status_t status = cmd_data->fn_ptr(subcmd);
     if (status != PI_CLI_STATUS_SUCCESS) {
       fprintf(stderr, "Command returned with the following error:\n");

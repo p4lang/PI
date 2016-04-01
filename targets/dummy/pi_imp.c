@@ -21,3 +21,21 @@ pi_status_t _pi_init() {
   printf("_pi_init\n");
   return PI_STATUS_SUCCESS;
 }
+
+pi_status_t _pi_assign_device(uint16_t dev_id, const pi_p4info_t *p4info,
+                              pi_assign_extra_t *extra) {
+  (void) dev_id; (void) p4info, (void) extra;
+  printf("_pi_assign_device\n");
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_remove_device(uint16_t dev_id) {
+  (void) dev_id;
+  printf("_pi_remove_device\n");
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_destroy() {
+  printf("_pi_destroy\n");
+  return PI_STATUS_SUCCESS;
+}

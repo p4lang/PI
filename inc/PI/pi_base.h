@@ -20,15 +20,24 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define PI_INVALID_ID 0
 
 typedef enum {
   PI_STATUS_SUCCESS = 0,
   PI_STATUS_INVALID_CONFIG_TYPE,
+  PI_STATUS_INVALID_INIT_EXTRA_PARAM,
+  PI_STATUS_MISSING_INIT_EXTRA_PARAM,
+  PI_STATUS_TARGET_TRANSPORT_ERROR,
   PI_STATUS_CONFIG_READER_ERROR,
   PI_STATUS_BUFFER_ERROR,
   PI_STATUS_NETV_INVALID_SIZE,
-  PI_STATUS_NETV_INVALID_OBJ_ID
+  PI_STATUS_NETV_INVALID_OBJ_ID,
+  PI_STATUS_UNSUPPORTED_MATCH_TYPE,
+  PI_STATUS_INVALID_TABLE_OPERATION
 } pi_status_t;
 
 typedef uint32_t pi_p4_id_t;
@@ -44,5 +53,9 @@ bool pi_is_action_id(pi_p4_id_t id);
 bool pi_is_table_id(pi_p4_id_t id);
 bool pi_is_action_param_id(pi_p4_id_t id);
 bool pi_is_field_id(pi_p4_id_t id);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // PI_INC_PI_PI_BASE_H_

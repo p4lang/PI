@@ -16,8 +16,16 @@
 #ifndef PI_INC_PI_PI_P4INFO_H_
 #define PI_INC_PI_PI_P4INFO_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "p4info/actions.h"
 #include "p4info/fields.h"
 #include "p4info/tables.h"
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // PI_INC_PI_PI_P4INFO_H_

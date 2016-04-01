@@ -13,16 +13,20 @@
  * limitations under the License.
  */
 
-#ifndef PI_SRC_TARGET_PI_IMP_H_
-#define PI_SRC_TARGET_PI_IMP_H_
+#ifndef PI_BMV2_COMMON_H_
+#define PI_BMV2_COMMON_H_
 
 #include "PI/pi.h"
 
-pi_status_t _pi_init();
+typedef struct {
+  int assigned;
+  const pi_p4info_t *p4info;
+} device_info_t;
 
-pi_status_t _pi_assign_device(uint16_t dev_id, const pi_p4info_t *p4info,
-                              pi_assign_extra_t *extra);
+extern device_info_t device_info_state[];
 
-pi_status_t _pi_destroy();
+static inline device_info_t *get_device_info(size_t dev_id) {
+  return &device_info_state[dev_id];
+}
 
-#endif  // PI_SRC_TARGET_PI_IMP_H_
+#endif  // PI_BMV2_COMMON_H_

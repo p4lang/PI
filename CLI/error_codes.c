@@ -19,6 +19,8 @@ const char *error_code_to_string(pi_cli_status_t error) {
   switch (error) {
     case PI_CLI_STATUS_SUCCESS:
       return "Success";
+    case PI_CLI_STATUS_TARGET_ERROR:
+      return "Target returned error code";
     case PI_CLI_STATUS_TOO_FEW_ARGS:
       return "Too few arguments";
     case PI_CLI_STATUS_INVALID_TABLE_NAME:
@@ -42,7 +44,9 @@ const char *error_code_to_string(pi_cli_status_t error) {
     case PI_CLI_STATUS_TOO_FEW_ACTION_PARAMS:
       return "Too few action params";
     case PI_CLI_STATUS_INVALID_ENTRY_HANDLE:
-      return "Inavlid entry handle";
+      return "Invalid entry handle";
+    case PI_CLI_STATUS_INVALID_DEVICE_ID:
+      return "Invalid device id";
   }
   return "Unknown error";
 }

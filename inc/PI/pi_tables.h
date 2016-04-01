@@ -19,6 +19,10 @@
 #include "pi_base.h"
 #include "pi_value.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum {
   PI_ENTRY_PROPERTY_TYPE_PRIORITY,
   PI_ENTRY_PROPERTY_TYPE_TTL,
@@ -77,5 +81,9 @@ typedef struct pi_table_retrieve_res_s pi_table_retrieve_res_t;
 pi_status_t pi_table_retrieve(const uint16_t dev_id,
                               const pi_p4_id_t table_id,
                               pi_table_retrieve_res_t **res);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // PI_INC_PI_PI_TABLES_H_

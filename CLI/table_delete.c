@@ -51,7 +51,8 @@ pi_cli_status_t do_table_delete(char *subcmd) {
   else
     printf("Error when trying to remove entry %" PRIu64 ".\n", handle);
 
-  return PI_CLI_STATUS_SUCCESS;
+  return (rc == PI_STATUS_SUCCESS) ? PI_CLI_STATUS_SUCCESS
+      : PI_CLI_STATUS_TARGET_ERROR;
 };
 
 char *complete_table_delete(const char *text, int state) {

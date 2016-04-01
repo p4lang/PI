@@ -26,4 +26,7 @@ extern char table_delete_hs[];
 pi_cli_status_t do_table_delete(char *subcmd);
 char *complete_table_delete(const char *text, int state);
 
+extern char select_device_hs[];
+pi_cli_status_t do_select_device(char *subcmd);
+
 #endif  // PI_CLI_COMMANDS_H_

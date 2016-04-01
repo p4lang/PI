@@ -1,3 +1,7 @@
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 
-SUBDIRS = dummy
+if WITH_BMV2
+MAYBE_BMV2 = bmv2
+endif
+
+SUBDIRS = dummy $(MAYBE_BMV2)

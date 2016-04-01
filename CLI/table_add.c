@@ -233,13 +233,14 @@ pi_cli_status_t do_table_add(char *subcmd) {
   pi_status_t rc;
   rc = pi_table_entry_add(dev_tgt, t_id, mk, &t_entry, 0, &handle);
   if (rc == PI_STATUS_SUCCESS)
-    printf("Entry was successfully added with handle %" PRIu64 "\n.", handle);
+    printf("Entry was successfully added with handle %" PRIu64 ".\n", handle);
   else
     printf("Error when trying to add entry.\n");
 
   pi_match_key_destroy(mk);
   pi_action_data_destroy(adata);
-  return PI_CLI_STATUS_SUCCESS;
+  return (rc == PI_STATUS_SUCCESS) ? PI_CLI_STATUS_SUCCESS
+      : PI_CLI_STATUS_TARGET_ERROR;
 };
 
 char *complete_table_add(const char *text, int state) {

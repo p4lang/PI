@@ -74,14 +74,19 @@ pi_status_t pi_destroy_config(pi_p4info_t *p4info) {
   return PI_STATUS_SUCCESS;
 }
 
-pi_status_t pi_assign_device(uint16_t dev_id, const pi_p4info_t *p4info) {
-  (void) dev_id; (void) p4info;
+pi_status_t pi_assign_device(uint16_t dev_id, const pi_p4info_t *p4info,
+                             pi_assign_extra_t *extra) {
+  return _pi_assign_device(dev_id, p4info, extra);
   return PI_STATUS_SUCCESS;
 }
 
 pi_status_t pi_remove_device(uint16_t dev_id) {
   (void) dev_id;
   return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_destroy() {
+  return _pi_destroy();
 }
 
 bool pi_is_action_id(pi_p4_id_t id) {

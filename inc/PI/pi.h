@@ -19,6 +19,10 @@
 #include "pi_base.h"
 #include "pi_tables.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum {
   PI_CONFIG_TYPE_BMV2_JSON = 0
 } pi_config_type_t;
@@ -34,8 +38,21 @@ pi_status_t pi_add_config_from_file(const char *config_path,
 
 pi_status_t pi_destroy_config(pi_p4info_t *p4info);
 
-pi_status_t pi_assign_device(uint16_t dev_id, const pi_p4info_t *p4info);
+typedef struct {
+  int end_of_extras;
+  const char *key;
+  const char *v;
+} pi_assign_extra_t;
+
+pi_status_t pi_assign_device(uint16_t dev_id, const pi_p4info_t *p4info,
+                             pi_assign_extra_t *extra);
 
 pi_status_t pi_remove_device(uint16_t dev_id);
+
+pi_status_t pi_destroy();
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // PI_INC_PI_PI_H_
