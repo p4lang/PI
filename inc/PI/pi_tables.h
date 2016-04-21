@@ -36,8 +36,8 @@ void pi_entry_properties_set(pi_entry_properties_t *properties,
                              const pi_value_t *property_value);
 
 typedef uint64_t pi_entry_handle_t;
-typedef struct pi_match_key_s pi_match_key_t;
-typedef struct pi_action_data_s pi_action_data_t;
+typedef union __compact_v_t pi_match_key_t;
+typedef union __compact_v_t pi_action_data_t;
 
 typedef int pi_res_config_t;
 

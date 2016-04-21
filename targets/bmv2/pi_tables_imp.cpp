@@ -38,8 +38,6 @@ std::vector<BmMatchParam> build_key(pi_p4_id_t table_id,
   static thread_local std::vector<BmMatchParam> key;
   key.clear();
 
-  assert(table_id == match_key->table_id);
-
   BmMatchParam param;
   BmMatchParamValid param_valid;
   BmMatchParamExact param_exact;
@@ -47,8 +45,8 @@ std::vector<BmMatchParam> build_key(pi_p4_id_t table_id,
   BmMatchParamTernary param_ternary;
 
   size_t num_match_fields = pi_p4info_table_num_match_fields(p4info, table_id);
-  const _compact_v_t *curr_v = match_key->data;
   for (size_t i = 0; i < num_match_fields; i++) {
+    const _compact_v_t *curr_v = &match_key[i];
     pi_p4info_match_field_info_t finfo;
     pi_p4info_table_match_field_info(p4info, table_id, i, &finfo);
     size_t f_bw = finfo.bitwidth;
@@ -112,13 +110,12 @@ std::vector<std::string> build_action_data(const pi_table_entry_t *table_entry,
   pi_p4_id_t action_id = table_entry->action_id;
   const pi_action_data_t *action_data = table_entry->action_data;
   assert(action_data);
-  assert(action_id == action_data->action_id);
 
   size_t num_params;
   const pi_p4_id_t *param_ids = pi_p4info_action_get_params(p4info, action_id,
                                                             &num_params);
-  const _compact_v_t *curr_v = action_data->data;
   for (size_t i = 0; i < num_params; i++) {
+    const _compact_v_t *curr_v = &action_data[i];
     pi_p4_id_t p_id = param_ids[i];
     size_t p_bw = pi_p4info_action_param_bitwidth(p4info, p_id);
     size_t nbytes = (p_bw + 7) / 8;

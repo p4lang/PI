@@ -86,12 +86,9 @@ TEST(FrontendGeneric_OneExact, U8) {
       TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
       rc = pi_match_key_exact_set(p4info, mkey, &fv);
       TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
-      TEST_ASSERT_EQUAL_UINT(tid, mkey->table_id);
-      TEST_ASSERT_EQUAL_UINT(1, mkey->nset);
-      _compact_v_t *cv = &mkey->data[0];
       char expected_data[1];
       expected_data[0] = test_v;
-      TEST_ASSERT_EQUAL_MEMORY(&expected_data, cv->bytes,
+      TEST_ASSERT_EQUAL_MEMORY(&expected_data, mkey[0].bytes,
                                sizeof(expected_data));
     }
     p4info_destroy();
@@ -111,10 +108,7 @@ TEST(FrontendGeneric_OneExact, U128) {
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
   rc = pi_match_key_exact_set(p4info, mkey, &fv);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
-  TEST_ASSERT_EQUAL_UINT(tid, mkey->table_id);
-  TEST_ASSERT_EQUAL_UINT(1, mkey->nset);
-  _compact_v_t *cv = &mkey->data[0];
-  TEST_ASSERT_EQUAL_MEMORY(test_v, cv->more_bytes, sizeof(test_v));
+  TEST_ASSERT_EQUAL_MEMORY(test_v, mkey[0].more_bytes, sizeof(test_v));
   p4info_destroy();
 }
 
@@ -147,15 +141,11 @@ TEST(FrontendGeneric_OneLPM, U8) {
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
   rc = pi_match_key_lpm_set(p4info, mkey, &fv, prefix_length);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
-  TEST_ASSERT_EQUAL_UINT(tid, mkey->table_id);
-  TEST_ASSERT_EQUAL_UINT(1, mkey->nset);
-  _compact_v_t *cv = &mkey->data[0];
   char expected_data[1];
   expected_data[0] = test_v;
-  TEST_ASSERT_EQUAL_MEMORY(&expected_data, cv->bytes,
+  TEST_ASSERT_EQUAL_MEMORY(&expected_data, mkey[0].bytes,
                            sizeof(expected_data));
-  cv = &mkey->data[1];
-  TEST_ASSERT_EQUAL_UINT64(prefix_length, cv->v);
+  TEST_ASSERT_EQUAL_UINT64(prefix_length, mkey[1].v);
   p4info_destroy();
 }
 
@@ -189,16 +179,12 @@ TEST(FrontendGeneric_OneTernary, U8) {
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
   rc = pi_match_key_ternary_set(p4info, mkey, &fv, &mask);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
-  TEST_ASSERT_EQUAL_UINT(tid, mkey->table_id);
-  TEST_ASSERT_EQUAL_UINT(1, mkey->nset);
-  _compact_v_t *cv = &mkey->data[0];
   char expected_data[1];
   expected_data[0] = test_v;
-  TEST_ASSERT_EQUAL_MEMORY(&expected_data, cv->bytes,
+  TEST_ASSERT_EQUAL_MEMORY(&expected_data, mkey[0].bytes,
                            sizeof(expected_data));
-  cv = &mkey->data[1];
   expected_data[0] = test_mask;
-  TEST_ASSERT_EQUAL_MEMORY(&expected_data, cv->bytes,
+  TEST_ASSERT_EQUAL_MEMORY(&expected_data, mkey[1].bytes,
                            sizeof(expected_data));
   p4info_destroy();
 }
@@ -231,12 +217,9 @@ TEST(FrontendGeneric_Adata, U8) {
       TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
       rc = pi_action_data_arg_set(p4info, adata, &argv);
       TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
-      TEST_ASSERT_EQUAL_UINT(aid, adata->action_id);
-      TEST_ASSERT_EQUAL_UINT(1, adata->nset);
-      _compact_v_t *cv = &adata->data[0];
       char expected_data[1];
       expected_data[0] = test_v;
-      TEST_ASSERT_EQUAL_MEMORY(&expected_data, cv->bytes,
+      TEST_ASSERT_EQUAL_MEMORY(&expected_data, adata[0].bytes,
                                sizeof(expected_data));
     }
     p4info_destroy();
@@ -256,10 +239,7 @@ TEST(FrontendGeneric_Adata, U128) {
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
   rc = pi_action_data_arg_set(p4info, adata, &argv);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
-  TEST_ASSERT_EQUAL_UINT(aid, adata->action_id);
-  TEST_ASSERT_EQUAL_UINT(1, adata->nset);
-  _compact_v_t *cv = &adata->data[0];
-  TEST_ASSERT_EQUAL_MEMORY(test_v, cv->more_bytes, sizeof(test_v));
+  TEST_ASSERT_EQUAL_MEMORY(test_v, adata[0].more_bytes, sizeof(test_v));
   p4info_destroy();
 }
 

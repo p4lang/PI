@@ -46,23 +46,13 @@ inline pi_p4_id_t pi_make_field_id(uint16_t index) {
 
 #define PI_GET_TYPE_ID(id) (id >> 24)
 
-typedef union {
+union __compact_v_t {
   char bytes[8];
   uint64_t v;
   char *more_bytes;
-} _compact_v_t;
-
-struct pi_match_key_s {
-  pi_p4_id_t table_id;
-  uint32_t nset;
-  _compact_v_t data[];
 };
 
-struct pi_action_data_s {
-  pi_p4_id_t action_id;
-  uint32_t nset;
-  _compact_v_t data[];
-};
+typedef union __compact_v_t _compact_v_t;
 
 struct pi_entry_properties_s {
   uint32_t valid_properties;
