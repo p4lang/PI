@@ -18,6 +18,7 @@
 #include "pi_fe_defines_p4.h"
 
 #include <cassert>
+#include <cstring>
 
 namespace {
 
@@ -75,8 +76,13 @@ int main() {
   pi_add_config_from_file(TESTDATADIR "/" "simple_router.json",
                           PI_CONFIG_TYPE_BMV2_JSON, &p4info);
 
-  pi_assign_extra_t rpc_port = {0, "port", "9090"};
-  pi_assign_device(0, p4info, &rpc_port);
+  pi_assign_extra_t assign_options[2];
+  memset(assign_options, 0, sizeof(assign_options));
+  pi_assign_extra_t *rpc_port = &assign_options[0];
+  rpc_port->key = "port";
+  rpc_port->v = "9090";
+  assign_options[1].end_of_extras = true;
+  pi_assign_device(0, p4info, assign_options);
 
   pi_entry_handle_t handle;
   // Adding entry 10.0.0.1/8 => nhop=10.0.0.1, port=11
@@ -85,6 +91,8 @@ int main() {
   uint16_t port_2 = 8;
   assert(!add_route(ipv4_dstAddr, 8, ipv4_dstAddr, port_1, &handle));
   assert(!add_route_fast(ipv4_dstAddr, 16, ipv4_dstAddr, port_2, &handle));
+
+  pi_remove_device(0);
 
   pi_destroy_config(p4info);
 }
