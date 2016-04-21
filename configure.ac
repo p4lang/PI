@@ -23,6 +23,13 @@ AC_ARG_WITH([bmv2],
 
 AM_CONDITIONAL([WITH_BMV2], [test "$want_bmv2" = yes])
 
+want_fe_cpp=no
+AC_ARG_WITH([fe_cpp],
+    AS_HELP_STRING([--with-fe-cpp], [Build with C++ frontend]),
+    [want_fe_cpp=yes], [])
+
+AM_CONDITIONAL([WITH_FE_CPP], [test "$want_fe_cpp" = yes])
+
 LT_INIT
 
 AC_CONFIG_MACRO_DIR([m4])
@@ -86,6 +93,7 @@ AC_SUBST([AM_CFLAGS], ["-Wall -Werror -Wextra"])
 AC_CONFIG_FILES([Makefile
                  CLI/Makefile
                  examples/Makefile
+                 frontends_extra/Makefile
                  generators/Makefile
                  inc/Makefile
                  src/Makefile
@@ -99,6 +107,9 @@ AC_CONFIG_FILES([Makefile
                  third_party/unity/Makefile])
 
 AS_IF([test "$want_bmv2" = yes], [AC_CONFIG_SUBDIRS([targets/bmv2])])
+AS_IF([test "$want_fe_cpp" = yes], [
+  AC_CONFIG_SUBDIRS([frontends_extra/cpp])
+])
 
 AC_OUTPUT
 
@@ -109,3 +120,4 @@ AS_IF([test "$want_bmv2" = no && test "x$CXX" = x], [
 AS_ECHO("")
 AS_ECHO("Features recap ......................")
 AS_ECHO("Compile for bmv2 .............. : $want_bmv2")
+AS_ECHO("Compile CPP frontend .......... : $want_fe_cpp")
