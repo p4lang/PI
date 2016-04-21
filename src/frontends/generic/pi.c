@@ -45,7 +45,7 @@ typedef struct {
 pi_status_t pi_match_key_allocate(const pi_p4info_t *p4info,
                                   const pi_p4_id_t table_id,
                                   pi_match_key_t **key) {
-  size_t s = sizeof(pi_match_key_t);
+  size_t s = 0;
   size_t num_match_fields = pi_p4info_table_num_match_fields(p4info, table_id);
   // 2 compact blobs per field to accomodate all match types
   s += 2 * num_match_fields * sizeof(_compact_v_t);
@@ -204,7 +204,7 @@ typedef struct {
 pi_status_t pi_action_data_allocate(const pi_p4info_t *p4info,
                                     const pi_p4_id_t action_id,
                                     pi_action_data_t **adata) {
-  size_t s = sizeof(pi_action_data_t);
+  size_t s = 0;
   size_t num_params;
   const pi_p4_id_t *params = pi_p4info_action_get_params(p4info, action_id,
                                                          &num_params);
