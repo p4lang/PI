@@ -71,7 +71,7 @@ static void init_ids() {
 }
 
 int main() {
-  pi_init();
+  pi_init(256);  // 256 devices max
   pi_add_config_from_file(TESTDATADIR "/" "simple_router.json",
                           PI_CONFIG_TYPE_BMV2_JSON, &p4info);
 

@@ -233,7 +233,7 @@ int main(int argc, char *argv[]) {
   }
 
   pi_status_t pirc;
-  pi_init();
+  pi_init(256);  // 256 devices max
   pirc = pi_add_config_from_file(argv[1], PI_CONFIG_TYPE_BMV2_JSON, &p4info);
   if (pirc != PI_STATUS_SUCCESS) {
     fprintf(stderr, "Error while loading config\n");

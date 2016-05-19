@@ -27,7 +27,7 @@ typedef enum {
   PI_CONFIG_TYPE_BMV2_JSON = 0
 } pi_config_type_t;
 
-pi_status_t pi_init();
+pi_status_t pi_init(size_t max_devices);
 
 pi_status_t pi_add_config(const char *config, pi_config_type_t config_type,
                           pi_p4info_t **p4info);

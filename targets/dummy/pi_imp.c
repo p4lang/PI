@@ -29,7 +29,7 @@ pi_status_t _pi_assign_device(uint16_t dev_id, const pi_p4info_t *p4info,
   return PI_STATUS_SUCCESS;
 }
 
-pi_status_t pi_remove_device(uint16_t dev_id) {
+pi_status_t _pi_remove_device(uint16_t dev_id) {
   (void) dev_id;
   printf("_pi_remove_device\n");
   return PI_STATUS_SUCCESS;

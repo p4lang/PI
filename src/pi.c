@@ -27,13 +27,22 @@
 
 #define MAX_DEVICES 256
 
-pi_p4info_t *_device_mapping[MAX_DEVICES];
+typedef struct {
+  int assigned;
+  int backend_id;
+  const pi_p4info_t *p4info;
+} device_info_t;
+
+static size_t num_devices;
+static device_info_t *device_mapping;
 
 const pi_p4info_t *pi_get_device_p4info(uint16_t dev_id) {
-  return _device_mapping[dev_id];
+  return device_mapping[dev_id].p4info;
 }
 
-pi_status_t pi_init() {
+pi_status_t pi_init(size_t max_devices) {
+  num_devices = max_devices;
+  device_mapping = calloc(max_devices, sizeof(device_info_t));
   return _pi_init();
 }
 
@@ -76,16 +85,29 @@ pi_status_t pi_destroy_config(pi_p4info_t *p4info) {
 
 pi_status_t pi_assign_device(uint16_t dev_id, const pi_p4info_t *p4info,
                              pi_assign_extra_t *extra) {
-  return _pi_assign_device(dev_id, p4info, extra);
-  return PI_STATUS_SUCCESS;
+  if (dev_id >= num_devices) return PI_STATUS_DEV_OUT_OF_RANGE;
+  device_info_t *info = &device_mapping[dev_id];
+  if (info->assigned) return PI_STATUS_DEV_ALREADY_ASSIGNED;
+  pi_status_t status = _pi_assign_device(dev_id, p4info, extra);
+  if (status == PI_STATUS_SUCCESS) {
+    info->assigned = 1;
+  }
+  return status;
 }
 
 pi_status_t pi_remove_device(uint16_t dev_id) {
-  (void) dev_id;
-  return PI_STATUS_SUCCESS;
+  if (dev_id >= num_devices) return PI_STATUS_DEV_OUT_OF_RANGE;
+  device_info_t *info = &device_mapping[dev_id];
+  if (!info->assigned) return PI_STATUS_DEV_NOT_ASSIGNED;
+  pi_status_t status = _pi_remove_device(dev_id);
+  if (status == PI_STATUS_SUCCESS) {
+    info->assigned = 0;
+  }
+  return status;
 }
 
 pi_status_t pi_destroy() {
+  free(device_mapping);
   return _pi_destroy();
 }
 

@@ -23,6 +23,8 @@ pi_status_t _pi_init();
 pi_status_t _pi_assign_device(uint16_t dev_id, const pi_p4info_t *p4info,
                               pi_assign_extra_t *extra);
 
+pi_status_t _pi_remove_device(uint16_t dev_id);
+
 pi_status_t _pi_destroy();
 
 #endif  // PI_SRC_TARGET_PI_IMP_H_
