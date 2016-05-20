@@ -121,6 +121,10 @@ static void init_cmd_map() {
                PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
   register_cmd("table_delete", do_table_delete, table_delete_hs,
                complete_table_delete, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
+  register_cmd("table_modify", do_table_modify, table_modify_hs,
+               complete_table_modify, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
+  register_cmd("table_set_default", do_table_set_default, table_set_default_hs,
+               complete_table_set_default, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
 }
 
 static void cleanup() {

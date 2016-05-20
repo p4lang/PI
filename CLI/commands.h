@@ -26,6 +26,14 @@ extern char table_delete_hs[];
 pi_cli_status_t do_table_delete(char *subcmd);
 char *complete_table_delete(const char *text, int state);
 
+extern char table_modify_hs[];
+pi_cli_status_t do_table_modify(char *subcmd);
+char *complete_table_modify(const char *text, int state);
+
+extern char table_set_default_hs[];
+pi_cli_status_t do_table_set_default(char *subcmd);
+char *complete_table_set_default(const char *text, int state);
+
 extern char select_device_hs[];
 pi_cli_status_t do_select_device(char *subcmd);
 

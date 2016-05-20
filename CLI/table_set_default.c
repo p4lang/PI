@@ -23,49 +23,48 @@
 #include <string.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include <stdio.h>
 
-#include <readline/readline.h>
+char table_set_default_hs[] =
+    "Set default entry in a match table: "
+    "table_set_default <table name> <action name> <action parameters>";
 
-char table_delete_hs[] =
-    "Delete entry from a match table: table_delete <table name> <entry handle>";
-
-pi_cli_status_t do_table_delete(char *subcmd) {
+pi_cli_status_t do_table_set_default(char *subcmd) {
   const char *args[2];
   size_t num_args = sizeof(args) / sizeof(char *);
   if (parse_fixed_args(subcmd, args, num_args) < num_args)
     return PI_CLI_STATUS_TOO_FEW_ARGS;
   const char *t_name = args[0];
-  const char *handle_str = args[1];
+  const char *a_name = args[1];
   pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, t_name);
   if (t_id == PI_INVALID_ID) return PI_CLI_STATUS_INVALID_TABLE_NAME;
-  char *endptr;
-  pi_entry_handle_t handle = strtoll(handle_str, &endptr, 0);
-  if (*endptr != '\0') return PI_CLI_STATUS_INVALID_ENTRY_HANDLE;
+  pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, a_name);
+  if (a_id == PI_INVALID_ID) return PI_CLI_STATUS_INVALID_ACTION_NAME;
 
+  pi_cli_status_t status;
+
+  pi_action_data_t *adata;
+  pi_action_data_allocate(p4info, a_id, &adata);
+  pi_action_data_init(p4info, adata);
+  status = read_action_data(NULL, a_id, adata);
+  if (status != PI_CLI_STATUS_SUCCESS) {
+    pi_action_data_destroy(adata);
+    return status;
+  }
+
+  pi_table_entry_t t_entry = {a_id, adata, NULL, NULL};
   pi_status_t rc;
-  rc = pi_table_entry_delete(dev_tgt.dev_id, t_id, handle);
+  rc = pi_table_default_action_set(dev_tgt, t_id, &t_entry);
   if (rc == PI_STATUS_SUCCESS)
-    printf("Entry with handle %" PRIu64 " was successfully removed.\n", handle);
+    printf("Default entry was successfully set.\n");
   else
-    printf("Error when trying to remove entry %" PRIu64 ".\n", handle);
+    printf("Error when trying to set default entry.\n");
 
+  pi_action_data_destroy(adata);
   return (rc == PI_STATUS_SUCCESS) ? PI_CLI_STATUS_SUCCESS
       : PI_CLI_STATUS_TARGET_ERROR;
 };
 
-char *complete_table_delete(const char *text, int state) {
-  static int token_count;
-  static int len;
-
-  if (!state) {
-    token_count = count_tokens(rl_line_buffer);
-    len = strlen(text);
-  }
-
-  if (token_count == 0) {  // just the cmd
-    return NULL;
-  } else if (token_count == 1) {
-    return complete_p4_table(text, len, state);
-  }
-  return NULL;
+char *complete_table_set_default(const char *text, int state) {
+  return complete_table_and_action(text, state);
 }

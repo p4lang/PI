@@ -473,6 +473,23 @@ TEST(P4Info, TablesStress) {
                                                    num_actions + 1));
   }
 
+  for (size_t i = 0; i < num_tables; i++) {
+    if (tdata[i].num_actions == 0) continue;
+    pi_p4_id_t action_id = tdata[i].actions[0];
+    TEST_ASSERT_FALSE(
+        pi_p4info_table_has_const_default_action(p4info, tdata[i].id));
+    TEST_ASSERT_EQUAL_UINT(
+        PI_INVALID_ID,
+        pi_p4info_table_get_const_default_action(p4info, tdata[i].id));
+
+    pi_p4info_table_set_const_default_action(p4info, tdata[i].id, action_id);
+    TEST_ASSERT_TRUE(
+        pi_p4info_table_has_const_default_action(p4info, tdata[i].id));
+    TEST_ASSERT_EQUAL_UINT(
+        action_id,
+        pi_p4info_table_get_const_default_action(p4info, tdata[i].id));
+  }
+
   pi_p4info_field_free(p4info);
   pi_p4info_action_free(p4info);
   pi_p4info_table_free(p4info);

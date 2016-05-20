@@ -173,7 +173,35 @@ pi_status_t _pi_table_entry_add(const pi_dev_tgt_t dev_tgt,
 pi_status_t _pi_table_default_action_set(const pi_dev_tgt_t dev_tgt,
                                          const pi_p4_id_t table_id,
                                          const pi_table_entry_t *table_entry) {
-  (void) dev_tgt; (void) table_id; (void) table_entry;
+  device_info_t *d_info = get_device_info(dev_tgt.dev_id);
+  assert(d_info->assigned);
+  const pi_p4info_t *p4info = d_info->p4info;
+
+  if (pi_p4info_table_has_const_default_action(p4info, table_id)) {
+    const pi_p4_id_t default_action_id =
+        pi_p4info_table_get_const_default_action(p4info, table_id);
+    if (default_action_id != table_entry->action_id)
+      return PI_STATUS_CONST_DEFAULT_ACTION;
+  }
+
+  std::vector<std::string> action_data = build_action_data(table_entry, p4info);
+
+  std::string t_name(pi_p4info_table_name_from_id(p4info, table_id));
+  std::string a_name(
+      pi_p4info_action_name_from_id(p4info, table_entry->action_id));
+
+  auto client = conn_mgr_client(conn_mgr_state, dev_tgt.dev_id);
+
+  try {
+    client.c->bm_mt_set_default_action(0, t_name, a_name, action_data);
+  } catch (InvalidTableOperation &ito) {
+    const char *what =
+        _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
+    std::cout << "Invalid table (" << "${t_name}" << ") operation ("
+              << ito.code << "): " << what << std::endl;
+    return PI_STATUS_INVALID_TABLE_OPERATION;
+  }
+
   return PI_STATUS_SUCCESS;
 }
 
@@ -184,7 +212,7 @@ pi_status_t _pi_table_default_action_get(const pi_dev_tgt_t dev_tgt,
   return PI_STATUS_SUCCESS;
 }
 
-pi_status_t _pi_table_entry_delete(const uint16_t dev_id,
+pi_status_t _pi_table_entry_delete(const pi_dev_id_t dev_id,
                                    const pi_p4_id_t table_id,
                                    const pi_entry_handle_t entry_handle) {
   device_info_t *d_info = get_device_info(dev_id);
@@ -208,15 +236,36 @@ pi_status_t _pi_table_entry_delete(const uint16_t dev_id,
   return PI_STATUS_SUCCESS;
 }
 
-pi_status_t _pi_table_entry_modify(const uint16_t dev_id,
+pi_status_t _pi_table_entry_modify(const pi_dev_id_t dev_id,
                                    const pi_p4_id_t table_id,
                                    const pi_entry_handle_t entry_handle,
                                    const pi_table_entry_t *table_entry) {
-  (void) dev_id; (void) table_id; (void) entry_handle; (void) table_entry;
+  device_info_t *d_info = get_device_info(dev_id);
+  assert(d_info->assigned);
+  const pi_p4info_t *p4info = d_info->p4info;
+
+  std::vector<std::string> action_data = build_action_data(table_entry, p4info);
+
+  std::string t_name(pi_p4info_table_name_from_id(p4info, table_id));
+  std::string a_name(
+      pi_p4info_action_name_from_id(p4info, table_entry->action_id));
+
+  auto client = conn_mgr_client(conn_mgr_state, dev_id);
+
+  try {
+    client.c->bm_mt_modify_entry(0, t_name, entry_handle, a_name, action_data);
+  } catch (InvalidTableOperation &ito) {
+    const char *what =
+        _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
+    std::cout << "Invalid table (" << "${t_name}" << ") operation ("
+              << ito.code << "): " << what << std::endl;
+    return PI_STATUS_INVALID_TABLE_OPERATION;
+  }
+
   return PI_STATUS_SUCCESS;
 }
 
-pi_status_t _pi_table_retrieve(const uint16_t dev_id,
+pi_status_t _pi_table_retrieve(const pi_dev_id_t dev_id,
                                const pi_p4_id_t table_id,
                                pi_table_retrieve_res_t **res) {
   (void) dev_id; (void) table_id; (void) res;

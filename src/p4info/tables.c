@@ -50,6 +50,8 @@ typedef struct _table_data_s {
   } action_ids;
   size_t match_fields_added;
   size_t actions_added;
+  // PI_INVALID_ID if no const default action
+  pi_p4_id_t const_default_action_id;
 } _table_data_t;
 
 static size_t get_table_idx(pi_p4_id_t table_id) {
@@ -130,6 +132,8 @@ void pi_p4info_table_add(pi_p4info_t *p4info, pi_p4_id_t table_id,
     table->action_ids.indirect = calloc(num_actions, sizeof(pi_p4_id_t));
   }
 
+  table->const_default_action_id = PI_INVALID_ID;
+
   Word_t *table_id_ptr;
   JSLI(table_id_ptr, p4info->table_name_map, (const uint8_t *) table->name);
   *table_id_ptr = table_id;
@@ -158,6 +162,15 @@ void pi_p4info_table_add_action(pi_p4info_t *p4info, pi_p4_id_t table_id,
   assert(table->actions_added < table->num_actions);
   get_action_ids(table)[table->actions_added] = action_id;
   table->actions_added++;
+}
+
+void pi_p4info_table_set_const_default_action(pi_p4info_t *p4info,
+                                              pi_p4_id_t table_id,
+                                              pi_p4_id_t default_action_id) {
+  _table_data_t *table = get_table(p4info, table_id);
+  assert(table->num_actions > 0);
+  assert(pi_p4info_table_is_action_of(p4info, table_id, default_action_id));
+  table->const_default_action_id = default_action_id;
 }
 
 pi_p4_id_t pi_p4info_table_id_from_name(const pi_p4info_t *p4info,
@@ -243,6 +256,19 @@ const pi_p4_id_t *pi_p4info_table_get_actions(const pi_p4info_t *p4info,
   _table_data_t *table = get_table(p4info, table_id);
   *num_actions = table->num_actions;
   return get_action_ids(table);
+}
+
+
+bool pi_p4info_table_has_const_default_action(const pi_p4info_t *p4info,
+                                              pi_p4_id_t table_id) {
+  _table_data_t *table = get_table(p4info, table_id);
+  return (table->const_default_action_id != PI_INVALID_ID);
+}
+
+pi_p4_id_t pi_p4info_table_get_const_default_action(const pi_p4info_t *p4info,
+                                                    pi_p4_id_t table_id) {
+  _table_data_t *table = get_table(p4info, table_id);
+  return table->const_default_action_id;
 }
 
 #define PI_P4INFO_T_ITERATOR_FIRST (PI_TABLE_ID << 24)

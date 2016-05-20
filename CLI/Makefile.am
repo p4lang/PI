@@ -11,10 +11,14 @@ commands.h \
 select_device.c \
 table_add.c \
 table_delete.c \
+table_modify.c \
+table_set_default.c \
 error_codes.h \
 error_codes.c \
 utils.h \
-utils.c
+utils.c \
+table_common.h \
+table_common.c
 
 bin_PROGRAMS = pi_CLI_dummy
 

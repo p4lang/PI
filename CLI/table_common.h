@@ -13,18 +13,19 @@
  * limitations under the License.
  */
 
-#ifndef PI_SRC_TARGET_PI_IMP_H_
-#define PI_SRC_TARGET_PI_IMP_H_
+#ifndef PI_CLI_TABLE_COMMON_H_
+#define PI_CLI_TABLE_COMMON_H_
+
+#include "error_codes.h"
 
 #include "PI/pi.h"
 
-pi_status_t _pi_init();
+extern pi_p4info_t *p4info;
+extern pi_dev_tgt_t dev_tgt;
 
-pi_status_t _pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
-                              pi_assign_extra_t *extra);
+pi_cli_status_t read_action_data(char *in, pi_p4_id_t a_id,
+                                 pi_action_data_t *adata);
 
-pi_status_t _pi_remove_device(pi_dev_id_t dev_id);
+char *complete_table_and_action(const char *text, int state);
 
-pi_status_t _pi_destroy();
-
-#endif  // PI_SRC_TARGET_PI_IMP_H_
+#endif  // PI_CLI_TABLE_COMMON_H_

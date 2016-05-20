@@ -23,49 +23,54 @@
 #include <string.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include <stdio.h>
 
-#include <readline/readline.h>
+char table_modify_hs[] =
+    "Modify entry in a match table: "
+    "table_modify <table name> <action name> <entry_handle> "
+    "<action parameters>";
 
-char table_delete_hs[] =
-    "Delete entry from a match table: table_delete <table name> <entry handle>";
-
-pi_cli_status_t do_table_delete(char *subcmd) {
-  const char *args[2];
+pi_cli_status_t do_table_modify(char *subcmd) {
+  const char *args[3];
   size_t num_args = sizeof(args) / sizeof(char *);
   if (parse_fixed_args(subcmd, args, num_args) < num_args)
     return PI_CLI_STATUS_TOO_FEW_ARGS;
   const char *t_name = args[0];
-  const char *handle_str = args[1];
+  const char *a_name = args[1];
+  const char *handle_str = args[2];
   pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, t_name);
   if (t_id == PI_INVALID_ID) return PI_CLI_STATUS_INVALID_TABLE_NAME;
+  pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, a_name);
+  if (a_id == PI_INVALID_ID) return PI_CLI_STATUS_INVALID_ACTION_NAME;
   char *endptr;
   pi_entry_handle_t handle = strtoll(handle_str, &endptr, 0);
   if (*endptr != '\0') return PI_CLI_STATUS_INVALID_ENTRY_HANDLE;
 
-  pi_status_t rc;
-  rc = pi_table_entry_delete(dev_tgt.dev_id, t_id, handle);
-  if (rc == PI_STATUS_SUCCESS)
-    printf("Entry with handle %" PRIu64 " was successfully removed.\n", handle);
-  else
-    printf("Error when trying to remove entry %" PRIu64 ".\n", handle);
+  pi_cli_status_t status;
 
+  pi_action_data_t *adata;
+  pi_action_data_allocate(p4info, a_id, &adata);
+  pi_action_data_init(p4info, adata);
+  status = read_action_data(NULL, a_id, adata);
+  if (status != PI_CLI_STATUS_SUCCESS) {
+    pi_action_data_destroy(adata);
+    return status;
+  }
+
+  pi_table_entry_t t_entry = {a_id, adata, NULL, NULL};
+  pi_status_t rc;
+  rc = pi_table_entry_modify(dev_tgt.dev_id, t_id, handle, &t_entry);
+  if (rc == PI_STATUS_SUCCESS)
+    printf("Entry with handle %" PRIu64 " was successfully modified.\n",
+           handle);
+  else
+    printf("Error when trying to modify entry %" PRIu64 ".\n", handle);
+
+  pi_action_data_destroy(adata);
   return (rc == PI_STATUS_SUCCESS) ? PI_CLI_STATUS_SUCCESS
       : PI_CLI_STATUS_TARGET_ERROR;
 };
 
-char *complete_table_delete(const char *text, int state) {
-  static int token_count;
-  static int len;
-
-  if (!state) {
-    token_count = count_tokens(rl_line_buffer);
-    len = strlen(text);
-  }
-
-  if (token_count == 0) {  // just the cmd
-    return NULL;
-  } else if (token_count == 1) {
-    return complete_p4_table(text, len, state);
-  }
-  return NULL;
+char *complete_table_modify(const char *text, int state) {
+  return complete_table_and_action(text, state);
 }

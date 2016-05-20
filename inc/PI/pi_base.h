@@ -36,17 +36,21 @@ typedef enum {
   PI_STATUS_BUFFER_ERROR,
   PI_STATUS_NETV_INVALID_SIZE,
   PI_STATUS_NETV_INVALID_OBJ_ID,
-  PI_STATUS_UNSUPPORTED_MATCH_TYPE,
-  PI_STATUS_INVALID_TABLE_OPERATION,
   PI_STATUS_DEV_OUT_OF_RANGE,
   PI_STATUS_DEV_ALREADY_ASSIGNED,
-  PI_STATUS_DEV_NOT_ASSIGNED
+  PI_STATUS_DEV_NOT_ASSIGNED,
+
+  PI_STATUS_UNSUPPORTED_MATCH_TYPE,
+  PI_STATUS_CONST_DEFAULT_ACTION,
+  PI_STATUS_INVALID_TABLE_OPERATION
 } pi_status_t;
 
 typedef uint32_t pi_p4_id_t;
 
+typedef uint16_t pi_dev_id_t;
+
 typedef struct {
-  uint16_t dev_id;
+  pi_dev_id_t dev_id;
   uint16_t dev_pipe_mask;
 } pi_dev_tgt_t;
 

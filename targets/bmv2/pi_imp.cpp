@@ -35,7 +35,7 @@ pi_status_t _pi_init() {
   return PI_STATUS_SUCCESS;
 }
 
-pi_status_t _pi_assign_device(uint16_t dev_id, const pi_p4info_t *p4info,
+pi_status_t _pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
                               pi_assign_extra_t *extra) {
   device_info_t *d_info = get_device_info(dev_id);
   assert(!d_info->assigned);
@@ -59,7 +59,7 @@ pi_status_t _pi_assign_device(uint16_t dev_id, const pi_p4info_t *p4info,
   return PI_STATUS_SUCCESS;
 }
 
-pi_status_t _pi_remove_device(uint16_t dev_id) {
+pi_status_t _pi_remove_device(pi_dev_id_t dev_id) {
   device_info_t *d_info = get_device_info(dev_id);
   assert(d_info->assigned);
   conn_mgr_client_close(conn_mgr_state, dev_id);
