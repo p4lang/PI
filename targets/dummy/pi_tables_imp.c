@@ -62,9 +62,9 @@ pi_status_t _pi_table_entry_modify(const uint16_t dev_id,
   return PI_STATUS_SUCCESS;
 }
 
-pi_status_t _pi_table_retrieve(const uint16_t dev_id,
-                               const pi_p4_id_t table_id,
-                               pi_table_retrieve_res_t **res) {
+pi_status_t _pi_table_entries_fetch(const pi_dev_id_t dev_id,
+                                    const pi_p4_id_t table_id,
+                                    pi_table_fetch_res_t *res) {
   (void) dev_id; (void) table_id; (void) res;
   printf("_pi_table_retrieve\n");
   return PI_STATUS_SUCCESS;

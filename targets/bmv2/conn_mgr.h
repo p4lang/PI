@@ -23,9 +23,9 @@
 
 #include <mutex>
 
-#include <bm_sim/Standard.h>
-#include <bm_sim/SimplePreLAG.h>
-#include <bm_sim/SimpleSwitch.h>
+#include <bm/Standard.h>
+#include <bm/SimplePreLAG.h>
+#include <bm/SimpleSwitch.h>
 
 using namespace  ::bm_runtime::standard;
 using namespace  ::bm_runtime::simple_pre_lag;

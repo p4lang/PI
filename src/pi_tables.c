@@ -15,6 +15,9 @@
 
 #include "PI/pi_tables.h"
 #include "target/pi_tables_imp.h"
+#include "pi_int.h"
+
+#include <stdlib.h>
 
 void pi_entry_properties_clear(pi_entry_properties_t *properties) {
   (void) properties;
@@ -61,8 +64,37 @@ pi_status_t pi_table_entry_modify(const uint16_t dev_id,
   return _pi_table_entry_modify(dev_id, table_id, entry_handle, table_entry);
 }
 
-pi_status_t pi_table_retrieve(const uint16_t dev_id,
-                              const pi_p4_id_t table_id,
-                              pi_table_retrieve_res_t **res) {
-  return _pi_table_retrieve(dev_id, table_id, res);
+pi_status_t pi_table_entries_fetch(const pi_dev_id_t dev_id,
+                                   const pi_p4_id_t table_id,
+                                   pi_table_fetch_res_t **res) {
+  pi_table_fetch_res_t *res_ = malloc(sizeof(pi_table_fetch_res_t));
+  res_->idx = 0;
+  res_->curr = 0;
+  *res = res_;
+  return _pi_table_entries_fetch(dev_id, table_id, res_);
+}
+
+pi_status_t pi_table_entries_fetch_done(pi_table_fetch_res_t *res) {
+  free(res);
+  return PI_STATUS_SUCCESS;
+}
+
+size_t pi_table_entries_num(pi_table_fetch_res_t *res) {
+  return res->num_entries;
+}
+
+size_t pi_table_entries_next(pi_table_fetch_res_t *res,
+                             pi_table_ma_entry_t *entry,
+                             pi_entry_handle_t *entry_handle) {
+  if (res->idx == res->num_entries) return res->idx;
+  *entry_handle = (pi_entry_handle_t) res->entries[res->curr++].v;
+  entry->match_key = res->entries + res->curr;
+  res->curr += res->num_match_fields;
+  pi_table_entry_t *t_entry = &entry->entry;
+  t_entry->action_id = res->entries[res->curr].v1;
+  size_t action_data_size = res->entries[res->curr++].v2;
+  t_entry->action_data = res->entries + res->curr;
+  res->curr += action_data_size;
+  t_entry->entry_properties = res->properties + res->idx;
+  return res->idx++;
 }

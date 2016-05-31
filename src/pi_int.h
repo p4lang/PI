@@ -50,6 +50,10 @@ union __compact_v_t {
   char bytes[8];
   uint64_t v;
   char *more_bytes;
+  struct {
+    uint32_t v1;
+    uint32_t v2;
+  };
 };
 
 typedef union __compact_v_t _compact_v_t;
@@ -60,8 +64,14 @@ struct pi_entry_properties_s {
   uint32_t ttl;
 };
 
-struct pi_table_retrieve_res_s {
-  int dummy;
+struct pi_table_fetch_res_s {
+  size_t num_entries;
+  size_t idx;
+  size_t curr;
+  size_t num_match_fields;
+  _compact_v_t *entries;
+  struct pi_entry_properties_s *properties;
+  // direct resources
 };
 
 const pi_p4info_t *pi_get_device_p4info(uint16_t dev_id);

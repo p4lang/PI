@@ -127,6 +127,17 @@ std::vector<std::string> build_action_data(const pi_table_entry_t *table_entry,
   return data;
 }
 
+// void fetch_insert_data(const std::string &data,
+//                        std::vector<_compact_v_t> *cvs,
+//                        std::vector<char> *oversize) {
+//   _compact_v_t cv;
+//   if (data.size() <= 8 * sizeof(cv.bytes)) {
+//     std::memcpy(&cv.bytes, data.data(), data.size());
+//     cvs->push_back(cv);
+//   } else {
+//   }
+// }
+
 }  // namespace
 
 extern "C" {
@@ -265,10 +276,55 @@ pi_status_t _pi_table_entry_modify(const pi_dev_id_t dev_id,
   return PI_STATUS_SUCCESS;
 }
 
-pi_status_t _pi_table_retrieve(const pi_dev_id_t dev_id,
-                               const pi_p4_id_t table_id,
-                               pi_table_retrieve_res_t **res) {
+pi_status_t _pi_table_entries_fetch(const pi_dev_id_t dev_id,
+                                    const pi_p4_id_t table_id,
+                                    pi_table_fetch_res_t *res) {
+  device_info_t *d_info = get_device_info(dev_id);
+  assert(d_info->assigned);
+  const pi_p4info_t *p4info = d_info->p4info;
+
+  std::string t_name(pi_p4info_table_name_from_id(p4info, table_id));
+
   (void) dev_id; (void) table_id; (void) res;
+  std::vector<BmMtEntry> entries;
+  try {
+    conn_mgr_client(conn_mgr_state, dev_id).c->bm_mt_get_entries(
+        entries, 0, t_name);
+  } catch (InvalidTableOperation &ito) {
+    const char *what =
+        _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
+    std::cout << "Invalid table (" << "${t_name}" << ") operation ("
+              << ito.code << "): " << what << std::endl;
+    return PI_STATUS_INVALID_TABLE_OPERATION;
+  }
+
+  // size_t n_cvs = 0u;
+  // size_t extra_data = 0u;
+  // for (const auto &e : entries) {
+  //   n_cvs += e.action_entry.action_data.size
+  // }
+
+  // res->num_entries = entries.size();
+  // std::vector<_compact_v_t> cvs;
+  // _compact_v_t cv;
+  // std::vector<char> extra_data;
+  // for (auto &e : entries) {
+  //   cv.v = (uint64_t) e.entry_handle;
+  //   cvs.push_back(cv);
+  //   for (auto p : e.match_key) {
+  //     switch(p.type) {
+  //       case BmMatchParamType::type::EXACT:
+  //         break;
+  //       case BmMatchParamType::type::LPM:
+  //         break;
+  //       case BmMatchParamType::type::TERNARY:
+  //         break;
+  //       case BmMatchParamType::type::VALID:
+  //         break;
+  //     }
+  //   }
+  // }
+
   return PI_STATUS_SUCCESS;
 }
 
