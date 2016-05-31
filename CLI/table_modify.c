@@ -50,7 +50,7 @@ pi_cli_status_t do_table_modify(char *subcmd) {
 
   pi_action_data_t *adata;
   pi_action_data_allocate(p4info, a_id, &adata);
-  pi_action_data_init(p4info, adata);
+  pi_action_data_init(adata);
   status = read_action_data(NULL, a_id, adata);
   if (status != PI_CLI_STATUS_SUCCESS) {
     pi_action_data_destroy(adata);

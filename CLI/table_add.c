@@ -81,7 +81,7 @@ static int match_key_add_exact_field(pi_p4_id_t f_id, size_t f_bitwidth,
   pi_status_t rc;
   rc = pi_getnetv_ptr(p4info, f_id, bytes, (f_bitwidth + 7) / 8, &f_netv);
   assert(rc == PI_STATUS_SUCCESS);
-  rc = pi_match_key_exact_set(p4info, mk, &f_netv);
+  rc = pi_match_key_exact_set(mk, &f_netv);
   assert(rc == PI_STATUS_SUCCESS);
   return 0;
 }
@@ -94,7 +94,7 @@ static int match_key_add_LPM_field(pi_p4_id_t f_id, size_t f_bitwidth,
   pi_status_t rc;
   rc = pi_getnetv_ptr(p4info, f_id, bytes, (f_bitwidth + 7) / 8, &f_netv);
   assert(rc == PI_STATUS_SUCCESS);
-  rc = pi_match_key_lpm_set(p4info, mk, &f_netv, pLen);
+  rc = pi_match_key_lpm_set(mk, &f_netv, pLen);
   assert(rc == PI_STATUS_SUCCESS);
   return 0;
 }
@@ -113,7 +113,7 @@ static int match_key_add_ternary_field(pi_p4_id_t f_id, size_t f_bitwidth,
   assert(rc == PI_STATUS_SUCCESS);
   rc = pi_getnetv_ptr(p4info, f_id, mask_bytes, nbytes, &f_netv);
   assert(rc == PI_STATUS_SUCCESS);
-  rc = pi_match_key_ternary_set(p4info, mk, &f_netv, &m_netv);
+  rc = pi_match_key_ternary_set(mk, &f_netv, &m_netv);
   assert(rc == PI_STATUS_SUCCESS);
   return 0;
 }
@@ -176,7 +176,7 @@ pi_cli_status_t do_table_add(char *subcmd) {
 
   pi_match_key_t *mk;
   pi_match_key_allocate(p4info, t_id, &mk);
-  pi_match_key_init(p4info, mk);
+  pi_match_key_init(mk);
   status = read_match_fields(NULL, t_id, mk);
   if (status != PI_CLI_STATUS_SUCCESS) {
     pi_match_key_destroy(mk);
@@ -192,7 +192,7 @@ pi_cli_status_t do_table_add(char *subcmd) {
 
   pi_action_data_t *adata;
   pi_action_data_allocate(p4info, a_id, &adata);
-  pi_action_data_init(p4info, adata);
+  pi_action_data_init(adata);
   status = read_action_data(NULL, a_id, adata);
   if (status != PI_CLI_STATUS_SUCCESS) {
     pi_match_key_destroy(mk);

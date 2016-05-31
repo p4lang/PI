@@ -19,6 +19,7 @@
 #include "PI/pi.h"
 #include "PI/pi_p4info.h"
 #include "pi_int.h"
+#include "utils/serialize.h"
 
 #include <string>
 #include <vector>
@@ -27,10 +28,6 @@ extern conn_mgr_t *conn_mgr_state;
 extern int *my_devices;
 
 namespace {
-
-const char *bytes_from_compact_v(const _compact_v_t *v, size_t bitwidth) {
-  return (bitwidth > 8 * sizeof(v->bytes)) ? v->more_bytes : &v->bytes[0];
-}
 
 std::vector<BmMatchParam> build_key(pi_p4_id_t table_id,
                                     const pi_match_key_t *match_key,
@@ -46,49 +43,44 @@ std::vector<BmMatchParam> build_key(pi_p4_id_t table_id,
 
   size_t num_match_fields = pi_p4info_table_num_match_fields(p4info, table_id);
   for (size_t i = 0; i < num_match_fields; i++) {
-    const _compact_v_t *curr_v = &match_key[i];
     pi_p4info_match_field_info_t finfo;
     pi_p4info_table_match_field_info(p4info, table_id, i, &finfo);
     size_t f_bw = finfo.bitwidth;
     size_t nbytes = (f_bw + 7) / 8;
-    const char *src;
+    uint32_t pLen;
 
     switch (finfo.match_type) {
       case PI_P4INFO_MATCH_TYPE_VALID:
-        param_valid.key = (curr_v->v != 0);
-        curr_v++;
+        param_valid.key = (*match_key != 0);
+        match_key++;
         param = BmMatchParam();
         param.type = BmMatchParamType::type::VALID;
         param.__set_valid(param_valid);  // does a copy of param_valid
         key.push_back(std::move(param));
         break;
       case PI_P4INFO_MATCH_TYPE_EXACT:
-        src = bytes_from_compact_v(curr_v, f_bw);
-        curr_v++;
-        param_exact.key = std::string(src, nbytes);
+        param_exact.key = std::string(match_key, nbytes);
+        match_key += nbytes;
         param = BmMatchParam();
         param.type = BmMatchParamType::type::EXACT;
         param.__set_exact(param_exact);  // does a copy of param_exact
         key.push_back(std::move(param));
         break;
       case PI_P4INFO_MATCH_TYPE_LPM:
-        src = bytes_from_compact_v(curr_v, f_bw);
-        curr_v++;
-        param_lpm.key = std::string(src, nbytes);
-        param_lpm.prefix_length = curr_v->v;
-        curr_v++;
+        param_lpm.key = std::string(match_key, nbytes);
+        match_key += nbytes;
+        match_key += retrieve_uint32(match_key, &pLen);
+        param_lpm.prefix_length = static_cast<int32_t>(pLen);
         param = BmMatchParam();
         param.type = BmMatchParamType::type::LPM;
         param.__set_lpm(param_lpm);  // does a copy of param_lpm
         key.push_back(std::move(param));
         break;
       case PI_P4INFO_MATCH_TYPE_TERNARY:
-        src = bytes_from_compact_v(curr_v, f_bw);
-        curr_v++;
-        param_ternary.key = std::string(src, nbytes);
-        src = bytes_from_compact_v(curr_v, f_bw);
-        curr_v++;
-        param_ternary.mask = std::string(src, nbytes);
+        param_ternary.key = std::string(match_key, nbytes);
+        match_key += nbytes;
+        param_ternary.mask = std::string(match_key, nbytes);
+        match_key += nbytes;
         param = BmMatchParam();
         param.type = BmMatchParamType::type::TERNARY;
         param.__set_ternary(param_ternary);  // does a copy of param_ternary
@@ -115,13 +107,11 @@ std::vector<std::string> build_action_data(const pi_table_entry_t *table_entry,
   const pi_p4_id_t *param_ids = pi_p4info_action_get_params(p4info, action_id,
                                                             &num_params);
   for (size_t i = 0; i < num_params; i++) {
-    const _compact_v_t *curr_v = &action_data[i];
     pi_p4_id_t p_id = param_ids[i];
     size_t p_bw = pi_p4info_action_param_bitwidth(p4info, p_id);
     size_t nbytes = (p_bw + 7) / 8;
-    const char *src = bytes_from_compact_v(curr_v, p_bw);
-    curr_v++;
-    data.push_back(std::string(src, nbytes));
+    data.push_back(std::string(action_data, nbytes));
+    action_data += nbytes;
   }
 
   return data;

@@ -27,36 +27,24 @@ extern "C" {
 #define PI_ACTION_PARAM_ID  0x03
 #define PI_FIELD_ID         0x04
 
-inline pi_p4_id_t pi_make_action_id(uint16_t index) {
+static inline pi_p4_id_t pi_make_action_id(uint16_t index) {
   return (PI_ACTION_ID << 24) | index;
 }
 
-inline pi_p4_id_t pi_make_table_id(uint16_t index) {
+static inline pi_p4_id_t pi_make_table_id(uint16_t index) {
   return (PI_TABLE_ID << 24) | index;
 }
 
-inline pi_p4_id_t pi_make_action_param_id(pi_p4_id_t action_id, uint8_t index) {
+static inline pi_p4_id_t pi_make_action_param_id(pi_p4_id_t action_id, uint8_t index) {
   uint16_t action_index = action_id & 0xffff;
   return (PI_ACTION_PARAM_ID << 24) | (action_index << 8) | index;
 }
 
-inline pi_p4_id_t pi_make_field_id(uint16_t index) {
+static inline pi_p4_id_t pi_make_field_id(uint16_t index) {
   return (PI_FIELD_ID << 24) | index;
 }
 
 #define PI_GET_TYPE_ID(id) (id >> 24)
-
-union __compact_v_t {
-  char bytes[8];
-  uint64_t v;
-  char *more_bytes;
-  struct {
-    uint32_t v1;
-    uint32_t v2;
-  };
-};
-
-typedef union __compact_v_t _compact_v_t;
 
 struct pi_entry_properties_s {
   uint32_t valid_properties;
@@ -68,8 +56,7 @@ struct pi_table_fetch_res_s {
   size_t num_entries;
   size_t idx;
   size_t curr;
-  size_t num_match_fields;
-  _compact_v_t *entries;
+  char *entries;
   struct pi_entry_properties_s *properties;
   // direct resources
 };

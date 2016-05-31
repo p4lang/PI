@@ -27,25 +27,17 @@ pi_status_t pi_match_key_allocate(const pi_p4info_t *p4info,
                                   const pi_p4_id_t table_id,
                                   pi_match_key_t **key);
 
-pi_status_t pi_match_key_init(const pi_p4info_t *p4info, pi_match_key_t *key);
+pi_status_t pi_match_key_init(pi_match_key_t *key);
 
-pi_status_t pi_match_key_exact_set(const pi_p4info_t *p4info,
-                                   pi_match_key_t *key,
-                                   const pi_netv_t *fv);
+pi_status_t pi_match_key_exact_set(pi_match_key_t *key, const pi_netv_t *fv);
 
-pi_status_t pi_match_key_lpm_set(const pi_p4info_t *p4info,
-                                 pi_match_key_t *key,
-                                 const pi_netv_t *fv,
+pi_status_t pi_match_key_lpm_set(pi_match_key_t *key, const pi_netv_t *fv,
                                  const pi_prefix_length_t prefix_length);
 
-pi_status_t pi_match_key_ternary_set(const pi_p4info_t *p4info,
-                                     pi_match_key_t *key,
-                                     const pi_netv_t *fv,
+pi_status_t pi_match_key_ternary_set(pi_match_key_t *key, const pi_netv_t *fv,
                                      const pi_netv_t *mask);
 
-pi_status_t pi_match_key_range_set(const pi_p4info_t *p4info,
-                                   pi_match_key_t *key,
-                                   const pi_netv_t *start,
+pi_status_t pi_match_key_range_set(pi_match_key_t *key, const pi_netv_t *start,
                                    const pi_netv_t *end);
 
 pi_status_t pi_match_key_destroy(pi_match_key_t *key);
@@ -56,11 +48,9 @@ pi_status_t pi_action_data_allocate(const pi_p4info_t *p4info,
                                     const pi_p4_id_t action_id,
                                     pi_action_data_t **adata);
 
-pi_status_t pi_action_data_init(const pi_p4info_t *p4info,
-                                pi_action_data_t *adata);
+pi_status_t pi_action_data_init(pi_action_data_t *adata);
 
-pi_status_t pi_action_data_arg_set(const pi_p4info_t *p4info,
-                                   pi_action_data_t *adata,
+pi_status_t pi_action_data_arg_set(pi_action_data_t *adata,
                                    const pi_netv_t *argv);
 
 pi_status_t pi_action_data_destroy(pi_action_data_t *action_data);

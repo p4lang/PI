@@ -36,8 +36,9 @@ void pi_entry_properties_set(pi_entry_properties_t *properties,
                              const pi_value_t *property_value);
 
 typedef uint64_t pi_entry_handle_t;
-typedef union __compact_v_t pi_match_key_t;
-typedef union __compact_v_t pi_action_data_t;
+
+typedef char pi_match_key_t;
+typedef char pi_action_data_t;
 
 typedef int pi_res_config_t;
 
@@ -82,7 +83,6 @@ pi_status_t pi_table_entry_modify(const pi_dev_id_t dev_id,
                                   const pi_table_entry_t *table_entry);
 
 typedef struct pi_table_fetch_res_s pi_table_fetch_res_t;
-/* typedef union __compact_v_t pi_table_fetch_res_t; */
 
 pi_status_t pi_table_entries_fetch(const pi_dev_id_t dev_id,
                                    const pi_p4_id_t table_id,

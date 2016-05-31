@@ -36,7 +36,9 @@ TEST_SETUP(SimpleRouter) {
   pi_init(256);  // 256 max devices
 }
 
-TEST_TEAR_DOWN(SimpleRouter) { }
+TEST_TEAR_DOWN(SimpleRouter) {
+  pi_destroy();
+}
 
 TEST(SimpleRouter, Base) {
   pi_p4info_t *p4info;

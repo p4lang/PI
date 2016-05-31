@@ -16,6 +16,7 @@
 #include "PI/pi_tables.h"
 #include "target/pi_tables_imp.h"
 #include "pi_int.h"
+#include "utils/serialize.h"
 
 #include <stdlib.h>
 
@@ -87,14 +88,16 @@ size_t pi_table_entries_next(pi_table_fetch_res_t *res,
                              pi_table_ma_entry_t *entry,
                              pi_entry_handle_t *entry_handle) {
   if (res->idx == res->num_entries) return res->idx;
-  *entry_handle = (pi_entry_handle_t) res->entries[res->curr++].v;
+  res->curr += retrieve_uint64(res->entries + res->curr, entry_handle);
+  uint32_t nbytes;
+  res->curr += retrieve_uint32(res->entries + res->curr, &nbytes);
   entry->match_key = res->entries + res->curr;
-  res->curr += res->num_match_fields;
+  res->curr += nbytes;
   pi_table_entry_t *t_entry = &entry->entry;
-  t_entry->action_id = res->entries[res->curr].v1;
-  size_t action_data_size = res->entries[res->curr++].v2;
+  res->curr += retrieve_uint32(res->entries + res->curr, &t_entry->action_id);
+  res->curr += retrieve_uint32(res->entries + res->curr, &nbytes);
   t_entry->action_data = res->entries + res->curr;
-  res->curr += action_data_size;
+  res->curr += nbytes;
   t_entry->entry_properties = res->properties + res->idx;
   return res->idx++;
 }

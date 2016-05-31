@@ -21,6 +21,7 @@
 #include "PI/pi_p4info.h"
 
 #include "pi_int.h"
+#include "utils/serialize.h"
 
 #define SIZEOF_DST_ARR sizeof(((_compact_v_t *) 0)->bytes)
 
@@ -66,18 +67,30 @@ MatchKey::MatchKey(const pi_p4info_t *p4info, pi_p4_id_t table_id)
     : p4info(p4info), table_id(table_id) {
   size_t s = 0;
   size_t num_match_fields = pi_p4info_table_num_match_fields(p4info, table_id);
-  // 2 compact blobs per field to accomodate all match types
-  s += 2 * num_match_fields * sizeof(_compact_v_t);
-  data_offset = s;
+  offsets.resize(num_match_fields);
   for (size_t i = 0; i < num_match_fields; i++) {
+    offsets[i] = s;
     pi_p4info_match_field_info_t finfo;
     pi_p4info_table_match_field_info(p4info, table_id, i, &finfo);
-    if (finfo.bitwidth > 64) {
-      s += (finfo.bitwidth + 7) / 8;
+    size_t nbytes = (finfo.bitwidth + 7) / 8;
+    switch (finfo.match_type) {
+      case PI_P4INFO_MATCH_TYPE_VALID:
+        assert(nbytes == 1);
+      case PI_P4INFO_MATCH_TYPE_EXACT:
+        s += nbytes;
+        break;
+      case PI_P4INFO_MATCH_TYPE_LPM:
+        s += nbytes + sizeof(uint32_t);
+        break;
+      case PI_P4INFO_MATCH_TYPE_TERNARY:
+      case PI_P4INFO_MATCH_TYPE_RANGE:
+        s += 2 * nbytes;
+        break;
+      default:
+        assert(0);
     }
   }
   match_key = std::unique_ptr<char []>(new char[s]);
-  data_offset_current = data_offset;
 }
 
 MatchKey::~MatchKey() { }
@@ -85,12 +98,11 @@ MatchKey::~MatchKey() { }
 void
 MatchKey::reset() {
   nset = 0;
-  data_offset_current = data_offset;
 }
 
 template <typename T>
 error_code_t
-MatchKey::format(pi_p4_id_t f_id, T v, size_t index) {
+MatchKey::format(pi_p4_id_t f_id, T v, size_t offset, size_t *written) {
   constexpr size_t type_bitwidth = sizeof(T) * 8;
   const size_t bitwidth = pi_p4info_field_bitwidth(p4info, f_id);
   const size_t bytes = (bitwidth + 7) / 8;
@@ -100,29 +112,23 @@ MatchKey::format(pi_p4_id_t f_id, T v, size_t index) {
   char *data = reinterpret_cast<char *>(&v);
   data += sizeof(T) - bytes;
   data[0] &= byte0_mask;
-  pi_match_key_t *dst = reinterpret_cast<pi_match_key_t *>(match_key.get());
-  memcpy(dst[index].bytes, data, bytes);
+  memcpy(match_key.get() + offset, data, bytes);
+  *written = bytes;
   return 0;
 }
 
 error_code_t
-MatchKey::format(pi_p4_id_t f_id, const char *ptr, size_t s, size_t index) {
+MatchKey::format(pi_p4_id_t f_id, const char *ptr, size_t s, size_t offset,
+                 size_t *written) {
   // constexpr size_t type_bitwidth = sizeof(T) * 8;
   const size_t bitwidth = pi_p4info_field_bitwidth(p4info, f_id);
   const size_t bytes = (bitwidth + 7) / 8;
   const char byte0_mask = pi_p4info_field_byte0_mask(p4info, f_id);
   if (bytes != s) return 1;
-  char *dst;
-  pi_match_key_t *mkey = reinterpret_cast<pi_match_key_t *>(match_key.get());
-  if (s <= SIZEOF_DST_ARR) {
-    dst = mkey[index].bytes;
-  } else {
-    mkey[index].more_bytes = match_key.get() + data_offset_current;
-    data_offset_current += s;
-    dst = mkey[index].more_bytes;
-  }
+  char *dst = match_key.get() + offset;
   memcpy(dst, ptr, bytes);
   dst[0] &= byte0_mask;
+  *written = bytes;
   return 0;
 }
 
@@ -132,8 +138,9 @@ MatchKey::set_exact(pi_p4_id_t f_id, T key) {
   // explicit instantiation below so compile time check not possible
   assert((!std::is_signed<T>::value) && "signed fields not supported yet");
   size_t f_index = pi_p4info_table_match_field_index(p4info, table_id, f_id);
-  size_t index = f_index * 2;
-  return format(f_id, key, index);
+  size_t offset = offsets.at(f_index);
+  size_t written = 0;
+  return format(f_id, key, offset, &written);
 }
 
 template error_code_t MatchKey::set_exact<uint8_t>(pi_p4_id_t, uint8_t);
@@ -148,8 +155,9 @@ template error_code_t MatchKey::set_exact<int64_t>(pi_p4_id_t, int64_t);
 error_code_t
 MatchKey::set_exact(pi_p4_id_t f_id, const char *key, size_t s) {
   size_t f_index = pi_p4info_table_match_field_index(p4info, table_id, f_id);
-  size_t index = f_index * 2;
-  return format(f_id, key, s, index);
+  size_t offset = offsets.at(f_index);
+  size_t written = 0;
+  return format(f_id, key, s, offset, &written);
 }
 
 template <typename T>
@@ -158,12 +166,12 @@ MatchKey::set_lpm(pi_p4_id_t f_id, T key, int prefix_length) {
   // explicit instantiation below so compile time check not possible
   assert((!std::is_signed<T>::value) && "signed fields not supported yet");
   size_t f_index = pi_p4info_table_match_field_index(p4info, table_id, f_id);
-  size_t index = f_index * 2;
+  size_t offset = offsets.at(f_index);
+  size_t written = 0;
   error_code_t rc;
-  rc = format(f_id, key, index);
-  index += 1;
-  pi_match_key_t *mkey = reinterpret_cast<pi_match_key_t *>(match_key.get());
-  mkey[index].v = prefix_length;
+  rc = format(f_id, key, offset, &written);
+  offset += written;
+  emit_uint32(match_key.get() + offset, prefix_length);
   return rc;
 }
 
@@ -180,12 +188,12 @@ error_code_t
 MatchKey::set_lpm(pi_p4_id_t f_id, const char *key, size_t s,
                   int prefix_length) {
   size_t f_index = pi_p4info_table_match_field_index(p4info, table_id, f_id);
-  size_t index = f_index * 2;
+  size_t offset = offsets.at(f_index);
+  size_t written = 0;
   error_code_t rc;
-  rc = format(f_id, key, s, index);
-  index += 1;
-  pi_match_key_t *mkey = reinterpret_cast<pi_match_key_t *>(match_key.get());
-  mkey[index].v = prefix_length;
+  rc = format(f_id, key, s, offset, &written);
+  offset += written;
+  emit_uint32(match_key.get() + offset, prefix_length);
   return rc;
 }
 
@@ -195,12 +203,13 @@ MatchKey::set_ternary(pi_p4_id_t f_id, T key, T mask) {
   // explicit instantiation below so compile time check not possible
   assert((!std::is_signed<T>::value) && "signed fields not supported yet");
   size_t f_index = pi_p4info_table_match_field_index(p4info, table_id, f_id);
-  size_t index = f_index * 2;
+  size_t offset = offsets.at(f_index);
+  size_t written = 0;
   error_code_t rc;
-  rc = format(f_id, key, index);
-  index += 1;
+  rc = format(f_id, key, offset, &written);
+  offset += written;
   if (rc) return rc;
-  rc = format(f_id, mask, index);
+  rc = format(f_id, mask, offset, &written);
   return rc;
 }
 
@@ -224,12 +233,13 @@ template error_code_t MatchKey::set_ternary<int64_t>(pi_p4_id_t, int64_t,
 error_code_t
 MatchKey::set_ternary(pi_p4_id_t f_id, const char *key, char *mask, size_t s) {
   size_t f_index = pi_p4info_table_match_field_index(p4info, table_id, f_id);
-  size_t index = f_index * 2;
+  size_t offset = offsets.at(f_index);
+  size_t written = 0;
   error_code_t rc;
-  rc = format(f_id, key, s, index);
-  index += 1;
+  rc = format(f_id, key, s, offset, &written);
   if (rc) return rc;
-  rc = format(f_id, mask, s, index);
+  offset += written;
+  rc = format(f_id, mask, s, offset, &written);
   return rc;
 }
 
@@ -239,16 +249,13 @@ ActionData::ActionData(const pi_p4info_t *p4info, pi_p4_id_t action_id)
   size_t num_params;
   const pi_p4_id_t *params = pi_p4info_action_get_params(p4info, action_id,
                                                          &num_params);
-  s += num_params * sizeof(_compact_v_t);
-  size_t data_offset = s;
+  offsets.resize(num_params);
   for (size_t i = 0; i < num_params; i++) {
     size_t bitwidth = pi_p4info_action_param_bitwidth(p4info, params[i]);
-    if (bitwidth > 64) {
-      s += (bitwidth + 7) / 8;
-    }
+    offsets[i] = s;
+    s += (bitwidth + 7) / 8;
   }
   action_data = std::unique_ptr<char []>(new char[s]);
-  data_offset_current = data_offset;
 }
 
 ActionData::~ActionData() { }
@@ -256,12 +263,11 @@ ActionData::~ActionData() { }
 void
 ActionData::reset() {
   nset = 0;
-  data_offset_current = data_offset;
 }
 
 template <typename T>
 error_code_t
-ActionData::format(pi_p4_id_t ap_id, T v, size_t index) {
+ActionData::format(pi_p4_id_t ap_id, T v, size_t offset) {
   constexpr size_t type_bitwidth = sizeof(T) * 8;
   const size_t bitwidth = pi_p4info_action_param_bitwidth(p4info, ap_id);
   const size_t bytes = (bitwidth + 7) / 8;
@@ -271,27 +277,18 @@ ActionData::format(pi_p4_id_t ap_id, T v, size_t index) {
   char *data = reinterpret_cast<char *>(&v);
   data += sizeof(T) - bytes;
   data[0] &= byte0_mask;
-  pi_action_data_t *dst = reinterpret_cast<pi_action_data_t *>(action_data.get());
-  memcpy(dst[index].bytes, data, bytes);
+  memcpy(action_data.get() + offset, data, bytes);
   return 0;
 }
 
 error_code_t
-ActionData::format(pi_p4_id_t ap_id, const char *ptr, size_t s, size_t index) {
+ActionData::format(pi_p4_id_t ap_id, const char *ptr, size_t s, size_t offset) {
   // constexpr size_t type_bitwidth = sizeof(T) * 8;
   const size_t bitwidth = pi_p4info_action_param_bitwidth(p4info, ap_id);
   const size_t bytes = (bitwidth + 7) / 8;
   const char byte0_mask = pi_p4info_action_param_byte0_mask(p4info, ap_id);
   if (bytes != s) return 1;
-  char *dst;
-  pi_action_data_t *adata = reinterpret_cast<pi_action_data_t *>(action_data.get());
-  if (s <= SIZEOF_DST_ARR) {
-    dst = adata[index].bytes;
-  } else {
-    adata[index].more_bytes = action_data.get() + data_offset_current;
-    data_offset_current += s;
-    dst = adata[index].more_bytes;
-  }
+  char *dst = action_data.get() + offset;
   memcpy(dst, ptr, bytes);
   dst[0] &= byte0_mask;
   return 0;
@@ -303,13 +300,13 @@ ActionData::set_arg(pi_p4_id_t ap_id, T arg) {
   // explicit instantiation below so compile time check not possible
   assert((!std::is_signed<T>::value) && "signed params not supported yet");
   size_t index = ap_id & 0xff;
-  return format(ap_id, arg, index);
+  return format(ap_id, arg, offsets.at(index));
 }
 
 error_code_t
 ActionData::set_arg(pi_p4_id_t ap_id, const char *arg, size_t s) {
   size_t index = ap_id & 0xff;
-  return format(ap_id, arg, s, index);
+  return format(ap_id, arg, s, offsets.at(index));
 }
 
 template error_code_t ActionData::set_arg<uint8_t>(pi_p4_id_t, uint8_t);

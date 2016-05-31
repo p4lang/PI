@@ -17,6 +17,7 @@
 #define PI_FRONTENDS_CPP_TABLES_H_
 
 #include <memory>
+#include <vector>
 
 #include <cstdint>
 
@@ -54,9 +55,9 @@ class MatchKey {
 
  private:
   template <typename T>
-  error_code_t format(pi_p4_id_t f_id, T v, size_t index);
+  error_code_t format(pi_p4_id_t f_id, T v, size_t offset, size_t *written);
   error_code_t format(pi_p4_id_t f_id, const char *ptr, size_t s,
-                      size_t index);
+                      size_t offset, size_t *written);
 
   pi_match_key_t *get() const {
     return reinterpret_cast<pi_match_key_t *>(match_key.get());
@@ -65,8 +66,7 @@ class MatchKey {
   const pi_p4info_t *p4info;
   pi_p4_id_t table_id;
   size_t nset{0};
-  size_t data_offset{0};
-  size_t data_offset_current{0};
+  std::vector<size_t> offsets{};
   std::unique_ptr<char []> match_key;
 };
 
@@ -86,9 +86,9 @@ class ActionData {
 
  private:
   template <typename T>
-  error_code_t format(pi_p4_id_t ap_id, T v, size_t index);
+  error_code_t format(pi_p4_id_t ap_id, T v, size_t offset);
   error_code_t format(pi_p4_id_t ap_id, const char *ptr, size_t s,
-                      size_t index);
+                      size_t offset);
 
   pi_action_data_t *get() const {
     return reinterpret_cast<pi_action_data_t *>(action_data.get());
@@ -97,8 +97,7 @@ class ActionData {
   const pi_p4info_t *p4info;
   pi_p4_id_t action_id;
   size_t nset{0};
-  size_t data_offset{0};
-  size_t data_offset_current{0};
+  std::vector<size_t> offsets{};
   std::unique_ptr<char []> action_data;
 };
 

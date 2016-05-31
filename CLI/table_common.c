@@ -44,7 +44,7 @@ pi_cli_status_t read_action_data(char *in, pi_p4_id_t a_id,
     pi_status_t rc;
     rc = pi_getnetv_ptr(p4info, p_id, bytes, (p_bitwidth + 7) / 8, &p_netv);
     assert(rc == PI_STATUS_SUCCESS);
-    rc = pi_action_data_arg_set(p4info, adata, &p_netv);
+    rc = pi_action_data_arg_set(adata, &p_netv);
     assert(rc == PI_STATUS_SUCCESS);
   }
 

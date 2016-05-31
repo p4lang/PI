@@ -22,7 +22,9 @@ target/pi_tables_imp.h
 
 libpiutils_la_SOURCES = \
 utils/utils.h \
-utils/utils.c
+utils/utils.c \
+utils/serialize.h \
+utils/serialize.c
 
 libpireaders_la_SOURCES = \
 config_readers/bmv2_json_reader.c \

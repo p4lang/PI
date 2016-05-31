@@ -13,27 +13,23 @@
  * limitations under the License.
  */
 
-#ifndef PI_SRC_UTILS_UTILS_H_
-#define PI_SRC_UTILS_UTILS_H_
+#ifndef PI_SRC_UTILS_SERIALIZE_H_
+#define PI_SRC_UTILS_SERIALIZE_H_
 
-#include <arpa/inet.h>
+#include <stdint.h>
 
-static inline uint64_t htonll(uint64_t n) {
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-  return n;
-#else
-  return (((uint64_t)htonl(n)) << 32) + htonl(n >> 32);
+#ifdef __cplusplus
+extern "C" {
 #endif
-}
 
-static inline uint64_t ntohll(uint64_t n) {
-#if __BYTE_ORDER__ == __BIG_ENDIAN__
-  return n;
-#else
-  return (((uint64_t)ntohl(n)) << 32) + ntohl(n >> 32);
+size_t emit_uint32(char *dst, uint32_t v);
+size_t emit_uint64(char *dst, uint64_t v);
+
+size_t retrieve_uint32(const char *src, uint32_t *v);
+size_t retrieve_uint64(const char *src, uint64_t *v);
+
+#ifdef __cplusplus
+}
 #endif
-}
 
-char *read_file(const char *path);
-
-#endif  // PI_SRC_UTILS_UTILS_H_
+#endif  // PI_SRC_UTILS_SERIALIZE_H_

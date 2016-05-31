@@ -13,27 +13,25 @@
  * limitations under the License.
  */
 
-#ifndef PI_SRC_UTILS_UTILS_H_
-#define PI_SRC_UTILS_UTILS_H_
+#include <stdint.h>
+#include <string.h>
 
-#include <arpa/inet.h>
-
-static inline uint64_t htonll(uint64_t n) {
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-  return n;
-#else
-  return (((uint64_t)htonl(n)) << 32) + htonl(n >> 32);
-#endif
+size_t emit_uint32(char *dst, uint32_t v) {
+  memcpy(dst, &v, sizeof(v));
+  return sizeof(v);
 }
 
-static inline uint64_t ntohll(uint64_t n) {
-#if __BYTE_ORDER__ == __BIG_ENDIAN__
-  return n;
-#else
-  return (((uint64_t)ntohl(n)) << 32) + ntohl(n >> 32);
-#endif
+size_t emit_uint64(char *dst, uint64_t v) {
+  memcpy(dst, &v, sizeof(v));
+  return sizeof(v);
 }
 
-char *read_file(const char *path);
+size_t retrieve_uint32(const char *src, uint32_t *v) {
+  memcpy(v, src, sizeof(*v));
+  return sizeof(*v);
+}
 
-#endif  // PI_SRC_UTILS_UTILS_H_
+size_t retrieve_uint64(const char *src, uint64_t *v) {
+  memcpy(v, src, sizeof(*v));
+  return sizeof(*v);
+}
