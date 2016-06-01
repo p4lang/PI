@@ -90,7 +90,12 @@ MatchKey::MatchKey(const pi_p4info_t *p4info, pi_p4_id_t table_id)
         assert(0);
     }
   }
-  match_key = std::unique_ptr<char []>(new char[s]);
+
+  // using standard new, no alignment issue
+  _data = std::unique_ptr<char []>(new char[sizeof(*match_key) + s]);
+  match_key = reinterpret_cast<decltype(match_key)>(_data.get());
+  match_key->p4info = p4info;
+  match_key->data = _data.get() + sizeof(*match_key);
 }
 
 MatchKey::~MatchKey() { }
@@ -112,7 +117,7 @@ MatchKey::format(pi_p4_id_t f_id, T v, size_t offset, size_t *written) {
   char *data = reinterpret_cast<char *>(&v);
   data += sizeof(T) - bytes;
   data[0] &= byte0_mask;
-  memcpy(match_key.get() + offset, data, bytes);
+  memcpy(match_key->data + offset, data, bytes);
   *written = bytes;
   return 0;
 }
@@ -125,7 +130,7 @@ MatchKey::format(pi_p4_id_t f_id, const char *ptr, size_t s, size_t offset,
   const size_t bytes = (bitwidth + 7) / 8;
   const char byte0_mask = pi_p4info_field_byte0_mask(p4info, f_id);
   if (bytes != s) return 1;
-  char *dst = match_key.get() + offset;
+  char *dst = match_key->data + offset;
   memcpy(dst, ptr, bytes);
   dst[0] &= byte0_mask;
   *written = bytes;
@@ -171,7 +176,7 @@ MatchKey::set_lpm(pi_p4_id_t f_id, T key, int prefix_length) {
   error_code_t rc;
   rc = format(f_id, key, offset, &written);
   offset += written;
-  emit_uint32(match_key.get() + offset, prefix_length);
+  emit_uint32(match_key->data + offset, prefix_length);
   return rc;
 }
 
@@ -193,7 +198,7 @@ MatchKey::set_lpm(pi_p4_id_t f_id, const char *key, size_t s,
   error_code_t rc;
   rc = format(f_id, key, s, offset, &written);
   offset += written;
-  emit_uint32(match_key.get() + offset, prefix_length);
+  emit_uint32(match_key->data + offset, prefix_length);
   return rc;
 }
 
@@ -255,7 +260,12 @@ ActionData::ActionData(const pi_p4info_t *p4info, pi_p4_id_t action_id)
     offsets[i] = s;
     s += (bitwidth + 7) / 8;
   }
-  action_data = std::unique_ptr<char []>(new char[s]);
+
+  // using standard new, no alignment issue
+  _data = std::unique_ptr<char []>(new char[sizeof(*action_data) + s]);
+  action_data = reinterpret_cast<decltype(action_data)>(_data.get());
+  action_data->p4info = p4info;
+  action_data->data = _data.get() + sizeof(*action_data);
 }
 
 ActionData::~ActionData() { }
@@ -277,7 +287,7 @@ ActionData::format(pi_p4_id_t ap_id, T v, size_t offset) {
   char *data = reinterpret_cast<char *>(&v);
   data += sizeof(T) - bytes;
   data[0] &= byte0_mask;
-  memcpy(action_data.get() + offset, data, bytes);
+  memcpy(action_data->data + offset, data, bytes);
   return 0;
 }
 
@@ -288,7 +298,7 @@ ActionData::format(pi_p4_id_t ap_id, const char *ptr, size_t s, size_t offset) {
   const size_t bytes = (bitwidth + 7) / 8;
   const char byte0_mask = pi_p4info_action_param_byte0_mask(p4info, ap_id);
   if (bytes != s) return 1;
-  char *dst = action_data.get() + offset;
+  char *dst = action_data->data + offset;
   memcpy(dst, ptr, bytes);
   dst[0] &= byte0_mask;
   return 0;

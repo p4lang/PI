@@ -60,14 +60,15 @@ class MatchKey {
                       size_t offset, size_t *written);
 
   pi_match_key_t *get() const {
-    return reinterpret_cast<pi_match_key_t *>(match_key.get());
+    return match_key;
   }
 
   const pi_p4info_t *p4info;
   pi_p4_id_t table_id;
   size_t nset{0};
   std::vector<size_t> offsets{};
-  std::unique_ptr<char []> match_key;
+  pi_match_key_t *match_key;
+  std::unique_ptr<char []> _data;
 };
 
 class ActionData {
@@ -91,14 +92,15 @@ class ActionData {
                       size_t offset);
 
   pi_action_data_t *get() const {
-    return reinterpret_cast<pi_action_data_t *>(action_data.get());
+    return action_data;
   }
 
   const pi_p4info_t *p4info;
   pi_p4_id_t action_id;
   size_t nset{0};
   std::vector<size_t> offsets{};
-  std::unique_ptr<char []> action_data;
+  pi_action_data_t *action_data;
+  std::unique_ptr<char []> _data;
 };
 
 // TODO(antonin): handle device id / pipleline mask
