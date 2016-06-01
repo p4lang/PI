@@ -69,6 +69,7 @@ pi_status_t pi_table_entries_fetch(const pi_dev_id_t dev_id,
                                    const pi_p4_id_t table_id,
                                    pi_table_fetch_res_t **res) {
   pi_table_fetch_res_t *res_ = malloc(sizeof(pi_table_fetch_res_t));
+  res_->table_id = table_id;
   res_->idx = 0;
   res_->curr = 0;
   *res = res_;
@@ -89,12 +90,11 @@ size_t pi_table_entries_next(pi_table_fetch_res_t *res,
                              pi_entry_handle_t *entry_handle) {
   if (res->idx == res->num_entries) return res->idx;
   res->curr += retrieve_uint64(res->entries + res->curr, entry_handle);
-  uint32_t nbytes;
-  res->curr += retrieve_uint32(res->entries + res->curr, &nbytes);
   entry->match_key = res->entries + res->curr;
-  res->curr += nbytes;
+  res->curr += res->mkey_nbytes;
   pi_table_entry_t *t_entry = &entry->entry;
   res->curr += retrieve_uint32(res->entries + res->curr, &t_entry->action_id);
+  uint32_t nbytes;
   res->curr += retrieve_uint32(res->entries + res->curr, &nbytes);
   t_entry->action_data = res->entries + res->curr;
   res->curr += nbytes;

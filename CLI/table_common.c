@@ -34,6 +34,7 @@ pi_cli_status_t read_action_data(char *in, pi_p4_id_t a_id,
   for (size_t i = 0; i < num_params; i++) {
     pi_p4_id_t p_id = param_ids[i];
     size_t p_bitwidth = pi_p4info_action_param_bitwidth(p4info, p_id);
+    printf("%zu\n", p_bitwidth);
     char *ap = strtok(in, " ");
     in = NULL;
     if (!ap || ap[0] == '=') return PI_CLI_STATUS_TOO_FEW_ACTION_PARAMS;
@@ -49,6 +50,23 @@ pi_cli_status_t read_action_data(char *in, pi_p4_id_t a_id,
   }
 
   return PI_CLI_STATUS_SUCCESS;
+}
+
+char *complete_table(const char *text, int state) {
+  static int token_count;
+  static int len;
+
+  if (!state) {
+    token_count = count_tokens(rl_line_buffer);
+    len = strlen(text);
+  }
+
+  if (token_count == 0) {  // just the cmd
+    return NULL;
+  } else if (token_count == 1) {
+    return complete_p4_table(text, len, state);
+  }
+  return NULL;
 }
 
 char *complete_table_and_action(const char *text, int state) {

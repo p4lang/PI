@@ -11,6 +11,7 @@ commands.h \
 select_device.c \
 table_add.c \
 table_delete.c \
+table_dump.c \
 table_modify.c \
 table_set_default.c \
 error_codes.h \

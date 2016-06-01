@@ -54,18 +54,5 @@ pi_cli_status_t do_table_delete(char *subcmd) {
 };
 
 char *complete_table_delete(const char *text, int state) {
-  static int token_count;
-  static int len;
-
-  if (!state) {
-    token_count = count_tokens(rl_line_buffer);
-    len = strlen(text);
-  }
-
-  if (token_count == 0) {  // just the cmd
-    return NULL;
-  } else if (token_count == 1) {
-    return complete_p4_table(text, len, state);
-  }
-  return NULL;
+  return complete_table(text, state);
 }

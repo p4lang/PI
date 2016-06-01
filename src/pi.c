@@ -126,3 +126,42 @@ bool pi_is_action_param_id(pi_p4_id_t id) {
 bool pi_is_field_id(pi_p4_id_t id) {
   return (id >> 24) == PI_FIELD_ID;
 }
+
+size_t get_match_key_size(const pi_p4info_t *p4info, pi_p4_id_t table_id) {
+  size_t s = 0;
+  size_t num_match_fields = pi_p4info_table_num_match_fields(p4info, table_id);
+  for (size_t i = 0; i < num_match_fields; i++) {
+    pi_p4info_match_field_info_t finfo;
+    pi_p4info_table_match_field_info(p4info, table_id, i, &finfo);
+    size_t nbytes = (finfo.bitwidth + 7) / 8;
+    switch (finfo.match_type) {
+      case PI_P4INFO_MATCH_TYPE_VALID:
+        assert(nbytes == 1);
+      case PI_P4INFO_MATCH_TYPE_EXACT:
+        s += nbytes;
+        break;
+      case PI_P4INFO_MATCH_TYPE_LPM:
+        s += nbytes + sizeof(uint32_t);
+        break;
+      case PI_P4INFO_MATCH_TYPE_TERNARY:
+      case PI_P4INFO_MATCH_TYPE_RANGE:
+        s += 2 * nbytes;
+        break;
+      default:
+        assert(0);
+    }
+  }
+  return s;
+}
+
+size_t get_action_data_size(const pi_p4info_t *p4info, pi_p4_id_t action_id) {
+  size_t num_params;
+  const pi_p4_id_t *params = pi_p4info_action_get_params(p4info, action_id,
+                                                         &num_params);
+  size_t s = 0;
+  for (size_t i = 0; i < num_params; i++) {
+    size_t bitwidth = pi_p4info_action_param_bitwidth(p4info, params[i]);
+    s += (bitwidth + 7) / 8;
+  }
+  return s;
+}

@@ -26,6 +26,7 @@ extern pi_dev_tgt_t dev_tgt;
 pi_cli_status_t read_action_data(char *in, pi_p4_id_t a_id,
                                  pi_action_data_t *adata);
 
+char *complete_table(const char *text, int state);
 char *complete_table_and_action(const char *text, int state);
 
 #endif  // PI_CLI_TABLE_COMMON_H_

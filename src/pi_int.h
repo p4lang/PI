@@ -35,7 +35,8 @@ static inline pi_p4_id_t pi_make_table_id(uint16_t index) {
   return (PI_TABLE_ID << 24) | index;
 }
 
-static inline pi_p4_id_t pi_make_action_param_id(pi_p4_id_t action_id, uint8_t index) {
+static inline pi_p4_id_t pi_make_action_param_id(pi_p4_id_t action_id,
+                                                 uint8_t index) {
   uint16_t action_index = action_id & 0xffff;
   return (PI_ACTION_PARAM_ID << 24) | (action_index << 8) | index;
 }
@@ -46,6 +47,9 @@ static inline pi_p4_id_t pi_make_field_id(uint16_t index) {
 
 #define PI_GET_TYPE_ID(id) (id >> 24)
 
+size_t get_match_key_size(const pi_p4info_t *p4info, pi_p4_id_t table_id);
+size_t get_action_data_size(const pi_p4info_t *p4info, pi_p4_id_t action_id);
+
 struct pi_entry_properties_s {
   uint32_t valid_properties;
   uint32_t priority;
@@ -53,7 +57,9 @@ struct pi_entry_properties_s {
 };
 
 struct pi_table_fetch_res_s {
+  pi_p4_id_t table_id;
   size_t num_entries;
+  size_t mkey_nbytes;
   size_t idx;
   size_t curr;
   char *entries;

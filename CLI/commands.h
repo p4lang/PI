@@ -34,6 +34,10 @@ extern char table_set_default_hs[];
 pi_cli_status_t do_table_set_default(char *subcmd);
 char *complete_table_set_default(const char *text, int state);
 
+extern char table_dump_hs[];
+pi_cli_status_t do_table_dump(char *subcmd);
+char *complete_table_dump(const char *text, int state);
+
 extern char select_device_hs[];
 pi_cli_status_t do_select_device(char *subcmd);
 

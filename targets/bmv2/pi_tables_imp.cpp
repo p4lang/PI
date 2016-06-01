@@ -23,6 +23,9 @@
 
 #include <string>
 #include <vector>
+#include <unordered_map>
+
+#include <cstring>
 
 extern conn_mgr_t *conn_mgr_state;
 extern int *my_devices;
@@ -116,17 +119,6 @@ std::vector<std::string> build_action_data(const pi_table_entry_t *table_entry,
 
   return data;
 }
-
-// void fetch_insert_data(const std::string &data,
-//                        std::vector<_compact_v_t> *cvs,
-//                        std::vector<char> *oversize) {
-//   _compact_v_t cv;
-//   if (data.size() <= 8 * sizeof(cv.bytes)) {
-//     std::memcpy(&cv.bytes, data.data(), data.size());
-//     cvs->push_back(cv);
-//   } else {
-//   }
-// }
 
 }  // namespace
 
@@ -275,7 +267,6 @@ pi_status_t _pi_table_entries_fetch(const pi_dev_id_t dev_id,
 
   std::string t_name(pi_p4info_table_name_from_id(p4info, table_id));
 
-  (void) dev_id; (void) table_id; (void) res;
   std::vector<BmMtEntry> entries;
   try {
     conn_mgr_client(conn_mgr_state, dev_id).c->bm_mt_get_entries(
@@ -288,32 +279,92 @@ pi_status_t _pi_table_entries_fetch(const pi_dev_id_t dev_id,
     return PI_STATUS_INVALID_TABLE_OPERATION;
   }
 
-  // size_t n_cvs = 0u;
-  // size_t extra_data = 0u;
-  // for (const auto &e : entries) {
-  //   n_cvs += e.action_entry.action_data.size
-  // }
+  res->num_entries = entries.size();
 
-  // res->num_entries = entries.size();
-  // std::vector<_compact_v_t> cvs;
-  // _compact_v_t cv;
-  // std::vector<char> extra_data;
-  // for (auto &e : entries) {
-  //   cv.v = (uint64_t) e.entry_handle;
-  //   cvs.push_back(cv);
-  //   for (auto p : e.match_key) {
-  //     switch(p.type) {
-  //       case BmMatchParamType::type::EXACT:
-  //         break;
-  //       case BmMatchParamType::type::LPM:
-  //         break;
-  //       case BmMatchParamType::type::TERNARY:
-  //         break;
-  //       case BmMatchParamType::type::VALID:
-  //         break;
-  //     }
-  //   }
-  // }
+  size_t data_size = 0u;
+
+  data_size += entries.size() * sizeof(uint64_t);  // entry handles
+  data_size += entries.size() * sizeof(uint32_t);  // action ids
+  data_size += entries.size() * sizeof(uint32_t);  // action data nbytes
+
+  res->mkey_nbytes = get_match_key_size(p4info, table_id);
+  data_size += entries.size() * res->mkey_nbytes;
+
+  struct ADataSize {
+    ADataSize(pi_p4_id_t id, size_t s)
+        : id(id), s(s) { }
+    pi_p4_id_t id;
+    size_t s;
+  };
+
+  size_t num_actions;
+  const pi_p4_id_t *action_ids = pi_p4info_table_get_actions(p4info, table_id,
+                                                             &num_actions);
+  std::unordered_map<std::string, ADataSize> action_map;
+  action_map.reserve(num_actions);
+
+  for (size_t i = 0; i < num_actions; i++) {
+    action_map.emplace(
+        std::string(pi_p4info_action_name_from_id(p4info, action_ids[i])),
+        ADataSize(action_ids[i], get_action_data_size(p4info, action_ids[i])));
+  }
+
+  for (const auto &e : entries) {
+    data_size += action_map.at(e.action_entry.action_name).s;
+  }
+
+  char *data = new char[data_size];
+  res->entries = data;
+
+  for (auto &e : entries) {
+    data += emit_uint64(data, e.entry_handle);
+    for (auto p : e.match_key) {
+      switch(p.type) {
+        case BmMatchParamType::type::EXACT:
+          std::memcpy(data, p.exact.key.data(), p.exact.key.size());
+          data += p.exact.key.size();
+          break;
+        case BmMatchParamType::type::LPM:
+          std::memcpy(data, p.lpm.key.data(), p.lpm.key.size());
+          data += p.lpm.key.size();
+          data += emit_uint32(data, p.lpm.prefix_length);
+          break;
+        case BmMatchParamType::type::TERNARY:
+          std::memcpy(data, p.ternary.key.data(), p.ternary.key.size());
+          data += p.ternary.key.size();
+          std::memcpy(data, p.ternary.mask.data(), p.ternary.mask.size());
+          data += p.ternary.mask.size();
+          break;
+        case BmMatchParamType::type::VALID:
+          *data = p.valid.key;
+          data++;
+          break;
+      }
+    }
+
+    const BmActionEntry &action_entry = e.action_entry;
+    assert(action_entry.action_type == BmActionEntryType::ACTION_DATA);
+    const ADataSize &adata_size = action_map.at(action_entry.action_name);
+    data += emit_uint32(data, adata_size.id);
+    data += emit_uint32(data, adata_size.s);
+
+    // unfortunately, I have observed that bmv2 sometimes returns shorter binary
+    // strings than it received (0 padding is removed), which makes things more
+    // complicated and expensive here.
+    size_t num_params;
+    const pi_p4_id_t *param_ids = pi_p4info_action_get_params(
+        p4info, adata_size.id, &num_params);
+    for (size_t i = 0; i < num_params; i++) {
+      size_t bitwidth = pi_p4info_action_param_bitwidth(p4info, param_ids[i]);
+      size_t nbytes = (bitwidth + 7) / 8;
+      const auto &p = action_entry.action_data.at(i);
+      assert(nbytes >= p.size());
+      size_t diff = nbytes - p.size();
+      std::memset(data, 0, diff);
+      std::memcpy(data + diff, p.data(), p.size());
+      data += nbytes;
+    }
+  }
 
   return PI_STATUS_SUCCESS;
 }
