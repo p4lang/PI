@@ -180,6 +180,7 @@ TEST(P4Info, Actions) {
 
   const char *const param_names[2] = {"p0_0", "p0_1"};
   const size_t param_bws[2] = {18, 3};
+  const size_t param_offsets[2] = {0, (param_bws[0] + 7) / 8};
 
   pi_p4info_action_init(p4info, num_actions);
 
@@ -226,6 +227,11 @@ TEST(P4Info, Actions) {
       param_bws[0], pi_p4info_action_param_bitwidth(p4info, param_0_0));
   TEST_ASSERT_EQUAL_UINT(
       param_bws[1], pi_p4info_action_param_bitwidth(p4info, param_0_1));
+
+  TEST_ASSERT_EQUAL_UINT(
+      param_offsets[0], pi_p4info_action_param_offset(p4info, param_0_0));
+  TEST_ASSERT_EQUAL_UINT(
+      param_offsets[1], pi_p4info_action_param_offset(p4info, param_0_1));
 
   pi_p4info_action_free(p4info);
 }
@@ -281,6 +287,7 @@ TEST(P4Info, ActionsStress) {
   }
 
   for (size_t i = 0; i < num_actions; i++) {
+    size_t offset = 0;
     for (size_t j = 0; j < adata[i].num_params; j++) {
       snprintf(name, sizeof(name), "a%zu_p%zu", i, j);
       pi_p4_id_t p_id = pi_make_action_param_id(adata[i].id, j);
@@ -293,6 +300,10 @@ TEST(P4Info, ActionsStress) {
 
       TEST_ASSERT_EQUAL_UINT(
           j, pi_p4info_action_param_bitwidth(p4info, p_id));
+
+      TEST_ASSERT_EQUAL_UINT(
+          offset, pi_p4info_action_param_offset(p4info, p_id));
+      offset += (j + 7) / 8;
     }
   }
 
@@ -446,6 +457,7 @@ TEST(P4Info, TablesStress) {
     TEST_ASSERT_EQUAL_UINT(
         (size_t) -1,
         pi_p4info_table_match_field_index(p4info, tdata[i].id, num_fields + 1));
+    size_t offset = 0;
     for (size_t j = 0; j < tdata[i].num_match_fields; j++) {
       pi_p4info_match_field_info_t finfo;
       pi_p4info_table_match_field_info(p4info, tdata[i].id, j, &finfo);
@@ -456,6 +468,10 @@ TEST(P4Info, TablesStress) {
       pi_p4info_match_type_t match_type = (i + j) % PI_P4INFO_MATCH_TYPE_END;
       TEST_ASSERT_EQUAL_INT(match_type, finfo.match_type);
       TEST_ASSERT_EQUAL_UINT(1 + j % 128, finfo.bitwidth);
+      TEST_ASSERT_EQUAL_UINT(offset,
+                             pi_p4info_table_match_field_offset(
+                                 p4info, tdata[i].id, finfo.field_id));
+      offset += (finfo.bitwidth + 7) / 8;
     }
 
     TEST_ASSERT_EQUAL_UINT(tdata[i].num_actions,

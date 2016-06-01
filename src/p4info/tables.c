@@ -222,6 +222,20 @@ size_t pi_p4info_table_match_field_index(const pi_p4info_t *p4info,
   return (size_t) -1;
 }
 
+// is this too slow?
+size_t pi_p4info_table_match_field_offset(const pi_p4info_t *p4info,
+                                          pi_p4_id_t table_id,
+                                          pi_p4_id_t field_id) {
+  _table_data_t *table = get_table(p4info, table_id);
+  _match_field_data_t *data = get_match_field_data(table);
+  size_t offset = 0;
+  for (size_t i = 0; i < table->num_match_fields; i++) {
+    if (data[i].field_id == field_id) break;
+    offset += (data[i].bitwidth + 7) / 8;
+  }
+  return offset;
+}
+
 void pi_p4info_table_match_field_info(const pi_p4info_t *p4info,
                                       pi_p4_id_t table_id,
                                       size_t index,

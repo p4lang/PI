@@ -27,6 +27,7 @@ typedef struct {
   char *name;
   size_t bitwidth;
   char byte0_mask;
+  size_t offset;
 } _action_param_data_t;
 
 typedef struct _action_data_s {
@@ -158,9 +159,17 @@ void pi_p4info_action_add_param(pi_p4info_t *p4info, pi_p4_id_t action_id,
   param_data->name = strdup(name);
   param_data->bitwidth = bitwidth;
   param_data->byte0_mask = get_byte0_mask(bitwidth);
+
   size_t param_idx = get_param_idx(param_id);
   pi_p4_id_t *param_ids = get_param_ids(action);
   param_ids[param_idx] = param_id;
+
+  size_t offset = param_data->offset;
+  _action_param_data_t *params = get_param_data(action);
+  for (size_t i = param_idx; i < action->num_params - 1; i++) {
+    offset += (params[i].bitwidth + 7) / 8;
+    params[i + 1].offset = offset;
+  }
 }
 
 size_t pi_p4info_action_get_num(const pi_p4info_t *p4info) {
@@ -221,6 +230,13 @@ char pi_p4info_action_param_byte0_mask(const pi_p4info_t *p4info,
   _action_data_t *action =
       &p4info->actions[get_action_idx_from_param_id(param_id)];
   return get_param_data_at(action, param_id)->byte0_mask;
+}
+
+size_t pi_p4info_action_param_offset(const pi_p4info_t *p4info,
+                                     pi_p4_id_t param_id) {
+  _action_data_t *action =
+      &p4info->actions[get_action_idx_from_param_id(param_id)];
+  return get_param_data_at(action, param_id)->offset;
 }
 
 #define PI_P4INFO_A_ITERATOR_FIRST (PI_ACTION_ID << 24)
