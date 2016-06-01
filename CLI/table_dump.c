@@ -25,18 +25,6 @@
 #include <inttypes.h>
 #include <stdio.h>
 
-// temporary
-struct pi_match_key_s {
-  const pi_p4info_t *p4info;
-  char *data;
-};
-
-// temporary
-struct pi_action_data_s {
-  const pi_p4info_t *p4info;
-  char *data;
-};
-
 char table_dump_hs[] =
     "Dump all entries in a match table: table_dump <table name>";
 
@@ -75,31 +63,30 @@ static void print_hexstr(const char *bytes, size_t nbytes) {
   }
 }
 
-static void print_match_param_v(pi_p4info_match_type_t mt, const char *d,
-                                size_t bitwidth) {
-  size_t nbytes = (bitwidth + 7) / 8;
+static void print_match_param_v(pi_p4_id_t f_id, pi_p4info_match_type_t mt,
+                                const pi_match_key_t *match_key) {
+  pi_netv_t fv;
   switch(mt) {
     case PI_P4INFO_MATCH_TYPE_VALID:
       // TODO(antonin)
       break;
     case PI_P4INFO_MATCH_TYPE_EXACT:
-      print_hexstr(d, nbytes);
-      d += nbytes;
+      pi_match_key_exact_get(match_key, f_id, &fv);
+      print_hexstr(fv.v.ptr, fv.size);
       break;
-    case PI_P4INFO_MATCH_TYPE_LPM:
-      print_hexstr(d, nbytes);
-      d += nbytes;
-      uint32_t pLen;
-      memcpy(&pLen, d, sizeof(pLen));
-      d += sizeof(pLen);
+    case PI_P4INFO_MATCH_TYPE_LPM:;
+      pi_prefix_length_t pLen;
+      pi_match_key_lpm_get(match_key, f_id, &fv, &pLen);
+      print_hexstr(fv.v.ptr, fv.size);
       printf("/%u", pLen);
       break;
-    case PI_P4INFO_MATCH_TYPE_TERNARY:
-      print_hexstr(d, nbytes);
-      d += nbytes;
+    case PI_P4INFO_MATCH_TYPE_TERNARY:;
+      pi_netv_t fv_mask;
+      pi_match_key_ternary_get(match_key, f_id, &fv, &fv_mask);
+      print_hexstr(fv.v.ptr, fv.size);
       printf(" &&& ");
-      print_hexstr(d, nbytes);
-      d += nbytes;
+      print_hexstr(fv_mask.v.ptr, fv_mask.size);
+      break;
     case PI_P4INFO_MATCH_TYPE_RANGE:
       break;
     default:
@@ -115,12 +102,10 @@ static void print_action_entry(pi_table_entry_t *entry) {
   size_t num_params;
   const pi_p4_id_t *param_ids = pi_p4info_action_get_params(p4info, action_id,
                                                             &num_params);
-  const char *action_data = entry->action_data->data;
   for (size_t j = 0; j < num_params; j++) {
-    size_t bitwidth = pi_p4info_action_param_bitwidth(p4info, param_ids[j]);
-    size_t nbytes = (bitwidth + 7) / 8;
-    print_hexstr(action_data, nbytes);
-    action_data += nbytes;
+    pi_netv_t argv;
+    pi_action_data_arg_get(entry->action_data, param_ids[j], &argv);
+    print_hexstr(argv.v.ptr, argv.size);
 
     if (j != num_params - 1) printf(", ");
   }
@@ -150,8 +135,7 @@ static pi_cli_status_t dump_entries(pi_p4_id_t t_id,
       pi_p4info_table_match_field_info(p4info, t_id, j, &finfo);
       printf("* %-*s: %-10s", name_out_width, finfo.name,
              match_type_to_str(finfo.match_type));
-      print_match_param_v(finfo.match_type, entry.match_key->data,
-                          finfo.bitwidth);
+      print_match_param_v(finfo.field_id, finfo.match_type, entry.match_key);
       printf("\n");
     }
     // TODO(antonin): print priority

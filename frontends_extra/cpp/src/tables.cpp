@@ -95,6 +95,7 @@ MatchKey::MatchKey(const pi_p4info_t *p4info, pi_p4_id_t table_id)
   _data = std::unique_ptr<char []>(new char[sizeof(*match_key) + s]);
   match_key = reinterpret_cast<decltype(match_key)>(_data.get());
   match_key->p4info = p4info;
+  match_key->table_id = table_id;
   match_key->data = _data.get() + sizeof(*match_key);
 }
 
@@ -265,6 +266,7 @@ ActionData::ActionData(const pi_p4info_t *p4info, pi_p4_id_t action_id)
   _data = std::unique_ptr<char []>(new char[sizeof(*action_data) + s]);
   action_data = reinterpret_cast<decltype(action_data)>(_data.get());
   action_data->p4info = p4info;
+  action_data->action_id = action_id;
   action_data->data = _data.get() + sizeof(*action_data);
 }
 

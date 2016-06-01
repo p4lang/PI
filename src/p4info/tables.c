@@ -29,6 +29,7 @@ typedef struct {
   pi_p4_id_t field_id;
   pi_p4info_match_type_t match_type;
   size_t bitwidth;
+  size_t offset;
 } _match_field_data_t;
 
 typedef struct _table_data_s {
@@ -153,6 +154,16 @@ void pi_p4info_table_add_match_field(pi_p4info_t *p4info, pi_p4_id_t table_id,
   match_field->match_type = match_type;
   match_field->bitwidth = bitwidth;
   get_match_field_ids(table)[table->match_fields_added] = field_id;
+
+  if (table->match_fields_added == 0) {
+    match_field->offset = 0;
+  } else {
+    _match_field_data_t *prev_field = match_field - 1;
+    match_field->offset =
+        prev_field->offset + get_match_key_size_one_field(
+            prev_field->match_type, prev_field->bitwidth);
+  }
+
   table->match_fields_added++;
 }
 
@@ -222,18 +233,13 @@ size_t pi_p4info_table_match_field_index(const pi_p4info_t *p4info,
   return (size_t) -1;
 }
 
-// is this too slow?
 size_t pi_p4info_table_match_field_offset(const pi_p4info_t *p4info,
                                           pi_p4_id_t table_id,
                                           pi_p4_id_t field_id) {
+  size_t index = pi_p4info_table_match_field_index(p4info, table_id, field_id);
   _table_data_t *table = get_table(p4info, table_id);
-  _match_field_data_t *data = get_match_field_data(table);
-  size_t offset = 0;
-  for (size_t i = 0; i < table->num_match_fields; i++) {
-    if (data[i].field_id == field_id) break;
-    offset += (data[i].bitwidth + 7) / 8;
-  }
-  return offset;
+  _match_field_data_t *data = &get_match_field_data(table)[index];
+  return data->offset;
 }
 
 void pi_p4info_table_match_field_info(const pi_p4info_t *p4info,

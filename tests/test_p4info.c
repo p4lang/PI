@@ -412,9 +412,11 @@ TEST(P4Info, TablesStress) {
       id = pi_make_field_id(id);
       tdata[i].match_fields[j] = id;
       pi_p4info_match_type_t match_type = (i + j) % PI_P4INFO_MATCH_TYPE_END;
+      size_t bw = (match_type == PI_P4INFO_MATCH_TYPE_VALID) ?
+          1 : (1 + j % 128);
       // name and bw consistent with field initialization above
       pi_p4info_table_add_match_field(p4info, tdata[i].id, id, name, match_type,
-                                      1 + j % 128);
+                                      bw);
     }
     gen_rand_ids(tdata[i].actions, num_actions, tdata[i].num_actions);
     for (size_t j = 0; j < tdata[i].num_actions; j++) {
@@ -466,12 +468,14 @@ TEST(P4Info, TablesStress) {
           pi_p4info_field_name_from_id(p4info, tdata[i].match_fields[j]),
           finfo.name);
       pi_p4info_match_type_t match_type = (i + j) % PI_P4INFO_MATCH_TYPE_END;
+      size_t bw = (match_type == PI_P4INFO_MATCH_TYPE_VALID) ?
+          1 : (1 + j % 128);
       TEST_ASSERT_EQUAL_INT(match_type, finfo.match_type);
-      TEST_ASSERT_EQUAL_UINT(1 + j % 128, finfo.bitwidth);
+      TEST_ASSERT_EQUAL_UINT(bw, finfo.bitwidth);
       TEST_ASSERT_EQUAL_UINT(offset,
                              pi_p4info_table_match_field_offset(
                                  p4info, tdata[i].id, finfo.field_id));
-      offset += (finfo.bitwidth + 7) / 8;
+      offset += get_match_key_size_one_field(match_type, bw);
     }
 
     TEST_ASSERT_EQUAL_UINT(tdata[i].num_actions,

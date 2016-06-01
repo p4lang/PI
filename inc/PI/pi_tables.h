@@ -44,7 +44,7 @@ typedef struct pi_action_data_s pi_action_data_t;
 typedef int pi_res_config_t;
 
 typedef struct {
-  pi_p4_id_t action_id;
+  pi_p4_id_t action_id;  // TODO(antonin): remove?
   pi_action_data_t *action_data;
   const pi_entry_properties_t *entry_properties;
   const pi_res_config_t *direct_res_config;  /* not defined yet */

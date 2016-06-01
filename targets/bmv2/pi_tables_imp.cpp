@@ -373,4 +373,9 @@ pi_status_t _pi_table_entries_fetch(const pi_dev_id_t dev_id,
   return PI_STATUS_SUCCESS;
 }
 
+pi_status_t _pi_table_entries_fetch_done(pi_table_fetch_res_t *res) {
+  delete[] res->entries;
+  return PI_STATUS_SUCCESS;
+}
+
 }

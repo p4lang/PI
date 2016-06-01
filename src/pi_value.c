@@ -114,16 +114,17 @@ pi_status_t pi_getnetv_u64(const pi_p4info_t *p4info, pi_p4_id_t obj_id,
 // unlike for previous cases, I am not masking the first byte, because I do not
 // want to write to the client's memory
 // FIXME(antonin)
-pi_status_t pi_getnetv_ptr(pi_p4info_t *p4info, pi_p4_id_t obj_id,
+pi_status_t pi_getnetv_ptr(const pi_p4info_t *p4info, pi_p4_id_t obj_id,
                            const char *ptr, size_t size, pi_netv_t *fv) {
   size_t bitwidth; char byte0_mask;
   pi_status_t rc = get_bitwidth_and_mask(p4info, obj_id,
                                          &bitwidth, &byte0_mask);
   if (rc != PI_STATUS_SUCCESS) return rc;
-  if ((bitwidth + 7) / 8 != size) return PI_STATUS_NETV_INVALID_SIZE;
+  if (size > 0 && ((bitwidth + 7) / 8 != size))
+    return PI_STATUS_NETV_INVALID_SIZE;
   fv->is_ptr = 1;
   fv->obj_id = obj_id;
-  fv->size = size;
+  fv->size = (bitwidth + 7) / 8;
   fv->v.ptr = ptr;
   return PI_STATUS_SUCCESS;
 }

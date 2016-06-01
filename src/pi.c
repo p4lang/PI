@@ -88,6 +88,7 @@ pi_status_t pi_assign_device(uint16_t dev_id, const pi_p4info_t *p4info,
   if (dev_id >= num_devices) return PI_STATUS_DEV_OUT_OF_RANGE;
   device_info_t *info = &device_mapping[dev_id];
   if (info->assigned) return PI_STATUS_DEV_ALREADY_ASSIGNED;
+  info->p4info = p4info;
   pi_status_t status = _pi_assign_device(dev_id, p4info, extra);
   if (status == PI_STATUS_SUCCESS) {
     info->assigned = 1;
@@ -133,23 +134,7 @@ size_t get_match_key_size(const pi_p4info_t *p4info, pi_p4_id_t table_id) {
   for (size_t i = 0; i < num_match_fields; i++) {
     pi_p4info_match_field_info_t finfo;
     pi_p4info_table_match_field_info(p4info, table_id, i, &finfo);
-    size_t nbytes = (finfo.bitwidth + 7) / 8;
-    switch (finfo.match_type) {
-      case PI_P4INFO_MATCH_TYPE_VALID:
-        assert(nbytes == 1);
-      case PI_P4INFO_MATCH_TYPE_EXACT:
-        s += nbytes;
-        break;
-      case PI_P4INFO_MATCH_TYPE_LPM:
-        s += nbytes + sizeof(uint32_t);
-        break;
-      case PI_P4INFO_MATCH_TYPE_TERNARY:
-      case PI_P4INFO_MATCH_TYPE_RANGE:
-        s += 2 * nbytes;
-        break;
-      default:
-        assert(0);
-    }
+    s += get_match_key_size_one_field(finfo.match_type, finfo.bitwidth);
   }
   return s;
 }

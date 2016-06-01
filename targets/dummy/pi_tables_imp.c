@@ -66,6 +66,12 @@ pi_status_t _pi_table_entries_fetch(const pi_dev_id_t dev_id,
                                     const pi_p4_id_t table_id,
                                     pi_table_fetch_res_t *res) {
   (void) dev_id; (void) table_id; (void) res;
-  printf("_pi_table_retrieve\n");
+  printf("_pi_table_fetch\n");
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_table_entries_fetch_done(pi_table_fetch_res_t *res) {
+  (void) res;
+  printf("_pi_table_fetch_done\n");
   return PI_STATUS_SUCCESS;
 }

@@ -47,16 +47,37 @@ static inline pi_p4_id_t pi_make_field_id(uint16_t index) {
 
 #define PI_GET_TYPE_ID(id) (id >> 24)
 
+// TODO(antonin): find a better location
+static inline size_t get_match_key_size_one_field(
+    pi_p4info_match_type_t match_type, size_t bitwidth) {
+  size_t nbytes = (bitwidth + 7) / 8;
+  switch (match_type) {
+    case PI_P4INFO_MATCH_TYPE_VALID:
+      assert(nbytes == 1);
+    case PI_P4INFO_MATCH_TYPE_EXACT:
+      return nbytes;
+    case PI_P4INFO_MATCH_TYPE_LPM:
+      return nbytes + sizeof(uint32_t);
+    case PI_P4INFO_MATCH_TYPE_TERNARY:
+    case PI_P4INFO_MATCH_TYPE_RANGE:
+      return 2 * nbytes;
+    default:
+      assert(0);
+  }
+}
+
 size_t get_match_key_size(const pi_p4info_t *p4info, pi_p4_id_t table_id);
 size_t get_action_data_size(const pi_p4info_t *p4info, pi_p4_id_t action_id);
 
 struct pi_match_key_s {
   const pi_p4info_t *p4info;
+  pi_p4_id_t table_id;
   char *data;
 };
 
 struct pi_action_data_s {
   const pi_p4info_t *p4info;
+  pi_p4_id_t action_id;
   char *data;
 };
 
@@ -68,7 +89,7 @@ struct pi_entry_properties_s {
 
 struct pi_table_fetch_res_s {
   const pi_p4info_t *p4info;
-  pi_p4_id_t table_id;
+  pi_p4_id_t table_id;  // TODO(antonin): remove?
   size_t num_entries;
   size_t mkey_nbytes;
   size_t idx;

@@ -73,15 +73,18 @@ pi_status_t pi_table_entries_fetch(const pi_dev_id_t dev_id,
   res_->table_id = table_id;
   res_->idx = 0;
   res_->curr = 0;
+  pi_status_t status = _pi_table_entries_fetch(dev_id, table_id, res_);
   // TODO(antonin): use contiguous memory
   res_->match_keys = malloc(res_->num_entries * sizeof(pi_match_key_t));
   res_->action_datas = malloc(res_->num_entries * sizeof(pi_action_data_t));
-  pi_status_t status = _pi_table_entries_fetch(dev_id, table_id, res_);
   *res = res_;
   return status;
 }
 
 pi_status_t pi_table_entries_fetch_done(pi_table_fetch_res_t *res) {
+  pi_status_t status = _pi_table_entries_fetch_done(res);
+  if (status != PI_STATUS_SUCCESS) return status;
+
   assert(res->match_keys);
   free(res->match_keys);
   assert(res->action_datas);
@@ -102,8 +105,9 @@ size_t pi_table_entries_next(pi_table_fetch_res_t *res,
   res->curr += retrieve_uint64(res->entries + res->curr, entry_handle);
 
   entry->match_key = &res->match_keys[res->idx];
-  entry->match_key->data = res->entries + res->curr;
   entry->match_key->p4info = res->p4info;
+  entry->match_key->table_id = res->table_id;
+  entry->match_key->data = res->entries + res->curr;
   res->curr += res->mkey_nbytes;
 
   pi_table_entry_t *t_entry = &entry->entry;
@@ -111,8 +115,9 @@ size_t pi_table_entries_next(pi_table_fetch_res_t *res,
   uint32_t nbytes;
   res->curr += retrieve_uint32(res->entries + res->curr, &nbytes);
   t_entry->action_data = &res->action_datas[res->idx];
-  t_entry->action_data->data = res->entries + res->curr;
   t_entry->action_data->p4info = res->p4info;
+  t_entry->action_data->action_id = t_entry->action_id;
+  t_entry->action_data->data = res->entries + res->curr;
   res->curr += nbytes;
   t_entry->entry_properties = res->properties + res->idx;
   return res->idx++;

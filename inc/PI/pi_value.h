@@ -102,7 +102,7 @@ pi_status_t pi_getnetv_u64(const pi_p4info_t *p4info, pi_p4_id_t obj_id,
 // unlike for previous cases, I am not masking the first byte, because I do not
 // want to write to the client's memory
 // FIXME(antonin)
-pi_status_t pi_getnetv_ptr(pi_p4info_t *p4info, pi_p4_id_t obj_id,
+pi_status_t pi_getnetv_ptr(const pi_p4info_t *p4info, pi_p4_id_t obj_id,
                            const char *ptr, size_t size, pi_netv_t *fv);
 
 #ifdef __cplusplus

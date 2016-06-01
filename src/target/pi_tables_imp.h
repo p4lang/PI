@@ -44,4 +44,6 @@ pi_status_t _pi_table_entries_fetch(const pi_dev_id_t dev_id,
                                     const pi_p4_id_t table_id,
                                     pi_table_fetch_res_t *res);
 
+pi_status_t _pi_table_entries_fetch_done(pi_table_fetch_res_t *res);
+
 #endif  // PI_SRC_TARGET_PI_TABLES_IMP_H_
