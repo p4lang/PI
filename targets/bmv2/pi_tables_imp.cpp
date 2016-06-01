@@ -38,6 +38,8 @@ std::vector<BmMatchParam> build_key(pi_p4_id_t table_id,
   static thread_local std::vector<BmMatchParam> key;
   key.clear();
 
+  const char *mk_data = match_key->data;
+
   BmMatchParam param;
   BmMatchParamValid param_valid;
   BmMatchParamExact param_exact;
@@ -54,25 +56,25 @@ std::vector<BmMatchParam> build_key(pi_p4_id_t table_id,
 
     switch (finfo.match_type) {
       case PI_P4INFO_MATCH_TYPE_VALID:
-        param_valid.key = (*match_key != 0);
-        match_key++;
+        param_valid.key = (*mk_data != 0);
+        mk_data++;
         param = BmMatchParam();
         param.type = BmMatchParamType::type::VALID;
         param.__set_valid(param_valid);  // does a copy of param_valid
         key.push_back(std::move(param));
         break;
       case PI_P4INFO_MATCH_TYPE_EXACT:
-        param_exact.key = std::string(match_key, nbytes);
-        match_key += nbytes;
+        param_exact.key = std::string(mk_data, nbytes);
+        mk_data += nbytes;
         param = BmMatchParam();
         param.type = BmMatchParamType::type::EXACT;
         param.__set_exact(param_exact);  // does a copy of param_exact
         key.push_back(std::move(param));
         break;
       case PI_P4INFO_MATCH_TYPE_LPM:
-        param_lpm.key = std::string(match_key, nbytes);
-        match_key += nbytes;
-        match_key += retrieve_uint32(match_key, &pLen);
+        param_lpm.key = std::string(mk_data, nbytes);
+        mk_data += nbytes;
+        mk_data += retrieve_uint32(mk_data, &pLen);
         param_lpm.prefix_length = static_cast<int32_t>(pLen);
         param = BmMatchParam();
         param.type = BmMatchParamType::type::LPM;
@@ -80,10 +82,10 @@ std::vector<BmMatchParam> build_key(pi_p4_id_t table_id,
         key.push_back(std::move(param));
         break;
       case PI_P4INFO_MATCH_TYPE_TERNARY:
-        param_ternary.key = std::string(match_key, nbytes);
-        match_key += nbytes;
-        param_ternary.mask = std::string(match_key, nbytes);
-        match_key += nbytes;
+        param_ternary.key = std::string(mk_data, nbytes);
+        mk_data += nbytes;
+        param_ternary.mask = std::string(mk_data, nbytes);
+        mk_data += nbytes;
         param = BmMatchParam();
         param.type = BmMatchParamType::type::TERNARY;
         param.__set_ternary(param_ternary);  // does a copy of param_ternary
@@ -105,6 +107,8 @@ std::vector<std::string> build_action_data(const pi_table_entry_t *table_entry,
   pi_p4_id_t action_id = table_entry->action_id;
   const pi_action_data_t *action_data = table_entry->action_data;
   assert(action_data);
+  const char *ad_data = action_data->data;
+  assert(ad_data);
 
   size_t num_params;
   const pi_p4_id_t *param_ids = pi_p4info_action_get_params(p4info, action_id,
@@ -113,8 +117,8 @@ std::vector<std::string> build_action_data(const pi_table_entry_t *table_entry,
     pi_p4_id_t p_id = param_ids[i];
     size_t p_bw = pi_p4info_action_param_bitwidth(p4info, p_id);
     size_t nbytes = (p_bw + 7) / 8;
-    data.push_back(std::string(action_data, nbytes));
-    action_data += nbytes;
+    data.push_back(std::string(ad_data, nbytes));
+    ad_data += nbytes;
   }
 
   return data;

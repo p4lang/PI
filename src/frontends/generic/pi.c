@@ -37,11 +37,9 @@ typedef struct {
 
 typedef struct {
   int safeguard;
-  size_t size;
   pi_p4_id_t table_id;
   uint32_t nset;
   size_t num_fields;
-  const pi_p4info_t *p4info;
   _fegen_mbr_info_t f_info[1];
 } _fegen_mk_prefix_t;
 
@@ -59,6 +57,7 @@ pi_status_t pi_match_key_allocate(const pi_p4info_t *p4info,
                                   const pi_p4_id_t table_id,
                                   pi_match_key_t **key) {
   size_t s = 0;
+
   size_t num_match_fields = pi_p4info_table_num_match_fields(p4info, table_id);
 
   _fegen_mbr_info_t *offsets = malloc(
@@ -90,18 +89,19 @@ pi_status_t pi_match_key_allocate(const pi_p4info_t *p4info,
 
   size_t prefix_space = get_mk_prefix_space(num_match_fields);
   s += prefix_space;
+  s += sizeof(pi_match_key_t);
   char *key_w_prefix = malloc(s);
   _fegen_mk_prefix_t *prefix = (_fegen_mk_prefix_t *) key_w_prefix;
   prefix->safeguard = SAFEGUARD;
-  prefix->size = s - prefix_space;
   prefix->nset = 0;
   prefix->num_fields = num_match_fields;
   prefix->table_id = table_id;
-  prefix->p4info = p4info;
   memcpy(prefix->f_info, offsets, sizeof(prefix->f_info[0]) * num_match_fields);
   free(offsets);
 
   *key = (pi_match_key_t *) (key_w_prefix + prefix_space);
+  (*key)->p4info = p4info;
+  (*key)->data = (char *) (*key + 1);
   assert(sizeof(_fegen_mk_prefix_t *) <= ALIGN);
   char *back_ptr = ((char *) (*key)) - ALIGN;
   *(_fegen_mk_prefix_t **) back_ptr = prefix;
@@ -144,9 +144,9 @@ pi_status_t pi_match_key_exact_set(pi_match_key_t *key,
                                    const pi_netv_t *fv) {
   _fegen_mk_prefix_t *prefix = get_mk_prefix(key);
   size_t f_index = pi_p4info_table_match_field_index(
-      prefix->p4info, prefix->table_id, fv->obj_id);
+      key->p4info, prefix->table_id, fv->obj_id);
   _fegen_mbr_info_t *info = &prefix->f_info[f_index];
-  char *dst = key + info->offset;
+  char *dst = key->data + info->offset;
   dump_fv(dst, fv);
   mk_update_fset(prefix, f_index);
   return PI_STATUS_SUCCESS;
@@ -157,9 +157,9 @@ pi_status_t pi_match_key_lpm_set(pi_match_key_t *key,
                                  const pi_prefix_length_t prefix_length) {
   _fegen_mk_prefix_t *prefix = get_mk_prefix(key);
   size_t f_index = pi_p4info_table_match_field_index(
-      prefix->p4info, prefix->table_id, fv->obj_id);
+      key->p4info, prefix->table_id, fv->obj_id);
   _fegen_mbr_info_t *info = &prefix->f_info[f_index];
-  char *dst = key + info->offset;
+  char *dst = key->data + info->offset;
   dst = dump_fv(dst, fv);
   emit_uint32(dst, prefix_length);
   mk_update_fset(prefix, f_index);
@@ -172,9 +172,9 @@ pi_status_t pi_match_key_ternary_set(pi_match_key_t *key,
   assert(fv->obj_id == mask->obj_id);
   _fegen_mk_prefix_t *prefix = get_mk_prefix(key);
   size_t f_index = pi_p4info_table_match_field_index(
-      prefix->p4info, prefix->table_id, fv->obj_id);
+      key->p4info, prefix->table_id, fv->obj_id);
   _fegen_mbr_info_t *info = &prefix->f_info[f_index];
-  char *dst = key + info->offset;
+  char *dst = key->data + info->offset;
   dst = dump_fv(dst, fv);
   dump_fv(dst, mask);
   mk_update_fset(prefix, f_index);
@@ -187,9 +187,9 @@ pi_status_t pi_match_key_range_set(pi_match_key_t *key,
   assert(start->obj_id == end->obj_id);
   _fegen_mk_prefix_t *prefix = get_mk_prefix(key);
   size_t f_index = pi_p4info_table_match_field_index(
-      prefix->p4info, prefix->table_id, start->obj_id);
+      key->p4info, prefix->table_id, start->obj_id);
   _fegen_mbr_info_t *info = &prefix->f_info[f_index];
-  char *dst = key + info->offset;
+  char *dst = key->data + info->offset;
   dst = dump_fv(dst, start);
   dump_fv(dst, end);
   mk_update_fset(prefix, f_index);
@@ -208,11 +208,9 @@ pi_status_t pi_match_key_destroy(pi_match_key_t *key) {
 
 typedef struct {
   int safeguard;
-  size_t size;
   pi_p4_id_t action_id;
   uint32_t nset;
   size_t num_params;
-  const pi_p4info_t *p4info;
   _fegen_mbr_info_t p_info[1];
 } _fegen_ad_prefix_t;
 
@@ -230,6 +228,7 @@ pi_status_t pi_action_data_allocate(const pi_p4info_t *p4info,
                                     const pi_p4_id_t action_id,
                                     pi_action_data_t **adata) {
   size_t s = 0;
+
   size_t num_params;
   const pi_p4_id_t *params = pi_p4info_action_get_params(p4info, action_id,
                                                          &num_params);
@@ -245,18 +244,19 @@ pi_status_t pi_action_data_allocate(const pi_p4info_t *p4info,
 
   size_t prefix_space = get_ad_prefix_space(num_params);
   s += prefix_space;
+  s += sizeof(pi_action_data_t);
   char *adata_w_prefix = malloc(s);
   _fegen_ad_prefix_t *prefix = (_fegen_ad_prefix_t *) adata_w_prefix;
   prefix->safeguard = SAFEGUARD;
-  prefix->size = s - prefix_space;
   prefix->nset = 0;
   prefix->num_params = num_params;
   prefix->action_id = action_id;
-  prefix->p4info = p4info;
   memcpy(prefix->p_info, offsets, sizeof(prefix->p_info[0]) * num_params);
   free(offsets);
 
   *adata = (pi_action_data_t *) (adata_w_prefix + prefix_space);
+  (*adata)->p4info = p4info;
+  (*adata)->data = (char *) (*adata + 1);
   assert(sizeof(_fegen_ad_prefix_t *) <= ALIGN);
   char *back_ptr = ((char *) (*adata)) - ALIGN;
   *(_fegen_ad_prefix_t **) back_ptr = prefix;
@@ -293,7 +293,7 @@ pi_status_t pi_action_data_arg_set(pi_action_data_t *adata,
   size_t index = param_id & 0xff;
 
   const char *src = argv->is_ptr ? argv->v.ptr : &argv->v.data[0];
-  char *dst = adata + prefix->p_info[index].offset;
+  char *dst = adata->data + prefix->p_info[index].offset;
   memcpy(dst, src, argv->size);
 
   if(!prefix->p_info[index].is_set) {

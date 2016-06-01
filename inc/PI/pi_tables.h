@@ -37,14 +37,15 @@ void pi_entry_properties_set(pi_entry_properties_t *properties,
 
 typedef uint64_t pi_entry_handle_t;
 
-typedef char pi_match_key_t;
-typedef char pi_action_data_t;
+typedef struct pi_match_key_s pi_match_key_t;
+
+typedef struct pi_action_data_s pi_action_data_t;
 
 typedef int pi_res_config_t;
 
 typedef struct {
   pi_p4_id_t action_id;
-  const pi_action_data_t *action_data;
+  pi_action_data_t *action_data;
   const pi_entry_properties_t *entry_properties;
   const pi_res_config_t *direct_res_config;  /* not defined yet */
 } pi_table_entry_t;

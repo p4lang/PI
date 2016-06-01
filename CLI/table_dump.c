@@ -25,6 +25,18 @@
 #include <inttypes.h>
 #include <stdio.h>
 
+// temporary
+struct pi_match_key_s {
+  const pi_p4info_t *p4info;
+  char *data;
+};
+
+// temporary
+struct pi_action_data_s {
+  const pi_p4info_t *p4info;
+  char *data;
+};
+
 char table_dump_hs[] =
     "Dump all entries in a match table: table_dump <table name>";
 
@@ -103,7 +115,7 @@ static void print_action_entry(pi_table_entry_t *entry) {
   size_t num_params;
   const pi_p4_id_t *param_ids = pi_p4info_action_get_params(p4info, action_id,
                                                             &num_params);
-  const char *action_data = entry->action_data;
+  const char *action_data = entry->action_data->data;
   for (size_t j = 0; j < num_params; j++) {
     size_t bitwidth = pi_p4info_action_param_bitwidth(p4info, param_ids[j]);
     size_t nbytes = (bitwidth + 7) / 8;
@@ -138,7 +150,8 @@ static pi_cli_status_t dump_entries(pi_p4_id_t t_id,
       pi_p4info_table_match_field_info(p4info, t_id, j, &finfo);
       printf("* %-*s: %-10s", name_out_width, finfo.name,
              match_type_to_str(finfo.match_type));
-      print_match_param_v(finfo.match_type, entry.match_key, finfo.bitwidth);
+      print_match_param_v(finfo.match_type, entry.match_key->data,
+                          finfo.bitwidth);
       printf("\n");
     }
     // TODO(antonin): print priority

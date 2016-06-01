@@ -88,7 +88,8 @@ TEST(FrontendGeneric_OneExact, U8) {
       TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
       char expected_data[1];
       expected_data[0] = test_v;
-      TEST_ASSERT_EQUAL_MEMORY(&expected_data, mkey, sizeof(expected_data));
+      TEST_ASSERT_EQUAL_MEMORY(&expected_data, mkey->data,
+                               sizeof(expected_data));
     }
     p4info_destroy();
   }
@@ -107,7 +108,7 @@ TEST(FrontendGeneric_OneExact, U128) {
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
   rc = pi_match_key_exact_set(mkey, &fv);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
-  TEST_ASSERT_EQUAL_MEMORY(test_v, mkey, sizeof(test_v));
+  TEST_ASSERT_EQUAL_MEMORY(test_v, mkey->data, sizeof(test_v));
   p4info_destroy();
 }
 
@@ -142,9 +143,9 @@ TEST(FrontendGeneric_OneLPM, U8) {
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
   char expected_data[1];
   expected_data[0] = test_v;
-  TEST_ASSERT_EQUAL_MEMORY(&expected_data, mkey, sizeof(expected_data));
+  TEST_ASSERT_EQUAL_MEMORY(&expected_data, mkey->data, sizeof(expected_data));
   uint32_t v;
-  retrieve_uint32(mkey + sizeof(expected_data), &v);
+  retrieve_uint32(mkey->data + sizeof(expected_data), &v);
   TEST_ASSERT_EQUAL_UINT32(prefix_length, v);
   p4info_destroy();
 }
@@ -181,9 +182,9 @@ TEST(FrontendGeneric_OneTernary, U8) {
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
   char expected_data[1];
   expected_data[0] = test_v;
-  TEST_ASSERT_EQUAL_MEMORY(&expected_data, mkey, sizeof(expected_data));
+  TEST_ASSERT_EQUAL_MEMORY(&expected_data, mkey->data, sizeof(expected_data));
   expected_data[0] = test_mask;
-  TEST_ASSERT_EQUAL_MEMORY(&expected_data, mkey + sizeof(expected_data),
+  TEST_ASSERT_EQUAL_MEMORY(&expected_data, mkey->data + sizeof(expected_data),
                            sizeof(expected_data));
   p4info_destroy();
 }
@@ -218,7 +219,8 @@ TEST(FrontendGeneric_Adata, U8) {
       TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
       char expected_data[1];
       expected_data[0] = test_v;
-      TEST_ASSERT_EQUAL_MEMORY(&expected_data, adata, sizeof(expected_data));
+      TEST_ASSERT_EQUAL_MEMORY(&expected_data, adata->data,
+                               sizeof(expected_data));
     }
     p4info_destroy();
   }
@@ -237,7 +239,7 @@ TEST(FrontendGeneric_Adata, U128) {
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
   rc = pi_action_data_arg_set(adata, &argv);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
-  TEST_ASSERT_EQUAL_MEMORY(test_v, adata, sizeof(test_v));
+  TEST_ASSERT_EQUAL_MEMORY(test_v, adata->data, sizeof(test_v));
   p4info_destroy();
 }
 

@@ -50,6 +50,16 @@ static inline pi_p4_id_t pi_make_field_id(uint16_t index) {
 size_t get_match_key_size(const pi_p4info_t *p4info, pi_p4_id_t table_id);
 size_t get_action_data_size(const pi_p4info_t *p4info, pi_p4_id_t action_id);
 
+struct pi_match_key_s {
+  const pi_p4info_t *p4info;
+  char *data;
+};
+
+struct pi_action_data_s {
+  const pi_p4info_t *p4info;
+  char *data;
+};
+
 struct pi_entry_properties_s {
   uint32_t valid_properties;
   uint32_t priority;
@@ -57,12 +67,16 @@ struct pi_entry_properties_s {
 };
 
 struct pi_table_fetch_res_s {
+  const pi_p4info_t *p4info;
   pi_p4_id_t table_id;
   size_t num_entries;
   size_t mkey_nbytes;
   size_t idx;
   size_t curr;
   char *entries;
+  // just pointers to entries byte array
+  struct pi_match_key_s *match_keys;
+  struct pi_action_data_s *action_datas;
   struct pi_entry_properties_s *properties;
   // direct resources
 };
