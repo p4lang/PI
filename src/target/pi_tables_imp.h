@@ -27,9 +27,11 @@ pi_status_t _pi_table_default_action_set(const pi_dev_tgt_t dev_tgt,
                                          const pi_p4_id_t table_id,
                                          const pi_table_entry_t *table_entry);
 
-pi_status_t _pi_table_default_action_get(const pi_dev_tgt_t dev_tgt,
+pi_status_t _pi_table_default_action_get(const pi_dev_id_t dev_id,
                                          const pi_p4_id_t table_id,
                                          pi_table_entry_t *table_entry);
+
+pi_status_t _pi_table_default_action_done(pi_table_entry_t *table_entry);
 
 pi_status_t _pi_table_entry_delete(const pi_dev_id_t dev_id,
                                    const pi_p4_id_t table_id,

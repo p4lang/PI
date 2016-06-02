@@ -124,6 +124,27 @@ std::vector<std::string> build_action_data(const pi_table_entry_t *table_entry,
   return data;
 }
 
+void dump_action_data(const pi_p4info_t *p4info, char *data,
+                      pi_p4_id_t action_id, const BmActionData &params) {
+    // unfortunately, I have observed that bmv2 sometimes returns shorter binary
+    // strings than it received (0 padding is removed), which makes things more
+    // complicated and expensive here.
+    size_t num_params;
+    const pi_p4_id_t *param_ids = pi_p4info_action_get_params(
+        p4info, action_id, &num_params);
+    assert(num_params == params.size());
+    for (size_t i = 0; i < num_params; i++) {
+      size_t bitwidth = pi_p4info_action_param_bitwidth(p4info, param_ids[i]);
+      size_t nbytes = (bitwidth + 7) / 8;
+      const auto &p = params.at(i);
+      assert(nbytes >= p.size());
+      size_t diff = nbytes - p.size();
+      std::memset(data, 0, diff);
+      std::memcpy(data + diff, p.data(), p.size());
+      data += nbytes;
+    }
+}
+
 }  // namespace
 
 extern "C" {
@@ -202,10 +223,58 @@ pi_status_t _pi_table_default_action_set(const pi_dev_tgt_t dev_tgt,
   return PI_STATUS_SUCCESS;
 }
 
-pi_status_t _pi_table_default_action_get(const pi_dev_tgt_t dev_tgt,
+pi_status_t _pi_table_default_action_get(const pi_dev_id_t dev_id,
                                          const pi_p4_id_t table_id,
                                          pi_table_entry_t *table_entry) {
-  (void) dev_tgt; (void) table_id; (void) table_entry;
+  device_info_t *d_info = get_device_info(dev_id);
+  assert(d_info->assigned);
+  const pi_p4info_t *p4info = d_info->p4info;
+
+  std::string t_name(pi_p4info_table_name_from_id(p4info, table_id));
+
+  BmActionEntry entry;
+  try {
+    conn_mgr_client(conn_mgr_state, dev_id).c->bm_mt_get_default_entry(
+        entry, 0, t_name);
+  } catch (InvalidTableOperation &ito) {
+    const char *what =
+        _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
+    std::cout << "Invalid table (" << "${t_name}" << ") operation ("
+              << ito.code << "): " << what << std::endl;
+    return PI_STATUS_INVALID_TABLE_OPERATION;
+  }
+
+  if (entry.action_type == BmActionEntryType::NONE) {
+    table_entry->action_id = PI_INVALID_ID;
+    table_entry->action_data = NULL;
+    // should we return an error code?
+    return PI_STATUS_SUCCESS;
+  }
+
+  assert(entry.action_type == BmActionEntryType::ACTION_DATA);
+  const pi_p4_id_t action_id = pi_p4info_action_id_from_name(
+      p4info, entry.action_name.c_str());
+  table_entry->action_id = action_id;
+
+  const size_t adata_size = get_action_data_size(p4info, action_id);
+
+  // no alignment issue with new[]
+  char *data_ = new char[sizeof(pi_action_data_t) + adata_size];
+  table_entry->action_data = reinterpret_cast<pi_action_data_t *>(data_);
+  data_ += sizeof(pi_action_data_t);
+
+  table_entry->action_data->p4info = p4info;
+  table_entry->action_data->action_id = action_id;
+  table_entry->action_data->data = data_;
+
+  dump_action_data(p4info, data_, action_id, entry.action_data);
+
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_table_default_action_done(pi_table_entry_t *table_entry) {
+  if (table_entry->action_data) delete[] table_entry->action_data;
+
   return PI_STATUS_SUCCESS;
 }
 
@@ -352,22 +421,7 @@ pi_status_t _pi_table_entries_fetch(const pi_dev_id_t dev_id,
     data += emit_uint32(data, adata_size.id);
     data += emit_uint32(data, adata_size.s);
 
-    // unfortunately, I have observed that bmv2 sometimes returns shorter binary
-    // strings than it received (0 padding is removed), which makes things more
-    // complicated and expensive here.
-    size_t num_params;
-    const pi_p4_id_t *param_ids = pi_p4info_action_get_params(
-        p4info, adata_size.id, &num_params);
-    for (size_t i = 0; i < num_params; i++) {
-      size_t bitwidth = pi_p4info_action_param_bitwidth(p4info, param_ids[i]);
-      size_t nbytes = (bitwidth + 7) / 8;
-      const auto &p = action_entry.action_data.at(i);
-      assert(nbytes >= p.size());
-      size_t diff = nbytes - p.size();
-      std::memset(data, 0, diff);
-      std::memcpy(data + diff, p.data(), p.size());
-      data += nbytes;
-    }
+    dump_action_data(p4info, data, adata_size.id, action_entry.action_data);
   }
 
   return PI_STATUS_SUCCESS;

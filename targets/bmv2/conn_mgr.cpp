@@ -71,14 +71,6 @@ int conn_mgr_client_init(conn_mgr_t *conn_mgr_state, int dev_id,
   boost::shared_ptr<TMultiplexedProtocol> sswitch_protocol(
       new TMultiplexedProtocol(protocol, "simple_switch"));
 
-  conn_mgr_state->transports[dev_id] = transport;
-  conn_mgr_state->clients[dev_id].client =
-      new StandardClient(standard_protocol);
-  conn_mgr_state->clients[dev_id].mc_client =
-      new SimplePreLAGClient(mc_protocol);
-  conn_mgr_state->clients[dev_id].sswitch_client =
-      new SimpleSwitchClient(sswitch_protocol);
-
   try {
     transport->open();
   }
@@ -88,6 +80,14 @@ int conn_mgr_client_init(conn_mgr_t *conn_mgr_state, int dev_id,
 
     return 1;
   }
+
+  conn_mgr_state->transports[dev_id] = transport;
+  conn_mgr_state->clients[dev_id].client =
+      new StandardClient(standard_protocol);
+  conn_mgr_state->clients[dev_id].mc_client =
+      new SimplePreLAGClient(mc_protocol);
+  conn_mgr_state->clients[dev_id].sswitch_client =
+      new SimpleSwitchClient(sswitch_protocol);
 
   return 0;
 }

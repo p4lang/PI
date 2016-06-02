@@ -97,6 +97,12 @@ static void print_match_param_v(pi_p4_id_t f_id, pi_p4info_match_type_t mt,
 static void print_action_entry(pi_table_entry_t *entry) {
   // TODO(antonin): all types of action entries (indirect)
   pi_p4_id_t action_id = entry->action_id;
+
+  if (action_id == PI_INVALID_ID) {
+    printf("EMPTY\n");
+    return;
+  }
+
   const char *action_name = pi_p4info_action_name_from_id(p4info, action_id);
   printf("Action entry: %s - ", action_name);
   size_t num_params;
@@ -143,14 +149,24 @@ static pi_cli_status_t dump_entries(pi_p4_id_t t_id,
     print_action_entry(&entry.entry);
   }
 
-  // TODO(antonin): default entry
-  printf("==========\n");
-  printf("Dumping default entry\n");
-  printf("TODO\n");
-
   printf("==========\n");
 
   return PI_CLI_STATUS_SUCCESS;
+}
+
+static pi_cli_status_t dump_default_entry(pi_p4_id_t t_id) {
+  pi_status_t rc;
+  pi_table_entry_t entry;
+  rc = pi_table_default_action_get(dev_tgt.dev_id, t_id, &entry);
+  if (rc == PI_STATUS_SUCCESS) {
+    printf("Dumping default entry\n");
+    print_action_entry(&entry);
+    printf("==========\n");
+    pi_table_default_action_done(&entry);
+    return PI_CLI_STATUS_SUCCESS;
+  } else {
+    return PI_CLI_STATUS_TARGET_ERROR;
+  }
 }
 
 pi_cli_status_t do_table_dump(char *subcmd) {
@@ -171,12 +187,14 @@ pi_cli_status_t do_table_dump(char *subcmd) {
     printf("Successfully retrieved %zu entrie(s).\n",
            pi_table_entries_num(res));
     status = dump_entries(t_id, res);
+    pi_table_entries_fetch_done(res);
+
+    if (status == PI_CLI_STATUS_SUCCESS) status = dump_default_entry(t_id);
   } else {
     printf("Error when trying to retrieve entries.\n");
     status = PI_CLI_STATUS_TARGET_ERROR;
   }
 
-  pi_table_entries_fetch_done(res);
   return status;
 };
 
