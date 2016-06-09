@@ -14,4 +14,5 @@ bmv2 is installed on your system, build the PI and the CLI with `./configure
     ./CLI/pi_CLI_bmv2 tests/testdata/simple_router.json  // to start the CLI
     PI CLI> select_device 0 port=9090
     PI CLI> table_add ipv4_lpm set_nhop 10.0.0.1/24 => 10.0.0.1 1
+    PI CLI> table_dump ipv4_lpm
     PI CLI> table_delete ipv4_lpm <handle returned by table_add>
