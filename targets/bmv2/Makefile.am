@@ -9,4 +9,7 @@ conn_mgr.h \
 conn_mgr.cpp \
 common.h
 
+libpi_bmv2_la_LIBADD = \
+$(top_builddir)/../../src/libpip4info.la
+
 noinst_LTLIBRARIES = libpi_bmv2.la
