@@ -24,16 +24,29 @@ extern "C" {
 #endif
 
 typedef enum {
-  PI_ENTRY_PROPERTY_TYPE_PRIORITY,
+  PI_ENTRY_PROPERTY_TYPE_PRIORITY = 0,
   PI_ENTRY_PROPERTY_TYPE_TTL,
+  PI_ENTRY_PROPERTY_TYPE_END
 } pi_entry_property_type_t;
+
+// TODO(antonin): hide this?
+struct pi_entry_properties_s {
+  uint32_t valid_properties;
+  uint32_t priority;
+  uint32_t ttl;
+};
 
 typedef struct pi_entry_properties_s pi_entry_properties_t;
 
 void pi_entry_properties_clear(pi_entry_properties_t *properties);
-void pi_entry_properties_set(pi_entry_properties_t *properties,
-                             const pi_entry_property_type_t property_type,
-                             const pi_value_t *property_value);
+// for now both properties are uint32_t, we'll see if we need to change it in
+// the future
+pi_status_t pi_entry_properties_set(pi_entry_properties_t *properties,
+                                    pi_entry_property_type_t property_type,
+                                    uint32_t property_value);
+                                    /* const pi_value_t *property_value); */
+bool pi_entry_properties_is_set(const pi_entry_properties_t *properties,
+                                pi_entry_property_type_t property_type);
 
 typedef uint64_t pi_entry_handle_t;
 

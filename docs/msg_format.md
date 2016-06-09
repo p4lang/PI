@@ -194,7 +194,7 @@ For each match entry handle, we serialize the above information as follows:
  * the size of the serialized action data in bytes, as 4 bytes in little-endian
    order
  * the serialized action data, as described [above] (#action-data)
- * TODO: entry properties
+ * the entry properties; see description [below] (#entry-properties)
  * TODO: direct resources
 
 The target backend code does not need to worry about the other members of the
@@ -203,3 +203,15 @@ overwritten by the PI code.
 
 This structure is not seen by the application, which instead can iterate through
 the entries using `pi_table_entries_next`.
+
+### Entry properties
+
+The entry properties (for now priority and TTL) are serialized as 4 bytes to
+indicate which properties are valid, followed by 4 bytes for each valid
+property:
+ * the first 4 bytes constitute a bitmap which indicates which properties are
+ valid. The bitmap is serialized in little-endian order. The bit position of
+ each property is given by the corresponding `pi_entry_property_type_t` enum
+ value.
+ * as of now, each property is encoded by a `uint32_t` integer; we simply
+ serialize this integer in little-endian format.

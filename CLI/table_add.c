@@ -52,6 +52,16 @@ static int read_ternary_field(char *mf, char **mask) {
   return 0;
 }
 
+static int read_priority(char *in, int *priority) {
+  const char *delim = " \t\n\v\f\r";
+  char *pri_str = strtok(in, delim);
+  if (!pri_str) return 1;
+  char *endptr;
+  *priority = strtol(pri_str, &endptr, 0);
+  if (*endptr != '\0') return 2;
+  return 0;
+}
+
 #define BYTES_TEMP_SIZE 64
 
 static int match_key_add_valid_field(pi_p4_id_t f_id, size_t f_bitwidth,
@@ -111,7 +121,7 @@ static int match_key_add_ternary_field(pi_p4_id_t f_id, size_t f_bitwidth,
   size_t nbytes = (f_bitwidth + 7) / 8;
   rc = pi_getnetv_ptr(p4info, f_id, bytes, nbytes, &f_netv);
   assert(rc == PI_STATUS_SUCCESS);
-  rc = pi_getnetv_ptr(p4info, f_id, mask_bytes, nbytes, &f_netv);
+  rc = pi_getnetv_ptr(p4info, f_id, mask_bytes, nbytes, &m_netv);
   assert(rc == PI_STATUS_SUCCESS);
   rc = pi_match_key_ternary_set(mk, &f_netv, &m_netv);
   assert(rc == PI_STATUS_SUCCESS);
@@ -200,8 +210,22 @@ pi_cli_status_t do_table_add(char *subcmd) {
     return status;
   }
 
+  pi_entry_properties_t entry_properties;
+  pi_entry_properties_clear(&entry_properties);
+  int priority;
+  int pri_status = read_priority(NULL, &priority);
+  if (pri_status == 1) {
+    // no priority
+  } else if (pri_status == 2) {
+    fprintf(stderr, "Error when reading priority.\n");
+    return PI_CLI_STATUS_INVALID_COMMAND_FORMAT;
+  } else {  // success
+    pi_entry_properties_set(&entry_properties, PI_ENTRY_PROPERTY_TYPE_PRIORITY,
+                            priority);
+  }
+
+  pi_table_entry_t t_entry = {a_id, adata, &entry_properties, NULL};
   pi_entry_handle_t handle = 0;
-  pi_table_entry_t t_entry = {a_id, adata, NULL, NULL};
   pi_status_t rc;
   rc = pi_table_entry_add(dev_tgt, t_id, mk, &t_entry, 0, &handle);
   if (rc == PI_STATUS_SUCCESS)

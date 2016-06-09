@@ -34,9 +34,11 @@ namespace {
 
 std::vector<BmMatchParam> build_key(pi_p4_id_t table_id,
                                     const pi_match_key_t *match_key,
-                                    const pi_p4info_t *p4info) {
+                                    const pi_p4info_t *p4info,
+                                    bool *requires_priority) {
   static thread_local std::vector<BmMatchParam> key;
   key.clear();
+  *requires_priority = false;
 
   const char *mk_data = match_key->data;
 
@@ -90,6 +92,8 @@ std::vector<BmMatchParam> build_key(pi_p4_id_t table_id,
         param.type = BmMatchParamType::type::TERNARY;
         param.__set_ternary(param_ternary);  // does a copy of param_ternary
         key.push_back(std::move(param));
+
+        *requires_priority = true;
         break;
       default:
         assert(0);
@@ -124,25 +128,26 @@ std::vector<std::string> build_action_data(const pi_table_entry_t *table_entry,
   return data;
 }
 
-void dump_action_data(const pi_p4info_t *p4info, char *data,
-                      pi_p4_id_t action_id, const BmActionData &params) {
-    // unfortunately, I have observed that bmv2 sometimes returns shorter binary
-    // strings than it received (0 padding is removed), which makes things more
-    // complicated and expensive here.
-    size_t num_params;
-    const pi_p4_id_t *param_ids = pi_p4info_action_get_params(
-        p4info, action_id, &num_params);
-    assert(num_params == params.size());
-    for (size_t i = 0; i < num_params; i++) {
-      size_t bitwidth = pi_p4info_action_param_bitwidth(p4info, param_ids[i]);
-      size_t nbytes = (bitwidth + 7) / 8;
-      const auto &p = params.at(i);
-      assert(nbytes >= p.size());
-      size_t diff = nbytes - p.size();
-      std::memset(data, 0, diff);
-      std::memcpy(data + diff, p.data(), p.size());
-      data += nbytes;
-    }
+char *dump_action_data(const pi_p4info_t *p4info, char *data,
+                       pi_p4_id_t action_id, const BmActionData &params) {
+  // unfortunately, I have observed that bmv2 sometimes returns shorter binary
+  // strings than it received (0 padding is removed), which makes things more
+  // complicated and expensive here.
+  size_t num_params;
+  const pi_p4_id_t *param_ids = pi_p4info_action_get_params(
+      p4info, action_id, &num_params);
+  assert(num_params == params.size());
+  for (size_t i = 0; i < num_params; i++) {
+    size_t bitwidth = pi_p4info_action_param_bitwidth(p4info, param_ids[i]);
+    size_t nbytes = (bitwidth + 7) / 8;
+    const auto &p = params.at(i);
+    assert(nbytes >= p.size());
+    size_t diff = nbytes - p.size();
+    std::memset(data, 0, diff);
+    std::memcpy(data + diff, p.data(), p.size());
+    data += nbytes;
+  }
+  return data;
 }
 
 }  // namespace
@@ -161,10 +166,22 @@ pi_status_t _pi_table_entry_add(const pi_dev_tgt_t dev_tgt,
   assert(d_info->assigned);
   const pi_p4info_t *p4info = d_info->p4info;
 
-  std::vector<BmMatchParam> mkey = build_key(table_id, match_key, p4info);
+  bool requires_priority = false;
+  std::vector<BmMatchParam> mkey = build_key(table_id, match_key, p4info,
+                                             &requires_priority);
   std::vector<std::string> action_data = build_action_data(table_entry, p4info);
-  // TODO: priority for ternary
+
   BmAddEntryOptions options;
+  if (requires_priority) {
+    int priority = 0;
+    const pi_entry_properties_t *properties = table_entry->entry_properties;
+    if (properties &&
+        pi_entry_properties_is_set(properties, PI_ENTRY_PROPERTY_TYPE_PRIORITY))
+      priority = static_cast<int>(properties->priority);
+    // TODO(antonin): if no priority found we set the value to 0, we should
+    // probably find a better way
+    options.__set_priority(static_cast<int32_t>(priority));
+  }
 
   std::string t_name(pi_p4info_table_name_from_id(p4info, table_id));
   std::string a_name(
@@ -180,7 +197,7 @@ pi_status_t _pi_table_entry_add(const pi_dev_tgt_t dev_tgt,
   } catch (InvalidTableOperation &ito) {
     const char *what =
         _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
-    std::cout << "Invalid table (" << "${t_name}" << ") operation ("
+    std::cout << "Invalid table (" << t_name << ") operation ("
               << ito.code << "): " << what << std::endl;
     return PI_STATUS_INVALID_TABLE_OPERATION;
   }
@@ -215,7 +232,7 @@ pi_status_t _pi_table_default_action_set(const pi_dev_tgt_t dev_tgt,
   } catch (InvalidTableOperation &ito) {
     const char *what =
         _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
-    std::cout << "Invalid table (" << "${t_name}" << ") operation ("
+    std::cout << "Invalid table (" << t_name << ") operation ("
               << ito.code << "): " << what << std::endl;
     return PI_STATUS_INVALID_TABLE_OPERATION;
   }
@@ -239,7 +256,7 @@ pi_status_t _pi_table_default_action_get(const pi_dev_id_t dev_id,
   } catch (InvalidTableOperation &ito) {
     const char *what =
         _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
-    std::cout << "Invalid table (" << "${t_name}" << ") operation ("
+    std::cout << "Invalid table (" << t_name << ") operation ("
               << ito.code << "): " << what << std::endl;
     return PI_STATUS_INVALID_TABLE_OPERATION;
   }
@@ -267,7 +284,7 @@ pi_status_t _pi_table_default_action_get(const pi_dev_id_t dev_id,
   table_entry->action_data->action_id = action_id;
   table_entry->action_data->data = data_;
 
-  dump_action_data(p4info, data_, action_id, entry.action_data);
+  data_ = dump_action_data(p4info, data_, action_id, entry.action_data);
 
   return PI_STATUS_SUCCESS;
 }
@@ -294,7 +311,7 @@ pi_status_t _pi_table_entry_delete(const pi_dev_id_t dev_id,
   } catch (InvalidTableOperation &ito) {
     const char *what =
         _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
-    std::cout << "Invalid table (" << "${t_name}" << ") operation ("
+    std::cout << "Invalid table (" << t_name << ") operation ("
               << ito.code << "): " << what << std::endl;
     return PI_STATUS_INVALID_TABLE_OPERATION;
   }
@@ -323,7 +340,7 @@ pi_status_t _pi_table_entry_modify(const pi_dev_id_t dev_id,
   } catch (InvalidTableOperation &ito) {
     const char *what =
         _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
-    std::cout << "Invalid table (" << "${t_name}" << ") operation ("
+    std::cout << "Invalid table (" << t_name << ") operation ("
               << ito.code << "): " << what << std::endl;
     return PI_STATUS_INVALID_TABLE_OPERATION;
   }
@@ -347,7 +364,7 @@ pi_status_t _pi_table_entries_fetch(const pi_dev_id_t dev_id,
   } catch (InvalidTableOperation &ito) {
     const char *what =
         _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
-    std::cout << "Invalid table (" << "${t_name}" << ") operation ("
+    std::cout << "Invalid table (" << t_name << ") operation ("
               << ito.code << "): " << what << std::endl;
     return PI_STATUS_INVALID_TABLE_OPERATION;
   }
@@ -359,6 +376,9 @@ pi_status_t _pi_table_entries_fetch(const pi_dev_id_t dev_id,
   data_size += entries.size() * sizeof(uint64_t);  // entry handles
   data_size += entries.size() * sizeof(uint32_t);  // action ids
   data_size += entries.size() * sizeof(uint32_t);  // action data nbytes
+  // TODO(antonin): make this conditional on the table match type.
+  // allocating too much memory is not an issue though
+  data_size += entries.size() * 2 * sizeof(uint32_t);  // for priority
 
   res->mkey_nbytes = get_match_key_size(p4info, table_id);
   data_size += entries.size() * res->mkey_nbytes;
@@ -421,7 +441,16 @@ pi_status_t _pi_table_entries_fetch(const pi_dev_id_t dev_id,
     data += emit_uint32(data, adata_size.id);
     data += emit_uint32(data, adata_size.s);
 
-    dump_action_data(p4info, data, adata_size.id, action_entry.action_data);
+    data = dump_action_data(p4info, data, adata_size.id,
+                            action_entry.action_data);
+
+    const BmAddEntryOptions &options = e.options;
+    if (options.__isset.priority) {
+      data += emit_uint32(data, 1 << PI_ENTRY_PROPERTY_TYPE_PRIORITY);
+      data += emit_uint32(data, options.priority);
+    } else {
+      data += emit_uint32(data, 0);
+    }
   }
 
   return PI_STATUS_SUCCESS;

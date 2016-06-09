@@ -59,7 +59,8 @@ static const char *match_type_to_str(pi_p4info_match_type_t mt) {
 
 static void print_hexstr(const char *bytes, size_t nbytes) {
   for (size_t i = 0; i < nbytes; i++) {
-    printf("%02x", bytes[i]);
+    // (unsigned char) case necessary otherwise the char is sign-extended
+    printf("%02x", (unsigned char) bytes[i]);
   }
 }
 
@@ -118,6 +119,11 @@ static void print_action_entry(pi_table_entry_t *entry) {
   printf("\n");
 }
 
+size_t retrieve_uint32(const char *src, uint32_t *v) {
+  memcpy(v, src, sizeof(*v));
+  return sizeof(*v);
+}
+
 static pi_cli_status_t dump_entries(pi_p4_id_t t_id,
                                     pi_table_fetch_res_t *res) {
   printf("==========\n");
@@ -144,7 +150,10 @@ static pi_cli_status_t dump_entries(pi_p4_id_t t_id,
       print_match_param_v(finfo.field_id, finfo.match_type, entry.match_key);
       printf("\n");
     }
-    // TODO(antonin): print priority
+
+    const pi_entry_properties_t *properties = entry.entry.entry_properties;
+    if (pi_entry_properties_is_set(properties, PI_ENTRY_PROPERTY_TYPE_PRIORITY))
+      printf("Priority: %u\n", properties->priority);
 
     print_action_entry(&entry.entry);
   }

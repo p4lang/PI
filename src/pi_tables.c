@@ -19,15 +19,38 @@
 #include "utils/serialize.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 void pi_entry_properties_clear(pi_entry_properties_t *properties) {
-  (void) properties;
+  memset(properties, 0, sizeof(*properties));
 }
 
-void pi_entry_properties_set(pi_entry_properties_t *properties,
-                             const pi_entry_property_type_t property_type,
-                             const pi_value_t *property_value) {
-  (void) properties; (void) property_type; (void) property_value;
+pi_status_t pi_entry_properties_set(pi_entry_properties_t *properties,
+                                    pi_entry_property_type_t property_type,
+                                    uint32_t property_value) {
+                                    /* const pi_value_t *property_value) { */
+  switch (property_type) {
+    case PI_ENTRY_PROPERTY_TYPE_PRIORITY:
+      properties->priority = property_value;
+      break;
+    case PI_ENTRY_PROPERTY_TYPE_TTL:
+      properties->ttl = property_value;
+      break;
+    default:
+      return PI_STATUS_INVALID_ENTRY_PROPERTY;
+  }
+  assert(property_type <= 8 * sizeof(properties->valid_properties));
+  properties->valid_properties |= (1 << property_type);
+  // TODO(antonin): return different code if the property was set previously
+  return PI_STATUS_SUCCESS;
+}
+
+bool pi_entry_properties_is_set(const pi_entry_properties_t *properties,
+                                pi_entry_property_type_t property_type) {
+  if (!properties) return false;
+  if (property_type < 0 || property_type >= PI_ENTRY_PROPERTY_TYPE_END)
+    return false;
+  return properties->valid_properties & (1 << property_type);
 }
 
 pi_status_t pi_table_entry_add(const pi_dev_tgt_t dev_tgt,
@@ -81,6 +104,7 @@ pi_status_t pi_table_entries_fetch(const pi_dev_id_t dev_id,
   // TODO(antonin): use contiguous memory
   res_->match_keys = malloc(res_->num_entries * sizeof(pi_match_key_t));
   res_->action_datas = malloc(res_->num_entries * sizeof(pi_action_data_t));
+  res_->properties = malloc(res_->num_entries * sizeof(pi_entry_properties_t));
   *res = res_;
   return status;
 }
@@ -93,6 +117,8 @@ pi_status_t pi_table_entries_fetch_done(pi_table_fetch_res_t *res) {
   free(res->match_keys);
   assert(res->action_datas);
   free(res->action_datas);
+  assert(res->properties);
+  free(res->properties);
   free(res);
   return PI_STATUS_SUCCESS;
 }
@@ -123,6 +149,18 @@ size_t pi_table_entries_next(pi_table_fetch_res_t *res,
   t_entry->action_data->action_id = t_entry->action_id;
   t_entry->action_data->data = res->entries + res->curr;
   res->curr += nbytes;
-  t_entry->entry_properties = res->properties + res->idx;
+
+  pi_entry_properties_t *properties = res->properties + res->idx;
+  t_entry->entry_properties = properties;
+  res->curr += retrieve_uint32(res->entries + res->curr,
+                               &properties->valid_properties);
+  if (properties->valid_properties & (1 << PI_ENTRY_PROPERTY_TYPE_PRIORITY)) {
+    res->curr += retrieve_uint32(res->entries + res->curr,
+                                 &properties->priority);
+  }
+  if (properties->valid_properties & (1 << PI_ENTRY_PROPERTY_TYPE_TTL)) {
+    res->curr += retrieve_uint32(res->entries + res->curr, &properties->ttl);
+  }
+
   return res->idx++;
 }

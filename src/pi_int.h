@@ -81,12 +81,6 @@ struct pi_action_data_s {
   char *data;
 };
 
-struct pi_entry_properties_s {
-  uint32_t valid_properties;
-  uint32_t priority;
-  uint32_t ttl;
-};
-
 struct pi_table_fetch_res_s {
   const pi_p4info_t *p4info;
   pi_p4_id_t table_id;  // TODO(antonin): remove?
