@@ -1,7 +1,7 @@
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 
 AM_CPPFLAGS = \
--I$(top_srcdir)/inc \
+-I$(top_srcdir)/include \
 -DTESTDATADIR=\"$(abs_srcdir)/testdata\"
 
 # TODO(antonin): find a way to remove libpip4info as a dep here (should come
@@ -12,7 +12,7 @@ $(top_builddir)/src/frontends/generic/libpifegeneric.la \
 $(top_builddir)/src/libpip4info.la \
 $(top_builddir)/targets/dummy/libpi_dummy.la
 
-bin_PROGRAMS = example_1 example_2
+noinst_PROGRAMS = example_1 example_2
 
 example_1_SOURCES = example_1.c
 
@@ -29,5 +29,8 @@ $(fe_defines) : $(srcdir)/testdata/simple_router.json $(gen_fe_defines)
 BUILT_SOURCES = $(fe_defines)
 
 example_2_SOURCES = example_2.c
+
+EXTRA_DIST = \
+testdata/simple_router.json
 
 CLEANFILES = $(fe_defines)

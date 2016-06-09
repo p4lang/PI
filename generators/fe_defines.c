@@ -13,10 +13,8 @@
  * limitations under the License.
  */
 
-#include "config_readers/readers.h"
-#include "p4info/p4info_struct.h"
 #include "utils/utils.h"
-#include "PI/pi_p4info.h"
+#include "PI/p4info.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -146,8 +144,9 @@ int main(int argc, char * const argv[]) {
   }
 
   pi_status_t status;
-  pi_p4info_t *p4info = malloc(sizeof(pi_p4info_t));
-  if ((status = pi_bmv2_json_reader(config, p4info)) != PI_STATUS_SUCCESS) {
+  pi_p4info_t *p4info;
+  status = pi_add_config(config, PI_CONFIG_TYPE_BMV2_JSON, &p4info);
+  if (status != PI_STATUS_SUCCESS) {
     fprintf(stderr, "Error while loading config.\n");
     return 1;
   }
@@ -220,5 +219,6 @@ int main(int argc, char * const argv[]) {
   fprintf(gen_fptr, "#endif  // %s\n", inc_guard);
 
   free(config);
+  pi_destroy_config(p4info);
   fclose(gen_fptr);
 }

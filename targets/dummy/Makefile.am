@@ -1,4 +1,4 @@
-AM_CPPFLAGS = -I$(top_srcdir)/inc/
+AM_CPPFLAGS = -I$(top_srcdir)/include
 
 libpi_dummy_la_SOURCES = \
 pi_imp.c \

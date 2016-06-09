@@ -16,10 +16,10 @@
 #include "conn_mgr.h"
 #include "common.h"
 
-#include "PI/pi.h"
-#include "PI/pi_p4info.h"
-#include "pi_int.h"
-#include "utils/serialize.h"
+#include <PI/pi.h>
+#include <PI/p4info.h>
+#include <PI/int/pi_int.h>
+#include <PI/int/serialize.h>
 
 #include <string>
 #include <vector>
@@ -47,6 +47,7 @@ std::vector<BmMatchParam> build_key(pi_p4_id_t table_id,
   BmMatchParamExact param_exact;
   BmMatchParamLPM param_lpm;
   BmMatchParamTernary param_ternary;
+  BmMatchParamRange param_range;
 
   size_t num_match_fields = pi_p4info_table_num_match_fields(p4info, table_id);
   for (size_t i = 0; i < num_match_fields; i++) {
@@ -91,6 +92,18 @@ std::vector<BmMatchParam> build_key(pi_p4_id_t table_id,
         param = BmMatchParam();
         param.type = BmMatchParamType::type::TERNARY;
         param.__set_ternary(param_ternary);  // does a copy of param_ternary
+        key.push_back(std::move(param));
+
+        *requires_priority = true;
+        break;
+      case PI_P4INFO_MATCH_TYPE_RANGE:
+        param_range.start = std::string(mk_data, nbytes);
+        mk_data += nbytes;
+        param_range.end_ = std::string(mk_data, nbytes);
+        mk_data += nbytes;
+        param = BmMatchParam();
+        param.type = BmMatchParamType::type::RANGE;
+        param.__set_range(param_range);  // does a copy of param_range
         key.push_back(std::move(param));
 
         *requires_priority = true;
@@ -431,6 +444,12 @@ pi_status_t _pi_table_entries_fetch(const pi_dev_id_t dev_id,
         case BmMatchParamType::type::VALID:
           *data = p.valid.key;
           data++;
+          break;
+        case BmMatchParamType::type::RANGE:
+          std::memcpy(data, p.range.start.data(), p.range.start.size());
+          data += p.range.start.size();
+          std::memcpy(data, p.range.end_.data(), p.range.end_.size());
+          data += p.range.end_.size();
           break;
       }
     }

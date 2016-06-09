@@ -95,7 +95,7 @@ AC_CONFIG_FILES([Makefile
                  examples/Makefile
                  frontends_extra/Makefile
                  generators/Makefile
-                 inc/Makefile
+                 include/Makefile
                  src/Makefile
                  src/frontends/Makefile
                  src/frontends/generic/Makefile

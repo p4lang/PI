@@ -18,7 +18,7 @@
 #include "p4info/tables_int.h"
 #include "p4info/fields_int.h"
 #include "utils/logging.h"
-#include "pi_int.h"
+#include "PI/int/pi_int.h"
 
 #include <cJSON/cJSON.h>
 #include <Judy.h>

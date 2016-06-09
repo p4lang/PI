@@ -16,7 +16,7 @@
 #ifndef PI_BMV2_COMMON_H_
 #define PI_BMV2_COMMON_H_
 
-#include "PI/pi.h"
+#include <PI/pi.h>
 
 typedef struct {
   int assigned;

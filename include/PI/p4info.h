@@ -24,6 +24,15 @@ extern "C" {
 #include "p4info/fields.h"
 #include "p4info/tables.h"
 
+pi_status_t pi_add_config(const char *config, pi_config_type_t config_type,
+                          pi_p4info_t **p4info);
+
+pi_status_t pi_add_config_from_file(const char *config_path,
+                                    pi_config_type_t config_type,
+                                    pi_p4info_t **p4info);
+
+pi_status_t pi_destroy_config(pi_p4info_t *p4info);
+
 #ifdef __cplusplus
 }
 #endif

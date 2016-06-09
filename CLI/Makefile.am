@@ -2,7 +2,7 @@ ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 
 noinst_LTLIBRARIES = libpicli.la
 
-CPPFLAGS = -I$(top_srcdir)/inc
+CPPFLAGS = -I$(top_srcdir)/include
 
 libpicli_la_LIBADD =
 

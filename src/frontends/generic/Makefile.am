@@ -1,6 +1,5 @@
 AM_CPPFLAGS += \
--I$(top_srcdir)/inc \
--I$(top_srcdir)/src
+-I$(top_srcdir)/include
 
 libpifegeneric_la_SOURCES = \
 pi.c

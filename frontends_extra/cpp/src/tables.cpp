@@ -17,11 +17,11 @@
 
 #include <arpa/inet.h>
 
-#include "PI/frontends/cpp/tables.h"
-#include "PI/pi_p4info.h"
+#include <PI/frontends/cpp/tables.h>
+#include <PI/p4info.h>
 
-#include "pi_int.h"
-#include "utils/serialize.h"
+#include <PI/int/pi_int.h>
+#include <PI/int/serialize.h>
 
 #define SIZEOF_DST_ARR sizeof(((_compact_v_t *) 0)->bytes)
 

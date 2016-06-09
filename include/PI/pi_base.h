@@ -27,6 +27,10 @@ extern "C" {
 #define PI_INVALID_ID 0
 
 typedef enum {
+  PI_CONFIG_TYPE_BMV2_JSON = 0
+} pi_config_type_t;
+
+typedef enum {
   PI_STATUS_SUCCESS = 0,
   PI_STATUS_INVALID_CONFIG_TYPE,
   PI_STATUS_INVALID_INIT_EXTRA_PARAM,

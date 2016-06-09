@@ -24,7 +24,7 @@ adl_RECURSIVE_EVAL([$includedir], [INCLUDE_DIR])
 adl_RECURSIVE_EVAL([$libdir], [LIB_DIR])
 
 CPPFLAGS="$CPPFLAGS -I$INCLUDE_DIR"
-AC_CHECK_HEADER([bm_sim/Standard.h], [],
+AC_CHECK_HEADER([bm/Standard.h], [],
   [AC_MSG_ERROR([bmv2 Thrift headers not found])])
 
 AC_PATH_PROG([THRIFT], [thrift], [])

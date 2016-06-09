@@ -13,12 +13,12 @@
  * limitations under the License.
  */
 
-#include "PI/pi_p4info.h"
+#include "PI/p4info.h"
 #include "p4info/p4info_struct.h"
 #include "p4info/fields_int.h"
 #include "p4info/actions_int.h"
 #include "p4info/tables_int.h"
-#include "pi_int.h"
+#include "PI/int/pi_int.h"
 
 #include "unity/unity_fixture.h"
 

@@ -54,3 +54,5 @@ test-driver
 tests/test-suite.log
 m4/
 .dirstamp
+
+*.tar.gz

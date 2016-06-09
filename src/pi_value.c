@@ -15,7 +15,7 @@
 
 #include "PI/pi_value.h"
 #include "utils/utils.h"
-#include "pi_int.h"
+#include "PI/int/pi_int.h"
 
 #include <assert.h>
 #include <string.h>

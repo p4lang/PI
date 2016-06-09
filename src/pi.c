@@ -14,14 +14,8 @@
  */
 
 #include "PI/pi.h"
-#include "target/pi_imp.h"
-#include "p4info/p4info_struct.h"
-#include "p4info/actions_int.h"
-#include "p4info/tables_int.h"
-#include "p4info/fields_int.h"
-#include "config_readers/readers.h"
-#include "pi_int.h"
-#include "utils/utils.h"
+#include "PI/target/pi_imp.h"
+#include "PI/int/pi_int.h"
 
 #include <stdlib.h>
 
@@ -44,43 +38,6 @@ pi_status_t pi_init(size_t max_devices) {
   num_devices = max_devices;
   device_mapping = calloc(max_devices, sizeof(device_info_t));
   return _pi_init();
-}
-
-pi_status_t pi_add_config(const char *config, pi_config_type_t config_type,
-                          pi_p4info_t **p4info) {
-  pi_status_t status;
-  pi_p4info_t *p4info_ = malloc(sizeof(pi_p4info_t));
-  switch (config_type) {
-    case PI_CONFIG_TYPE_BMV2_JSON:
-      status = pi_bmv2_json_reader(config, p4info_);
-      break;
-    default:
-      status = PI_STATUS_INVALID_CONFIG_TYPE;
-      break;
-  }
-  if (status != PI_STATUS_SUCCESS) {
-    free(p4info_);
-    return status;
-  }
-  *p4info = p4info_;
-  return PI_STATUS_SUCCESS;
-}
-
-pi_status_t pi_add_config_from_file(const char *config_path,
-                                    pi_config_type_t config_type,
-                                    pi_p4info_t **p4info) {
-  char *config_tmp = read_file(config_path);
-  pi_status_t rc = pi_add_config(config_tmp, config_type, p4info);
-  free(config_tmp);
-  return rc;
-}
-
-pi_status_t pi_destroy_config(pi_p4info_t *p4info) {
-  pi_p4info_action_free(p4info);
-  pi_p4info_table_free(p4info);
-  pi_p4info_field_free(p4info);
-  free(p4info);
-  return PI_STATUS_SUCCESS;
 }
 
 pi_status_t pi_assign_device(uint16_t dev_id, const pi_p4info_t *p4info,

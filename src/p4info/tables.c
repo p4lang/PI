@@ -15,7 +15,7 @@
 
 #include "PI/p4info/tables.h"
 #include "p4info/p4info_struct.h"
-#include "pi_int.h"
+#include "PI/int/pi_int.h"
 
 #include <assert.h>
 #include <stdlib.h>

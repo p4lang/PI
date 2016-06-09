@@ -14,7 +14,7 @@
  */
 
 #include "PI/pi.h"
-#include "PI/pi_p4info.h"
+#include "PI/p4info.h"
 #include "utils/utils.h"
 
 #include <assert.h>

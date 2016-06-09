@@ -14,9 +14,9 @@
  */
 
 #include "PI/frontends/generic/pi.h"
-#include "PI/pi_p4info.h"
-#include "pi_int.h"
-#include "utils/serialize.h"
+#include "PI/p4info.h"
+#include "PI/int/pi_int.h"
+#include "PI/int/serialize.h"
 
 #include <stdlib.h>
 #include <string.h>

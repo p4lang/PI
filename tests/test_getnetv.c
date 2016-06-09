@@ -16,7 +16,7 @@
 #include "PI/pi_value.h"
 #include "p4info/p4info_struct.h"
 #include "p4info/fields_int.h"
-#include "pi_int.h"
+#include "PI/int/pi_int.h"
 #include "utils/utils.h"
 
 #include "unity/unity_fixture.h"

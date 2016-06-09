@@ -21,7 +21,7 @@
 
 #include <cstdint>
 
-#include "PI/pi.h"
+#include <PI/pi.h>
 
 namespace pi {
 

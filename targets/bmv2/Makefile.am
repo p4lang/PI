@@ -1,7 +1,6 @@
 # a little hacky: the headers are in the parent of the configure subdir
 AM_CPPFLAGS += \
--I$(top_srcdir)/../../inc \
--I$(top_srcdir)/../../src
+-I$(top_srcdir)/../../include
 
 libpi_bmv2_la_SOURCES = \
 pi_imp.cpp \

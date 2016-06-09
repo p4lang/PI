@@ -1,5 +1,5 @@
 AM_CPPFLAGS += \
--I$(top_srcdir)/inc \
+-I$(top_srcdir)/include \
 -I$(top_srcdir)/src \
 -I$(top_srcdir)/third_party/unity/include \
 -DTESTDATADIR=\"$(abs_srcdir)/testdata\"
@@ -49,3 +49,6 @@ test_getnetv \
 test_p4info \
 test_frontends_generic \
 test_all
+
+EXTRA_DIST = \
+testdata/simple_router.json

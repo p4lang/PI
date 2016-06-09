@@ -16,7 +16,7 @@
 #ifndef PI_INC_PI_PI_VALUE_H_
 #define PI_INC_PI_PI_VALUE_H_
 
-#include <PI/pi_p4info.h>
+#include <PI/p4info.h>
 
 #include <assert.h>
 
