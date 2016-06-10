@@ -20,17 +20,22 @@ table_common.h \
 table_common.c \
 main.c
 
-bin_PROGRAMS = pi_CLI_dummy
+bin_PROGRAMS = pi_CLI_dummy pi_CLI_rpc
 
 common_libs = \
 libpicli.la \
 $(top_builddir)/src/libpi.la \
 $(top_builddir)/src/frontends/generic/libpifegeneric.la \
-$(top_builddir)/src/libpip4info.la
+$(top_builddir)/src/libpip4info.la \
+-lnanomsg
 
 pi_CLI_dummy_LDADD = $(common_libs) \
 $(top_builddir)/targets/dummy/libpi_dummy.la
 pi_CLI_dummy_SOURCES =
+
+pi_CLI_rpc_LDADD = $(common_libs) \
+$(top_builddir)/targets/rpc/libpi_rpc.la
+pi_CLI_rpc_SOURCES =
 
 if WITH_BMV2
 bin_PROGRAMS += pi_CLI_bmv2

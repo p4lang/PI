@@ -4,4 +4,4 @@ if WITH_BMV2
 MAYBE_BMV2 = bmv2
 endif
 
-SUBDIRS = dummy $(MAYBE_BMV2)
+SUBDIRS = dummy rpc $(MAYBE_BMV2)

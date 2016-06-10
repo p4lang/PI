@@ -24,7 +24,11 @@ libpiutils.la
 libpi_la_SOURCES = \
 pi.c \
 pi_tables.c \
-pi_value.c
+pi_value.c \
+pi_rpc_server.c
+
+libpi_la_LIBADD = \
+-lnanomsg
 
 libpiutils_la_SOURCES = \
 utils/logging.h \

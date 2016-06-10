@@ -91,6 +91,7 @@ AC_SUBST([AM_CFLAGS], ["-Wall -Werror -Wextra"])
 
 # Generate makefiles
 AC_CONFIG_FILES([Makefile
+                 bin/Makefile
                  CLI/Makefile
                  examples/Makefile
                  frontends_extra/Makefile
@@ -101,6 +102,7 @@ AC_CONFIG_FILES([Makefile
                  src/frontends/generic/Makefile
                  targets/Makefile
                  targets/dummy/Makefile
+                 targets/rpc/Makefile
                  tests/Makefile
                  third_party/Makefile
                  third_party/cJSON/Makefile

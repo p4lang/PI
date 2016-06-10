@@ -13,24 +13,10 @@
  * limitations under the License.
  */
 
-#ifndef PI_INT_SERIALIZE_H_
-#define PI_INT_SERIALIZE_H_
+#include <PI/pi_base.h>
 
-#include <stddef.h>
-#include <stdint.h>
+extern pi_status_t pi_rpc_server_run();
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-size_t emit_uint32(char *dst, uint32_t v);
-size_t emit_uint64(char *dst, uint64_t v);
-
-size_t retrieve_uint32(const char *src, uint32_t *v);
-size_t retrieve_uint64(const char *src, uint64_t *v);
-
-#ifdef __cplusplus
+int main() {
+  pi_rpc_server_run();
 }
-#endif
-
-#endif  // PI_INT_SERIALIZE_H_

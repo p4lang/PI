@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef PI_SRC_PI_INT_H_
-#define PI_SRC_PI_INT_H_
+#ifndef PI_INT_PI_INT_H_
+#define PI_INT_PI_INT_H_
 
 #include "PI/pi.h"
 
@@ -102,4 +102,4 @@ const pi_p4info_t *pi_get_device_p4info(uint16_t dev_id);
 }
 #endif
 
-#endif  // PI_SRC_PI_INT_H_
+#endif  // PI_INT_PI_INT_H_

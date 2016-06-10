@@ -42,7 +42,8 @@ $(top_builddir)/src/libpi.la \
 $(top_builddir)/src/frontends/generic/libpifegeneric.la \
 $(top_builddir)/targets/dummy/libpi_dummy.la \
 $(top_builddir)/src/libpip4info.la \
-$(top_builddir)/third_party/unity/libunity.la
+$(top_builddir)/third_party/unity/libunity.la \
+-lnanomsg
 
 check_PROGRAMS = \
 test_bmv2_json_reader \

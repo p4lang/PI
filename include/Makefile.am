@@ -10,5 +10,6 @@ PI/p4info/fields.h \
 PI/p4info/tables.h \
 PI/int/pi_int.h \
 PI/int/serialize.h \
+PI/int/rpc_common.h \
 PI/target/pi_imp.h \
 PI/target/pi_tables_imp.h
