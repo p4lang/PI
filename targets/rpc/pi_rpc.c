@@ -13,19 +13,10 @@
  * limitations under the License.
  */
 
-#ifndef PI_SRC_P4INFO_FIELDS_INT_H_
-#define PI_SRC_P4INFO_FIELDS_INT_H_
+/*
+  RPC built on an abstract transport mechanism (let's start with nanomsg reqrep)
+  Request: id | type | dev_tgt / dev_id | body ...
+  Reply: id | type | status | body ...
 
-#include "PI/p4info/fields.h"
-
-void pi_p4info_field_init(pi_p4info_t *p4info, size_t num_fields);
-
-void pi_p4info_field_free(pi_p4info_t *p4info);
-
-void pi_p4info_field_add(pi_p4info_t *p4info, pi_p4_id_t field_id,
-                         const char *name, size_t bitwidth);
-
-typedef struct cJSON cJSON;
-void pi_p4info_field_serialize(cJSON *root, const pi_p4info_t *p4info);
-
-#endif  // PI_SRC_P4INFO_FIELDS_INT_H_
+  for p4info, need to write some JSON serialization code
+*/

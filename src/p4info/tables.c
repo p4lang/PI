@@ -17,6 +17,8 @@
 #include "p4info/p4info_struct.h"
 #include "PI/int/pi_int.h"
 
+#include <cJSON/cJSON.h>
+
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -307,4 +309,39 @@ pi_p4_id_t pi_p4info_table_next(const pi_p4info_t *p4info, pi_p4_id_t id) {
 pi_p4_id_t pi_p4info_table_end(const pi_p4info_t *p4info) {
   (void) p4info;
   return PI_P4INFO_T_ITERATOR_END;
+}
+
+void pi_p4info_table_serialize(cJSON *root, const pi_p4info_t *p4info) {
+  cJSON *tArray = cJSON_CreateArray();
+  for (size_t i = 0; i < p4info->num_tables; i++) {
+    _table_data_t *table = &p4info->tables[i];
+    cJSON *tObject = cJSON_CreateObject();
+
+    cJSON_AddStringToObject(tObject, "name", table->name);
+    cJSON_AddNumberToObject(tObject, "id", table->table_id);
+
+    cJSON *mfArray = cJSON_CreateArray();
+    _match_field_data_t *mf_data = get_match_field_data(table);
+    for (size_t j = 0; j < table->num_match_fields; j++) {
+      cJSON *mf = cJSON_CreateObject();
+      cJSON_AddNumberToObject(mf, "id", mf_data[j].field_id);
+      cJSON_AddNumberToObject(mf, "match_type", mf_data[j].match_type);
+      cJSON_AddItemToArray(mfArray, mf);
+    }
+    cJSON_AddItemToObject(tObject, "match_fields", mfArray);
+
+    cJSON *actionsArray = cJSON_CreateArray();
+    pi_p4_id_t *action_ids = get_action_ids(table);
+    for (size_t j = 0; j < table->num_actions; j++) {
+      cJSON *action = cJSON_CreateNumber(action_ids[j]);
+      cJSON_AddItemToArray(actionsArray, action);
+    }
+    cJSON_AddItemToObject(tObject, "actions", actionsArray);
+
+    cJSON_AddNumberToObject(tObject, "const_default_action_id",
+                            table->const_default_action_id);
+
+    cJSON_AddItemToArray(tArray, tObject);
+  }
+  cJSON_AddItemToObject(root, "tables", tArray);
 }

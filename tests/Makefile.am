@@ -2,6 +2,7 @@ AM_CPPFLAGS += \
 -I$(top_srcdir)/include \
 -I$(top_srcdir)/src \
 -I$(top_srcdir)/third_party/unity/include \
+-I$(top_srcdir)/third_party/cJSON/include \
 -DTESTDATADIR=\"$(abs_srcdir)/testdata\"
 
 TESTS = \

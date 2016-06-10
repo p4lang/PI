@@ -17,6 +17,8 @@
 #include "p4info/p4info_struct.h"
 #include "PI/int/pi_int.h"
 
+#include <cJSON/cJSON.h>
+
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -118,4 +120,19 @@ pi_p4_id_t pi_p4info_field_next(const pi_p4info_t *p4info, pi_p4_id_t id) {
 pi_p4_id_t pi_p4info_field_end(const pi_p4info_t *p4info) {
   (void) p4info;
   return PI_P4INFO_F_ITERATOR_END;
+}
+
+void pi_p4info_field_serialize(cJSON *root, const pi_p4info_t *p4info) {
+  cJSON *fArray = cJSON_CreateArray();
+  for (size_t i = 0; i < p4info->num_fields; i++) {
+    _field_data_t *field = &p4info->fields[i];
+    cJSON *fObject = cJSON_CreateObject();
+
+    cJSON_AddStringToObject(fObject, "name", field->name);
+    cJSON_AddNumberToObject(fObject, "id", field->field_id);
+    cJSON_AddNumberToObject(fObject, "bitwidth", field->bitwidth);
+
+    cJSON_AddItemToArray(fArray, fObject);
+  }
+  cJSON_AddItemToObject(root, "fields", fArray);
 }

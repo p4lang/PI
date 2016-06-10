@@ -13,6 +13,7 @@ p4info/p4info_struct.h \
 p4info/tables.c \
 p4info/tables_int.h \
 config_readers/bmv2_json_reader.c \
+config_readers/native_json_reader.c \
 config_readers/readers.h \
 p4info/p4info.c
 

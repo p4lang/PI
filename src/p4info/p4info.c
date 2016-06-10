@@ -21,6 +21,8 @@
 #include "fields_int.h"
 #include "utils/utils.h"
 
+#include <cJSON/cJSON.h>
+
 #include <stdlib.h>
 
 pi_status_t pi_add_config(const char *config, pi_config_type_t config_type,
@@ -30,6 +32,9 @@ pi_status_t pi_add_config(const char *config, pi_config_type_t config_type,
   switch (config_type) {
     case PI_CONFIG_TYPE_BMV2_JSON:
       status = pi_bmv2_json_reader(config, p4info_);
+      break;
+    case PI_CONFIG_TYPE_NATIVE_JSON:
+      status = pi_native_json_reader(config, p4info_);
       break;
     default:
       status = PI_STATUS_INVALID_CONFIG_TYPE;
@@ -58,4 +63,14 @@ pi_status_t pi_destroy_config(pi_p4info_t *p4info) {
   pi_p4info_field_free(p4info);
   free(p4info);
   return PI_STATUS_SUCCESS;
+}
+
+char *pi_serialize_config(const pi_p4info_t *p4info) {
+  cJSON *root = cJSON_CreateObject();
+  pi_p4info_field_serialize(root, p4info);
+  pi_p4info_action_serialize(root, p4info);
+  pi_p4info_table_serialize(root, p4info);
+  char *str = cJSON_PrintUnformatted(root);
+  cJSON_Delete(root);
+  return str;
 }

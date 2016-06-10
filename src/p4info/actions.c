@@ -17,6 +17,8 @@
 #include "p4info/p4info_struct.h"
 #include "PI/int/pi_int.h"
 
+#include <cJSON/cJSON.h>
+
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -255,4 +257,28 @@ pi_p4_id_t pi_p4info_action_next(const pi_p4info_t *p4info, pi_p4_id_t id) {
 pi_p4_id_t pi_p4info_action_end(const pi_p4info_t *p4info) {
   (void) p4info;
   return PI_P4INFO_A_ITERATOR_END;
+}
+
+void pi_p4info_action_serialize(cJSON *root, const pi_p4info_t *p4info) {
+  cJSON *aArray = cJSON_CreateArray();
+  for (size_t i = 0; i < p4info->num_actions; i++) {
+    _action_data_t *action = &p4info->actions[i];
+    cJSON *aObject = cJSON_CreateObject();
+
+    cJSON_AddStringToObject(aObject, "name", action->name);
+    cJSON_AddNumberToObject(aObject, "id", action->action_id);
+
+    cJSON *pArray = cJSON_CreateArray();
+    _action_param_data_t *param_data = get_param_data(action);
+    for (size_t j = 0; j < action->num_params; j++) {
+      cJSON *p = cJSON_CreateObject();
+      cJSON_AddStringToObject(p, "name", param_data[j].name);
+      cJSON_AddNumberToObject(p, "bitwidth", param_data[j].bitwidth);
+      cJSON_AddItemToArray(pArray, p);
+    }
+    cJSON_AddItemToObject(aObject, "params", pArray);
+
+    cJSON_AddItemToArray(aArray, aObject);
+  }
+  cJSON_AddItemToObject(root, "actions", aArray);
 }

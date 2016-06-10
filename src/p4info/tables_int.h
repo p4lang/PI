@@ -38,4 +38,7 @@ void pi_p4info_table_set_const_default_action(pi_p4info_t *p4info,
                                               pi_p4_id_t table_id,
                                               pi_p4_id_t default_action_id);
 
+typedef struct cJSON cJSON;
+void pi_p4info_table_serialize(cJSON *root, const pi_p4info_t *p4info);
+
 #endif  // PI_SRC_P4INFO_TABLES_INT_H_
