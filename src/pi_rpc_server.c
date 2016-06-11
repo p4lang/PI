@@ -41,10 +41,10 @@ typedef struct __attribute__((packed)) {
   uint32_t status;
 } status_hdr_t;
 
-static void write_status(pi_status_t status, status_hdr_t *hdr) {
-  char *msg_ = (char *) hdr;
-  msg_ += emit_uint32(msg_, state.req_id);
-  emit_uint32(msg_, status);
+static size_t write_status(pi_status_t status, status_hdr_t *hdr) {
+  emit_uint32((char *) &hdr->id, state.req_id);
+  emit_uint32((char *) &hdr->status, status);
+  return sizeof(*hdr);
 }
 
 static void send_status(pi_status_t status) {
@@ -123,22 +123,6 @@ static size_t retrieve_dev_tgt(const char *src, pi_dev_tgt_t *dev_tgt) {
   return s;
 }
 
-static size_t retrieve_table_entry(char *src,
-                                   pi_table_entry_t *table_entry) {
-  size_t s = 0;
-  uint32_t action_id;
-  s += retrieve_uint32(src, &action_id);
-  table_entry->action_id = action_id;
-  table_entry->action_data->action_id = action_id;
-  uint32_t ad_size;
-  s += retrieve_uint32(src + s, &ad_size);
-  table_entry->action_data->data_size = ad_size;
-  table_entry->action_data->data = src + s;
-  s += ad_size;
-  // TODO(antonin): properties
-  return s;
-}
-
 static void __pi_table_entry_add(char *msg) {
   printf("RPC: _pi_table_entry_add\n");
 
@@ -161,7 +145,7 @@ static void __pi_table_entry_add(char *msg) {
   pi_action_data_t action_data;
   table_entry.action_data = &action_data;
   table_entry.action_data->p4info = NULL;  // TODO(antonin)
-  msg += retrieve_table_entry(msg, &table_entry);
+  msg += retrieve_table_entry(msg, &table_entry, 0);
 
   uint32_t overwrite;
   msg += retrieve_uint32(msg, &overwrite);
@@ -181,6 +165,90 @@ static void __pi_table_entry_add(char *msg) {
 
   int bytes = nn_send(state.s, &rep, sizeof(rep), 0);
   assert(bytes == sizeof(rep));
+}
+
+static void __pi_table_default_action_set(char *msg) {
+  printf("RPC: _pi_table_default_action_set\n");
+
+  // TODO(antonin): find a way to take care of p4info for ad
+  pi_dev_tgt_t dev_tgt;
+  msg += retrieve_dev_tgt(msg, &dev_tgt);
+  pi_p4_id_t table_id;
+  msg += retrieve_uint32(msg, &table_id);
+
+  pi_table_entry_t table_entry;
+  pi_action_data_t action_data;
+  table_entry.action_data = &action_data;
+  table_entry.action_data->p4info = NULL;  // TODO(antonin)
+  msg += retrieve_table_entry(msg, &table_entry, 0);
+
+  pi_status_t status =_pi_table_default_action_set(dev_tgt, table_id,
+                                                   &table_entry);
+  send_status(status);
+}
+
+static void __pi_table_default_action_get(char *msg) {
+  printf("RPC: _pi_table_default_action_get\n");
+
+  uint32_t dev_id;
+  msg += retrieve_uint32(msg, &dev_id);
+  pi_p4_id_t table_id;
+  msg += retrieve_uint32(msg, &table_id);
+
+  pi_table_entry_t default_entry;
+  pi_status_t status = _pi_table_default_action_get(dev_id, table_id,
+                                                    &default_entry);
+
+  size_t s = 0;
+  s += 2 * sizeof(uint32_t);  // id and status
+  s += table_entry_size(&default_entry);
+
+  char *rep = nn_allocmsg(s, 0);
+  char *rep_ = rep;
+  rep_ += write_status(status, (status_hdr_t *) rep_);
+  rep_ += emit_table_entry(rep_, &default_entry);
+
+  // release target memory
+  _pi_table_default_action_done(&default_entry);
+
+  // make sure I have copied exactly the right amount
+  assert((size_t) (rep_ - rep) == s);
+
+  int bytes = nn_send(state.s, &rep, NN_MSG, 0);
+  assert((size_t) bytes == s);
+}
+
+void __pi_table_entry_delete(char *msg) {
+  printf("RPC: _pi_table_entry_delete\n");
+
+  uint32_t dev_id;
+  msg += retrieve_uint32(msg, &dev_id);
+  pi_p4_id_t table_id;
+  msg += retrieve_uint32(msg, &table_id);
+  uint64_t h;
+  msg += retrieve_uint64(msg, &h);
+
+  send_status(_pi_table_entry_delete(dev_id, table_id, h));
+}
+
+static void __pi_table_entry_modify(char *msg) {
+  printf("RPC: _pi_table_entry_modify\n");
+
+  // TODO(antonin): find a way to take care of p4info for mk and ad
+  uint32_t dev_id;
+  msg += retrieve_uint32(msg, &dev_id);
+  pi_p4_id_t table_id;
+  msg += retrieve_uint32(msg, &table_id);
+  uint64_t h;
+  msg += retrieve_uint64(msg, &h);
+
+  pi_table_entry_t table_entry;
+  pi_action_data_t action_data;
+  table_entry.action_data = &action_data;
+  table_entry.action_data->p4info = NULL;  // TODO(antonin)
+  msg += retrieve_table_entry(msg, &table_entry, 0);
+
+  send_status(_pi_table_entry_modify(dev_id, table_id, h, &table_entry));
 }
 
 pi_status_t pi_rpc_server_run() {
@@ -213,6 +281,14 @@ pi_status_t pi_rpc_server_run() {
         __pi_destroy(msg_); break;
       case PI_RPC_TABLE_ENTRY_ADD:
         __pi_table_entry_add(msg_); break;
+      case PI_RPC_TABLE_DEFAULT_ACTION_SET:
+        __pi_table_default_action_set(msg_); break;
+      case PI_RPC_TABLE_DEFAULT_ACTION_GET:
+        __pi_table_default_action_get(msg_); break;
+      case PI_RPC_TABLE_ENTRY_DELETE:
+        __pi_table_entry_delete(msg_); break;
+      case PI_RPC_TABLE_ENTRY_MODIFY:
+        __pi_table_entry_modify(msg_); break;
       default:
         assert(0);
     }
@@ -221,4 +297,56 @@ pi_status_t pi_rpc_server_run() {
   }
 
   return PI_STATUS_SUCCESS;
+}
+
+// some helper functions declared in rpc_common.h
+
+size_t table_entry_size(const pi_table_entry_t *table_entry) {
+  size_t s = 0;
+  s += sizeof(uint32_t);  // action_id
+  s += sizeof(uint32_t);  // action data size
+  s += table_entry->action_data->data_size;
+  // TODO(antonin): properties
+  return s;
+}
+
+size_t emit_table_entry(char *dst, const pi_table_entry_t *table_entry) {
+  size_t s = 0;
+  s += emit_uint32(dst, table_entry->action_id);
+  size_t ad_size = table_entry->action_data->data_size;
+  s += emit_uint32(dst + s, ad_size);
+  memcpy(dst + s, table_entry->action_data->data, ad_size);
+  s += ad_size;
+  // TODO(antonin): properties
+  return s;
+}
+
+size_t retrieve_table_entry(char *src, pi_table_entry_t *table_entry,
+                            int copy) {
+  size_t s = 0;
+  uint32_t action_id;
+  s += retrieve_uint32(src, &action_id);
+  table_entry->action_id = action_id;
+  uint32_t ad_size;
+  s += retrieve_uint32(src + s, &ad_size);
+
+  if (copy) {
+    // no alignment issue with malloc
+    char *ad = malloc(sizeof(pi_action_data_t) + ad_size);
+    table_entry->action_data = (pi_action_data_t *) ad;
+  }
+
+  table_entry->action_data->action_id = action_id;
+  table_entry->action_data->data_size = ad_size;
+
+  if (copy) {
+    memcpy(table_entry->action_data->data, src + s, ad_size);
+  } else {
+    table_entry->action_data->data = src + s;
+  }
+
+  s += ad_size;
+
+  // TODO(antonin): properties
+  return s;
 }

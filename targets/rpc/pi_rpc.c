@@ -165,26 +165,6 @@ static size_t emit_dev_tgt(char *dst, pi_dev_tgt_t dev_tgt) {
   return s;
 }
 
-static size_t table_entry_size(const pi_table_entry_t *table_entry) {
-  size_t s = 0;
-  s += sizeof(uint32_t);  // action_id
-  s += sizeof(uint32_t);  // action data size
-  s += table_entry->action_data->data_size;
-  // TODO(antonin): properties
-  return s;
-}
-
-static size_t emit_table_entry(char *dst, const pi_table_entry_t *table_entry) {
-  size_t s = 0;
-  s += emit_uint32(dst, table_entry->action_id);
-  size_t ad_size = table_entry->action_data->data_size;
-  s += emit_uint32(dst + s, ad_size);
-  memcpy(dst + s, table_entry->action_data->data, ad_size);
-  s += ad_size;
-  // TODO(antonin): properties
-  return s;
-}
-
 // TODO(antonin): unify with wait_for_status?
 static pi_status_t wait_for_handle(uint32_t req_id,
                                    pi_entry_handle_t *entry_handle) {
@@ -248,40 +228,137 @@ pi_status_t _pi_table_entry_add(const pi_dev_tgt_t dev_tgt,
 pi_status_t _pi_table_default_action_set(const pi_dev_tgt_t dev_tgt,
                                          const pi_p4_id_t table_id,
                                          const pi_table_entry_t *table_entry) {
-  (void) dev_tgt; (void) table_id; (void) table_entry;
-  printf("_pi_table_default_action_set\n");
-  return PI_STATUS_SUCCESS;
+  if (!state.init) return PI_STATUS_RPC_NOT_INIT;
+
+  size_t s = 0;
+  s += 2 * sizeof(uint32_t);  // id and type
+  s += _DEV_TGT_SIZE;
+  s += sizeof(uint32_t);  // table_id
+  s += table_entry_size(table_entry);
+
+  char *msg = nn_allocmsg(s, 0);
+  char *msg_ = msg;
+  uint32_t req_id = state.req_id++;
+  msg_ += emit_uint32(msg_, req_id);
+  msg_ += emit_uint32(msg_, PI_RPC_TABLE_DEFAULT_ACTION_SET);
+  msg_ += emit_dev_tgt(msg_, dev_tgt);
+  msg_ += emit_uint32(msg_, table_id);
+  msg_ += emit_table_entry(msg_, table_entry);
+
+  // make sure I have copied exactly the right amount
+  assert((size_t) (msg_ - msg) == s);
+
+  int rc = nn_send(state.s, &msg, NN_MSG, 0);
+  if ((size_t) rc != s) return PI_STATUS_RPC_TRANSPORT_ERROR;
+
+  return wait_for_status(req_id);
 }
 
 pi_status_t _pi_table_default_action_get(const pi_dev_id_t dev_id,
                                          const pi_p4_id_t table_id,
                                          pi_table_entry_t *table_entry) {
-  (void) dev_id; (void) table_id; (void) table_entry;
-  printf("_pi_table_default_action_get\n");
-  return PI_STATUS_SUCCESS;
+  if (!state.init) return PI_STATUS_RPC_NOT_INIT;
+
+  typedef struct __attribute__((packed)) {
+    uint32_t id;
+    uint32_t type;
+    uint32_t dev_id;
+    uint32_t table_id;
+  } msg_t;
+  msg_t msg;
+  uint32_t req_id = state.req_id++;
+  emit_uint32((char *) &msg.id, req_id);
+  emit_uint32((char *) &msg.type, PI_RPC_TABLE_DEFAULT_ACTION_GET);
+  emit_uint32((char *) &msg.dev_id, dev_id);
+  emit_uint32((char *) &msg.table_id, table_id);
+
+  int rc = nn_send(state.s, &msg, sizeof(msg), 0);
+  if (rc != sizeof(msg)) return PI_STATUS_RPC_TRANSPORT_ERROR;
+
+  char *rep = NULL;
+  int bytes = nn_recv(state.s, &rep, NN_MSG, 0);
+  if (bytes <= 0) return PI_STATUS_RPC_TRANSPORT_ERROR;
+
+  char *rep_ = rep;
+  uint32_t id, status;
+  rep_ += retrieve_uint32(rep_, &id);
+  rep_ += retrieve_uint32(rep_, &status);
+  if (req_id != id) return PI_STATUS_RPC_TRANSPORT_ERROR;
+  if (status != PI_STATUS_SUCCESS) {
+    nn_freemsg(rep);
+    return status;
+  }
+
+  // 1 means make a copy of the action data
+  rep_ += retrieve_table_entry(rep_, table_entry, 1);
+  table_entry->action_data->p4info = NULL;  // TODO(antonin)
+
+  nn_freemsg(rep);
+  return status;
 }
 
 pi_status_t _pi_table_default_action_done(pi_table_entry_t *table_entry) {
-  (void) table_entry;
-  printf("_pi_table_default_action_done\n");
+  // release memory allocated in retrieve_table_entry
+  free(table_entry->action_data);
   return PI_STATUS_SUCCESS;
 }
 
 pi_status_t _pi_table_entry_delete(const pi_dev_id_t dev_id,
                                    const pi_p4_id_t table_id,
                                    const pi_entry_handle_t entry_handle) {
-  (void) dev_id; (void) table_id; (void) entry_handle;
-  printf("_pi_table_entry_delete\n");
-  return PI_STATUS_SUCCESS;
+  if (!state.init) return PI_STATUS_RPC_NOT_INIT;
+
+  typedef struct __attribute__((packed)) {
+    uint32_t id;
+    uint32_t type;
+    uint32_t dev_id;
+    uint32_t table_id;
+    uint64_t h;
+  } msg_t;
+  msg_t msg;
+  uint32_t req_id = state.req_id++;
+  emit_uint32((char *) &msg.id, req_id);
+  emit_uint32((char *) &msg.type, PI_RPC_TABLE_ENTRY_DELETE);
+  emit_uint32((char *) &msg.dev_id, dev_id);
+  emit_uint32((char *) &msg.table_id, table_id);
+  emit_uint64((char *) &msg.h, entry_handle);
+
+  int rc = nn_send(state.s, &msg, sizeof(msg), 0);
+  if (rc != sizeof(msg)) return PI_STATUS_RPC_TRANSPORT_ERROR;
+
+  return wait_for_status(req_id);
 }
 
 pi_status_t _pi_table_entry_modify(const pi_dev_id_t dev_id,
                                    const pi_p4_id_t table_id,
                                    const pi_entry_handle_t entry_handle,
                                    const pi_table_entry_t *table_entry) {
-  (void) dev_id; (void) table_id; (void) entry_handle; (void) table_entry;
-  printf("_pi_table_entry_modify\n");
-  return PI_STATUS_SUCCESS;
+  if (!state.init) return PI_STATUS_RPC_NOT_INIT;
+
+  size_t s = 0;
+  s += 2 * sizeof(uint32_t);  // id and type
+  s += sizeof(uint32_t);  // dev_id
+  s += sizeof(uint32_t);  // table_id
+  s += sizeof(uint64_t);  // handle
+  s += table_entry_size(table_entry);
+
+  char *msg = nn_allocmsg(s, 0);
+  char *msg_ = msg;
+  uint32_t req_id = state.req_id++;
+  msg_ += emit_uint32(msg_, req_id);
+  msg_ += emit_uint32(msg_, PI_RPC_TABLE_ENTRY_MODIFY);
+  msg_ += emit_uint32(msg_, dev_id);
+  msg_ += emit_uint32(msg_, table_id);
+  msg_ += emit_uint64(msg_, entry_handle);
+  msg_ += emit_table_entry(msg_, table_entry);
+
+  // make sure I have copied exactly the right amount
+  assert((size_t) (msg_ - msg) == s);
+
+  int rc = nn_send(state.s, &msg, NN_MSG, 0);
+  if ((size_t) rc != s) return PI_STATUS_RPC_TRANSPORT_ERROR;
+
+  return wait_for_status(req_id);
 }
 
 pi_status_t _pi_table_entries_fetch(const pi_dev_id_t dev_id,

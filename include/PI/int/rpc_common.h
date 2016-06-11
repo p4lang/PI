@@ -34,4 +34,10 @@ typedef enum {
   /* PI_RPC_TABLE_ENTRIES_FETCH_DONE, */
 } pi_rpc_msg_id_t;
 
+struct pi_table_entry_t;
+
+size_t table_entry_size(const pi_table_entry_t *table_entry);
+size_t emit_table_entry(char *dst, const pi_table_entry_t *table_entry);
+size_t retrieve_table_entry(char *src, pi_table_entry_t *table_entry, int copy);
+
 #endif  // PI_INT_RPC_COMMON_H_

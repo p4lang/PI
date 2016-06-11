@@ -295,6 +295,7 @@ pi_status_t _pi_table_default_action_get(const pi_dev_id_t dev_id,
 
   table_entry->action_data->p4info = p4info;
   table_entry->action_data->action_id = action_id;
+  table_entry->action_data->data_size = adata_size;
   table_entry->action_data->data = data_;
 
   data_ = dump_action_data(p4info, data_, action_id, entry.action_data);
