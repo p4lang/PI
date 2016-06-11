@@ -68,24 +68,9 @@ pi_status_t pi_match_key_allocate(const pi_p4info_t *p4info,
     offsets[i].offset = s;
     pi_p4info_match_field_info_t finfo;
     pi_p4info_table_match_field_info(p4info, table_id, i, &finfo);
-    size_t nbytes = (finfo.bitwidth + 7) / 8;
-    switch (finfo.match_type) {
-      case PI_P4INFO_MATCH_TYPE_VALID:
-        assert(nbytes == 1);
-      case PI_P4INFO_MATCH_TYPE_EXACT:
-        s += nbytes;
-        break;
-      case PI_P4INFO_MATCH_TYPE_LPM:
-        s += nbytes + sizeof(uint32_t);
-        break;
-      case PI_P4INFO_MATCH_TYPE_TERNARY:
-      case PI_P4INFO_MATCH_TYPE_RANGE:
-        s += 2 * nbytes;
-        break;
-      default:
-        assert(0);
-    }
+    s += get_match_key_size_one_field(finfo.match_type, finfo.bitwidth);
   }
+  size_t mk_size = s;
 
   size_t prefix_space = get_mk_prefix_space(num_match_fields);
   s += prefix_space;
@@ -101,6 +86,7 @@ pi_status_t pi_match_key_allocate(const pi_p4info_t *p4info,
 
   *key = (pi_match_key_t *) (key_w_prefix + prefix_space);
   (*key)->p4info = p4info;
+  (*key)->data_size = mk_size;
   (*key)->data = (char *) (*key + 1);
   assert(sizeof(_fegen_mk_prefix_t *) <= ALIGN);
   char *back_ptr = ((char *) (*key)) - ALIGN;
@@ -282,6 +268,7 @@ pi_status_t pi_action_data_allocate(const pi_p4info_t *p4info,
     offsets[i].offset = s;
     s += (bitwidth + 7) / 8;
   }
+  size_t ad_size = s;
 
   size_t prefix_space = get_ad_prefix_space(num_params);
   s += prefix_space;
@@ -297,6 +284,7 @@ pi_status_t pi_action_data_allocate(const pi_p4info_t *p4info,
 
   *adata = (pi_action_data_t *) (adata_w_prefix + prefix_space);
   (*adata)->p4info = p4info;
+  (*adata)->data_size = ad_size;
   (*adata)->data = (char *) (*adata + 1);
   assert(sizeof(_fegen_ad_prefix_t *) <= ALIGN);
   char *back_ptr = ((char *) (*adata)) - ALIGN;

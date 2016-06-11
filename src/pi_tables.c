@@ -137,6 +137,7 @@ size_t pi_table_entries_next(pi_table_fetch_res_t *res,
   entry->match_key = &res->match_keys[res->idx];
   entry->match_key->p4info = res->p4info;
   entry->match_key->table_id = res->table_id;
+  entry->match_key->data_size = res->mkey_nbytes;
   entry->match_key->data = res->entries + res->curr;
   res->curr += res->mkey_nbytes;
 
@@ -147,6 +148,7 @@ size_t pi_table_entries_next(pi_table_fetch_res_t *res,
   t_entry->action_data = &res->action_datas[res->idx];
   t_entry->action_data->p4info = res->p4info;
   t_entry->action_data->action_id = t_entry->action_id;
+  t_entry->action_data->data_size = nbytes;
   t_entry->action_data->data = res->entries + res->curr;
   res->curr += nbytes;
 

@@ -22,6 +22,7 @@
 */
 
 #include <PI/pi.h>
+#include <PI/int/pi_int.h>
 #include <PI/int/serialize.h>
 #include <PI/int/rpc_common.h>
 
@@ -108,8 +109,9 @@ pi_status_t _pi_assign_device(uint16_t dev_id, const pi_p4info_t *p4info,
   extra_ = extra;
   for (; !extra_->end_of_extras; extra_++) {
     strcpy(msg_, extra_->key);
-    msg_ = strchr(msg_, '\0');
+    msg_ = strchr(msg_, '\0') + 1;
     strcpy(msg_, extra_->v);
+    msg_ = strchr(msg_, '\0') + 1;
   }
 
   int rc = nn_send(state.s, &msg, NN_MSG, 0);
@@ -154,7 +156,56 @@ pi_status_t _pi_destroy() {
 }
 
 
-// TODO(antonin)
+// Tables
+
+static size_t emit_dev_tgt(char *dst, pi_dev_tgt_t dev_tgt) {
+  size_t s = 0;
+  s += emit_uint32(dst, dev_tgt.dev_id);
+  s += emit_uint32(dst + s, dev_tgt.dev_pipe_mask);
+  return s;
+}
+
+static size_t table_entry_size(const pi_table_entry_t *table_entry) {
+  size_t s = 0;
+  s += sizeof(uint32_t);  // action_id
+  s += sizeof(uint32_t);  // action data size
+  s += table_entry->action_data->data_size;
+  // TODO(antonin): properties
+  return s;
+}
+
+static size_t emit_table_entry(char *dst, const pi_table_entry_t *table_entry) {
+  size_t s = 0;
+  s += emit_uint32(dst, table_entry->action_id);
+  size_t ad_size = table_entry->action_data->data_size;
+  s += emit_uint32(dst + s, ad_size);
+  memcpy(dst + s, table_entry->action_data->data, ad_size);
+  s += ad_size;
+  // TODO(antonin): properties
+  return s;
+}
+
+// TODO(antonin): unify with wait_for_status?
+static pi_status_t wait_for_handle(uint32_t req_id,
+                                   pi_entry_handle_t *entry_handle) {
+  assert(sizeof(pi_entry_handle_t) == sizeof(uint64_t));
+  typedef struct __attribute__((packed)) {
+    uint32_t id;
+    uint32_t status;
+    uint64_t h;
+  } msg_t;
+  msg_t msg;
+  const char *msg_ = (char *) &msg;
+  int rc = nn_recv(state.s, &msg, sizeof(msg), 0);
+  if (rc != sizeof(msg)) return PI_STATUS_RPC_TRANSPORT_ERROR;
+  uint32_t status;
+  if (req_id != msg.id) return PI_STATUS_RPC_TRANSPORT_ERROR;
+  msg_ += sizeof(msg.id);
+  msg_ += retrieve_uint32(msg_, &status);
+  printf("status: %d\n", status);
+  retrieve_uint64(msg_, entry_handle);
+  return status;
+}
 
 pi_status_t _pi_table_entry_add(const pi_dev_tgt_t dev_tgt,
                                 const pi_p4_id_t table_id,
@@ -162,10 +213,36 @@ pi_status_t _pi_table_entry_add(const pi_dev_tgt_t dev_tgt,
                                 const pi_table_entry_t *table_entry,
                                 const int overwrite,
                                 pi_entry_handle_t *entry_handle) {
-  (void) dev_tgt; (void) table_id; (void) match_key; (void) table_entry;
-  (void) overwrite; (void) entry_handle;
-  printf("_pi_table_entry_add\n");
-  return PI_STATUS_SUCCESS;
+  if (!state.init) return PI_STATUS_RPC_NOT_INIT;
+
+  size_t s = 0;
+  s += 2 * sizeof(uint32_t);  // id and type
+  s += _DEV_TGT_SIZE;
+  s += sizeof(uint32_t);  // table_id
+  s += sizeof(uint32_t) + match_key->data_size;  // match key with size
+  s += table_entry_size(table_entry);
+  s += sizeof(uint32_t);  // overwrite
+
+  char *msg = nn_allocmsg(s, 0);
+  char *msg_ = msg;
+  uint32_t req_id = state.req_id++;
+  msg_ += emit_uint32(msg_, req_id);
+  msg_ += emit_uint32(msg_, PI_RPC_TABLE_ENTRY_ADD);
+  msg_ += emit_dev_tgt(msg_, dev_tgt);
+  msg_ += emit_uint32(msg_, table_id);
+  msg_ += emit_uint32(msg_, match_key->data_size);
+  memcpy(msg_, match_key->data, match_key->data_size);
+  msg_ += match_key->data_size;
+  msg_ += emit_table_entry(msg_, table_entry);
+  msg_ += emit_uint32(msg_, overwrite);
+
+  // make sure I have copied exactly the right amount
+  assert((size_t) (msg_ - msg) == s);
+
+  int rc = nn_send(state.s, &msg, NN_MSG, 0);
+  if ((size_t) rc != s) return PI_STATUS_RPC_TRANSPORT_ERROR;
+
+  return wait_for_handle(req_id, entry_handle);
 }
 
 pi_status_t _pi_table_default_action_set(const pi_dev_tgt_t dev_tgt,

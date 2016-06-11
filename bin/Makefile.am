@@ -10,5 +10,9 @@ rpc_server_SOURCES = rpc_server.c
 rpc_server_LDADD = \
 $(top_builddir)/src/libpi.la \
 $(top_builddir)/src/libpip4info.la \
-$(top_builddir)/targets/dummy/libpi_dummy.la \
--lnanomsg
+$(top_builddir)/targets/bmv2/libpi_bmv2.la \
+-lnanomsg \
+-lthrift -lruntimestubs -lsimpleswitch_thrift
+
+# Dummy C++ source to cause C++ linking.
+nodist_EXTRA_rpc_server_SOURCES = dummy.cxx

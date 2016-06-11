@@ -13,6 +13,7 @@ follows:
 struct pi_match_key_s {
   const pi_p4info_t *p4info;
   pi_p4_id_t table_id;
+  size_t data_size;
   char *data;
 };
 ```
@@ -117,6 +118,7 @@ follows:
 struct pi_action_data_s {
   const pi_p4info_t *p4info;
   pi_p4_id_t action_id;
+  size_t data_size;
   char *data;
 };
 ```
