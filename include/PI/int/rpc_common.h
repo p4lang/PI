@@ -16,8 +16,6 @@
 #ifndef PI_INT_RPC_COMMON_H_
 #define PI_INT_RPC_COMMON_H_
 
-#define _DEV_TGT_SIZE (2 * sizeof(uint32_t))
-
 typedef enum {
   PI_RPC_INIT,
   PI_RPC_ASSIGN_DEVICE,
@@ -32,7 +30,28 @@ typedef enum {
   PI_RPC_TABLE_ENTRY_MODIFY,
   PI_RPC_TABLE_ENTRIES_FETCH,
   /* PI_RPC_TABLE_ENTRIES_FETCH_DONE, */
-} pi_rpc_msg_id_t;
+} pi_rpc_type_t;
+
+typedef uint32_t pi_rpc_id_t;
+typedef pi_rpc_id_t s_pi_rpc_id_t;
+
+size_t emit_rpc_id(char *dst, pi_rpc_id_t v);
+size_t retrieve_rpc_id(const char *src, pi_rpc_id_t *v);
+
+typedef uint32_t s_pi_rpc_type_t;
+
+size_t emit_rpc_type(char *dst, pi_rpc_type_t v);
+size_t retrieve_rpc_type(const char *src, pi_rpc_type_t *v);
+
+typedef struct __attribute__((packed)) {
+  s_pi_rpc_id_t id;
+  s_pi_status_t type;
+} rep_hdr_t;
+
+typedef struct __attribute__((packed)) {
+  s_pi_rpc_id_t id;
+  s_pi_rpc_type_t type;
+} req_hdr_t;
 
 struct pi_table_entry_t;
 
