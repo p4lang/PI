@@ -50,7 +50,6 @@ static pi_status_t retrieve_rep_hdr(const char *rep, pi_rpc_id_t req_id) {
   if (recv_id != req_id) return PI_STATUS_RPC_TRANSPORT_ERROR;
   rep += retrieve_status(rep, &recv_status);
 
-  printf("status: %d\n", recv_status);
   return recv_status;
 }
 

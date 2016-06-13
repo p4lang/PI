@@ -387,6 +387,7 @@ size_t retrieve_table_entry(char *src, pi_table_entry_t *table_entry,
     // no alignment issue with malloc
     char *ad = malloc(sizeof(pi_action_data_t) + ad_size);
     table_entry->action_data = (pi_action_data_t *) ad;
+    table_entry->action_data->data = ad + sizeof(pi_action_data_t);
   }
 
   table_entry->action_data->action_id = action_id;

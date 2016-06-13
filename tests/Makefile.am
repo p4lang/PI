@@ -1,3 +1,11 @@
+ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
+
+if WITH_CLI_TESTS
+MAYBE_CLI_TESTS = CLI
+endif
+
+SUBDIRS = . $(MAYBE_CLI_TESTS)
+
 AM_CPPFLAGS += \
 -I$(top_srcdir)/include \
 -I$(top_srcdir)/src \

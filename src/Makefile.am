@@ -28,6 +28,8 @@ pi_value.c \
 pi_rpc_server.c
 
 libpi_la_LIBADD = \
+libpip4info.la \
+libpiutils.la \
 -lnanomsg
 
 libpiutils_la_SOURCES = \
@@ -35,10 +37,6 @@ utils/logging.h \
 utils/utils.h \
 utils/utils.c \
 utils/serialize.c
-
-libpi_la_LIBADD = \
-libpip4info.la \
-libpiutils.la
 
 # order important because libpi requires libpip4info
 lib_LTLIBRARIES = libpip4info.la libpi.la

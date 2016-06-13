@@ -43,6 +43,19 @@ adl_RECURSIVE_EVAL([$bindir], [BIN_DIR])
 adl_RECURSIVE_EVAL([$includedir], [INCLUDE_DIR])
 adl_RECURSIVE_EVAL([$libdir], [LIB_DIR])
 
+simple_switch_found=no
+AS_IF([test "$want_bmv2" = yes], [
+    AC_PATH_PROG([BM_SIMPLE_SWITCH], [simple_switch], [],
+      [$PATH$PATH_SEPARATOR$BIN_DIR])
+    AS_IF([test x"$BM_SIMPLE_SWITCH" = x], [
+      AC_MSG_WARN([You are compiling for bmv2, \
+                   but simple_switch binary was not found, \
+                   we won't run the tests requiring simple_switch])], [
+      simple_switch_found=yes])
+])
+AM_CONDITIONAL([WITH_SIMPLE_SWITCH], [test "$simple_switch_found" = "yes"])
+AM_CONDITIONAL([WITH_CLI_TESTS], [test "$simple_switch_found" = "yes"])
+
 AC_CHECK_HEADERS([stdlib.h string.h assert.h stdio.h stdint.h stdbool.h\
                   stddef.h time.h ctype.h unistd.h arpa/inet.h\
                   sys/types.h sys/stat.h inttypes.h],
@@ -104,6 +117,7 @@ AC_CONFIG_FILES([Makefile
                  targets/dummy/Makefile
                  targets/rpc/Makefile
                  tests/Makefile
+                 tests/CLI/Makefile
                  third_party/Makefile
                  third_party/cJSON/Makefile
                  third_party/unity/Makefile])
@@ -112,6 +126,7 @@ AS_IF([test "$want_bmv2" = yes], [AC_CONFIG_SUBDIRS([targets/bmv2])])
 AS_IF([test "$want_fe_cpp" = yes], [
   AC_CONFIG_SUBDIRS([frontends_extra/cpp])
 ])
+AM_COND_IF([WITH_CLI_TESTS], AC_CONFIG_FILES([tests/CLI/test_config.py]))
 
 AC_OUTPUT
 
@@ -122,4 +137,7 @@ AS_IF([test "$want_bmv2" = no && test "x$CXX" = x], [
 AS_ECHO("")
 AS_ECHO("Features recap ......................")
 AS_ECHO("Compile for bmv2 .............. : $want_bmv2")
+AS_IF([test "$want_bmv2" = yes], [
+AS_ECHO("  simple_switch found ......... : $simple_switch_found")
+])
 AS_ECHO("Compile CPP frontend .......... : $want_fe_cpp")

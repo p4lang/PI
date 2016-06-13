@@ -153,7 +153,9 @@ static pi_cli_status_t dump_entries(pi_p4_id_t t_id,
 
     const pi_entry_properties_t *properties = entry.entry.entry_properties;
     if (pi_entry_properties_is_set(properties, PI_ENTRY_PROPERTY_TYPE_PRIORITY))
-      printf("Priority: %u\n", properties->priority);
+      // TODO(antonin): bmv2 quirk, for tables with no priority, -1 is returned
+      if (properties->priority != (uint32_t) -1)
+        printf("Priority: %u\n", properties->priority);
 
     print_action_entry(&entry.entry);
   }
