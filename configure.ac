@@ -126,7 +126,9 @@ AS_IF([test "$want_bmv2" = yes], [AC_CONFIG_SUBDIRS([targets/bmv2])])
 AS_IF([test "$want_fe_cpp" = yes], [
   AC_CONFIG_SUBDIRS([frontends_extra/cpp])
 ])
-AM_COND_IF([WITH_CLI_TESTS], AC_CONFIG_FILES([tests/CLI/test_config.py]))
+AM_COND_IF([WITH_CLI_TESTS],
+           AC_CONFIG_FILES([tests/CLI/run_one_test.py],
+                           [chmod +x tests/CLI/run_one_test.py]))
 
 AC_OUTPUT
 

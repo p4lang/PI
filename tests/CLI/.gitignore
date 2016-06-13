@@ -1,5 +1,4 @@
 *
-!run_one_test.py
+!run_one_test.py.in
 !*.test
 !testdata
-!test_config.py.in

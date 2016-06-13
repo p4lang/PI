@@ -22,7 +22,9 @@ import time
 import random
 import re
 
-import test_config as cfg
+sswitch_path = "@BM_SIMPLE_SWITCH@"
+CLI_path = os.path.join("@abs_top_builddir@", "CLI", "pi_CLI_rpc")
+rpc_server_path = os.path.join("@abs_top_builddir@", "bin", "rpc_server")
 
 # Class written by Mihai Budiu, for Barefoot Networks, Inc.
 class ConcurrentInteger(object):
@@ -77,15 +79,14 @@ def main():
 
     # start simple_switch
     simple_switch_p = subprocess.Popen(
-        [cfg.sswitch_path, json_path, "--thrift-port", thrift_port],
+        [sswitch_path, json_path, "--thrift-port", thrift_port],
         stdout=subprocess.PIPE)
 
-    rpc_server_p = subprocess.Popen([cfg.rpc_server_path],
-                                    stdout=subprocess.PIPE)
+    rpc_server_p = subprocess.Popen([rpc_server_path], stdout=subprocess.PIPE)
 
     time.sleep(1)
 
-    cmd = [cfg.CLI_path, json_path]
+    cmd = [CLI_path, json_path]
     input_ = "select_device 0 port={}\n".format(thrift_port)
     with open(command_path, "r") as f:
         input_ += f.read()
