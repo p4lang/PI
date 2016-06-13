@@ -205,7 +205,7 @@ static void __pi_table_default_action_get(char *req) {
   assert((size_t) bytes == s);
 }
 
-void __pi_table_entry_delete(char *req) {
+static void __pi_table_entry_delete(char *req) {
   printf("RPC: _pi_table_entry_delete\n");
 
   pi_dev_id_t dev_id;
@@ -236,6 +236,48 @@ static void __pi_table_entry_modify(char *req) {
   req += retrieve_table_entry(req, &table_entry, 0);
 
   send_status(_pi_table_entry_modify(dev_id, table_id, h, &table_entry));
+}
+
+static void __pi_table_entries_fetch(char *req) {
+  printf("RPC: _pi_table_entries_fetch\n");
+
+  pi_dev_id_t dev_id;
+  req += retrieve_dev_id(req, &dev_id);
+  pi_p4_id_t table_id;
+  req += retrieve_p4_id(req, &table_id);
+
+  pi_table_fetch_res_t res;
+  pi_status_t status = _pi_table_entries_fetch(dev_id, table_id, &res);
+
+  if (status != PI_STATUS_SUCCESS) {
+    send_status(status);
+    return;
+  }
+
+  size_t s = 0;
+  s += sizeof(rep_hdr_t);
+  s += sizeof(uint32_t);  // num entries
+  s += sizeof(uint32_t);  // mkey nbytes
+  s += sizeof(uint32_t);  // entries_size (in bytes)
+  s += res.entries_size;
+
+  char *rep = nn_allocmsg(s, 0);
+  char *rep_ = rep;
+  rep_ += emit_rep_hdr(rep_, status);
+  rep_ += emit_uint32(rep_, res.num_entries);
+  rep_ += emit_uint32(rep_, res.mkey_nbytes);
+  rep_ += emit_uint32(rep_, res.entries_size);
+  memcpy(rep_, res.entries, res.entries_size);
+  rep_ += res.entries_size;
+
+  // release target memory
+  _pi_table_entries_fetch_done(&res);
+
+  // make sure I have copied exactly the right amount
+  assert((size_t) (rep_ - rep) == s);
+
+  int bytes = nn_send(state.s, &rep, NN_MSG, 0);
+  assert((size_t) bytes == s);
 }
 
 pi_status_t pi_rpc_server_run() {
@@ -276,6 +318,8 @@ pi_status_t pi_rpc_server_run() {
         __pi_table_entry_delete(req_); break;
       case PI_RPC_TABLE_ENTRY_MODIFY:
         __pi_table_entry_modify(req_); break;
+      case PI_RPC_TABLE_ENTRIES_FETCH:
+        __pi_table_entries_fetch(req_); break;
       default:
         assert(0);
     }
@@ -308,7 +352,9 @@ size_t table_entry_size(const pi_table_entry_t *table_entry) {
   size_t s = 0;
   s += sizeof(s_pi_p4_id_t);  // action_id
   s += sizeof(uint32_t);  // action data size
-  s += table_entry->action_data->data_size;
+  // for the specific case of no default action (fetch)
+  if (table_entry->action_id != PI_INVALID_ID)
+    s += table_entry->action_data->data_size;
   // TODO(antonin): properties
   return s;
 }
@@ -316,10 +362,14 @@ size_t table_entry_size(const pi_table_entry_t *table_entry) {
 size_t emit_table_entry(char *dst, const pi_table_entry_t *table_entry) {
   size_t s = 0;
   s += emit_p4_id(dst, table_entry->action_id);
-  size_t ad_size = table_entry->action_data->data_size;
+  // for the specific case of no default action (fetch)
+  size_t ad_size = (table_entry->action_id == PI_INVALID_ID) ?
+      0 : table_entry->action_data->data_size;
   s += emit_uint32(dst + s, ad_size);
-  memcpy(dst + s, table_entry->action_data->data, ad_size);
-  s += ad_size;
+  if (ad_size > 0) {
+    memcpy(dst + s, table_entry->action_data->data, ad_size);
+    s += ad_size;
+  }
   // TODO(antonin): properties
   return s;
 }

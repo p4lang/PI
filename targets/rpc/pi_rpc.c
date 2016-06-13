@@ -344,13 +344,52 @@ pi_status_t _pi_table_entry_modify(const pi_dev_id_t dev_id,
 pi_status_t _pi_table_entries_fetch(const pi_dev_id_t dev_id,
                                     const pi_p4_id_t table_id,
                                     pi_table_fetch_res_t *res) {
-  (void) dev_id; (void) table_id; (void) res;
-  printf("_pi_table_fetch\n");
-  return PI_STATUS_SUCCESS;
+  if (!state.init) return PI_STATUS_RPC_NOT_INIT;
+
+  typedef struct __attribute__((packed)) {
+    req_hdr_t hdr;
+    s_pi_dev_id_t dev_id;
+    s_pi_p4_id_t table_id;
+  } req_t;
+  req_t req;
+  char *req_ = (char *) &req;
+  pi_rpc_id_t req_id = state.req_id++;
+  req_ += emit_req_hdr(req_, req_id, PI_RPC_TABLE_ENTRIES_FETCH);
+  req_ += emit_dev_id(req_, dev_id);
+  req_ += emit_p4_id(req_, table_id);
+
+  int rc = nn_send(state.s, &req, sizeof(req), 0);
+  if (rc != sizeof(req)) return PI_STATUS_RPC_TRANSPORT_ERROR;
+
+  (void) res;
+  char *rep = NULL;
+  int bytes = nn_recv(state.s, &rep, NN_MSG, 0);
+  if (bytes <= 0) return PI_STATUS_RPC_TRANSPORT_ERROR;
+
+  char *rep_ = rep;
+  pi_status_t status = retrieve_rep_hdr(rep_, req_id);
+  if (status != PI_STATUS_SUCCESS) {
+    nn_freemsg(rep);
+    return status;
+  }
+  rep_ += sizeof(rep_hdr_t);
+
+  uint32_t tmp32;
+  rep_ += retrieve_uint32(rep_, &tmp32);
+  res->num_entries = tmp32;
+  rep_ += retrieve_uint32(rep_, &tmp32);
+  res->mkey_nbytes = tmp32;
+  rep_ += retrieve_uint32(rep_, &tmp32);
+  res->entries_size = tmp32;
+
+  res->entries = malloc(res->entries_size);
+  memcpy(res->entries, rep_, res->entries_size);
+
+  nn_freemsg(rep);
+  return status;
 }
 
 pi_status_t _pi_table_entries_fetch_done(pi_table_fetch_res_t *res) {
-  (void) res;
-  printf("_pi_table_fetch_done\n");
+  free(res->entries);
   return PI_STATUS_SUCCESS;
 }

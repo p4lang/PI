@@ -168,6 +168,7 @@ struct pi_table_fetch_res_s {
   size_t mkey_nbytes;
   size_t idx;
   size_t curr;
+  size_t entries_size;
   char *entries;
   // just pointers to entries byte array
   struct pi_match_key_s *match_keys;
@@ -179,8 +180,9 @@ struct pi_table_fetch_res_s {
 
 It is each target backend's responsibility to populate 3 members of this data
 structure: `num_entries`, `mkey_nbytes` (the size of the serialized match key in
-bytes) and `entries`. Here, the `entries` member is a (huge) byte array which
-includes, for each match entry:
+bytes), `entries` and `entries_size` (the size in bytes of the `entries` byte
+array). Here, the `entries` member is a (huge) byte array which includes, for
+each match entry:
  * entry handle
  * match key
  * action id

@@ -421,6 +421,7 @@ pi_status_t _pi_table_entries_fetch(const pi_dev_id_t dev_id,
   }
 
   char *data = new char[data_size];
+  res->entries_size = data_size;
   res->entries = data;
 
   for (auto &e : entries) {
