@@ -425,7 +425,7 @@ pi_status_t _pi_table_entries_fetch(const pi_dev_id_t dev_id,
   res->entries = data;
 
   for (auto &e : entries) {
-    data += emit_uint64(data, e.entry_handle);
+    data += emit_entry_handle(data, e.entry_handle);
     for (auto p : e.match_key) {
       switch(p.type) {
         case BmMatchParamType::type::EXACT:
@@ -459,7 +459,7 @@ pi_status_t _pi_table_entries_fetch(const pi_dev_id_t dev_id,
     const BmActionEntry &action_entry = e.action_entry;
     assert(action_entry.action_type == BmActionEntryType::ACTION_DATA);
     const ADataSize &adata_size = action_map.at(action_entry.action_name);
-    data += emit_uint32(data, adata_size.id);
+    data += emit_p4_id(data, adata_size.id);
     data += emit_uint32(data, adata_size.s);
 
     data = dump_action_data(p4info, data, adata_size.id,

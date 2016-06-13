@@ -119,11 +119,6 @@ static void print_action_entry(pi_table_entry_t *entry) {
   printf("\n");
 }
 
-size_t retrieve_uint32(const char *src, uint32_t *v) {
-  memcpy(v, src, sizeof(*v));
-  return sizeof(*v);
-}
-
 static pi_cli_status_t dump_entries(pi_p4_id_t t_id,
                                     pi_table_fetch_res_t *res) {
   printf("==========\n");

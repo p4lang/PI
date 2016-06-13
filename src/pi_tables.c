@@ -136,7 +136,7 @@ size_t pi_table_entries_next(pi_table_fetch_res_t *res,
                              pi_entry_handle_t *entry_handle) {
   if (res->idx == res->num_entries) return res->idx;
 
-  res->curr += retrieve_uint64(res->entries + res->curr, entry_handle);
+  res->curr += retrieve_entry_handle(res->entries + res->curr, entry_handle);
 
   entry->match_key = &res->match_keys[res->idx];
   entry->match_key->p4info = res->p4info;
@@ -146,7 +146,7 @@ size_t pi_table_entries_next(pi_table_fetch_res_t *res,
   res->curr += res->mkey_nbytes;
 
   pi_table_entry_t *t_entry = &entry->entry;
-  res->curr += retrieve_uint32(res->entries + res->curr, &t_entry->action_id);
+  res->curr += retrieve_p4_id(res->entries + res->curr, &t_entry->action_id);
   uint32_t nbytes;
   res->curr += retrieve_uint32(res->entries + res->curr, &nbytes);
   t_entry->action_data = &res->action_datas[res->idx];
