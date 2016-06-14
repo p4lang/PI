@@ -1,5 +1,7 @@
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 
+AM_TESTS_ENVIRONMENT = export PI_TEST_WITH_VALGRIND=1;
+
 TESTS = \
 table_dump.test
 

@@ -21,6 +21,8 @@ import os
 import time
 import random
 import re
+import StringIO
+import tempfile
 
 sswitch_path = "@BM_SIMPLE_SWITCH@"
 CLI_path = os.path.join("@abs_top_builddir@", "CLI", "pi_CLI_rpc")
@@ -55,13 +57,25 @@ class ConcurrentInteger(object):
                 continue
         return None
 
+def process_valgrind_output(stderr, name):
+    with tempfile.NamedTemporaryFile(delete=False) as f:
+        print "Valgrind output for", name, "written to", f.name
+        while True:
+            L = stderr.readline()
+            f.write(L)
+            if "ERROR SUMMARY" in L:
+                m = re.search("ERROR SUMMARY: ([0-9]*) errors "
+                              "from ([0-9]*) contexts", L)
+                assert(m.lastindex == 2)
+                return (int(m.group(1)) == 0) and (int(m.group(2)) == 0)
+
 def main():
-    def fail(msg):
+    def fail_msg(msg):
         print msg
         sys.exit(1)
 
     if len(sys.argv) != 4:
-        fail("Invalid number of arguments")
+        fail_msg("Invalid number of arguments")
 
     testdata_dir = sys.argv[1]
     testname = sys.argv[2]
@@ -74,7 +88,7 @@ def main():
     concurrent = ConcurrentInteger(os.getcwd(), 1000)
     rand = concurrent.generate()
     if rand is None:
-        fail("Error when generating random port number")
+        fail_msg("Error when generating random port number")
     thrift_port = str(9090 + rand)
 
     # start simple_switch
@@ -82,26 +96,46 @@ def main():
         [sswitch_path, json_path, "--thrift-port", thrift_port],
         stdout=subprocess.PIPE)
 
-    rpc_server_p = subprocess.Popen([rpc_server_path], stdout=subprocess.PIPE)
+    with_valgrind = (os.getenv("PI_TEST_WITH_VALGRIND") != None)
+    valgrind_with_options = ["valgrind"]
+    # third-party code shows memory leaks
+    # valgrind_with_options += ["--leak-check=full", "--show-reachable=yes"]
+
+    # Valgrind output is sent to stderr, which we will analyze later
+
+    if with_valgrind:
+        rpc_server_cmd = ["libtool", "--mode=execute"] + valgrind_with_options
+    else:
+        rpc_server_cmd = []
+    rpc_server_cmd += [rpc_server_path]
+    rpc_server_p = subprocess.Popen(rpc_server_cmd, stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE)
+
+    def fail(msg):
+        rpc_server_p.terminate()
+        simple_switch_p.terminate()
+        fail_msg(msg)
 
     time.sleep(1)
 
-    cmd = [CLI_path, json_path]
+    if with_valgrind:
+        cmd = ["libtool", "--mode=execute"] + valgrind_with_options
+    else:
+        cmd = []
+    cmd += [CLI_path, json_path]
     input_ = "select_device 0 port={}\n".format(thrift_port)
     with open(command_path, "r") as f:
         input_ += f.read()
 
-    def cleanup():
-        simple_switch_p.kill()
-        rpc_server_p.kill()
-
     out = None
-    p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-    out, _ = p.communicate(input_)
+    p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE)
+
+    out, stderr = p.communicate(input_)
+
     rc = p.returncode
 
     if rc:
-        cleanup()
         fail("CLI returned error code")
 
     assert(out)
@@ -118,14 +152,23 @@ def main():
     with open(output_path, "r") as f:
         expected_parse = parse_data(f.read(), "\?\?\?\?")
         if len(out_parsed) != len(expected_parse):
-            cleanup()
             fail("Mismatch between expected output and actual output")
         for o, e in zip(out_parsed, expected_parse):
             if o != e:
-                cleanup()
                 fail("Mismatch between expected output and actual output")
 
-    cleanup()
+    # terminate gives the process a chance to flush to the file
+    rpc_server_p.terminate()
+    simple_switch_p.terminate()
+    # apparently, there is no issue with me reading from the PIPE after
+    # terminated the process
+    if with_valgrind:
+        v1 = process_valgrind_output(StringIO.StringIO(stderr), "RPC CLI")
+        v2 = process_valgrind_output(rpc_server_p.stderr, "RPC server")
+
+        if (not v1) or (not v2):
+            fail_msg("Detected valgrind error(s)")
+
     sys.exit(0)
 
 if __name__ == '__main__':
