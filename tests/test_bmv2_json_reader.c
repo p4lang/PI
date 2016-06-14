@@ -33,7 +33,7 @@ static char *read_json(const char *path) {
 TEST_GROUP(SimpleRouter);
 
 TEST_SETUP(SimpleRouter) {
-  pi_init(256);  // 256 max devices
+  pi_init(256, NULL);  // 256 max devices
 }
 
 TEST_TEAR_DOWN(SimpleRouter) {

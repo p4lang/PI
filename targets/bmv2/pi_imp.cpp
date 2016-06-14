@@ -29,7 +29,8 @@ device_info_t device_info_state[NUM_DEVICES];
 
 extern "C" {
 
-pi_status_t _pi_init() {
+pi_status_t _pi_init(void *extra) {
+  (void) extra;
   memset(device_info_state, 0, sizeof(device_info_state));
   conn_mgr_state = conn_mgr_create();
   return PI_STATUS_SUCCESS;

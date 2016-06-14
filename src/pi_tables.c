@@ -100,11 +100,11 @@ pi_status_t pi_table_entries_fetch(const pi_dev_id_t dev_id,
                                    const pi_p4_id_t table_id,
                                    pi_table_fetch_res_t **res) {
   pi_table_fetch_res_t *res_ = malloc(sizeof(pi_table_fetch_res_t));
+  pi_status_t status = _pi_table_entries_fetch(dev_id, table_id, res_);
   res_->p4info = pi_get_device_p4info(dev_id);
   res_->table_id = table_id;
   res_->idx = 0;
   res_->curr = 0;
-  pi_status_t status = _pi_table_entries_fetch(dev_id, table_id, res_);
   // TODO(antonin): use contiguous memory
   res_->match_keys = malloc(res_->num_entries * sizeof(pi_match_key_t));
   res_->action_datas = malloc(res_->num_entries * sizeof(pi_action_data_t));

@@ -32,7 +32,8 @@ typedef struct {
   int s;
 } pi_rpc_state_t;
 
-static const char *addr = "ipc:///tmp/pi_rpc.ipc";
+/* static const char *addr = "ipc:///tmp/pi_rpc.ipc"; */
+static char *addr = NULL;
 
 static pi_rpc_state_t state;
 
@@ -50,11 +51,68 @@ static void send_status(pi_status_t status) {
   assert((size_t) bytes == s);
 }
 
+static size_t get_device_version(pi_dev_id_t dev_id) {
+  return pi_get_device_info(dev_id)->version;
+}
+
 static void __pi_init(char *req) {
   printf("RPC: _pi_init\n");
 
   (void) req;
-  send_status(_pi_init());
+  size_t num_devices;
+  pi_device_info_t *devices = pi_get_devices(&num_devices);
+  pi_status_t status = PI_STATUS_SUCCESS;
+  if (!devices) {  // not init yet
+    assert(num_devices == 0);
+    status = _pi_init(NULL);
+  }
+
+  typedef struct {
+    char *json;
+    size_t size;
+  } p4info_tmp_t;
+  p4info_tmp_t *p4info_tmp = NULL;
+
+  size_t s = sizeof(rep_hdr_t);
+  s += sizeof(uint32_t);  // num assigned devices
+
+  if (num_devices > 0) {
+    p4info_tmp = calloc(num_devices, sizeof(*p4info_tmp));
+  }
+
+  size_t num_assigned_devices = 0;
+
+  for (pi_dev_id_t dev_id = 0; dev_id < num_devices; dev_id++) {
+    if (devices[dev_id].version == 0) continue;
+    num_assigned_devices++;
+    s += sizeof(s_pi_dev_id_t);
+    s += sizeof(uint32_t);  // version
+    p4info_tmp[dev_id].json = pi_serialize_config(devices[dev_id].p4info);
+    p4info_tmp[dev_id].size = strlen(p4info_tmp[dev_id].json) + 1;
+    s += p4info_tmp[dev_id].size;
+  }
+
+  char *rep = nn_allocmsg(s, 0);
+  char *rep_ = rep;
+  rep_ += emit_rep_hdr(rep_, status);
+  rep_ += emit_uint32(rep_, num_assigned_devices);
+  for (pi_dev_id_t dev_id = 0; dev_id < num_devices; dev_id++) {
+    if (devices[dev_id].version == 0) continue;
+    rep_ += emit_dev_id(rep_, dev_id);
+    rep_ += emit_uint32(rep_, devices[dev_id].version);
+    memcpy(rep_, p4info_tmp[dev_id].json, p4info_tmp[dev_id].size);
+    rep_ += p4info_tmp[dev_id].size;
+  }
+
+  if (num_devices > 0) {
+    assert(p4info_tmp);
+    free(p4info_tmp);
+  }
+
+  assert((size_t) (rep_ - rep) == s);
+
+  int bytes = nn_send(state.s, &rep, NN_MSG, 0);
+  assert((size_t) bytes == s);
 }
 
 static void __pi_assign_device(char *req) {
@@ -63,6 +121,12 @@ static void __pi_assign_device(char *req) {
   pi_status_t status;
   pi_dev_id_t dev_id;
   req += retrieve_dev_id(req, &dev_id);
+
+  if (get_device_version(dev_id) > 0) {
+    send_status(PI_STATUS_DEV_ALREADY_ASSIGNED);
+    return;
+  }
+
   size_t p4info_size = strlen(req) + 1;
   pi_p4info_t *p4info;
   // TODO(antonin): when is this destroyed?
@@ -91,7 +155,9 @@ static void __pi_assign_device(char *req) {
   status = _pi_assign_device(dev_id, p4info, extras);
   free(extras);
 
-  send_status(PI_STATUS_SUCCESS);
+  if (status == PI_STATUS_SUCCESS) pi_update_device_config(dev_id, p4info);
+
+  send_status(status);
 }
 
 static void __pi_remove_device(char *req) {
@@ -99,7 +165,17 @@ static void __pi_remove_device(char *req) {
 
   pi_dev_id_t dev_id;
   retrieve_dev_id(req, &dev_id);
-  send_status(_pi_remove_device(dev_id));;
+
+  if (get_device_version(dev_id) == 0) {
+    send_status(PI_STATUS_DEV_NOT_ASSIGNED);
+    return;
+  }
+
+  pi_status_t status = _pi_remove_device(dev_id);
+
+  if (status == PI_STATUS_SUCCESS) pi_reset_device_config(dev_id);
+
+  send_status(status);;
 }
 
 static void __pi_destroy(char *req) {
@@ -280,8 +356,12 @@ static void __pi_table_entries_fetch(char *req) {
   assert((size_t) bytes == s);
 }
 
-pi_status_t pi_rpc_server_run() {
+pi_status_t pi_rpc_server_run(char *rpc_addr) {
   assert(!state.init);
+  if (rpc_addr)
+    addr = strdup((char *) rpc_addr);
+  else
+    addr = "ipc:///tmp/pi_rpc.ipc";
   state.s = nn_socket(AF_SP, NN_REP);
   if (state.s < 0) return PI_STATUS_RPC_CONNECT_ERROR;
   if (nn_bind(state.s, addr) < 0) return PI_STATUS_RPC_CONNECT_ERROR;

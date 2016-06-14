@@ -16,7 +16,7 @@
 /*
   RPC built on an abstract transport mechanism (let's start with nanomsg reqrep)
   Request: id | type | dev_tgt / dev_id | body ...
-  Reply: id | type | status | body ...
+  Reply: id | status | body ...
 
   for p4info, need to write some JSON serialization code
 */
@@ -39,7 +39,8 @@ typedef struct {
   int s;
 } pi_rpc_state_t;
 
-static const char *addr = "ipc:///tmp/pi_rpc.ipc";
+/* static const char *addr = "ipc:///tmp/pi_rpc.ipc"; */
+static char *addr = NULL;
 
 static pi_rpc_state_t state;
 
@@ -67,8 +68,106 @@ static size_t emit_req_hdr(char *hdr, pi_rpc_id_t id, pi_rpc_type_t type) {
   return s;
 }
 
-pi_status_t _pi_init() {
+static void process_state_sync(const char *rep) {
+  uint32_t num;
+  rep += retrieve_uint32(rep, &num);
+  size_t num_devices;
+  pi_device_info_t *devices = pi_get_devices(&num_devices);
+  for (size_t i = 0; i < num; i++) {
+    pi_dev_id_t dev_id;
+    uint32_t version;
+    /* uint32_t p4info_size; */
+    rep += retrieve_dev_id(rep, &dev_id);
+    rep += retrieve_uint32(rep, &version);
+    /* rep += retrieve_uint32(rep, &p4info_size); */
+
+    assert(dev_id <= num_devices);
+
+    assert(devices[dev_id].version < version);
+    devices[dev_id].version = version;
+    pi_p4info_t *p4info;
+    pi_add_config(rep, PI_CONFIG_TYPE_NATIVE_JSON, &p4info);
+    devices[dev_id].p4info = p4info;
+  }
+}
+
+// Saving these functions for later, if needed
+
+/* pi_status_t state_sync_one(pi_dev_id_t dev_id) { */
+/*   typedef struct __attribute__((packed)) { */
+/*     req_hdr_t hdr; */
+/*     uint32_t num; */
+/*     s_pi_dev_id_t dev_id; */
+/*     uint32_t version; */
+/*   } req_t; */
+/*   req_t req; */
+/*   char *req_ = (char *) &req; */
+/*   pi_rpc_id_t req_id = state.req_id++; */
+/*   req_ += emit_req_hdr(req_, req_id, PI_RPC_INT_GET_STATE); */
+/*   req_ += emit_uint32(req_, 1); */
+/*   req_ += emit_dev_id(req_, dev_id); */
+/*   req_ += emit_uint32(req_, pi_get_device_info(dev_id)->version); */
+
+/*   char *rep = NULL; */
+/*   int bytes = nn_recv(state.s, &rep, NN_MSG, 0); */
+/*   if (bytes <= 0) return PI_STATUS_RPC_TRANSPORT_ERROR; */
+
+/*   char *rep_ = rep; */
+/*   pi_status_t status = retrieve_rep_hdr(rep_, req_id); */
+/*   assert(status != PI_STATUS_SUCCESS); */
+/*   rep_ += sizeof(rep_hdr_t); */
+
+/*   process_state_sync(rep_); */
+
+/*   nn_freemsg(rep); */
+
+/*   return status; */
+/* } */
+
+/* static pi_status_t state_sync() { */
+/*   size_t num_devices; */
+/*   pi_device_info_t *devices = pi_get_devices(&num_devices); */
+
+/*   size_t s = sizeof(req_hdr_t); */
+/*   s += sizeof(uint32_t);  // num_devices */
+/*   s += num_devices * (sizeof(s_pi_dev_id_t) + sizeof(uint32_t)); */
+/*   char *req = nn_allocmsg(s, 0); */
+/*   char *req_ = req; */
+/*   pi_rpc_id_t req_id = state.req_id++; */
+/*   req_ += emit_req_hdr(req_, req_id, PI_RPC_INT_GET_STATE); */
+/*   req_ += emit_uint32(req_, num_devices); */
+/*   for (pi_dev_id_t dev_id = 0; dev_id < num_devices; dev_id++) { */
+/*     req_ += emit_dev_id(req_, dev_id); */
+/*     req_ += emit_uint32(req_, devices[dev_id].version); */
+/*   } */
+
+/*   assert((size_t) (req_ - req) == s); */
+
+/*   int rc = nn_send(state.s, (char *) &req, sizeof(req), 0); */
+/*   if (rc != sizeof(req)) return PI_STATUS_RPC_TRANSPORT_ERROR; */
+
+/*   char *rep = NULL; */
+/*   int bytes = nn_recv(state.s, &rep, NN_MSG, 0); */
+/*   if (bytes <= 0) return PI_STATUS_RPC_TRANSPORT_ERROR; */
+
+/*   char *rep_ = rep; */
+/*   pi_status_t status = retrieve_rep_hdr(rep_, req_id); */
+/*   assert(status != PI_STATUS_SUCCESS); */
+/*   rep_ += sizeof(rep_hdr_t); */
+
+/*   process_state_sync(rep_); */
+
+/*   nn_freemsg(rep); */
+
+/*   return PI_STATUS_SUCCESS; */
+/* } */
+
+pi_status_t _pi_init(void *extra) {
   assert(!state.init);
+  if (extra)
+    addr = strdup((char *) extra);
+  else
+    addr = strdup("ipc:///tmp/pi_rpc.ipc");  // so that it can be freed
   state.s = nn_socket(AF_SP, NN_REQ);
   if (state.s < 0) return PI_STATUS_RPC_CONNECT_ERROR;
   if (nn_connect(state.s, addr) < 0) return PI_STATUS_RPC_CONNECT_ERROR;
@@ -81,7 +180,21 @@ pi_status_t _pi_init() {
   int rc = nn_send(state.s, (char *) &req, sizeof(req), 0);
   if (rc != sizeof(req)) return PI_STATUS_RPC_TRANSPORT_ERROR;
 
-  return wait_for_status(req_id);
+  char *rep = NULL;
+  int bytes = nn_recv(state.s, &rep, NN_MSG, 0);
+  if (bytes <= 0) return PI_STATUS_RPC_TRANSPORT_ERROR;
+
+  char *rep_ = rep;
+  pi_status_t status = retrieve_rep_hdr(rep_, req_id);
+  if (status != PI_STATUS_SUCCESS) {
+    nn_freemsg(rep);
+    return status;
+  }
+  rep_ += sizeof(rep_hdr_t);
+
+  process_state_sync(rep_);
+
+  return PI_STATUS_SUCCESS;
 }
 
 pi_status_t _pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
@@ -151,6 +264,8 @@ pi_status_t _pi_destroy() {
 
   int rc = nn_send(state.s, (char *) &req, sizeof(req), 0);
   if (rc != sizeof(req)) return PI_STATUS_RPC_TRANSPORT_ERROR;
+
+  free(addr);
 
   return wait_for_status(req_id);
 }
@@ -360,7 +475,6 @@ pi_status_t _pi_table_entries_fetch(const pi_dev_id_t dev_id,
   int rc = nn_send(state.s, &req, sizeof(req), 0);
   if (rc != sizeof(req)) return PI_STATUS_RPC_TRANSPORT_ERROR;
 
-  (void) res;
   char *rep = NULL;
   int bytes = nn_recv(state.s, &rep, NN_MSG, 0);
   if (bytes <= 0) return PI_STATUS_RPC_TRANSPORT_ERROR;

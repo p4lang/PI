@@ -18,7 +18,7 @@
 
 #include "PI/pi.h"
 
-pi_status_t _pi_init();
+pi_status_t _pi_init(void *extra);
 
 pi_status_t _pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
                               pi_assign_extra_t *extra);

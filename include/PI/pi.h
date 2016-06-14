@@ -23,7 +23,7 @@
 extern "C" {
 #endif
 
-pi_status_t pi_init(size_t max_devices);
+pi_status_t pi_init(size_t max_devices, char *rpc_addr);
 
 typedef struct {
   int end_of_extras;

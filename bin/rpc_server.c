@@ -13,10 +13,23 @@
  * limitations under the License.
  */
 
-#include <PI/pi_base.h>
+#include <PI/pi.h>
+
+#include <stdio.h>
 
 extern pi_status_t pi_rpc_server_run();
 
-int main() {
-  pi_rpc_server_run();
+int main(int argc, char *argv[]) {
+  char *addr = NULL;
+  if (argc == 1) {
+    fprintf(stderr, "Nanomsg address not provided, using default.\n");
+  } else if (argc == 2) {
+    addr = argv[1];
+  } else {
+    fprintf(stderr, "Too may arguments provided.\n");
+    return 1;
+  }
+
+  pi_init(256, NULL);
+  pi_rpc_server_run(addr);
 }

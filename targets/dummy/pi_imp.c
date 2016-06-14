@@ -17,7 +17,8 @@
 
 #include <stdio.h>
 
-pi_status_t _pi_init() {
+pi_status_t _pi_init(void *extra) {
+  (void) extra;
   printf("_pi_init\n");
   return PI_STATUS_SUCCESS;
 }

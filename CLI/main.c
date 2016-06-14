@@ -232,14 +232,22 @@ char *dummy_completion(const char *text, int state) {
 }
 
 int main(int argc, char *argv[]) {
-  if (argc != 2) {
+  if (argc > 3) {
+    fprintf(stderr, "Too may arguments provided.\n");
+    return 1;
+  } else if (argc < 2) {
     fprintf(stderr, "P4 configuration needed.\n");
-    fprintf(stderr, "Usage: %s <path to config>\n", argv[0]);
+    fprintf(stderr, "Usage: %s <path to config> [nanomsg addr]\n", argv[0]);
     return 1;
   }
 
+  char *rpc_addr = NULL;
+  if (argc > 2) {
+    rpc_addr = argv[2];
+  }
+
   pi_status_t pirc;
-  pi_init(256);  // 256 devices max
+  pi_init(256, rpc_addr);  // 256 devices max
   pirc = pi_add_config_from_file(argv[1], PI_CONFIG_TYPE_BMV2_JSON, &p4info);
   if (pirc != PI_STATUS_SUCCESS) {
     fprintf(stderr, "Error while loading config\n");

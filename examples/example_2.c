@@ -61,7 +61,7 @@ static int add_route(uint32_t prefix, int pLen, uint32_t nhop, uint16_t port,
 }
 
 int main() {
-  pi_init(256);  // 256 devices max
+  pi_init(256, NULL);  // 256 devices max
   pi_add_config_from_file(TESTDATADIR "/" "simple_router.json",
                           PI_CONFIG_TYPE_BMV2_JSON, &p4info);
 

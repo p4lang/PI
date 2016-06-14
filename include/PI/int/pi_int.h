@@ -99,7 +99,19 @@ struct pi_table_fetch_res_s {
   // direct resources
 };
 
+typedef struct {
+  int backend_id;
+  size_t version;
+  const pi_p4info_t *p4info;
+} pi_device_info_t;
+
+pi_device_info_t *pi_get_device_info(uint16_t dev_id);
+pi_device_info_t *pi_get_devices(size_t *num_devices);
+
 const pi_p4info_t *pi_get_device_p4info(uint16_t dev_id);
+
+void pi_update_device_config(pi_dev_id_t dev_id, const pi_p4info_t *p4info);
+void pi_reset_device_config(pi_dev_id_t dev_id);
 
 #ifdef __cplusplus
 }

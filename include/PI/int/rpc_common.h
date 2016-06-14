@@ -17,7 +17,7 @@
 #define PI_INT_RPC_COMMON_H_
 
 typedef enum {
-  PI_RPC_INIT,
+  PI_RPC_INIT = 0,
   PI_RPC_ASSIGN_DEVICE,
   PI_RPC_REMOVE_DEVICE,
   PI_RPC_DESTROY,
@@ -30,6 +30,10 @@ typedef enum {
   PI_RPC_TABLE_ENTRY_MODIFY,
   PI_RPC_TABLE_ENTRIES_FETCH,
   /* PI_RPC_TABLE_ENTRIES_FETCH_DONE, */
+
+  // rpc management
+  // retrieve state for sync-up when rpc client is started
+  PI_RPC_INT_GET_STATE = 256,
 } pi_rpc_type_t;
 
 typedef uint32_t pi_rpc_id_t;
