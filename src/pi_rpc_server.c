@@ -87,7 +87,7 @@ static void __pi_init(char *req) {
     num_assigned_devices++;
     s += sizeof(s_pi_dev_id_t);
     s += sizeof(uint32_t);  // version
-    p4info_tmp[dev_id].json = pi_serialize_config(devices[dev_id].p4info);
+    p4info_tmp[dev_id].json = pi_serialize_config(devices[dev_id].p4info, 0);
     p4info_tmp[dev_id].size = strlen(p4info_tmp[dev_id].json) + 1;
     s += p4info_tmp[dev_id].size;
   }

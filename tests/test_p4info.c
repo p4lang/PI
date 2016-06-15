@@ -602,7 +602,7 @@ TEST(P4Info, Serialize) {
   TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS,
                     pi_add_config(config, PI_CONFIG_TYPE_BMV2_JSON, &p4info));
 
-  char *dump = pi_serialize_config(p4info);
+  char *dump = pi_serialize_config(p4info, 0);
   TEST_ASSERT_NOT_NULL(dump);
 
   pi_p4info_t *p4info_new;
@@ -610,7 +610,7 @@ TEST(P4Info, Serialize) {
       PI_STATUS_SUCCESS,
       pi_add_config(dump, PI_CONFIG_TYPE_NATIVE_JSON, &p4info_new));
 
-  char *dump_new = pi_serialize_config(p4info_new);
+  char *dump_new = pi_serialize_config(p4info_new, 0);
   TEST_ASSERT_NOT_NULL(dump_new);
 
   TEST_ASSERT_TRUE(cmp_cJSON(dump, dump_new));

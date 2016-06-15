@@ -34,6 +34,7 @@ libpiutils.la \
 
 libpiutils_la_SOURCES = \
 utils/logging.h \
+utils/logging.c \
 utils/utils.h \
 utils/utils.c \
 utils/serialize.c

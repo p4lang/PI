@@ -13,24 +13,12 @@
  * limitations under the License.
  */
 
-// TODO: temporary placeholder
+int _logs_on = 1;
 
-#ifndef PI_SRC_UTILS_LOGGING_H_
-#define PI_SRC_UTILS_LOGGING_H_
+void pi_logs_on() {
+  _logs_on = 1;
+}
 
-#include <stdio.h>
-
-extern int _logs_on;
-
-void pi_logs_on();
-void pi_logs_off();
-
-#ifdef PI_LOG_ON
-#define PI_LOG_DEBUG(...) if (_logs_on) printf(__VA_ARGS__)
-#define PI_LOG_ERROR(...) if (_logs_on) printf(__VA_ARGS__)
-#else
-#define PI_LOG_DEBUG
-#define PI_LOG_ERROR
-#endif
-
-#endif  // PI_SRC_UTILS_LOGGING_H_
+void pi_logs_off() {
+  _logs_on = 0;
+}
