@@ -56,3 +56,6 @@ m4/
 .dirstamp
 
 *.tar.gz
+
+# Python
+*.pyc

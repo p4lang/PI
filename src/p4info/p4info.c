@@ -65,12 +65,13 @@ pi_status_t pi_destroy_config(pi_p4info_t *p4info) {
   return PI_STATUS_SUCCESS;
 }
 
-char *pi_serialize_config(const pi_p4info_t *p4info) {
+char *pi_serialize_config(const pi_p4info_t *p4info, int fmt) {
   cJSON *root = cJSON_CreateObject();
   pi_p4info_field_serialize(root, p4info);
   pi_p4info_action_serialize(root, p4info);
   pi_p4info_table_serialize(root, p4info);
-  char *str = cJSON_PrintUnformatted(root);
+  // TODO(antonin): use cJSON_PrintBuffered for better performance
+  char *str = (fmt) ? cJSON_Print(root) : cJSON_PrintUnformatted(root);
   cJSON_Delete(root);
   return str;
 }

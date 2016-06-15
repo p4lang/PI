@@ -204,7 +204,7 @@ pi_status_t _pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
     req_hdr_t hdr;
     s_pi_dev_id_t dev_id;
   } hdr_t;
-  char *p4info_json = pi_serialize_config(p4info);
+  char *p4info_json = pi_serialize_config(p4info, 0);
   size_t p4info_size = strlen(p4info_json) + 1;
   size_t num_extras = 0;
   size_t extra_size = sizeof(uint32_t);  // for num extras
