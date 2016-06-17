@@ -35,6 +35,7 @@ static pi_dev_tgt_t convert_dev_tgt(p4_pd_dev_target_t pd_dev_tgt) {
   pi_dev_tgt_t pi_dev_tgt;
   pi_dev_tgt.dev_id = pd_dev_tgt.device_id;
   pi_dev_tgt.dev_pipe_mask = pd_dev_tgt.dev_pipe_id;
+  return pi_dev_tgt;
 }
 
 //:: for t_name, t in tables.items():
