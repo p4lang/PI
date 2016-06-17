@@ -19,7 +19,7 @@ test_getnetv \
 test_p4info \
 test_frontends_generic
 
-common_source = main.c
+common_source = main.c utils.c utils.h
 
 test_bmv2_json_reader_SOURCES = $(common_source) test_bmv2_json_reader.c
 test_bmv2_json_reader_CPPFLAGS = $(AM_CPPFLAGS) -DTEST_BMV2_JSON_READER
@@ -61,4 +61,5 @@ test_frontends_generic \
 test_all
 
 EXTRA_DIST = \
-testdata/simple_router.json
+testdata/simple_router.json \
+testdata/valid.json

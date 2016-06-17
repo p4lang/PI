@@ -110,6 +110,7 @@ static pi_status_t read_fields(cJSON *root, pi_p4info_t *p4info) {
     item = (cJSON *) *header_type_json;
     item = cJSON_GetObjectItem(item, "fields");
     num_fields += cJSON_GetArraySize(item);
+    num_fields++;  // for valid field (see below)
   }
 
   PI_LOG_DEBUG("Number of fields found: %zu\n", num_fields);
@@ -131,6 +132,13 @@ static pi_status_t read_fields(cJSON *root, pi_p4info_t *p4info) {
     cJSON *field;
     cJSON_ArrayForEach(field, item) {
       const char *suffix = cJSON_GetArrayItem(field, 0)->valuestring;
+
+      //  just a safeguard, given how we handle validity
+      if (!strncmp("_valid", suffix, sizeof "_valid")) {
+        PI_LOG_ERROR("Fields cannot have name '_valid'");
+        return PI_STATUS_CONFIG_READER_ERROR;
+      }
+
       char fname[256];
       int n = snprintf(fname, sizeof(fname), "%s.%s", header_name, suffix);
       if (n <= 0 || (size_t) n >= sizeof(fname)) return PI_STATUS_BUFFER_ERROR;
@@ -138,7 +146,15 @@ static pi_status_t read_fields(cJSON *root, pi_p4info_t *p4info) {
       PI_LOG_DEBUG("Adding field '%s'\n", fname);
       pi_p4info_field_add(p4info, pi_make_field_id(id++), fname, bitwidth);
     }
-    num_fields += cJSON_GetArraySize(item);
+    // Adding a field to represent validity, don't know how temporary this is
+    {
+      char fname[256];
+      int n = snprintf(fname, sizeof(fname), "%s._valid", header_name);
+      if (n <= 0 || (size_t) n >= sizeof(fname)) return PI_STATUS_BUFFER_ERROR;
+      PI_LOG_DEBUG("Adding validity field '%s'\n", fname);
+      // 1 bit field
+      pi_p4info_field_add(p4info, pi_make_field_id(id++), fname, 1);
+    }
   }
 
   Word_t Rc_word;
@@ -148,14 +164,16 @@ static pi_status_t read_fields(cJSON *root, pi_p4info_t *p4info) {
 }
 
 static pi_p4info_match_type_t match_type_from_str(const char *type) {
+  if (!strncmp("valid", type, sizeof "valid"))
+    return PI_P4INFO_MATCH_TYPE_VALID;
   if (!strncmp("exact", type, sizeof "exact"))
     return PI_P4INFO_MATCH_TYPE_EXACT;
   if (!strncmp("lpm", type, sizeof "lpm"))
     return PI_P4INFO_MATCH_TYPE_LPM;
   if (!strncmp("ternary", type, sizeof "ternary"))
     return PI_P4INFO_MATCH_TYPE_TERNARY;
-  assert("unsupported match type");
-  return PI_P4INFO_MATCH_TYPE_EXACT;
+  assert(0 && "unsupported match type");
+  return PI_P4INFO_MATCH_TYPE_END;
 }
 
 static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
@@ -211,9 +229,16 @@ static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
         cJSON *target = cJSON_GetObjectItem(match_field, "target");
         if (!target) return PI_STATUS_CONFIG_READER_ERROR;
         char fname[256];
-        int n = snprintf(fname, sizeof(fname), "%s.%s",
-                         cJSON_GetArrayItem(target, 0)->valuestring,
-                         cJSON_GetArrayItem(target, 1)->valuestring);
+        const char *header_name;
+        const char *suffix;
+        if (match_type == PI_P4INFO_MATCH_TYPE_VALID) {
+          header_name = target->valuestring;
+          suffix = "_valid";
+        } else {
+          header_name = cJSON_GetArrayItem(target, 0)->valuestring;
+          suffix = cJSON_GetArrayItem(target, 1)->valuestring;
+        }
+        int n = snprintf(fname, sizeof(fname), "%s.%s", header_name, suffix);
         if (n <= 0 || (size_t) n >= sizeof(fname))
           return PI_STATUS_BUFFER_ERROR;
         pi_p4_id_t fid = pi_p4info_field_id_from_name(p4info, fname);

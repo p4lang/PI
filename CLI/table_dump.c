@@ -69,8 +69,6 @@ static void print_match_param_v(pi_p4_id_t f_id, pi_p4info_match_type_t mt,
   pi_netv_t fv;
   switch(mt) {
     case PI_P4INFO_MATCH_TYPE_VALID:
-      // TODO(antonin)
-      break;
     case PI_P4INFO_MATCH_TYPE_EXACT:
       pi_match_key_exact_get(match_key, f_id, &fv);
       print_hexstr(fv.v.ptr, fv.size);

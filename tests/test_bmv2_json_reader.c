@@ -17,6 +17,8 @@
 #include "PI/p4info.h"
 #include "utils/utils.h"
 
+#include "utils.h"
+
 #include <assert.h>
 #include <stdlib.h>
 
@@ -47,8 +49,6 @@ TEST(SimpleRouter, Base) {
                     pi_add_config(config, PI_CONFIG_TYPE_BMV2_JSON, &p4info));
   TEST_ASSERT_EQUAL_UINT(4u, pi_p4info_action_get_num(p4info));
   TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS, pi_destroy_config(p4info));
-  // FIXME(antonin)
-#undef free  // unity weirdness
   free(config);
 }
 
@@ -56,6 +56,56 @@ TEST_GROUP_RUNNER(SimpleRouter) {
   RUN_TEST_CASE(SimpleRouter, Base);
 }
 
+TEST_GROUP(ReadAndSerialize);
+
+TEST_SETUP(ReadAndSerialize) {
+  pi_init(256, NULL);
+}
+
+TEST_TEAR_DOWN(ReadAndSerialize) {
+  pi_destroy();
+}
+
+static void read_and_serialize(const char *path) {
+  pi_p4info_t *p4info;
+  char *config = read_file(path);
+  TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS,
+                    pi_add_config(config, PI_CONFIG_TYPE_BMV2_JSON, &p4info));
+
+  char *dump = pi_serialize_config(p4info, 0);
+  TEST_ASSERT_NOT_NULL(dump);
+
+  pi_p4info_t *p4info_new;
+  TEST_ASSERT_EQUAL(
+      PI_STATUS_SUCCESS,
+      pi_add_config(dump, PI_CONFIG_TYPE_NATIVE_JSON, &p4info_new));
+
+  char *dump_new = pi_serialize_config(p4info_new, 0);
+  TEST_ASSERT_NOT_NULL(dump_new);
+
+  TEST_ASSERT_TRUE(cmp_cJSON(dump, dump_new));
+
+  TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS, pi_destroy_config(p4info));
+  TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS, pi_destroy_config(p4info_new));
+  free(dump);
+  free(dump_new);
+  free(config);
+}
+
+TEST(ReadAndSerialize, SimpleRouter) {
+  read_and_serialize(TESTDATADIR "/" "simple_router.json");
+}
+
+TEST(ReadAndSerialize, Valid) {
+  read_and_serialize(TESTDATADIR "/" "valid.json");
+}
+
+TEST_GROUP_RUNNER(ReadAndSerialize) {
+  RUN_TEST_CASE(ReadAndSerialize, SimpleRouter);
+  RUN_TEST_CASE(ReadAndSerialize, Valid);
+}
+
 void test_bmv2_json_reader() {
   RUN_TEST_GROUP(SimpleRouter);
+  RUN_TEST_GROUP(ReadAndSerialize);
 }

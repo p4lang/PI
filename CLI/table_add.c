@@ -78,8 +78,12 @@ static int match_key_add_valid_field(pi_p4_id_t f_id, size_t f_bitwidth,
     if (*endptr != '\0') return 1;
     v = (res != 0);
   }
-  // TODO(antonin)
-  (void) v; (void) f_id; (void) mk;
+  pi_netv_t f_netv;
+  pi_status_t rc;
+  rc = pi_getnetv_u8(p4info, f_id, (uint8_t) v, &f_netv);
+  assert(rc == PI_STATUS_SUCCESS);
+  rc = pi_match_key_exact_set(mk, &f_netv);
+  assert(rc == PI_STATUS_SUCCESS);
   return 0;
 }
 

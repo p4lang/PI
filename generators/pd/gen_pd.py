@@ -146,7 +146,10 @@ def load_json(json_str):
     json_ = json_str
 
     for j_field in json_["fields"]:
-        f = Field(j_field["name"], j_field["id"], j_field["bitwidth"])
+        field_name = j_field["name"]
+        # a bit flaky, but that's how it is in the PD
+        field_name = field_name.replace("_valid", "valid")  # hack
+        f = Field(field_name, j_field["id"], j_field["bitwidth"])
 
     for j_action in json_["actions"]:
         action = Action(j_action["name"], j_action["id"])
@@ -170,12 +173,8 @@ def load_json(json_str):
         for j_key in j_table["match_fields"]:
             fid = j_key["id"]
             match_type = get_match_type(j_key["match_type"])
-            if match_type == MatchType.VALID:
-                # TODO(antonin)
-                assert(0)
-            else:
-                field_name, bitwidth = (FIELDS_BY_ID[fid].name,
-                                        FIELDS_BY_ID[fid].bitwidth)
+            field_name, bitwidth = (FIELDS_BY_ID[fid].name,
+                                    FIELDS_BY_ID[fid].bitwidth)
             table.key += [(field_name, match_type, bitwidth)]
 
 

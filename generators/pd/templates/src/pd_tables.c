@@ -69,8 +69,10 @@ static void build_key_${t_name} (
   rc = pi_match_key_ternary_set(mk, &netv_1, &netv_2);
   assert(rc == PI_STATUS_SUCCESS);
 //::     elif field_match_type == MatchType.VALID:
-  // TODO(antonin)
-  assert(0);
+  rc = pi_getnetv_u8(p4info, ${fid}, (uint8_t) (match_spec->${field_name} != 0), &netv_1);
+  assert(rc == PI_STATUS_SUCCESS);
+  rc = pi_match_key_exact_set(mk, &netv_1);
+  assert(rc == PI_STATUS_SUCCESS);
 //::     elif field_match_type == MatchType.RANGE:
   rc = pi_getnetv_ptr(p4info, ${fid}, (char *) &(match_spec->${field_name}_start), ${field_bw}, &netv_1);
   assert(rc == PI_STATUS_SUCCESS);

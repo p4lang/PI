@@ -1,0 +1,19 @@
+????
+Device selected successfully.
+????
+Entry was successfully added with handle 0.
+????
+Successfully retrieved 1 entrie(s).
+==========
+TABLE ENTRIES
+**********
+Dumping entry 0
+Match key:
+* ethernet._valid     : VALID     01
+* h1._valid           : VALID     00
+Action entry: noop - 
+==========
+Dumping default entry
+EMPTY
+==========
+????
