@@ -90,13 +90,15 @@ def main():
     if rand is None:
         fail_msg("Error when generating random port number")
     thrift_port = str(9090 + rand)
+    device_id = str(rand)
 
     rpc_path = "/tmp/pi_rpc_{}.ipc".format(rand)
     rpc_addr = "ipc://{}".format(rpc_path)
 
     # start simple_switch
     simple_switch_p = subprocess.Popen(
-        [sswitch_path, json_path, "--thrift-port", thrift_port],
+        [sswitch_path, json_path, "--thrift-port", thrift_port,
+         "--device-id", device_id],
         stdout=subprocess.PIPE)
 
     with_valgrind = (os.getenv("PI_TEST_WITH_VALGRIND") != None)

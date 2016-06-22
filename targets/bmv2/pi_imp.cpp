@@ -23,22 +23,26 @@
 
 #define NUM_DEVICES 256
 
+namespace pibmv2 {
+
 conn_mgr_t *conn_mgr_state = NULL;
 
 device_info_t device_info_state[NUM_DEVICES];
+
+}  // namespace pibmv2
 
 extern "C" {
 
 pi_status_t _pi_init(void *extra) {
   (void) extra;
-  memset(device_info_state, 0, sizeof(device_info_state));
-  conn_mgr_state = conn_mgr_create();
+  memset(pibmv2::device_info_state, 0, sizeof(pibmv2::device_info_state));
+  pibmv2::conn_mgr_state = pibmv2::conn_mgr_create();
   return PI_STATUS_SUCCESS;
 }
 
 pi_status_t _pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
                               pi_assign_extra_t *extra) {
-  device_info_t *d_info = get_device_info(dev_id);
+  pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_id);
   assert(!d_info->assigned);
   int rpc_port_num = -1;
   for (; !extra->end_of_extras; extra++) {
@@ -53,7 +57,7 @@ pi_status_t _pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
     }
   }
   if (rpc_port_num == -1) return PI_STATUS_MISSING_INIT_EXTRA_PARAM;
-  if (conn_mgr_client_init(conn_mgr_state, dev_id, rpc_port_num))
+  if (conn_mgr_client_init(pibmv2::conn_mgr_state, dev_id, rpc_port_num))
     return PI_STATUS_TARGET_TRANSPORT_ERROR;
   d_info->p4info = p4info;
   d_info->assigned = 1;
@@ -61,15 +65,15 @@ pi_status_t _pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
 }
 
 pi_status_t _pi_remove_device(pi_dev_id_t dev_id) {
-  device_info_t *d_info = get_device_info(dev_id);
+  pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_id);
   assert(d_info->assigned);
-  conn_mgr_client_close(conn_mgr_state, dev_id);
+  pibmv2::conn_mgr_client_close(pibmv2::conn_mgr_state, dev_id);
   d_info->assigned = 0;
   return PI_STATUS_SUCCESS;
 }
 
 pi_status_t _pi_destroy() {
-  conn_mgr_destroy(conn_mgr_state);
+  pibmv2::conn_mgr_destroy(pibmv2::conn_mgr_state);
   return PI_STATUS_SUCCESS;
 }
 

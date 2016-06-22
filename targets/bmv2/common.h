@@ -18,6 +18,8 @@
 
 #include <PI/pi.h>
 
+namespace pibmv2 {
+
 typedef struct {
   int assigned;
   const pi_p4info_t *p4info;
@@ -28,5 +30,7 @@ extern device_info_t device_info_state[];
 static inline device_info_t *get_device_info(size_t dev_id) {
   return &device_info_state[dev_id];
 }
+
+}  // namespace pibmv2
 
 #endif  // PI_BMV2_COMMON_H_

@@ -31,6 +31,8 @@ using namespace  ::bm_runtime::standard;
 using namespace  ::bm_runtime::simple_pre_lag;
 using namespace  ::sswitch_runtime;
 
+namespace pibmv2 {
+
 struct Client {
   StandardClient *c;
   std::unique_lock<std::mutex> _lock;
@@ -57,5 +59,7 @@ SSwitchClient conn_mgr_sswitch_client(conn_mgr_t *, int dev_id);
 
 int conn_mgr_client_init(conn_mgr_t *, int dev_id, int thrift_port_num);
 int conn_mgr_client_close(conn_mgr_t *, int dev_id);
+
+}  // namespace pibmv2
 
 #endif  // PI_BMV2_CONN_MGR_H_

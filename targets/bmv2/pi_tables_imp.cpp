@@ -27,8 +27,11 @@
 
 #include <cstring>
 
+namespace pibmv2 {
+
 extern conn_mgr_t *conn_mgr_state;
-extern int *my_devices;
+
+}  // namespace pibmv2
 
 namespace {
 
@@ -175,7 +178,7 @@ pi_status_t _pi_table_entry_add(const pi_dev_tgt_t dev_tgt,
                                 pi_entry_handle_t *entry_handle) {
   (void) overwrite;  // TODO
 
-  device_info_t *d_info = get_device_info(dev_tgt.dev_id);
+  pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_tgt.dev_id);
   assert(d_info->assigned);
   const pi_p4info_t *p4info = d_info->p4info;
 
@@ -200,7 +203,7 @@ pi_status_t _pi_table_entry_add(const pi_dev_tgt_t dev_tgt,
   std::string a_name(
       pi_p4info_action_name_from_id(p4info, table_entry->action_id));
 
-  auto client = conn_mgr_client(conn_mgr_state, dev_tgt.dev_id);
+  auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_tgt.dev_id);
 
   try {
     *entry_handle = client.c->bm_mt_add_entry(
@@ -221,7 +224,7 @@ pi_status_t _pi_table_entry_add(const pi_dev_tgt_t dev_tgt,
 pi_status_t _pi_table_default_action_set(const pi_dev_tgt_t dev_tgt,
                                          const pi_p4_id_t table_id,
                                          const pi_table_entry_t *table_entry) {
-  device_info_t *d_info = get_device_info(dev_tgt.dev_id);
+  pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_tgt.dev_id);
   assert(d_info->assigned);
   const pi_p4info_t *p4info = d_info->p4info;
 
@@ -238,7 +241,7 @@ pi_status_t _pi_table_default_action_set(const pi_dev_tgt_t dev_tgt,
   std::string a_name(
       pi_p4info_action_name_from_id(p4info, table_entry->action_id));
 
-  auto client = conn_mgr_client(conn_mgr_state, dev_tgt.dev_id);
+  auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_tgt.dev_id);
 
   try {
     client.c->bm_mt_set_default_action(0, t_name, a_name, action_data);
@@ -256,7 +259,7 @@ pi_status_t _pi_table_default_action_set(const pi_dev_tgt_t dev_tgt,
 pi_status_t _pi_table_default_action_get(const pi_dev_id_t dev_id,
                                          const pi_p4_id_t table_id,
                                          pi_table_entry_t *table_entry) {
-  device_info_t *d_info = get_device_info(dev_id);
+  pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_id);
   assert(d_info->assigned);
   const pi_p4info_t *p4info = d_info->p4info;
 
@@ -264,7 +267,7 @@ pi_status_t _pi_table_default_action_get(const pi_dev_id_t dev_id,
 
   BmActionEntry entry;
   try {
-    conn_mgr_client(conn_mgr_state, dev_id).c->bm_mt_get_default_entry(
+    conn_mgr_client(pibmv2::conn_mgr_state, dev_id).c->bm_mt_get_default_entry(
         entry, 0, t_name);
   } catch (InvalidTableOperation &ito) {
     const char *what =
@@ -312,13 +315,13 @@ pi_status_t _pi_table_default_action_done(pi_table_entry_t *table_entry) {
 pi_status_t _pi_table_entry_delete(const pi_dev_id_t dev_id,
                                    const pi_p4_id_t table_id,
                                    const pi_entry_handle_t entry_handle) {
-  device_info_t *d_info = get_device_info(dev_id);
+  pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_id);
   assert(d_info->assigned);
   const pi_p4info_t *p4info = d_info->p4info;
 
   std::string t_name(pi_p4info_table_name_from_id(p4info, table_id));
 
-  auto client = conn_mgr_client(conn_mgr_state, dev_id);
+  auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_id);
 
   try {
     client.c->bm_mt_delete_entry(0, t_name, entry_handle);
@@ -337,7 +340,7 @@ pi_status_t _pi_table_entry_modify(const pi_dev_id_t dev_id,
                                    const pi_p4_id_t table_id,
                                    const pi_entry_handle_t entry_handle,
                                    const pi_table_entry_t *table_entry) {
-  device_info_t *d_info = get_device_info(dev_id);
+  pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_id);
   assert(d_info->assigned);
   const pi_p4info_t *p4info = d_info->p4info;
 
@@ -347,7 +350,7 @@ pi_status_t _pi_table_entry_modify(const pi_dev_id_t dev_id,
   std::string a_name(
       pi_p4info_action_name_from_id(p4info, table_entry->action_id));
 
-  auto client = conn_mgr_client(conn_mgr_state, dev_id);
+  auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_id);
 
   try {
     client.c->bm_mt_modify_entry(0, t_name, entry_handle, a_name, action_data);
@@ -365,7 +368,7 @@ pi_status_t _pi_table_entry_modify(const pi_dev_id_t dev_id,
 pi_status_t _pi_table_entries_fetch(const pi_dev_id_t dev_id,
                                     const pi_p4_id_t table_id,
                                     pi_table_fetch_res_t *res) {
-  device_info_t *d_info = get_device_info(dev_id);
+  pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_id);
   assert(d_info->assigned);
   const pi_p4info_t *p4info = d_info->p4info;
 
@@ -373,7 +376,7 @@ pi_status_t _pi_table_entries_fetch(const pi_dev_id_t dev_id,
 
   std::vector<BmMtEntry> entries;
   try {
-    conn_mgr_client(conn_mgr_state, dev_id).c->bm_mt_get_entries(
+    conn_mgr_client(pibmv2::conn_mgr_state, dev_id).c->bm_mt_get_entries(
         entries, 0, t_name);
   } catch (InvalidTableOperation &ito) {
     const char *what =

@@ -27,6 +27,8 @@
 
 #include "conn_mgr.h"
 
+namespace pibmv2 {
+
 #define NUM_DEVICES 256
 
 using namespace ::apache::thrift;
@@ -118,3 +120,5 @@ SSwitchClient conn_mgr_sswitch_client(conn_mgr_t *conn_mgr_state, int dev_id) {
   auto &state = conn_mgr_state->clients[dev_id];
   return {state.sswitch_client, std::unique_lock<std::mutex>(state.mutex)};
 }
+
+}  // namespace pibmv2

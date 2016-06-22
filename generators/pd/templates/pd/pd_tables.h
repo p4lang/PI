@@ -21,7 +21,8 @@
 #ifndef _P4_PD_TABLES_H_
 #define _P4_PD_TABLES_H_
 
-#include "pd/_pd_common_tmp.h"
+#include <bm/pdfixed/pd_common.h>
+
 #include "pd_types.h"
 
 #ifdef __cplusplus
