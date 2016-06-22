@@ -253,7 +253,7 @@ def gen_action_params(runtime_data):
     for name, bitwidth in runtime_data:
         # for some reason, I was prefixing everything with "action_" originally
         name = "action_" + name
-        params += [(name, bitwidth)]
+        params += [(name, bits_to_bytes(bitwidth))]
     return params
 
 
