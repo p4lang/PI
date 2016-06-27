@@ -223,7 +223,7 @@ ${name}
   pi_table_entry_t t_entry = {${a.id_}, adata, &entry_properties, NULL};
   pi_status_t rc;
   pi_entry_handle_t handle = 0;
-  rc = pi_table_entry_add(convert_dev_tgt(dev_tgt),
+  rc = pi_table_entry_add(sess_hdl, convert_dev_tgt(dev_tgt),
                           ${t.id_}, mk, &t_entry, 0, &handle);
   if (rc == PI_STATUS_SUCCESS) *entry_hdl = handle;
   pi_match_key_destroy(mk);
@@ -290,7 +290,7 @@ ${name}
  p4_pd_entry_hdl_t entry_hdl
 ) {
   pi_status_t rc;
-  rc = pi_table_entry_delete(dev_id, ${t.id_}, entry_hdl);
+  rc = pi_table_entry_delete(sess_hdl, dev_id, ${t.id_}, entry_hdl);
   return rc;
 }
 
@@ -327,7 +327,7 @@ ${name}
 //::     #endif
   pi_table_entry_t t_entry = {${a.id_}, adata, NULL, NULL};
   pi_status_t rc;
-  rc = pi_table_entry_modify(dev_id, ${t.id_}, entry_hdl, &t_entry);
+  rc = pi_table_entry_modify(sess_hdl, dev_id, ${t.id_}, entry_hdl, &t_entry);
   pi_action_data_destroy(adata);
   return rc;
 }
@@ -367,7 +367,7 @@ ${name}
 //::     #endif
   pi_table_entry_t t_entry = {${a.id_}, adata, NULL, NULL};
   pi_status_t rc;
-  rc = pi_table_default_action_set(convert_dev_tgt(dev_tgt),
+  rc = pi_table_default_action_set(sess_hdl, convert_dev_tgt(dev_tgt),
                                    ${t.id_}, &t_entry);
   pi_action_data_destroy(adata);
   return rc;

@@ -53,6 +53,10 @@ size_t emit_status(char *dst, pi_status_t v) {
   return emit_uint32(dst, v);
 }
 
+size_t emit_session_handle(char *dst, pi_session_handle_t v) {
+  return emit_uint32(dst, v);
+}
+
 size_t retrieve_uint32(const char *src, uint32_t *v) {
   memcpy(v, src, sizeof(*v));
   return sizeof(*v);
@@ -88,5 +92,9 @@ size_t retrieve_dev_tgt(const char *src, pi_dev_tgt_t *v) {
 }
 
 size_t retrieve_status(const char *src, pi_status_t *v) {
+  return retrieve_uint32(src, v);
+}
+
+size_t retrieve_session_handle(const char *src, pi_session_handle_t *v) {
   return retrieve_uint32(src, v);
 }

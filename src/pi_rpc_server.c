@@ -185,10 +185,42 @@ static void __pi_destroy(char *req) {
   send_status(_pi_destroy());
 }
 
+static void __pi_session_init(char *req) {
+  printf("RPC: _pi_session_init\n");
+
+  (void) req;
+
+  pi_session_handle_t sess = 0;
+  pi_status_t status = _pi_session_init(&sess);
+
+  typedef struct __attribute__((packed)) {
+    rep_hdr_t hdr;
+    s_pi_session_handle_t h;
+  } rep_t;
+  rep_t rep;
+  char *rep_ = (char *) &rep;
+  rep_ += emit_rep_hdr(rep_, status);
+  rep_ += emit_session_handle(rep_, sess);
+
+  int bytes = nn_send(state.s, &rep, sizeof(rep), 0);
+  assert(bytes == sizeof(rep));
+}
+
+static void __pi_session_cleanup(char *req) {
+  printf("RPC: _pi_session_cleanup\n");
+
+  pi_session_handle_t sess;
+  req += retrieve_session_handle(req, &sess);
+
+  send_status(_pi_session_cleanup(sess));
+}
+
 static void __pi_table_entry_add(char *req) {
   printf("RPC: _pi_table_entry_add\n");
 
   // TODO(antonin): find a way to take care of p4info for mk and ad
+  pi_session_handle_t sess;
+  req += retrieve_session_handle(req, &sess);
   pi_dev_tgt_t dev_tgt;
   req += retrieve_dev_tgt(req, &dev_tgt);
   pi_p4_id_t table_id;
@@ -213,7 +245,7 @@ static void __pi_table_entry_add(char *req) {
   req += retrieve_uint32(req, &overwrite);
 
   pi_entry_handle_t entry_handle;
-  pi_status_t status = _pi_table_entry_add(dev_tgt, table_id, &match_key,
+  pi_status_t status = _pi_table_entry_add(sess, dev_tgt, table_id, &match_key,
                                            &table_entry, overwrite,
                                            &entry_handle);
 
@@ -234,6 +266,8 @@ static void __pi_table_default_action_set(char *req) {
   printf("RPC: _pi_table_default_action_set\n");
 
   // TODO(antonin): find a way to take care of p4info for ad
+  pi_session_handle_t sess;
+  req += retrieve_session_handle(req, &sess);
   pi_dev_tgt_t dev_tgt;
   req += retrieve_dev_tgt(req, &dev_tgt);
   pi_p4_id_t table_id;
@@ -245,21 +279,23 @@ static void __pi_table_default_action_set(char *req) {
   table_entry.action_data->p4info = NULL;  // TODO(antonin)
   req += retrieve_table_entry(req, &table_entry, 0);
 
-  pi_status_t status =_pi_table_default_action_set(dev_tgt, table_id,
-                                                   &table_entry);
+  pi_status_t status = _pi_table_default_action_set(sess, dev_tgt, table_id,
+                                                    &table_entry);
   send_status(status);
 }
 
 static void __pi_table_default_action_get(char *req) {
   printf("RPC: _pi_table_default_action_get\n");
 
+  pi_session_handle_t sess;
+  req += retrieve_session_handle(req, &sess);
   pi_dev_id_t dev_id;
   req += retrieve_dev_id(req, &dev_id);
   pi_p4_id_t table_id;
   req += retrieve_p4_id(req, &table_id);
 
   pi_table_entry_t default_entry;
-  pi_status_t status = _pi_table_default_action_get(dev_id, table_id,
+  pi_status_t status = _pi_table_default_action_get(sess, dev_id, table_id,
                                                     &default_entry);
 
   size_t s = 0;
@@ -272,7 +308,7 @@ static void __pi_table_default_action_get(char *req) {
   rep_ += emit_table_entry(rep_, &default_entry);
 
   // release target memory
-  _pi_table_default_action_done(&default_entry);
+  _pi_table_default_action_done(sess, &default_entry);
 
   // make sure I have copied exactly the right amount
   assert((size_t) (rep_ - rep) == s);
@@ -284,6 +320,8 @@ static void __pi_table_default_action_get(char *req) {
 static void __pi_table_entry_delete(char *req) {
   printf("RPC: _pi_table_entry_delete\n");
 
+  pi_session_handle_t sess;
+  req += retrieve_session_handle(req, &sess);
   pi_dev_id_t dev_id;
   req += retrieve_dev_id(req, &dev_id);
   pi_p4_id_t table_id;
@@ -291,13 +329,15 @@ static void __pi_table_entry_delete(char *req) {
   pi_entry_handle_t h;
   req += retrieve_entry_handle(req, &h);
 
-  send_status(_pi_table_entry_delete(dev_id, table_id, h));
+  send_status(_pi_table_entry_delete(sess, dev_id, table_id, h));
 }
 
 static void __pi_table_entry_modify(char *req) {
   printf("RPC: _pi_table_entry_modify\n");
 
   // TODO(antonin): find a way to take care of p4info for mk and ad
+  pi_session_handle_t sess;
+  req += retrieve_session_handle(req, &sess);
   pi_dev_id_t dev_id;
   req += retrieve_dev_id(req, &dev_id);
   pi_p4_id_t table_id;
@@ -311,19 +351,21 @@ static void __pi_table_entry_modify(char *req) {
   table_entry.action_data->p4info = NULL;  // TODO(antonin)
   req += retrieve_table_entry(req, &table_entry, 0);
 
-  send_status(_pi_table_entry_modify(dev_id, table_id, h, &table_entry));
+  send_status(_pi_table_entry_modify(sess, dev_id, table_id, h, &table_entry));
 }
 
 static void __pi_table_entries_fetch(char *req) {
   printf("RPC: _pi_table_entries_fetch\n");
 
+  pi_session_handle_t sess;
+  req += retrieve_session_handle(req, &sess);
   pi_dev_id_t dev_id;
   req += retrieve_dev_id(req, &dev_id);
   pi_p4_id_t table_id;
   req += retrieve_p4_id(req, &table_id);
 
   pi_table_fetch_res_t res;
-  pi_status_t status = _pi_table_entries_fetch(dev_id, table_id, &res);
+  pi_status_t status = _pi_table_entries_fetch(sess, dev_id, table_id, &res);
 
   if (status != PI_STATUS_SUCCESS) {
     send_status(status);
@@ -347,7 +389,7 @@ static void __pi_table_entries_fetch(char *req) {
   rep_ += res.entries_size;
 
   // release target memory
-  _pi_table_entries_fetch_done(&res);
+  _pi_table_entries_fetch_done(sess, &res);
 
   // make sure I have copied exactly the right amount
   assert((size_t) (rep_ - rep) == s);
@@ -388,6 +430,10 @@ pi_status_t pi_rpc_server_run(char *rpc_addr) {
         __pi_remove_device(req_); break;
       case PI_RPC_DESTROY:
         __pi_destroy(req_); break;
+      case PI_RPC_SESSION_INIT:
+        __pi_session_init(req_); break;
+      case PI_RPC_SESSION_CLEANUP:
+        __pi_session_cleanup(req_); break;
       case PI_RPC_TABLE_ENTRY_ADD:
         __pi_table_entry_add(req_); break;
       case PI_RPC_TABLE_DEFAULT_ACTION_SET:

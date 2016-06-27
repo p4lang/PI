@@ -231,7 +231,7 @@ pi_cli_status_t do_table_add(char *subcmd) {
   pi_table_entry_t t_entry = {a_id, adata, &entry_properties, NULL};
   pi_entry_handle_t handle = 0;
   pi_status_t rc;
-  rc = pi_table_entry_add(dev_tgt, t_id, mk, &t_entry, 0, &handle);
+  rc = pi_table_entry_add(sess, dev_tgt, t_id, mk, &t_entry, 0, &handle);
   if (rc == PI_STATUS_SUCCESS)
     printf("Entry was successfully added with handle %" PRIu64 ".\n", handle);
   else

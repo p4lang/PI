@@ -106,7 +106,8 @@ class ActionData {
 // TODO(antonin): handle device id / pipleline mask
 class MatchTable {
  public:
-  MatchTable(const pi_p4info_t *p4info, pi_p4_id_t table_id);
+  MatchTable(pi_session_handle_t sess, const pi_p4info_t *p4info,
+             pi_p4_id_t table_id);
 
   error_code_t entry_add(const MatchKey &match_key, pi_p4_id_t action_id,
                          const ActionData &action_data, bool overwrite,
@@ -117,6 +118,7 @@ class MatchTable {
   // many more APIs
 
  private:
+  pi_session_handle_t sess;
   const pi_p4info_t *p4info;
   pi_p4_id_t table_id;
 };

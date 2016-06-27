@@ -54,7 +54,7 @@ pi_cli_status_t do_table_set_default(char *subcmd) {
 
   pi_table_entry_t t_entry = {a_id, adata, NULL, NULL};
   pi_status_t rc;
-  rc = pi_table_default_action_set(dev_tgt, t_id, &t_entry);
+  rc = pi_table_default_action_set(sess, dev_tgt, t_id, &t_entry);
   if (rc == PI_STATUS_SUCCESS)
     printf("Default entry was successfully set.\n");
   else

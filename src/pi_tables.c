@@ -53,54 +53,65 @@ bool pi_entry_properties_is_set(const pi_entry_properties_t *properties,
   return properties->valid_properties & (1 << property_type);
 }
 
-pi_status_t pi_table_entry_add(const pi_dev_tgt_t dev_tgt,
-                               const pi_p4_id_t table_id,
+pi_status_t pi_table_entry_add(pi_session_handle_t session_handle,
+                               pi_dev_tgt_t dev_tgt,
+                               pi_p4_id_t table_id,
                                const pi_match_key_t *match_key,
                                const pi_table_entry_t *table_entry,
-                               const int overwrite,
+                               int overwrite,
                                pi_entry_handle_t *entry_handle) {
-  return _pi_table_entry_add(dev_tgt, table_id, match_key, table_entry,
-                             overwrite, entry_handle);
+  return _pi_table_entry_add(session_handle, dev_tgt, table_id, match_key,
+                             table_entry, overwrite, entry_handle);
 }
 
-pi_status_t pi_table_default_action_set(const pi_dev_tgt_t dev_tgt,
-                                        const pi_p4_id_t table_id,
+pi_status_t pi_table_default_action_set(pi_session_handle_t session_handle,
+                                        pi_dev_tgt_t dev_tgt,
+                                        pi_p4_id_t table_id,
                                         const pi_table_entry_t *table_entry) {
-  return _pi_table_default_action_set(dev_tgt, table_id, table_entry);
+  return _pi_table_default_action_set(session_handle, dev_tgt, table_id,
+                                      table_entry);
 }
 
-pi_status_t pi_table_default_action_get(const pi_dev_id_t dev_id,
-                                        const pi_p4_id_t table_id,
+pi_status_t pi_table_default_action_get(pi_session_handle_t session_handle,
+                                        pi_dev_id_t dev_id,
+                                        pi_p4_id_t table_id,
                                         pi_table_entry_t *table_entry) {
   pi_status_t status;
-  status = _pi_table_default_action_get(dev_id, table_id, table_entry);
-  if (status == PI_STATUS_SUCCESS)
+  status = _pi_table_default_action_get(session_handle, dev_id, table_id,
+                                        table_entry);
+  if (status == PI_STATUS_SUCCESS && table_entry->action_id != PI_INVALID_ID)
     table_entry->action_data->p4info = pi_get_device_p4info(dev_id);
   return status;
 }
 
-pi_status_t pi_table_default_action_done(pi_table_entry_t *table_entry) {
-  return _pi_table_default_action_done(table_entry);
+pi_status_t pi_table_default_action_done(pi_session_handle_t session_handle,
+                                         pi_table_entry_t *table_entry) {
+  return _pi_table_default_action_done(session_handle, table_entry);
 }
 
-pi_status_t pi_table_entry_delete(const pi_dev_id_t dev_id,
-                                  const pi_p4_id_t table_id,
-                                  const pi_entry_handle_t entry_handle) {
-  return _pi_table_entry_delete(dev_id, table_id, entry_handle);
+pi_status_t pi_table_entry_delete(pi_session_handle_t session_handle,
+                                  pi_dev_id_t dev_id,
+                                  pi_p4_id_t table_id,
+                                  pi_entry_handle_t entry_handle) {
+  return _pi_table_entry_delete(session_handle, dev_id, table_id, entry_handle);
 }
 
-pi_status_t pi_table_entry_modify(const pi_dev_id_t dev_id,
-                                  const pi_p4_id_t table_id,
-                                  const pi_entry_handle_t entry_handle,
+pi_status_t pi_table_entry_modify(pi_session_handle_t session_handle,
+                                  pi_dev_id_t dev_id,
+                                  pi_p4_id_t table_id,
+                                  pi_entry_handle_t entry_handle,
                                   const pi_table_entry_t *table_entry) {
-  return _pi_table_entry_modify(dev_id, table_id, entry_handle, table_entry);
+  return _pi_table_entry_modify(session_handle, dev_id, table_id, entry_handle,
+                                table_entry);
 }
 
-pi_status_t pi_table_entries_fetch(const pi_dev_id_t dev_id,
-                                   const pi_p4_id_t table_id,
+pi_status_t pi_table_entries_fetch(pi_session_handle_t session_handle,
+                                   pi_dev_id_t dev_id,
+                                   pi_p4_id_t table_id,
                                    pi_table_fetch_res_t **res) {
   pi_table_fetch_res_t *res_ = malloc(sizeof(pi_table_fetch_res_t));
-  pi_status_t status = _pi_table_entries_fetch(dev_id, table_id, res_);
+  pi_status_t status = _pi_table_entries_fetch(session_handle, dev_id, table_id,
+                                               res_);
   res_->p4info = pi_get_device_p4info(dev_id);
   res_->table_id = table_id;
   res_->idx = 0;
@@ -113,8 +124,9 @@ pi_status_t pi_table_entries_fetch(const pi_dev_id_t dev_id,
   return status;
 }
 
-pi_status_t pi_table_entries_fetch_done(pi_table_fetch_res_t *res) {
-  pi_status_t status = _pi_table_entries_fetch_done(res);
+pi_status_t pi_table_entries_fetch_done(pi_session_handle_t session_handle,
+                                        pi_table_fetch_res_t *res) {
+  pi_status_t status = _pi_table_entries_fetch_done(session_handle, res);
   if (status != PI_STATUS_SUCCESS) return status;
 
   assert(res->match_keys);

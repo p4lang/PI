@@ -270,6 +270,48 @@ pi_status_t _pi_destroy() {
   return wait_for_status(req_id);
 }
 
+pi_status_t _pi_session_init(pi_session_handle_t *session_handle) {
+  if (!state.init) return PI_STATUS_RPC_NOT_INIT;
+
+  req_hdr_t req;
+  pi_rpc_id_t req_id = state.req_id++;
+  emit_req_hdr((char *) &req, req_id, PI_RPC_SESSION_INIT);
+
+  int rc = nn_send(state.s, (char *) &req, sizeof(req), 0);
+  if (rc != sizeof(req)) return PI_STATUS_RPC_TRANSPORT_ERROR;
+
+  typedef struct __attribute__((packed)) {
+    rep_hdr_t hdr;
+    s_pi_session_handle_t h;
+  } rep_t;
+  rep_t rep;
+  rc = nn_recv(state.s, &rep, sizeof(rep), 0);
+  if (rc != sizeof(rep)) return PI_STATUS_RPC_TRANSPORT_ERROR;
+  pi_status_t status = retrieve_rep_hdr((char *) &rep, req_id);
+  // condition on success?
+  retrieve_session_handle((char *) &rep.h, session_handle);
+  return status;
+}
+
+pi_status_t _pi_session_cleanup(pi_session_handle_t session_handle) {
+  if (!state.init) return PI_STATUS_RPC_NOT_INIT;
+
+  typedef struct __attribute__((packed)) {
+    req_hdr_t hdr;
+    s_pi_session_handle_t h;
+  } req_t;
+  req_t req;
+  char *req_ = (char *) &req;
+  pi_rpc_id_t req_id = state.req_id++;
+  req_ += emit_req_hdr(req_, req_id, PI_RPC_SESSION_CLEANUP);
+  req_ += emit_session_handle(req_, session_handle);
+
+  int rc = nn_send(state.s, &req, sizeof(req), 0);
+  if (rc != sizeof(req)) return PI_STATUS_RPC_TRANSPORT_ERROR;
+
+  return wait_for_status(req_id);
+}
+
 
 // Tables
 
@@ -288,16 +330,18 @@ static pi_status_t wait_for_handle(uint32_t req_id,
   return status;
 }
 
-pi_status_t _pi_table_entry_add(const pi_dev_tgt_t dev_tgt,
-                                const pi_p4_id_t table_id,
+pi_status_t _pi_table_entry_add(pi_session_handle_t session_handle,
+                                pi_dev_tgt_t dev_tgt,
+                                pi_p4_id_t table_id,
                                 const pi_match_key_t *match_key,
                                 const pi_table_entry_t *table_entry,
-                                const int overwrite,
+                                int overwrite,
                                 pi_entry_handle_t *entry_handle) {
   if (!state.init) return PI_STATUS_RPC_NOT_INIT;
 
   size_t s = 0;
   s += sizeof(req_hdr_t);
+  s += sizeof(s_pi_session_handle_t);
   s += sizeof(s_pi_dev_tgt_t);
   s += sizeof(s_pi_p4_id_t);  // table_id
   s += sizeof(uint32_t) + match_key->data_size;  // match key with size
@@ -308,6 +352,7 @@ pi_status_t _pi_table_entry_add(const pi_dev_tgt_t dev_tgt,
   char *req_ = req;
   pi_rpc_id_t req_id = state.req_id++;
   req_ += emit_req_hdr(req_, req_id, PI_RPC_TABLE_ENTRY_ADD);
+  req_ += emit_session_handle(req_, session_handle);
   req_ += emit_dev_tgt(req_, dev_tgt);
   req_ += emit_p4_id(req_, table_id);
   req_ += emit_uint32(req_, match_key->data_size);
@@ -325,13 +370,15 @@ pi_status_t _pi_table_entry_add(const pi_dev_tgt_t dev_tgt,
   return wait_for_handle(req_id, entry_handle);
 }
 
-pi_status_t _pi_table_default_action_set(const pi_dev_tgt_t dev_tgt,
-                                         const pi_p4_id_t table_id,
+pi_status_t _pi_table_default_action_set(pi_session_handle_t session_handle,
+                                         pi_dev_tgt_t dev_tgt,
+                                         pi_p4_id_t table_id,
                                          const pi_table_entry_t *table_entry) {
   if (!state.init) return PI_STATUS_RPC_NOT_INIT;
 
   size_t s = 0;
   s += sizeof(req_hdr_t);
+  s += sizeof(s_pi_session_handle_t);
   s += sizeof(s_pi_dev_tgt_t);
   s += sizeof(s_pi_p4_id_t);  // table_id
   s += table_entry_size(table_entry);
@@ -340,6 +387,7 @@ pi_status_t _pi_table_default_action_set(const pi_dev_tgt_t dev_tgt,
   char *req_ = req;
   pi_rpc_id_t req_id = state.req_id++;
   req_ += emit_req_hdr(req_, req_id, PI_RPC_TABLE_DEFAULT_ACTION_SET);
+  req_ += emit_session_handle(req_, session_handle);
   req_ += emit_dev_tgt(req_, dev_tgt);
   req_ += emit_p4_id(req_, table_id);
   req_ += emit_table_entry(req_, table_entry);
@@ -353,13 +401,15 @@ pi_status_t _pi_table_default_action_set(const pi_dev_tgt_t dev_tgt,
   return wait_for_status(req_id);
 }
 
-pi_status_t _pi_table_default_action_get(const pi_dev_id_t dev_id,
-                                         const pi_p4_id_t table_id,
+pi_status_t _pi_table_default_action_get(pi_session_handle_t session_handle,
+                                         pi_dev_id_t dev_id,
+                                         pi_p4_id_t table_id,
                                          pi_table_entry_t *table_entry) {
   if (!state.init) return PI_STATUS_RPC_NOT_INIT;
 
   typedef struct __attribute__((packed)) {
     req_hdr_t hdr;
+    s_pi_session_handle_t sess;
     s_pi_dev_id_t dev_id;
     s_pi_p4_id_t table_id;
   } req_t;
@@ -367,6 +417,7 @@ pi_status_t _pi_table_default_action_get(const pi_dev_id_t dev_id,
   char *req_ = (char *) &req;
   pi_rpc_id_t req_id = state.req_id++;
   req_ += emit_req_hdr(req_, req_id, PI_RPC_TABLE_DEFAULT_ACTION_GET);
+  req_ += emit_session_handle(req_, session_handle);
   req_ += emit_dev_id(req_, dev_id);
   req_ += emit_p4_id(req_, table_id);
 
@@ -393,19 +444,23 @@ pi_status_t _pi_table_default_action_get(const pi_dev_id_t dev_id,
   return status;
 }
 
-pi_status_t _pi_table_default_action_done(pi_table_entry_t *table_entry) {
+pi_status_t _pi_table_default_action_done(pi_session_handle_t session_handle,
+                                          pi_table_entry_t *table_entry) {
+  (void) session_handle;
   // release memory allocated in retrieve_table_entry
   free(table_entry->action_data);
   return PI_STATUS_SUCCESS;
 }
 
-pi_status_t _pi_table_entry_delete(const pi_dev_id_t dev_id,
-                                   const pi_p4_id_t table_id,
-                                   const pi_entry_handle_t entry_handle) {
+pi_status_t _pi_table_entry_delete(pi_session_handle_t session_handle,
+                                   pi_dev_id_t dev_id,
+                                   pi_p4_id_t table_id,
+                                   pi_entry_handle_t entry_handle) {
   if (!state.init) return PI_STATUS_RPC_NOT_INIT;
 
   typedef struct __attribute__((packed)) {
     req_hdr_t hdr;
+    s_pi_session_handle_t sess;
     s_pi_dev_id_t dev_id;
     s_pi_p4_id_t table_id;
     s_pi_entry_handle_t h;
@@ -414,6 +469,7 @@ pi_status_t _pi_table_entry_delete(const pi_dev_id_t dev_id,
   char *req_ = (char *) &req;
   pi_rpc_id_t req_id = state.req_id++;
   req_ += emit_req_hdr(req_, req_id, PI_RPC_TABLE_ENTRY_DELETE);
+  req_ += emit_session_handle(req_, session_handle);
   req_ += emit_dev_id(req_, dev_id);
   req_ += emit_p4_id(req_, table_id);
   req_ += emit_entry_handle(req_, entry_handle);
@@ -424,14 +480,16 @@ pi_status_t _pi_table_entry_delete(const pi_dev_id_t dev_id,
   return wait_for_status(req_id);
 }
 
-pi_status_t _pi_table_entry_modify(const pi_dev_id_t dev_id,
-                                   const pi_p4_id_t table_id,
-                                   const pi_entry_handle_t entry_handle,
+pi_status_t _pi_table_entry_modify(pi_session_handle_t session_handle,
+                                   pi_dev_id_t dev_id,
+                                   pi_p4_id_t table_id,
+                                   pi_entry_handle_t entry_handle,
                                    const pi_table_entry_t *table_entry) {
   if (!state.init) return PI_STATUS_RPC_NOT_INIT;
 
   size_t s = 0;
   s += sizeof(req_hdr_t);
+  s += sizeof(s_pi_session_handle_t);
   s += sizeof(s_pi_dev_id_t);  // dev_id
   s += sizeof(s_pi_p4_id_t);  // table_id
   s += sizeof(s_pi_entry_handle_t);  // handle
@@ -441,6 +499,7 @@ pi_status_t _pi_table_entry_modify(const pi_dev_id_t dev_id,
   char *req_ = req;
   pi_rpc_id_t req_id = state.req_id++;
   req_ += emit_req_hdr(req_, req_id, PI_RPC_TABLE_ENTRY_MODIFY);
+  req_ += emit_session_handle(req_, session_handle);
   req_ += emit_dev_id(req_, dev_id);
   req_ += emit_p4_id(req_, table_id);
   req_ += emit_entry_handle(req_, entry_handle);
@@ -455,13 +514,15 @@ pi_status_t _pi_table_entry_modify(const pi_dev_id_t dev_id,
   return wait_for_status(req_id);
 }
 
-pi_status_t _pi_table_entries_fetch(const pi_dev_id_t dev_id,
-                                    const pi_p4_id_t table_id,
+pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
+                                    pi_dev_id_t dev_id,
+                                    pi_p4_id_t table_id,
                                     pi_table_fetch_res_t *res) {
   if (!state.init) return PI_STATUS_RPC_NOT_INIT;
 
   typedef struct __attribute__((packed)) {
     req_hdr_t hdr;
+    s_pi_session_handle_t sess;
     s_pi_dev_id_t dev_id;
     s_pi_p4_id_t table_id;
   } req_t;
@@ -469,6 +530,7 @@ pi_status_t _pi_table_entries_fetch(const pi_dev_id_t dev_id,
   char *req_ = (char *) &req;
   pi_rpc_id_t req_id = state.req_id++;
   req_ += emit_req_hdr(req_, req_id, PI_RPC_TABLE_ENTRIES_FETCH);
+  req_ += emit_session_handle(req_, session_handle);
   req_ += emit_dev_id(req_, dev_id);
   req_ += emit_p4_id(req_, table_id);
 
@@ -502,7 +564,9 @@ pi_status_t _pi_table_entries_fetch(const pi_dev_id_t dev_id,
   return status;
 }
 
-pi_status_t _pi_table_entries_fetch_done(pi_table_fetch_res_t *res) {
+pi_status_t _pi_table_entries_fetch_done(pi_session_handle_t session_handle,
+                                         pi_table_fetch_res_t *res) {
+  (void) session_handle;
   free(res->entries);
   return PI_STATUS_SUCCESS;
 }

@@ -34,6 +34,7 @@ static pi_match_key_t *mkey_ipv4_lpm = NULL;
 static pi_action_data_t *adata_set_nhop = NULL;
 
 static pi_dev_tgt_t dev_tgt = {0, 0xffff};
+static pi_session_handle_t sess;
 
 static int add_route(uint32_t prefix, int pLen, uint32_t nhop, uint16_t port,
                      pi_entry_handle_t *handle) {
@@ -55,7 +56,7 @@ static int add_route(uint32_t prefix, int pLen, uint32_t nhop, uint16_t port,
 
   pi_table_entry_t t_entry = {a_set_nhop, adata_set_nhop, NULL, NULL};
   rc |= pi_table_entry_add(
-      dev_tgt, t_ipv4_lpm, mkey_ipv4_lpm, &t_entry, 0, handle);
+      sess, dev_tgt, t_ipv4_lpm, mkey_ipv4_lpm, &t_entry, 0, handle);
 
   return rc;
 }
@@ -75,6 +76,8 @@ int main() {
   pi_add_config_from_file(TESTDATADIR "/" "simple_router.json",
                           PI_CONFIG_TYPE_BMV2_JSON, &p4info);
 
+  pi_session_init(&sess);
+
   init_ids();
 
   pi_match_key_allocate(p4info, t_ipv4_lpm, &mkey_ipv4_lpm);
@@ -89,4 +92,5 @@ int main() {
   pi_match_key_destroy(mkey_ipv4_lpm);
   pi_action_data_destroy(adata_set_nhop);
   pi_destroy_config(p4info);
+  pi_session_cleanup(sess);
 }

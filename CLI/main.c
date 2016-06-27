@@ -32,6 +32,7 @@ pi_p4info_t *p4info = NULL;
 
 pi_dev_tgt_t dev_tgt = {0, 0xffff};
 int is_device_attached = 0;
+pi_session_handle_t sess;
 
 typedef pi_cli_status_t (*CLIFnPtr)(char *);
 typedef char *(*CLICompPtr)(const char *text, int state);
@@ -136,6 +137,8 @@ static void cleanup() {
   if (is_device_attached) pi_remove_device(dev_tgt.dev_id);
 
   pi_destroy_config(p4info);
+
+  pi_session_cleanup(sess);
 
   pi_destroy();
 }
@@ -251,6 +254,12 @@ int main(int argc, char *argv[]) {
   pirc = pi_add_config_from_file(argv[1], PI_CONFIG_TYPE_BMV2_JSON, &p4info);
   if (pirc != PI_STATUS_SUCCESS) {
     fprintf(stderr, "Error while loading config\n");
+    return 1;
+  }
+
+  pirc = pi_session_init(&sess);
+  if (pirc != PI_STATUS_SUCCESS) {
+    fprintf(stderr, "Error while opening PI client session\n");
     return 1;
   }
 

@@ -43,7 +43,7 @@ pi_cli_status_t do_table_delete(char *subcmd) {
   if (*endptr != '\0') return PI_CLI_STATUS_INVALID_ENTRY_HANDLE;
 
   pi_status_t rc;
-  rc = pi_table_entry_delete(dev_tgt.dev_id, t_id, handle);
+  rc = pi_table_entry_delete(sess, dev_tgt.dev_id, t_id, handle);
   if (rc == PI_STATUS_SUCCESS)
     printf("Entry with handle %" PRIu64 " was successfully removed.\n", handle);
   else

@@ -22,6 +22,7 @@
 
 extern pi_p4info_t *p4info;
 extern pi_dev_tgt_t dev_tgt;
+extern pi_session_handle_t sess;
 
 pi_cli_status_t read_action_data(char *in, pi_p4_id_t a_id,
                                  pi_action_data_t *adata);
