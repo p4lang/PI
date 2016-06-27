@@ -333,8 +333,9 @@ template error_code_t ActionData::set_arg<int32_t>(pi_p4_id_t, int32_t);
 template error_code_t ActionData::set_arg<int64_t>(pi_p4_id_t, int64_t);
 
 
-MatchTable::MatchTable(const pi_p4info_t *p4info, pi_p4_id_t table_id)
-    : p4info(p4info), table_id(table_id) { }
+MatchTable::MatchTable(pi_session_handle_t sess, const pi_p4info_t *p4info,
+                       pi_p4_id_t table_id)
+    : sess(sess), p4info(p4info), table_id(table_id) { }
 
 error_code_t
 MatchTable::entry_add(const MatchKey &match_key, pi_p4_id_t action_id,
@@ -345,14 +346,14 @@ MatchTable::entry_add(const MatchKey &match_key, pi_p4_id_t action_id,
   // TODO(antonin): handle device id / pipleline mask
   const pi_dev_tgt_t dev_tgt = {0, 0xffff};
   pi_table_entry_t entry = {action_id, action_data.get(), NULL, NULL};
-  return pi_table_entry_add(dev_tgt, table_id, match_key.get(),
+  return pi_table_entry_add(sess, dev_tgt, table_id, match_key.get(),
                             &entry, overwrite, entry_handle);
 }
 
 error_code_t
 MatchTable::entry_delete(pi_entry_handle_t entry_handle) {
   const uint16_t dev_id = 0;
-  return pi_table_entry_delete(dev_id, table_id, entry_handle);
+  return pi_table_entry_delete(sess, dev_id, table_id, entry_handle);
 }
 
 }  // namespace pi

@@ -59,7 +59,7 @@ pi_cli_status_t do_table_modify(char *subcmd) {
 
   pi_table_entry_t t_entry = {a_id, adata, NULL, NULL};
   pi_status_t rc;
-  rc = pi_table_entry_modify(dev_tgt.dev_id, t_id, handle, &t_entry);
+  rc = pi_table_entry_modify(sess, dev_tgt.dev_id, t_id, handle, &t_entry);
   if (rc == PI_STATUS_SUCCESS)
     printf("Entry with handle %" PRIu64 " was successfully modified.\n",
            handle);

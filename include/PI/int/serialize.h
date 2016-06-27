@@ -37,12 +37,14 @@ typedef struct __attribute__((packed)) {
   uint32_t _dev_pipe_mask;
 } s_pi_dev_tgt_t;
 typedef uint32_t s_pi_status_t;
+typedef pi_session_handle_t s_pi_session_handle_t;
 
 size_t emit_p4_id(char *dst, pi_p4_id_t v);
 size_t emit_entry_handle(char *dst, pi_entry_handle_t v);
 size_t emit_dev_id(char *dst, pi_dev_id_t v);
 size_t emit_dev_tgt(char *dst, pi_dev_tgt_t v);
 size_t emit_status(char *dst, pi_status_t v);
+size_t emit_session_handle(char *dst, pi_session_handle_t v);
 
 size_t retrieve_uint32(const char *src, uint32_t *v);
 size_t retrieve_uint64(const char *src, uint64_t *v);
@@ -52,6 +54,7 @@ size_t retrieve_entry_handle(const char *src, pi_entry_handle_t *v);
 size_t retrieve_dev_id(const char *src, pi_dev_id_t *v);
 size_t retrieve_dev_tgt(const char *src, pi_dev_tgt_t *v);
 size_t retrieve_status(const char *src, pi_status_t *v);
+size_t retrieve_session_handle(const char *src, pi_session_handle_t *v);
 
 #ifdef __cplusplus
 }

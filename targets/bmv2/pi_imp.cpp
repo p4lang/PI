@@ -77,4 +77,15 @@ pi_status_t _pi_destroy() {
   return PI_STATUS_SUCCESS;
 }
 
+// bmv2 does not support transaction and has no use for the session_handle
+pi_status_t _pi_session_init(pi_session_handle_t *session_handle) {
+  *session_handle = 0;
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_session_cleanup(pi_session_handle_t session_handle) {
+  (void) session_handle;
+  return PI_STATUS_SUCCESS;
+}
+
 }

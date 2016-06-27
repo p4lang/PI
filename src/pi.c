@@ -82,6 +82,14 @@ pi_status_t pi_remove_device(pi_dev_id_t dev_id) {
   return status;
 }
 
+pi_status_t pi_session_init(pi_session_handle_t *session_handle) {
+  return _pi_session_init(session_handle);
+}
+
+pi_status_t pi_session_cleanup(pi_session_handle_t session_handle) {
+  return _pi_session_cleanup(session_handle);
+}
+
 pi_status_t pi_destroy() {
   free(device_mapping);
   return _pi_destroy();

@@ -65,6 +65,8 @@ typedef struct {
   uint16_t dev_pipe_mask;
 } pi_dev_tgt_t;
 
+typedef uint32_t pi_session_handle_t;
+
 typedef struct pi_p4info_s pi_p4info_t;
 
 bool pi_is_action_id(pi_p4_id_t id);
