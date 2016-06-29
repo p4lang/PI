@@ -3,11 +3,11 @@ ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 AM_CPPFLAGS += \
 -I$(top_srcdir)/include
 
-bin_PROGRAMS = gen_pi_json
+bin_PROGRAMS = pi_gen_native_json
 
-gen_pi_json_SOURCES = gen_pi_json.c
+pi_gen_native_json_SOURCES = gen_pi_json.c
 
-gen_pi_json_LDADD = \
+pi_gen_native_json_LDADD = \
 $(top_builddir)/src/libpip4info.la
 
 # This is the rpc server for bmv2
