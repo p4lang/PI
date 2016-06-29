@@ -172,6 +172,8 @@ static pi_p4info_match_type_t match_type_from_str(const char *type) {
     return PI_P4INFO_MATCH_TYPE_LPM;
   if (!strncmp("ternary", type, sizeof "ternary"))
     return PI_P4INFO_MATCH_TYPE_TERNARY;
+  if (!strncmp("range", type, sizeof "range"))
+    return PI_P4INFO_MATCH_TYPE_RANGE;
   assert(0 && "unsupported match type");
   return PI_P4INFO_MATCH_TYPE_END;
 }
