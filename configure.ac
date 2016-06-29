@@ -16,6 +16,9 @@ AC_PROG_CC_C99
 # long as --with-bmv2 is not specified of course)
 AC_PROG_CXX
 
+# TODO: make this conditional on the PD if possible
+AM_PATH_PYTHON([2.7],, [:])
+
 want_bmv2=no
 AC_ARG_WITH([bmv2],
     AS_HELP_STRING([--with-bmv2], [Build for bmv2 target]),
@@ -109,6 +112,7 @@ AC_CONFIG_FILES([Makefile
                  examples/Makefile
                  frontends_extra/Makefile
                  generators/Makefile
+                 generators/pd/Makefile
                  include/Makefile
                  src/Makefile
                  src/frontends/Makefile

@@ -2,4 +2,4 @@ tmp*
 native.json
 pd_out_test
 pdtest
-!Makefile
+pi_gen_pd

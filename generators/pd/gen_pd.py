@@ -202,14 +202,14 @@ def gen_file_lists(current_dir, gen_dir):
     return files_out
 
 
-def render_all_files(render_dict, gen_dir):
-    files = gen_file_lists(_TEMPLATES_DIR, gen_dir)
+def render_all_files(render_dict, gen_dir, templates_dir):
+    files = gen_file_lists(templates_dir, gen_dir)
     for template, target in files:
         path = os.path.dirname(target)
         if not os.path.exists(path):
             os.makedirs(path)
         with open(target, "w") as f:
-            render_template(f, template, render_dict, _TEMPLATES_DIR,
+            render_template(f, template, render_dict, templates_dir,
                             prefix=_TENJIN_PREFIX)
 
 
@@ -284,7 +284,7 @@ def get_thrift_type(byte_width):
         return "binary"
 
 
-def generate_pd_source(json_dict, dest_dir, p4_prefix):
+def generate_pd_source(json_dict, dest_dir, p4_prefix, templates_dir):
     TABLES.clear()
     TABLES_BY_ID.clear()
     ACTIONS.clear()
@@ -309,7 +309,7 @@ def generate_pd_source(json_dict, dest_dir, p4_prefix):
     render_dict["actions"] = ACTIONS
     render_dict["fields"] = FIELDS
     render_dict["render_dict"] = render_dict
-    render_all_files(render_dict, _validate_dir(dest_dir))
+    render_all_files(render_dict, _validate_dir(dest_dir), templates_dir)
 
 
 import argparse
@@ -333,7 +333,7 @@ def _validate_dir(path):
         sys.exit(1)
     return path
 
-def main():
+def main(templates_dir=_TEMPLATES_DIR):
     args = parser.parse_args()
 
     path_pd = _validate_dir(args.pd)
@@ -342,7 +342,7 @@ def main():
 
     with open(args.source, 'r') as f:
         json_dict = json.load(f)
-        generate_pd_source(json_dict, path_pd, args.p4_prefix)
+        generate_pd_source(json_dict, path_pd, args.p4_prefix, templates_dir)
 
 
 if __name__ == "__main__":  # pragma: no cover

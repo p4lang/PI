@@ -54,6 +54,7 @@ test-driver
 tests/test-suite.log
 m4/
 .dirstamp
+py-compile
 
 *.tar.gz
 
