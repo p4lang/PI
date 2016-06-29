@@ -284,7 +284,7 @@ def get_thrift_type(byte_width):
         return "binary"
 
 
-def generate_pd_source(json_dict, dest_dir, p4_prefix, templates_dir):
+def generate_pd_source(json_dict, dest_dir, p4_prefix, templates_dir, target):
     TABLES.clear()
     TABLES_BY_ID.clear()
     ACTIONS.clear()
@@ -309,6 +309,14 @@ def generate_pd_source(json_dict, dest_dir, p4_prefix, templates_dir):
     render_dict["actions"] = ACTIONS
     render_dict["fields"] = FIELDS
     render_dict["render_dict"] = render_dict
+
+    if target == "bm":
+        render_dict["target_common_h"] = "<bm/pdfixed/pd_common.h>"
+    elif target == "tofino":
+        render_dict["target_common_h"] = "<pdfixed/pd_common.h>"
+    else:
+        assert(0)
+
     render_all_files(render_dict, _validate_dir(dest_dir), templates_dir)
 
 
@@ -325,6 +333,10 @@ parser.add_argument('--pd', dest='pd', type=str,
 parser.add_argument('--p4-prefix', type=str,
                     help='P4 name use for API function prefix',
                     default="prog", required=False)
+# This is temporary, need to make things uniform
+parser.add_argument('--target', type=str, choices=["bm", "tofino"],
+                    help='Target for which the PD frontend is generated',
+                    default="bm", required=False)
 
 def _validate_dir(path):
     path = os.path.abspath(path)
@@ -342,7 +354,8 @@ def main(templates_dir=_TEMPLATES_DIR):
 
     with open(args.source, 'r') as f:
         json_dict = json.load(f)
-        generate_pd_source(json_dict, path_pd, args.p4_prefix, templates_dir)
+        generate_pd_source(json_dict, path_pd, args.p4_prefix, templates_dir,
+                           args.target)
 
 
 if __name__ == "__main__":  # pragma: no cover

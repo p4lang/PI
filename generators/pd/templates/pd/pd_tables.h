@@ -21,7 +21,7 @@
 #ifndef _P4_PD_TABLES_H_
 #define _P4_PD_TABLES_H_
 
-#include <bm/pdfixed/pd_common.h>
+#include ${target_common_h}
 
 #include "pd_types.h"
 
