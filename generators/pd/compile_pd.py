@@ -54,7 +54,7 @@ else:
         os.mkdir(tmp_dir)
 
 with open("native.json", 'w') as f:
-    p = subprocess.Popen(["../../bin/gen_pi_json", args.source], stdout=f)
+    p = subprocess.Popen(["../../bin/pi_gen_native_json", args.source], stdout=f)
     p.wait()
 
     p = subprocess.Popen(
