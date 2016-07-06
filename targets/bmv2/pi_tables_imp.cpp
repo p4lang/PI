@@ -217,7 +217,7 @@ pi_status_t _pi_table_entry_add(pi_session_handle_t session_handle,
         _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
     std::cout << "Invalid table (" << t_name << ") operation ("
               << ito.code << "): " << what << std::endl;
-    return PI_STATUS_INVALID_TABLE_OPERATION;
+    return PI_STATUS_TARGET_ERROR + ito.code;
   }
 
   return PI_STATUS_SUCCESS;
@@ -255,7 +255,7 @@ pi_status_t _pi_table_default_action_set(pi_session_handle_t session_handle,
         _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
     std::cout << "Invalid table (" << t_name << ") operation ("
               << ito.code << "): " << what << std::endl;
-    return PI_STATUS_INVALID_TABLE_OPERATION;
+    return PI_STATUS_TARGET_ERROR + ito.code;
   }
 
   return PI_STATUS_SUCCESS;
@@ -282,7 +282,7 @@ pi_status_t _pi_table_default_action_get(pi_session_handle_t session_handle,
         _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
     std::cout << "Invalid table (" << t_name << ") operation ("
               << ito.code << "): " << what << std::endl;
-    return PI_STATUS_INVALID_TABLE_OPERATION;
+    return PI_STATUS_TARGET_ERROR + ito.code;
   }
 
   if (entry.action_type == BmActionEntryType::NONE) {
@@ -344,7 +344,7 @@ pi_status_t _pi_table_entry_delete(pi_session_handle_t session_handle,
         _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
     std::cout << "Invalid table (" << t_name << ") operation ("
               << ito.code << "): " << what << std::endl;
-    return PI_STATUS_INVALID_TABLE_OPERATION;
+    return PI_STATUS_TARGET_ERROR + ito.code;
   }
 
   return PI_STATUS_SUCCESS;
@@ -376,7 +376,7 @@ pi_status_t _pi_table_entry_modify(pi_session_handle_t session_handle,
         _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
     std::cout << "Invalid table (" << t_name << ") operation ("
               << ito.code << "): " << what << std::endl;
-    return PI_STATUS_INVALID_TABLE_OPERATION;
+    return PI_STATUS_TARGET_ERROR + ito.code;
   }
 
   return PI_STATUS_SUCCESS;
@@ -403,7 +403,7 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
         _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
     std::cout << "Invalid table (" << t_name << ") operation ("
               << ito.code << "): " << what << std::endl;
-    return PI_STATUS_INVALID_TABLE_OPERATION;
+    return PI_STATUS_TARGET_ERROR + ito.code;
   }
 
   res->num_entries = entries.size();

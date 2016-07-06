@@ -51,9 +51,13 @@ typedef enum {
   PI_STATUS_INVALID_ENTRY_PROPERTY,
   PI_STATUS_UNSUPPORTED_MATCH_TYPE,
   PI_STATUS_CONST_DEFAULT_ACTION,
+  // TODO(antonin): remove now that we have PI_STATUS_TARGET_ERROR?
   PI_STATUS_INVALID_TABLE_OPERATION,
 
-  PI_STATUS_OUT_OF_BOUND_IDX
+  PI_STATUS_OUT_OF_BOUND_IDX,
+
+  // everything above 1000 is reserved for targets
+  PI_STATUS_TARGET_ERROR = 1000
 } pi_status_t;
 
 typedef uint32_t pi_p4_id_t;
