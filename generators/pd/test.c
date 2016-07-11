@@ -39,8 +39,16 @@ int main(int argc, char *argv[]) {
   p4_pd_entry_hdl_t entry_hdl;
 
   p4_pd_test_init();
-  p4_pd_test_assign_device(dev_tgt.device_id, NULL, argv[1],
-                           DEVICE_THRIFT_PORT);
+
+  pd_assign_extra_t extras[2];
+  memset(extras, 0, sizeof(extras));
+  char port_str[16];
+  sprintf(port_str, "%d", DEVICE_THRIFT_PORT);
+  extras[0].key = "port";
+  extras[0].v = port_str;
+  extras[1].end_of_extras = 1;
+
+  p4_pd_test_assign_device(dev_tgt.device_id, argv[1], extras);
 
   p4_pd_sess_hdl_t sess_hdl;
   p4_pd_client_init(&sess_hdl);

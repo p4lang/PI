@@ -32,10 +32,8 @@ p4_pd_status_t ${pd_prefix}init(void) {
 }
 
 p4_pd_status_t ${pd_prefix}assign_device(int dev_id,
-                                         const char *notifications_addr,
                                          const char *config_path,
-                                         int rpc_port_num) {
-  (void) notifications_addr;
+                                         const pd_assign_extra_t *extra) {
   pi_status_t pi_status;
 
   pi_p4info_t *p4info;
@@ -43,16 +41,17 @@ p4_pd_status_t ${pd_prefix}assign_device(int dev_id,
                                       &p4info);
   assert(pi_status == PI_STATUS_SUCCESS);
 
-  pi_assign_extra_t extras[2];
-  memset(extras, 0, sizeof(extras));
+  pi_assign_extra_t pi_extra[16];
+  memset(pi_extra, 0, sizeof(pi_extra));
+  pi_assign_extra_t *curr = &pi_extra[0];
+  for (; !extra->end_of_extras; extra++) {
+    curr->key = extra->key;
+    curr->v = extra->v;
+    curr++;
+  }
+  curr->end_of_extras = 1;
 
-  char port_str[16];
-  sprintf(port_str, "%d", rpc_port_num);
-  extras[0].key = "port";
-  extras[0].v = port_str;
-  extras[1].end_of_extras = 1;
-
-  pi_status = pi_assign_device(dev_id, p4info, extras);
+  pi_status = pi_assign_device(dev_id, p4info, pi_extra);
   assert(pi_status == PI_STATUS_SUCCESS);
 
   return 0;

@@ -30,9 +30,8 @@ extern "C" {
 p4_pd_status_t ${pd_prefix}init(void);
 
 p4_pd_status_t ${pd_prefix}assign_device(int dev_id,
-                                         const char *notifications_addr,
                                          const char *config_path,
-                                         int rpc_port_num);
+                                         const pd_assign_extra_t *extra);
 
 p4_pd_status_t ${pd_prefix}remove_device(int dev_id);
 

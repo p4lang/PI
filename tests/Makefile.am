@@ -51,6 +51,7 @@ $(top_builddir)/src/frontends/generic/libpifegeneric.la \
 $(top_builddir)/targets/dummy/libpi_dummy.la \
 $(top_builddir)/src/libpip4info.la \
 $(top_builddir)/third_party/unity/libunity.la \
+$(top_builddir)/third_party/cJSON/libpicjson.la \
 -lnanomsg
 
 check_PROGRAMS = \

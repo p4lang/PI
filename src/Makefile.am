@@ -18,7 +18,7 @@ config_readers/readers.h \
 p4info/p4info.c
 
 libpip4info_la_LIBADD = \
-$(top_builddir)/third_party/cJSON/libcjson.la \
+$(top_builddir)/third_party/cJSON/libpicjson.la \
 libpiutils.la
 
 libpi_la_SOURCES = \
