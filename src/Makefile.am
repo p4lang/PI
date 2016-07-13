@@ -1,5 +1,3 @@
-SUBDIRS = frontends
-
 AM_CPPFLAGS += \
 -I$(top_srcdir)/include \
 -isystem$(top_srcdir)/third_party/cJSON/include
@@ -39,11 +37,13 @@ utils/utils.h \
 utils/utils.c \
 utils/serialize.c
 
-# TODO(antonin): find a better way of doing this
+libpifegeneric_la_SOURCES = \
+frontends/generic/pi.c
+
 libpiall_la_SOURCES = \
 $(libpip4info_la_SOURCES) \
 $(libpi_la_SOURCES) \
-frontends/generic/pi.c
+$(libpifegeneric_la_SOURCES)
 
 libpiall_la_LIBADD = \
 $(top_builddir)/third_party/cJSON/libpicjson.la \
@@ -51,6 +51,6 @@ libpiutils.la \
 -lnanomsg
 
 # order important because libpi requires libpip4info
-lib_LTLIBRARIES = libpip4info.la libpi.la libpiall.la
+lib_LTLIBRARIES = libpip4info.la libpi.la libpifegeneric.la libpiall.la
 
 noinst_LTLIBRARIES = libpiutils.la

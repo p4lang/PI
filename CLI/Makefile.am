@@ -25,7 +25,7 @@ bin_PROGRAMS = pi_CLI_dummy pi_CLI_rpc
 common_libs = \
 libpicli.la \
 $(top_builddir)/src/libpi.la \
-$(top_builddir)/src/frontends/generic/libpifegeneric.la \
+$(top_builddir)/src/libpifegeneric.la \
 $(top_builddir)/src/libpip4info.la \
 -lnanomsg
 

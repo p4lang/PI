@@ -115,8 +115,6 @@ AC_CONFIG_FILES([Makefile
                  generators/pd/Makefile
                  include/Makefile
                  src/Makefile
-                 src/frontends/Makefile
-                 src/frontends/generic/Makefile
                  targets/Makefile
                  targets/dummy/Makefile
                  targets/rpc/Makefile

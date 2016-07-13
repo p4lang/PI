@@ -47,7 +47,7 @@ test_all_CPPFLAGS = $(AM_CPPFLAGS) \
 # libpi needs to come before libpi_dummy, because it uses it
 LDADD = \
 $(top_builddir)/src/libpi.la \
-$(top_builddir)/src/frontends/generic/libpifegeneric.la \
+$(top_builddir)/src/libpifegeneric.la \
 $(top_builddir)/targets/dummy/libpi_dummy.la \
 $(top_builddir)/src/libpip4info.la \
 $(top_builddir)/third_party/unity/libunity.la \
