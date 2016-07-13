@@ -2,6 +2,11 @@
 
 See [examples] (examples/) for how to use the PI.
 
+## Dependencies
+
+- libjudy-dev
+- libreadline-dev
+
 ## PI CLI
 
 For now the PI CLI supports an experimental version of `table_add` and
