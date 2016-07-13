@@ -27,7 +27,7 @@
 
 static void print_help() {
   fprintf(stderr,
-          "Usage: gen_fe_defines [OPTIONS]...\n"
+          "Usage: pi_gen_fe_defines [OPTIONS]...\n"
           "Generate preprocessor #define's from P4 config\n\n"
           "-c          path to P4 config\n"
           "-d          path to destination dir (where .h will be generated)\n"

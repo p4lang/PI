@@ -17,7 +17,7 @@ example_CPPFLAGS = \
 -I$(top_srcdir)/../../include \
 -DTESTDATADIR=\"$(testdata_dirpath)\"
 fe_defines = pi_fe_defines_$(p4_name).h
-gen_fe_defines = $(top_builddir)/../../generators/gen_fe_defines
+gen_fe_defines = $(top_builddir)/../../generators/pi_gen_fe_defines
 $(fe_defines) : $(testdata_dirpath)/simple_router.json $(gen_fe_defines)
 	$(gen_fe_defines) -c $< -d $(abs_builddir) -n $(p4_name)
 BUILT_SOURCES = $(fe_defines)
