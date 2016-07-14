@@ -2,3 +2,4 @@
 !run_one_test.py.in
 !*.test
 !testdata
+!test.supp

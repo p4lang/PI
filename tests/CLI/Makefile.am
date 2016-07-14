@@ -9,6 +9,7 @@ table_dump_valid.test
 # test_config.py.in included by default
 EXTRA_DIST = \
 run_one_test.py \
+test.supp \
 table_dump.test \
 testdata/table_dump.in \
 testdata/table_dump.out \

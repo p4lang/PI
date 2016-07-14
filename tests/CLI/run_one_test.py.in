@@ -27,6 +27,7 @@ import tempfile
 sswitch_path = "@BM_SIMPLE_SWITCH@"
 CLI_path = os.path.join("@abs_top_builddir@", "CLI", "pi_CLI_rpc")
 rpc_server_path = os.path.join("@abs_top_builddir@", "bin", "rpc_server")
+valgrind_supp = os.path.join("@abs_srcdir@", "test.supp")
 
 # Class written by Mihai Budiu, for Barefoot Networks, Inc.
 class ConcurrentInteger(object):
@@ -105,6 +106,7 @@ def main():
     valgrind_with_options = ["valgrind"]
     # third-party code shows memory leaks
     # valgrind_with_options += ["--leak-check=full", "--show-reachable=yes"]
+    valgrind_with_options += ["--suppressions={}".format(valgrind_supp)]
 
     # Valgrind output is sent to stderr, which we will analyze later
 
