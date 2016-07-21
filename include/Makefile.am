@@ -4,6 +4,7 @@ PI/pi_base.h \
 PI/p4info.h \
 PI/pi_tables.h \
 PI/pi_value.h \
+PI/pi_act_prof.h \
 PI/frontends/generic/pi.h \
 PI/p4info/actions.h \
 PI/p4info/fields.h \
@@ -12,4 +13,5 @@ PI/int/pi_int.h \
 PI/int/serialize.h \
 PI/int/rpc_common.h \
 PI/target/pi_imp.h \
-PI/target/pi_tables_imp.h
+PI/target/pi_tables_imp.h \
+PI/target/pi_act_prof_imp.h

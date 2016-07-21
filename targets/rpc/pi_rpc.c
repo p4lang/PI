@@ -571,3 +571,76 @@ pi_status_t _pi_table_entries_fetch_done(pi_session_handle_t session_handle,
   free(res->entries);
   return PI_STATUS_SUCCESS;
 }
+
+// TODO(antonin): act prof
+
+pi_status_t _pi_act_prof_mbr_create(pi_session_handle_t session_handle,
+                                    pi_dev_tgt_t dev_tgt,
+                                    pi_p4_id_t act_prof_id,
+                                    const pi_action_data_t *action_data,
+                                    pi_indirect_handle_t *mbr_handle) {
+  (void) session_handle; (void) dev_tgt; (void) act_prof_id;
+  (void) action_data; (void) mbr_handle;
+  printf("%s\n", __func__);
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_act_prof_mbr_delete(pi_session_handle_t session_handle,
+                                    pi_dev_id_t dev_id,
+                                    pi_p4_id_t act_prof_id,
+                                    pi_indirect_handle_t mbr_handle) {
+  (void) session_handle; (void) dev_id; (void) act_prof_id; (void) mbr_handle;
+  printf("%s\n", __func__);
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_act_prof_mbr_modify(pi_session_handle_t session_handle,
+                                    pi_dev_id_t dev_id,
+                                    pi_p4_id_t act_prof_id,
+                                    pi_indirect_handle_t mbr_handle,
+                                    const pi_action_data_t *action_data) {
+  (void) session_handle; (void) dev_id; (void) act_prof_id; (void) mbr_handle;
+  (void) action_data;
+  printf("%s\n", __func__);
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_act_prof_grp_create(pi_session_handle_t session_handle,
+                                    pi_dev_tgt_t dev_tgt,
+                                    pi_p4_id_t act_prof_id,
+                                    pi_indirect_handle_t *grp_handle) {
+  (void) session_handle; (void) dev_tgt; (void) act_prof_id; (void) grp_handle;
+  printf("%s\n", __func__);
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_act_prof_grp_delete(pi_session_handle_t session_handle,
+                                    pi_dev_id_t dev_id,
+                                    pi_p4_id_t act_prof_id,
+                                    pi_indirect_handle_t grp_handle) {
+  (void) session_handle; (void) dev_id; (void) act_prof_id; (void) grp_handle;
+  printf("%s\n", __func__);
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_act_prof_grp_add_mbr(pi_session_handle_t session_handle,
+                                     pi_dev_id_t dev_id,
+                                     pi_p4_id_t act_prof_id,
+                                     pi_indirect_handle_t grp_handle,
+                                     pi_indirect_handle_t mbr_handle) {
+  (void) session_handle; (void) dev_id; (void) act_prof_id; (void) grp_handle;
+  (void) mbr_handle;
+  printf("%s\n", __func__);
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_act_prof_grp_remove_mbr(pi_session_handle_t session_handle,
+                                        pi_dev_id_t dev_id,
+                                        pi_p4_id_t act_prof_id,
+                                        pi_indirect_handle_t grp_handle,
+                                        pi_indirect_handle_t mbr_handle) {
+  (void) session_handle; (void) dev_id; (void) act_prof_id; (void) grp_handle;
+  (void) mbr_handle;
+  printf("%s\n", __func__);
+  return PI_STATUS_SUCCESS;
+}

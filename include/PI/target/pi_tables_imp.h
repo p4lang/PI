@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef PI_SRC_TARGET_PI_TABLES_IMP_H_
-#define PI_SRC_TARGET_PI_TABLES_IMP_H_
+#ifndef PI_INC_PI_TARGET_PI_TABLES_IMP_H_
+#define PI_INC_PI_TARGET_PI_TABLES_IMP_H_
 
 pi_status_t _pi_table_entry_add(pi_session_handle_t session_handle,
                                 pi_dev_tgt_t dev_tgt,
@@ -56,4 +56,4 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
 pi_status_t _pi_table_entries_fetch_done(pi_session_handle_t session_handle,
                                          pi_table_fetch_res_t *res);
 
-#endif  // PI_SRC_TARGET_PI_TABLES_IMP_H_
+#endif  // PI_INC_PI_TARGET_PI_TABLES_IMP_H_
