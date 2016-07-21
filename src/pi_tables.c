@@ -79,8 +79,13 @@ pi_status_t pi_table_default_action_get(pi_session_handle_t session_handle,
   pi_status_t status;
   status = _pi_table_default_action_get(session_handle, dev_id, table_id,
                                         table_entry);
-  if (status == PI_STATUS_SUCCESS && table_entry->action_id != PI_INVALID_ID)
-    table_entry->action_data->p4info = pi_get_device_p4info(dev_id);
+
+  // TODO(antonin): improve
+  if (status == PI_STATUS_SUCCESS &&
+      table_entry->entry_type != PI_ACTION_ENTRY_TYPE_NONE) {
+    pi_action_data_t *action_data = table_entry->entry.action_data;
+    action_data->p4info = pi_get_device_p4info(dev_id);
+  }
   return status;
 }
 
@@ -158,14 +163,18 @@ size_t pi_table_entries_next(pi_table_fetch_res_t *res,
   res->curr += res->mkey_nbytes;
 
   pi_table_entry_t *t_entry = &entry->entry;
-  res->curr += retrieve_p4_id(res->entries + res->curr, &t_entry->action_id);
+  pi_p4_id_t action_id;
+  res->curr += retrieve_p4_id(res->entries + res->curr, &action_id);
   uint32_t nbytes;
   res->curr += retrieve_uint32(res->entries + res->curr, &nbytes);
-  t_entry->action_data = &res->action_datas[res->idx];
-  t_entry->action_data->p4info = res->p4info;
-  t_entry->action_data->action_id = t_entry->action_id;
-  t_entry->action_data->data_size = nbytes;
-  t_entry->action_data->data = res->entries + res->curr;
+  // TODO(antonin): indirect case
+  t_entry->entry_type = PI_ACTION_ENTRY_TYPE_DATA;
+  pi_action_data_t *action_data = &res->action_datas[res->idx];
+  t_entry->entry.action_data = action_data;
+  action_data->p4info = res->p4info;
+  action_data->action_id = action_id;
+  action_data->data_size = nbytes;
+  action_data->data = res->entries + res->curr;
   res->curr += nbytes;
 
   pi_entry_properties_t *properties = res->properties + res->idx;

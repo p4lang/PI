@@ -52,7 +52,12 @@ pi_cli_status_t do_table_set_default(char *subcmd) {
     return status;
   }
 
-  pi_table_entry_t t_entry = {a_id, adata, NULL, NULL};
+  pi_table_entry_t t_entry;
+  t_entry.entry_type = PI_ACTION_ENTRY_TYPE_DATA;
+  t_entry.entry.action_data = adata;
+  t_entry.entry_properties = NULL;
+  t_entry.direct_res_config = NULL;
+
   pi_status_t rc;
   rc = pi_table_default_action_set(sess, dev_tgt, t_id, &t_entry);
   if (rc == PI_STATUS_SUCCESS)

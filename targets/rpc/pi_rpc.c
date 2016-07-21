@@ -438,7 +438,7 @@ pi_status_t _pi_table_default_action_get(pi_session_handle_t session_handle,
 
   // 1 means make a copy of the action data
   rep_ += retrieve_table_entry(rep_, table_entry, 1);
-  table_entry->action_data->p4info = NULL;  // TODO(antonin)
+  // table_entry->entry.action_data->p4info = NULL;  // TODO(antonin)
 
   nn_freemsg(rep);
   return status;
@@ -448,7 +448,8 @@ pi_status_t _pi_table_default_action_done(pi_session_handle_t session_handle,
                                           pi_table_entry_t *table_entry) {
   (void) session_handle;
   // release memory allocated in retrieve_table_entry
-  free(table_entry->action_data);
+  if (table_entry->entry_type == PI_ACTION_ENTRY_TYPE_DATA)
+    free(table_entry->entry.action_data);
   return PI_STATUS_SUCCESS;
 }
 

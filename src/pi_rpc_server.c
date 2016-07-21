@@ -237,8 +237,10 @@ static void __pi_table_entry_add(char *req) {
 
   pi_table_entry_t table_entry;
   pi_action_data_t action_data;
-  table_entry.action_data = &action_data;
-  table_entry.action_data->p4info = NULL;  // TODO(antonin)
+  action_data.p4info = NULL;  // TODO(antonin)
+  // TODO(antonin): indirect
+  table_entry.entry_type = PI_ACTION_ENTRY_TYPE_DATA;
+  table_entry.entry.action_data = &action_data;
   req += retrieve_table_entry(req, &table_entry, 0);
 
   uint32_t overwrite;
@@ -275,8 +277,10 @@ static void __pi_table_default_action_set(char *req) {
 
   pi_table_entry_t table_entry;
   pi_action_data_t action_data;
-  table_entry.action_data = &action_data;
-  table_entry.action_data->p4info = NULL;  // TODO(antonin)
+  action_data.p4info = NULL;  // TODO(antonin)
+  // TODO(antonin): indirect
+  table_entry.entry_type = PI_ACTION_ENTRY_TYPE_DATA;
+  table_entry.entry.action_data = &action_data;
   req += retrieve_table_entry(req, &table_entry, 0);
 
   pi_status_t status = _pi_table_default_action_set(sess, dev_tgt, table_id,
@@ -347,8 +351,10 @@ static void __pi_table_entry_modify(char *req) {
 
   pi_table_entry_t table_entry;
   pi_action_data_t action_data;
-  table_entry.action_data = &action_data;
-  table_entry.action_data->p4info = NULL;  // TODO(antonin)
+  action_data.p4info = NULL;  // TODO(antonin)
+  // TODO(antonin): indirect
+  table_entry.entry_type = PI_ACTION_ENTRY_TYPE_DATA;
+  table_entry.entry.action_data = &action_data;
   req += retrieve_table_entry(req, &table_entry, 0);
 
   send_status(_pi_table_entry_modify(sess, dev_id, table_id, h, &table_entry));
@@ -479,21 +485,25 @@ size_t table_entry_size(const pi_table_entry_t *table_entry) {
   s += sizeof(s_pi_p4_id_t);  // action_id
   s += sizeof(uint32_t);  // action data size
   // for the specific case of no default action (fetch)
-  if (table_entry->action_id != PI_INVALID_ID)
-    s += table_entry->action_data->data_size;
+  if (table_entry->entry_type == PI_ACTION_ENTRY_TYPE_DATA)
+    s += table_entry->entry.action_data->data_size;
   // TODO(antonin): properties
   return s;
 }
 
 size_t emit_table_entry(char *dst, const pi_table_entry_t *table_entry) {
   size_t s = 0;
-  s += emit_p4_id(dst, table_entry->action_id);
-  // for the specific case of no default action (fetch)
-  size_t ad_size = (table_entry->action_id == PI_INVALID_ID) ?
-      0 : table_entry->action_data->data_size;
+  pi_p4_id_t action_id = PI_INVALID_ID;
+  size_t ad_size = 0;
+  // TODO(antonin): indirect
+  if (table_entry->entry_type == PI_ACTION_ENTRY_TYPE_DATA) {
+    action_id = table_entry->entry.action_data->action_id;
+    ad_size = table_entry->entry.action_data->data_size;
+  }
+  s += emit_p4_id(dst, action_id);
   s += emit_uint32(dst + s, ad_size);
   if (ad_size > 0) {
-    memcpy(dst + s, table_entry->action_data->data, ad_size);
+    memcpy(dst + s, table_entry->entry.action_data->data, ad_size);
     s += ad_size;
   }
   // TODO(antonin): properties
@@ -505,24 +515,34 @@ size_t retrieve_table_entry(char *src, pi_table_entry_t *table_entry,
   size_t s = 0;
   pi_p4_id_t action_id;
   s += retrieve_p4_id(src, &action_id);
-  table_entry->action_id = action_id;
   uint32_t ad_size;
   s += retrieve_uint32(src + s, &ad_size);
 
-  if (copy) {
-    // no alignment issue with malloc
-    char *ad = malloc(sizeof(pi_action_data_t) + ad_size);
-    table_entry->action_data = (pi_action_data_t *) ad;
-    table_entry->action_data->data = ad + sizeof(pi_action_data_t);
-  }
-
-  table_entry->action_data->action_id = action_id;
-  table_entry->action_data->data_size = ad_size;
-
-  if (copy) {
-    memcpy(table_entry->action_data->data, src + s, ad_size);
+  // TODO(antonin): indirect
+  if (action_id == PI_INVALID_ID) {
+    table_entry->entry_type = PI_ACTION_ENTRY_TYPE_NONE;
   } else {
-    table_entry->action_data->data = src + s;
+    table_entry->entry_type = PI_ACTION_ENTRY_TYPE_DATA;
+
+    pi_action_data_t *action_data;
+    if (copy) {
+      // no alignment issue with malloc
+      char *ad = malloc(sizeof(pi_action_data_t) + ad_size);
+      action_data = (pi_action_data_t *) ad;
+      action_data->data = ad + sizeof(pi_action_data_t);
+      table_entry->entry.action_data = action_data;
+    } else {
+      action_data = table_entry->entry.action_data;
+    }
+
+    action_data->action_id = action_id;
+    action_data->data_size = ad_size;
+
+    if (copy) {
+      memcpy(action_data->data, src + s, ad_size);
+    } else {
+      action_data->data = src + s;
+    }
   }
 
   s += ad_size;

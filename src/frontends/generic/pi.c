@@ -86,6 +86,7 @@ pi_status_t pi_match_key_allocate(const pi_p4info_t *p4info,
 
   *key = (pi_match_key_t *) (key_w_prefix + prefix_space);
   (*key)->p4info = p4info;
+  (*key)->table_id = table_id;
   (*key)->data_size = mk_size;
   (*key)->data = (char *) (*key + 1);
   assert(sizeof(_fegen_mk_prefix_t *) <= ALIGN);
@@ -284,6 +285,7 @@ pi_status_t pi_action_data_allocate(const pi_p4info_t *p4info,
 
   *adata = (pi_action_data_t *) (adata_w_prefix + prefix_space);
   (*adata)->p4info = p4info;
+  (*adata)->action_id = action_id;
   (*adata)->data_size = ad_size;
   (*adata)->data = (char *) (*adata + 1);
   assert(sizeof(_fegen_ad_prefix_t *) <= ALIGN);
@@ -309,6 +311,10 @@ pi_status_t pi_action_data_init(pi_action_data_t *adata) {
   for (size_t i = 0; i < prefix->num_params; i++)
     prefix->p_info[i].is_set = 0;
   return PI_STATUS_SUCCESS;
+}
+
+pi_p4_id_t pi_action_data_action_id_get(const pi_action_data_t *adata) {
+  return adata->action_id;
 }
 
 pi_status_t pi_action_data_arg_set(pi_action_data_t *adata,

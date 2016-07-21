@@ -228,7 +228,12 @@ pi_cli_status_t do_table_add(char *subcmd) {
                             priority);
   }
 
-  pi_table_entry_t t_entry = {a_id, adata, &entry_properties, NULL};
+  pi_table_entry_t t_entry;
+  t_entry.entry_type = PI_ACTION_ENTRY_TYPE_DATA;
+  t_entry.entry.action_data = adata;
+  t_entry.entry_properties = &entry_properties;
+  t_entry.direct_res_config = NULL;
+
   pi_entry_handle_t handle = 0;
   pi_status_t rc;
   rc = pi_table_entry_add(sess, dev_tgt, t_id, mk, &t_entry, 0, &handle);
