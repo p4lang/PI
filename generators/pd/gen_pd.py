@@ -313,7 +313,7 @@ def generate_pd_source(json_dict, dest_dir, p4_prefix, templates_dir, target):
     if target == "bm":
         render_dict["target_common_h"] = "<bm/pdfixed/pd_common.h>"
     elif target == "tofino":
-        render_dict["target_common_h"] = "<pdfixed/pd_common.h>"
+        render_dict["target_common_h"] = "<tofino/pdfixed/pd_common.h>"
     else:
         assert(0)
 
