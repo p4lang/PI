@@ -7,8 +7,8 @@ describes these formats at the byte level.
 
 ## Match key
 
-The `pi_match_key_t` struct is defined in [src/pi_int.h] (../src/pi_int.h) as
-follows:
+The `pi_match_key_t` struct is defined in [include/PI/int/pi_int.h]
+(../include/PI/int/pi_int.h) as follows:
 ```
 struct pi_match_key_s {
   const pi_p4info_t *p4info;
@@ -112,8 +112,8 @@ ff | ff | 00 | 00 | 00 | 00
 
 ## Action data
 
-The `pi_action_data_t` struct is defined in [src/pi_int.h] (../src/pi_int.h) as
-follows:
+The `pi_action_data_t` struct is defined in [include/PI/int/pi_int.h]
+(../include/PI/int/pi_int.h) as follows:
 ```
 struct pi_action_data_s {
   const pi_p4info_t *p4info;
@@ -159,7 +159,7 @@ will contain the following bytes (represented here in hexadecimal):
 
 The PI provides a method to retrieve all the match entries in a table. The
 result is stored in an instance of the `pi_table_fetch_res_t` struct, which is
-defined in [src/pi_int.h] (../src/pi_int.h) as follows:
+defined in [include/PI/int/pi_int.h] (../include/PI/int/pi_int.h) as follows:
 ```
 struct pi_table_fetch_res_s {
   const pi_p4info_t *p4info;
