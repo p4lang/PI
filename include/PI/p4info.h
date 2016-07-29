@@ -23,6 +23,7 @@ extern "C" {
 #include "p4info/actions.h"
 #include "p4info/fields.h"
 #include "p4info/tables.h"
+#include "p4info/act_profs.h"
 
 pi_status_t pi_add_config(const char *config, pi_config_type_t config_type,
                           pi_p4info_t **p4info);
