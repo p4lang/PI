@@ -15,6 +15,7 @@
 
 #include "conn_mgr.h"
 #include "common.h"
+#include "action_helpers.h"
 
 #include <PI/pi.h>
 #include <PI/p4info.h>
@@ -39,8 +40,7 @@ std::vector<BmMatchParam> build_key(pi_p4_id_t table_id,
                                     const pi_match_key_t *match_key,
                                     const pi_p4info_t *p4info,
                                     bool *requires_priority) {
-  static thread_local std::vector<BmMatchParam> key;
-  key.clear();
+  std::vector<BmMatchParam> key;
   *requires_priority = false;
 
   const char *mk_data = match_key->data;
@@ -119,31 +119,6 @@ std::vector<BmMatchParam> build_key(pi_p4_id_t table_id,
   return key;
 }
 
-std::vector<std::string> build_action_data(const pi_table_entry_t *table_entry,
-                                           const pi_p4info_t *p4info) {
-  static thread_local std::vector<std::string> data;
-  data.clear();
-
-  const pi_action_data_t *action_data = table_entry->entry.action_data;
-  pi_p4_id_t action_id = action_data->action_id;
-  assert(action_data);
-  const char *ad_data = action_data->data;
-  assert(ad_data);
-
-  size_t num_params;
-  const pi_p4_id_t *param_ids = pi_p4info_action_get_params(p4info, action_id,
-                                                            &num_params);
-  for (size_t i = 0; i < num_params; i++) {
-    pi_p4_id_t p_id = param_ids[i];
-    size_t p_bw = pi_p4info_action_param_bitwidth(p4info, p_id);
-    size_t nbytes = (p_bw + 7) / 8;
-    data.push_back(std::string(ad_data, nbytes));
-    ad_data += nbytes;
-  }
-
-  return data;
-}
-
 char *dump_action_data(const pi_p4info_t *p4info, char *data,
                        pi_p4_id_t action_id, const BmActionData &params) {
   // unfortunately, I have observed that bmv2 sometimes returns shorter binary
@@ -187,7 +162,8 @@ pi_status_t _pi_table_entry_add(pi_session_handle_t session_handle,
   bool requires_priority = false;
   std::vector<BmMatchParam> mkey = build_key(table_id, match_key, p4info,
                                              &requires_priority);
-  std::vector<std::string> action_data = build_action_data(table_entry, p4info);
+  auto action_data = pibmv2::build_action_data(table_entry->entry.action_data,
+                                               p4info);
 
   BmAddEntryOptions options;
   if (requires_priority) {
@@ -242,7 +218,8 @@ pi_status_t _pi_table_default_action_set(pi_session_handle_t session_handle,
       return PI_STATUS_CONST_DEFAULT_ACTION;
   }
 
-  std::vector<std::string> action_data = build_action_data(table_entry, p4info);
+  auto action_data = pibmv2::build_action_data(table_entry->entry.action_data,
+                                               p4info);
 
   std::string t_name(pi_p4info_table_name_from_id(p4info, table_id));
   std::string a_name(pi_p4info_action_name_from_id(p4info, action_id));
@@ -368,7 +345,8 @@ pi_status_t _pi_table_entry_modify(pi_session_handle_t session_handle,
   assert(d_info->assigned);
   const pi_p4info_t *p4info = d_info->p4info;
 
-  std::vector<std::string> action_data = build_action_data(table_entry, p4info);
+  auto action_data = pibmv2::build_action_data(table_entry->entry.action_data,
+                                               p4info);
 
   std::string t_name(pi_p4info_table_name_from_id(p4info, table_id));
   pi_p4_id_t action_id = table_entry->entry.action_data->action_id;

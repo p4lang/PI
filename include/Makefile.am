@@ -1,3 +1,5 @@
+# TODO(antonin): move act_prof to some "extern" directory
+
 nobase_include_HEADERS = \
 PI/pi.h \
 PI/pi_base.h \
@@ -9,6 +11,7 @@ PI/frontends/generic/pi.h \
 PI/p4info/actions.h \
 PI/p4info/fields.h \
 PI/p4info/tables.h \
+PI/p4info/act_profs.h \
 PI/int/pi_int.h \
 PI/int/serialize.h \
 PI/int/rpc_common.h \

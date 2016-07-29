@@ -17,6 +17,7 @@
 #include "p4info/actions_int.h"
 #include "p4info/tables_int.h"
 #include "p4info/fields_int.h"
+#include "p4info/act_profs_int.h"
 #include "utils/logging.h"
 #include "PI/int/pi_int.h"
 
@@ -178,24 +179,47 @@ static pi_p4info_match_type_t match_type_from_str(const char *type) {
   return PI_P4INFO_MATCH_TYPE_END;
 }
 
+static size_t get_num_act_profs_in_pipe(cJSON *pipe) {
+  cJSON *tables = cJSON_GetObjectItem(pipe, "tables");
+  if (!tables) return PI_STATUS_CONFIG_READER_ERROR;
+  cJSON *table;
+  size_t num_act_profs = 0;
+  cJSON_ArrayForEach(table, tables) {
+    const cJSON *item = cJSON_GetObjectItem(table, "type");
+    // error if this happens, but the error will be caught later
+    if (item) {
+      const char *table_type = item->valuestring;
+      // true for both 'indirect' and 'indirect_ws'
+      if (!strncmp("indirect", table_type, sizeof "indirect" - 1)) {
+        num_act_profs++;
+      }
+    }
+  }
+  return num_act_profs;
+}
+
 static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
   assert(root);
   cJSON *pipelines = cJSON_GetObjectItem(root, "pipelines");
   if (!pipelines) return PI_STATUS_CONFIG_READER_ERROR;
 
   size_t num_tables = 0u;
+  size_t num_act_profs = 0u;
 
   cJSON *pipe;
   cJSON_ArrayForEach(pipe, pipelines) {
     cJSON *tables = cJSON_GetObjectItem(pipe, "tables");
     if (!tables) return PI_STATUS_CONFIG_READER_ERROR;
     num_tables += cJSON_GetArraySize(tables);
+    num_act_profs += get_num_act_profs_in_pipe(pipe);
   }
 
   pi_p4info_table_init(p4info, num_tables);
+  pi_p4info_act_prof_init(p4info, num_act_profs);
 
   cJSON *table;
   int id = 0;
+  int act_prof_id = 0;
   cJSON_ArrayForEach(pipe, pipelines) {
     cJSON *tables = cJSON_GetObjectItem(pipe, "tables");
     cJSON_ArrayForEach(table, tables) {
@@ -254,6 +278,29 @@ static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
         const char *aname = action->valuestring;
         pi_p4_id_t aid = pi_p4info_action_id_from_name(p4info, aname);
         pi_p4info_table_add_action(p4info, pi_id, aid);
+      }
+
+      // action profile support
+      item = cJSON_GetObjectItem(table, "type");
+      if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+      const char *table_type = item->valuestring;
+      const char *act_prof_name = NULL;
+      bool with_selector = false;
+      // true for both 'indirect' and 'indirect_ws'
+      if (!strncmp("indirect", table_type, sizeof "indirect" - 1)) {
+        item = cJSON_GetObjectItem(table, "act_prof_name");
+        if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+        act_prof_name = item->valuestring;
+      }
+      if (!strncmp("indirect_ws", table_type, sizeof "indirect_ws")) {
+        with_selector = true;
+      }
+      if (act_prof_name) {
+        pi_p4_id_t pi_act_prof_id = pi_make_act_prof_id(act_prof_id++);
+        PI_LOG_DEBUG("Adding action profile '%s'\n", act_prof_name);
+        pi_p4info_act_prof_add(p4info, pi_act_prof_id,
+                               act_prof_name, pi_id, with_selector);
+        pi_p4info_table_set_implementation(p4info, pi_id, pi_act_prof_id);
       }
     }
   }

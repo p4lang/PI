@@ -19,6 +19,7 @@
 #include "actions_int.h"
 #include "tables_int.h"
 #include "fields_int.h"
+#include "act_profs_int.h"
 #include "utils/utils.h"
 
 #include <cJSON/cJSON.h>
@@ -70,7 +71,8 @@ char *pi_serialize_config(const pi_p4info_t *p4info, int fmt) {
   pi_p4info_field_serialize(root, p4info);
   pi_p4info_action_serialize(root, p4info);
   pi_p4info_table_serialize(root, p4info);
-  // TODO(antonin): use cJSON_PrintBuffered for better performance
+  pi_p4info_act_prof_serialize(root, p4info);
+  // TODO(antonin): use cJSON_PrintBuffered for better performance if needed
   char *str = (fmt) ? cJSON_Print(root) : cJSON_PrintUnformatted(root);
   cJSON_Delete(root);
   return str;

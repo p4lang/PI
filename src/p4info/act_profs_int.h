@@ -13,29 +13,19 @@
  * limitations under the License.
  */
 
-#ifndef PI_SRC_P4INFO_P4INFO_STRUCT_H_
-#define PI_SRC_P4INFO_P4INFO_STRUCT_H_
+#ifndef PI_SRC_P4INFO_ACT_PROFS_INT_H_
+#define PI_SRC_P4INFO_ACT_PROFS_INT_H_
 
-#include <stddef.h>
+#include "PI/p4info/act_profs.h"
 
-#include <Judy.h>
+void pi_p4info_act_prof_init(pi_p4info_t *p4info, size_t num_act_profs);
 
-struct pi_p4info_s {
-  size_t num_actions;
-  struct _action_data_s *actions;
-  Pvoid_t action_name_map;
+void pi_p4info_act_prof_free(pi_p4info_t *p4info);
 
-  size_t num_tables;
-  struct _table_data_s *tables;
-  Pvoid_t table_name_map;
+void pi_p4info_act_prof_add(pi_p4info_t *p4info, pi_p4_id_t act_prof_id,
+                            const char *name, pi_p4_id_t table_id,
+                            bool with_selector);
 
-  size_t num_fields;
-  struct _field_data_s *fields;
-  Pvoid_t field_name_map;
+void pi_p4info_act_prof_serialize(cJSON *root, const pi_p4info_t *p4info);
 
-  size_t num_act_profs;
-  struct _act_prof_data_s *act_profs;
-  Pvoid_t act_prof_name_map;
-};
-
-#endif // PI_SRC_P4INFO_P4INFO_STRUCT_H_
+#endif  // PI_SRC_P4INFO_ACT_PROFS_INT_H_

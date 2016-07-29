@@ -27,6 +27,8 @@ extern "C" {
 #define PI_ACTION_PARAM_ID  0x03
 #define PI_FIELD_ID         0x04
 
+#define PI_ACT_PROF_ID      0x11
+
 static inline pi_p4_id_t pi_make_action_id(uint16_t index) {
   return (PI_ACTION_ID << 24) | index;
 }
@@ -43,6 +45,10 @@ static inline pi_p4_id_t pi_make_action_param_id(pi_p4_id_t action_id,
 
 static inline pi_p4_id_t pi_make_field_id(uint16_t index) {
   return (PI_FIELD_ID << 24) | index;
+}
+
+static inline pi_p4_id_t pi_make_act_prof_id(uint16_t index) {
+  return (PI_ACT_PROF_ID << 24) | index;
 }
 
 #define PI_GET_TYPE_ID(id) (id >> 24)

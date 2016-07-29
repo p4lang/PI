@@ -13,7 +13,14 @@
  * limitations under the License.
  */
 
+#include "conn_mgr.h"
+#include "common.h"
+#include "action_helpers.h"
+
 #include "PI/pi.h"
+
+#include <string>
+#include <vector>
 
 #include <cstdio>
 
@@ -24,6 +31,12 @@ pi_status_t _pi_act_prof_mbr_create(pi_session_handle_t session_handle,
                                     pi_p4_id_t act_prof_id,
                                     const pi_action_data_t *action_data,
                                     pi_indirect_handle_t *mbr_handle) {
+  pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_tgt.dev_id);
+  assert(d_info->assigned);
+  const pi_p4info_t *p4info = d_info->p4info;
+
+  auto adata = pibmv2::build_action_data(action_data, p4info);
+
   (void) session_handle; (void) dev_tgt; (void) act_prof_id;
   (void) action_data; (void) mbr_handle;
   printf("%s\n", __func__);

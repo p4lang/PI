@@ -55,6 +55,8 @@ typedef struct _table_data_s {
   size_t actions_added;
   // PI_INVALID_ID if no const default action
   pi_p4_id_t const_default_action_id;
+  // PI_INVALID_ID if default
+  pi_p4_id_t implementation;
 } _table_data_t;
 
 static size_t get_table_idx(pi_p4_id_t table_id) {
@@ -136,6 +138,7 @@ void pi_p4info_table_add(pi_p4info_t *p4info, pi_p4_id_t table_id,
   }
 
   table->const_default_action_id = PI_INVALID_ID;
+  table->implementation = PI_INVALID_ID;
 
   Word_t *table_id_ptr;
   JSLI(table_id_ptr, p4info->table_name_map, (const uint8_t *) table->name);
@@ -175,6 +178,13 @@ void pi_p4info_table_add_action(pi_p4info_t *p4info, pi_p4_id_t table_id,
   assert(table->actions_added < table->num_actions);
   get_action_ids(table)[table->actions_added] = action_id;
   table->actions_added++;
+}
+
+void pi_p4info_table_set_implementation(pi_p4info_t *p4info,
+                                        pi_p4_id_t table_id,
+                                        pi_p4_id_t implementation) {
+  _table_data_t *table = get_table(p4info, table_id);
+  table->implementation = implementation;
 }
 
 void pi_p4info_table_set_const_default_action(pi_p4info_t *p4info,
@@ -293,6 +303,12 @@ pi_p4_id_t pi_p4info_table_get_const_default_action(const pi_p4info_t *p4info,
   return table->const_default_action_id;
 }
 
+pi_p4_id_t pi_p4info_table_get_implementation(const pi_p4info_t *p4info,
+                                              pi_p4_id_t table_id) {
+  _table_data_t *table = get_table(p4info, table_id);
+  return table->implementation;
+}
+
 #define PI_P4INFO_T_ITERATOR_FIRST (PI_TABLE_ID << 24)
 #define PI_P4INFO_T_ITERATOR_END ((PI_TABLE_ID << 24) | 0xffffff)
 
@@ -340,6 +356,8 @@ void pi_p4info_table_serialize(cJSON *root, const pi_p4info_t *p4info) {
 
     cJSON_AddNumberToObject(tObject, "const_default_action_id",
                             table->const_default_action_id);
+
+    cJSON_AddNumberToObject(tObject, "implementation", table->implementation);
 
     cJSON_AddItemToArray(tArray, tObject);
   }

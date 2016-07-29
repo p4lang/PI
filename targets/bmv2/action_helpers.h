@@ -13,29 +13,19 @@
  * limitations under the License.
  */
 
-#ifndef PI_SRC_P4INFO_P4INFO_STRUCT_H_
-#define PI_SRC_P4INFO_P4INFO_STRUCT_H_
+#ifndef PI_BMV2_ACTION_HELPERS_H_
+#define PI_BMV2_ACTION_HELPERS_H_
 
-#include <stddef.h>
+#include <PI/pi.h>
 
-#include <Judy.h>
+#include <vector>
+#include <string>
 
-struct pi_p4info_s {
-  size_t num_actions;
-  struct _action_data_s *actions;
-  Pvoid_t action_name_map;
+namespace pibmv2 {
 
-  size_t num_tables;
-  struct _table_data_s *tables;
-  Pvoid_t table_name_map;
+std::vector<std::string> build_action_data(const pi_action_data_t *action_data,
+                                           const pi_p4info_t *p4info);
 
-  size_t num_fields;
-  struct _field_data_s *fields;
-  Pvoid_t field_name_map;
+}  // namespace pibmv2
 
-  size_t num_act_profs;
-  struct _act_prof_data_s *act_profs;
-  Pvoid_t act_prof_name_map;
-};
-
-#endif // PI_SRC_P4INFO_P4INFO_STRUCT_H_
+#endif  // PI_BMV2_ACTION_HELPERS_H_
