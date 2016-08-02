@@ -156,6 +156,8 @@ pi_status_t _pi_act_prof_grp_create(pi_session_handle_t session_handle,
     return static_cast<pi_status_t>(PI_STATUS_TARGET_ERROR + ito.code);
   }
 
+  *grp_handle = pibmv2::IndirectHMgr::make_grp_h(*grp_handle);
+
   return PI_STATUS_SUCCESS;
 }
 
