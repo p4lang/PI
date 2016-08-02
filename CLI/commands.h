@@ -41,4 +41,8 @@ char *complete_table_dump(const char *text, int state);
 extern char select_device_hs[];
 pi_cli_status_t do_select_device(char *subcmd);
 
+extern char table_indirect_create_member_hs[];
+pi_cli_status_t do_table_indirect_create_member(char *subcmd);
+char *complete_table_indirect_create_member(const char *text, int state);
+
 #endif  // PI_CLI_COMMANDS_H_

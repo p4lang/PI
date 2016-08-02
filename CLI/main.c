@@ -128,6 +128,11 @@ static void init_cmd_map() {
                complete_table_set_default, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
   register_cmd("table_dump", do_table_dump, table_dump_hs,
                complete_table_dump, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
+
+  register_cmd("table_indirect_create_member", do_table_indirect_create_member,
+               table_indirect_create_member_hs,
+               complete_table_indirect_create_member,
+               PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
 }
 
 static void cleanup() {

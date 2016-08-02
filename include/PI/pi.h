@@ -18,6 +18,7 @@
 
 #include "pi_base.h"
 #include "pi_tables.h"
+#include "pi_act_prof.h"
 
 #ifdef __cplusplus
 extern "C" {
