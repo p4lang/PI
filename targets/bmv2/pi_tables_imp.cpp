@@ -144,7 +144,7 @@ char *dump_action_data(const pi_p4info_t *p4info, char *data,
 
 pi_entry_handle_t add_entry(const pi_p4info_t *p4info,
                             pi_dev_tgt_t dev_tgt,
-                            const std::string t_name,
+                            const std::string &t_name,
                             const BmMatchParams &mkey,
                             const pi_action_data_t *adata,
                             const BmAddEntryOptions &options) {
@@ -160,7 +160,7 @@ pi_entry_handle_t add_entry(const pi_p4info_t *p4info,
 
 pi_entry_handle_t add_indirect_entry(const pi_p4info_t *p4info,
                                      pi_dev_tgt_t dev_tgt,
-                                     const std::string t_name,
+                                     const std::string &t_name,
                                      const BmMatchParams &mkey,
                                      pi_indirect_handle_t h,
                                      const BmAddEntryOptions &options) {
@@ -175,6 +175,69 @@ pi_entry_handle_t add_indirect_entry(const pi_p4info_t *p4info,
     h = pibmv2::IndirectHMgr::clear_grp_h(h);
     return client.c->bm_mt_indirect_ws_add_entry(
         0, t_name, mkey, h, options);
+  }
+}
+
+void set_default_entry(const pi_p4info_t *p4info,
+                       pi_dev_tgt_t dev_tgt,
+                       const std::string &t_name,
+                       const pi_action_data_t *adata) {
+  auto action_data = pibmv2::build_action_data(adata, p4info);
+  pi_p4_id_t action_id = adata->action_id;
+  std::string a_name(pi_p4info_action_name_from_id(p4info, action_id));
+
+  auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_tgt.dev_id);
+
+  return client.c->bm_mt_set_default_action(0, t_name, a_name, action_data);
+}
+
+void set_default_indirect_entry(const pi_p4info_t *p4info,
+                                pi_dev_tgt_t dev_tgt,
+                                const std::string &t_name,
+                                pi_indirect_handle_t h) {
+  (void) p4info;  // needed later?
+  auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_tgt.dev_id);
+
+  bool is_grp_h = pibmv2::IndirectHMgr::is_grp_h(h);
+  if (!is_grp_h) {
+    return client.c->bm_mt_indirect_set_default_member(0, t_name, h);
+  } else {
+    h = pibmv2::IndirectHMgr::clear_grp_h(h);
+    return client.c->bm_mt_indirect_ws_set_default_group(0, t_name, h);
+  }
+}
+
+void modify_entry(const pi_p4info_t *p4info,
+                  pi_dev_id_t dev_id,
+                  const std::string &t_name,
+                  pi_entry_handle_t entry_handle,
+                  const pi_action_data_t *adata) {
+  auto action_data = pibmv2::build_action_data(adata, p4info);
+  pi_p4_id_t action_id = adata->action_id;
+  std::string a_name(pi_p4info_action_name_from_id(p4info, action_id));
+
+  auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_id);
+
+  return client.c->bm_mt_modify_entry(
+      0, t_name, entry_handle, a_name, action_data);
+}
+
+void modify_indirect_entry(const pi_p4info_t *p4info,
+                           pi_dev_id_t dev_id,
+                           const std::string &t_name,
+                           pi_entry_handle_t entry_handle,
+                           pi_indirect_handle_t h) {
+  (void) p4info;  // needed later?
+  auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_id);
+
+  bool is_grp_h = pibmv2::IndirectHMgr::is_grp_h(h);
+  if (!is_grp_h) {
+    return client.c->bm_mt_indirect_modify_entry(
+        0, t_name, entry_handle, h);
+  } else {
+    h = pibmv2::IndirectHMgr::clear_grp_h(h);
+    return client.c->bm_mt_indirect_ws_modify_entry(
+        0, t_name, entry_handle, h);
   }
 }
 
@@ -252,24 +315,27 @@ pi_status_t _pi_table_default_action_set(pi_session_handle_t session_handle,
   assert(d_info->assigned);
   const pi_p4info_t *p4info = d_info->p4info;
 
-  pi_p4_id_t action_id = table_entry->entry.action_data->action_id;
-  if (pi_p4info_table_has_const_default_action(p4info, table_id)) {
-    const pi_p4_id_t default_action_id =
-        pi_p4info_table_get_const_default_action(p4info, table_id);
-    if (default_action_id != action_id)
-      return PI_STATUS_CONST_DEFAULT_ACTION;
-  }
-
-  auto action_data = pibmv2::build_action_data(table_entry->entry.action_data,
-                                               p4info);
-
   std::string t_name(pi_p4info_table_name_from_id(p4info, table_id));
-  std::string a_name(pi_p4info_action_name_from_id(p4info, action_id));
-
-  auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_tgt.dev_id);
 
   try {
-    client.c->bm_mt_set_default_action(0, t_name, a_name, action_data);
+    if (table_entry->entry_type == PI_ACTION_ENTRY_TYPE_DATA) {
+      const pi_action_data_t *adata = table_entry->entry.action_data;
+
+      // TODO(antonin): equivalent for indirect?
+      if (pi_p4info_table_has_const_default_action(p4info, table_id)) {
+        const pi_p4_id_t default_action_id =
+            pi_p4info_table_get_const_default_action(p4info, table_id);
+        if (default_action_id != adata->action_id)
+          return PI_STATUS_CONST_DEFAULT_ACTION;
+      }
+
+      set_default_entry(p4info, dev_tgt, t_name, adata);
+    } else if (table_entry->entry_type == PI_ACTION_ENTRY_TYPE_INDIRECT) {
+      set_default_indirect_entry(p4info, dev_tgt, t_name,
+                                 table_entry->entry.indirect_handle);
+    } else {
+      assert(0);
+    }
   } catch (InvalidTableOperation &ito) {
     const char *what =
         _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
@@ -387,17 +453,18 @@ pi_status_t _pi_table_entry_modify(pi_session_handle_t session_handle,
   assert(d_info->assigned);
   const pi_p4info_t *p4info = d_info->p4info;
 
-  auto action_data = pibmv2::build_action_data(table_entry->entry.action_data,
-                                               p4info);
-
   std::string t_name(pi_p4info_table_name_from_id(p4info, table_id));
-  pi_p4_id_t action_id = table_entry->entry.action_data->action_id;
-  std::string a_name(pi_p4info_action_name_from_id(p4info, action_id));
-
-  auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_id);
 
   try {
-    client.c->bm_mt_modify_entry(0, t_name, entry_handle, a_name, action_data);
+    if (table_entry->entry_type == PI_ACTION_ENTRY_TYPE_DATA) {
+      modify_entry(p4info, dev_id, t_name, entry_handle,
+                   table_entry->entry.action_data);
+    } else if (table_entry->entry_type == PI_ACTION_ENTRY_TYPE_INDIRECT) {
+      modify_indirect_entry(p4info, dev_id, t_name, entry_handle,
+                            table_entry->entry.indirect_handle);
+    } else {
+      assert(0);
+    }
   } catch (InvalidTableOperation &ito) {
     const char *what =
         _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
