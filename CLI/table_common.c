@@ -91,3 +91,42 @@ char *complete_table_and_action(const char *text, int state) {
   }
   return NULL;
 }
+
+pi_cli_status_t get_entry_direct(pi_table_entry_t *t_entry) {
+  pi_cli_status_t status = PI_CLI_STATUS_SUCCESS;
+  const char *a_name = strtok(NULL, " ");
+
+  pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, a_name);
+  if (a_id == PI_INVALID_ID) return PI_CLI_STATUS_INVALID_ACTION_NAME;
+
+  t_entry->entry_type = PI_ACTION_ENTRY_TYPE_DATA;
+
+  pi_action_data_allocate(p4info, a_id, &t_entry->entry.action_data);
+  pi_action_data_t *adata = t_entry->entry.action_data;
+  pi_action_data_init(adata);
+  status = read_action_data(NULL, a_id, adata);
+  if (status != PI_CLI_STATUS_SUCCESS) {
+    pi_action_data_destroy(adata);
+    return status;
+  }
+
+  return status;
+}
+
+pi_cli_status_t get_entry_indirect(pi_table_entry_t *t_entry) {
+  const char *handle_str = strtok(NULL, " ");
+  char *endptr;
+  pi_indirect_handle_t handle = strtoll(handle_str, &endptr, 0);
+  if (*endptr != '\0') return PI_CLI_STATUS_INVALID_INDIRECT_HANDLE;
+  t_entry->entry_type = PI_ACTION_ENTRY_TYPE_INDIRECT;
+  t_entry->entry.indirect_handle = handle;
+  return PI_CLI_STATUS_SUCCESS;
+}
+
+void cleanup_entry_direct(pi_table_entry_t *t_entry) {
+  pi_action_data_destroy(t_entry->entry.action_data);
+}
+
+void cleanup_entry_indirect(pi_table_entry_t *t_entry) {
+  (void) t_entry;
+}

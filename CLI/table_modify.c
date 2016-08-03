@@ -27,39 +27,43 @@
 
 char table_modify_hs[] =
     "Modify entry in a match table: "
-    "table_modify <table name> <action name> <entry_handle> "
-    "<action parameters>";
+    "table_modify <table name> <entry_handle> => "
+    "[<action name> <action parameters> | <indirect handle>]";
 
 pi_cli_status_t do_table_modify(char *subcmd) {
-  const char *args[3];
+  const char *args[2];
   size_t num_args = sizeof(args) / sizeof(char *);
   if (parse_fixed_args(subcmd, args, num_args) < num_args)
     return PI_CLI_STATUS_TOO_FEW_ARGS;
   const char *t_name = args[0];
-  const char *a_name = args[1];
-  const char *handle_str = args[2];
+  const char *handle_str = args[1];
   pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, t_name);
   if (t_id == PI_INVALID_ID) return PI_CLI_STATUS_INVALID_TABLE_NAME;
-  pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, a_name);
-  if (a_id == PI_INVALID_ID) return PI_CLI_STATUS_INVALID_ACTION_NAME;
+
   char *endptr;
   pi_entry_handle_t handle = strtoll(handle_str, &endptr, 0);
   if (*endptr != '\0') return PI_CLI_STATUS_INVALID_ENTRY_HANDLE;
 
   pi_cli_status_t status;
 
-  pi_action_data_t *adata;
-  pi_action_data_allocate(p4info, a_id, &adata);
-  pi_action_data_init(adata);
-  status = read_action_data(NULL, a_id, adata);
+  char *separator = strtok(NULL, " ");
+  if (!separator || strncmp("=>", separator, sizeof("=>"))) {
+    fprintf(stderr, "Use '=>' to separate action data from entry handle.\n");
+    return PI_CLI_STATUS_INVALID_COMMAND_FORMAT;
+  }
+
+  pi_p4_id_t t_imp = pi_p4info_table_get_implementation(p4info, t_id);
+
+  pi_table_entry_t t_entry;
+  if (t_imp == PI_INVALID_ID) {
+    status = get_entry_direct(&t_entry);
+  } else {
+    status = get_entry_indirect(&t_entry);
+  }
   if (status != PI_CLI_STATUS_SUCCESS) {
-    pi_action_data_destroy(adata);
     return status;
   }
 
-  pi_table_entry_t t_entry;
-  t_entry.entry_type = PI_ACTION_ENTRY_TYPE_DATA;
-  t_entry.entry.action_data = adata;
   t_entry.entry_properties = NULL;
   t_entry.direct_res_config = NULL;
 
@@ -71,11 +75,13 @@ pi_cli_status_t do_table_modify(char *subcmd) {
   else
     printf("Error when trying to modify entry %" PRIu64 ".\n", handle);
 
-  pi_action_data_destroy(adata);
+  if (t_imp == PI_INVALID_ID) cleanup_entry_direct(&t_entry);
+  else cleanup_entry_indirect(&t_entry);
+
   return (rc == PI_STATUS_SUCCESS) ? PI_CLI_STATUS_SUCCESS
       : PI_CLI_STATUS_TARGET_ERROR;
 };
 
 char *complete_table_modify(const char *text, int state) {
-  return complete_table_and_action(text, state);
+  return complete_table(text, state);
 }

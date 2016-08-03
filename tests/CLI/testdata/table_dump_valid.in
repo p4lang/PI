@@ -1,2 +1,2 @@
-table_add t1 noop true 0 =>
+table_add t1 true 0 => noop
 table_dump t1

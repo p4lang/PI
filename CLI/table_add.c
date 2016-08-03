@@ -27,8 +27,8 @@
 
 char table_add_hs[] =
     "Add entry to a match table: "
-    "table_add <table name> <action name> <match fields> => "
-    "<action parameters> [priority]";
+    "table_add <table name> <match fields> => "
+    "[<action name> <action parameters> | <indirect handle>] [priority]";
 
 static int read_LPM_field(char *mf, int *pLen) {
   char *delim = strchr(mf, '/');
@@ -175,16 +175,13 @@ static pi_cli_status_t read_match_fields(char *in, pi_p4_id_t t_id,
 }
 
 pi_cli_status_t do_table_add(char *subcmd) {
-  const char *args[2];
+  const char *args[1];
   size_t num_args = sizeof(args) / sizeof(char *);
   if (parse_fixed_args(subcmd, args, num_args) < num_args)
     return PI_CLI_STATUS_TOO_FEW_ARGS;
   const char *t_name = args[0];
-  const char *a_name = args[1];
   pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, t_name);
   if (t_id == PI_INVALID_ID) return PI_CLI_STATUS_INVALID_TABLE_NAME;
-  pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, a_name);
-  if (a_id == PI_INVALID_ID) return PI_CLI_STATUS_INVALID_ACTION_NAME;
 
   pi_cli_status_t status;
 
@@ -204,13 +201,16 @@ pi_cli_status_t do_table_add(char *subcmd) {
     return PI_CLI_STATUS_INVALID_COMMAND_FORMAT;
   }
 
-  pi_action_data_t *adata;
-  pi_action_data_allocate(p4info, a_id, &adata);
-  pi_action_data_init(adata);
-  status = read_action_data(NULL, a_id, adata);
+  pi_p4_id_t t_imp = pi_p4info_table_get_implementation(p4info, t_id);
+
+  pi_table_entry_t t_entry;
+  if (t_imp == PI_INVALID_ID) {
+    status = get_entry_direct(&t_entry);
+  } else {
+    status = get_entry_indirect(&t_entry);
+  }
   if (status != PI_CLI_STATUS_SUCCESS) {
     pi_match_key_destroy(mk);
-    pi_action_data_destroy(adata);
     return status;
   }
 
@@ -228,9 +228,6 @@ pi_cli_status_t do_table_add(char *subcmd) {
                             priority);
   }
 
-  pi_table_entry_t t_entry;
-  t_entry.entry_type = PI_ACTION_ENTRY_TYPE_DATA;
-  t_entry.entry.action_data = adata;
   t_entry.entry_properties = &entry_properties;
   t_entry.direct_res_config = NULL;
 
@@ -243,11 +240,13 @@ pi_cli_status_t do_table_add(char *subcmd) {
     printf("Error when trying to add entry.\n");
 
   pi_match_key_destroy(mk);
-  pi_action_data_destroy(adata);
+  if (t_imp == PI_INVALID_ID) cleanup_entry_direct(&t_entry);
+  else cleanup_entry_indirect(&t_entry);
+
   return (rc == PI_STATUS_SUCCESS) ? PI_CLI_STATUS_SUCCESS
       : PI_CLI_STATUS_TARGET_ERROR;
 };
 
 char *complete_table_add(const char *text, int state) {
-  return complete_table_and_action(text, state);
+  return complete_table(text, state);
 }
