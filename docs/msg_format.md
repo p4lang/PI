@@ -194,10 +194,17 @@ For each match entry handle, we serialize the above information as follows:
 
  * the entry handle, as 8 bytes in little-endian order
  * the serialized match key, as described [above] (#match-key)
- * the action id, as 4 bytes in little-endian order
- * the size of the serialized action data in bytes, as 4 bytes in little-endian
-   order
- * the serialized action data, as described [above] (#action-data)
+ * the action entry type: 0 (`PI_ACTION_ENTRY_TYPE_NONE`), 1
+   (`PI_ACTION_ENTRY_TYPE_DATA`) or 2 (`PI_ACTION_ENTRY_TYPE_INDIRECT)
+ * the action entry:
+   * for `PI_ACTION_ENTRY_TYPE_NONE`: nothing
+   * for `PI_ACTION_ENTRY_TYPE_DATA`:
+     * the action id, as 4 bytes in little-endian order
+     * the size of the serialized action data in bytes, as 4 bytes in
+       little-endian order
+     * the serialized action data, as described [above] (#action-data)
+   * for `PI_ACTION_ENTRY_TYPE_INDIRECT`: the indirect handle, as 8 bytes in
+     little-endian order
  * the entry properties; see description [below] (#entry-properties)
  * TODO: direct resources
 

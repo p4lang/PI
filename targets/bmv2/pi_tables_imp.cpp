@@ -530,9 +530,6 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
   size_t data_size = 0u;
 
   data_size += entries.size() * sizeof(uint64_t);  // entry handles
-  data_size += entries.size() * sizeof(uint32_t);  // action ids
-  // not needed for indirect ...
-  data_size += entries.size() * sizeof(uint32_t);  // action data nbytes
   // TODO(antonin): really needed of table type is enough?
   data_size += entries.size() * sizeof(s_pi_action_entry_type_t);
   // TODO(antonin): make this conditional on the table match type.
@@ -567,6 +564,8 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
         break;
       case BmActionEntryType::ACTION_DATA:
         data_size += action_map.at(e.action_entry.action_name).s;
+        data_size += sizeof(s_pi_p4_id_t);  // action id
+        data_size += sizeof(uint32_t);  // action data nbytes
         break;
       case BmActionEntryType::MBR_HANDLE:
       case BmActionEntryType::GRP_HANDLE:
