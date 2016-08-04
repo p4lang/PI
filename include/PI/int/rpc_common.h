@@ -34,6 +34,10 @@ typedef enum {
   PI_RPC_TABLE_ENTRIES_FETCH,
   /* PI_RPC_TABLE_ENTRIES_FETCH_DONE, */
 
+  // act profs
+  // TODO(antonin): move
+  PI_RPC_ACT_PROF_MBR_CREATE,
+
   // rpc management
   // retrieve state for sync-up when rpc client is started
   PI_RPC_INT_GET_STATE = 256,
@@ -65,5 +69,10 @@ struct pi_table_entry_t;
 size_t table_entry_size(const pi_table_entry_t *table_entry);
 size_t emit_table_entry(char *dst, const pi_table_entry_t *table_entry);
 size_t retrieve_table_entry(char *src, pi_table_entry_t *table_entry, int copy);
+
+size_t action_data_size(const pi_action_data_t *action_data);
+size_t emit_action_data(char *dst, const pi_action_data_t *action_data);
+size_t retrieve_action_data(char *src, pi_action_data_t **action_data,
+                            int copy);
 
 #endif  // PI_INT_RPC_COMMON_H_

@@ -15,6 +15,7 @@
 
 #include "PI/target/pi_imp.h"
 #include "PI/target/pi_tables_imp.h"
+#include "PI/target/pi_act_prof_imp.h"
 #include "PI/int/pi_int.h"
 #include "PI/int/serialize.h"
 #include "PI/int/rpc_common.h"
@@ -236,10 +237,8 @@ static void __pi_table_entry_add(char *req) {
   req += mk_size;
 
   pi_table_entry_t table_entry;
+  // in case the entry is action data, we allocate a struct on the stack
   pi_action_data_t action_data;
-  action_data.p4info = NULL;  // TODO(antonin)
-  // TODO(antonin): indirect
-  table_entry.entry_type = PI_ACTION_ENTRY_TYPE_DATA;
   table_entry.entry.action_data = &action_data;
   req += retrieve_table_entry(req, &table_entry, 0);
 
@@ -277,9 +276,6 @@ static void __pi_table_default_action_set(char *req) {
 
   pi_table_entry_t table_entry;
   pi_action_data_t action_data;
-  action_data.p4info = NULL;  // TODO(antonin)
-  // TODO(antonin): indirect
-  table_entry.entry_type = PI_ACTION_ENTRY_TYPE_DATA;
   table_entry.entry.action_data = &action_data;
   req += retrieve_table_entry(req, &table_entry, 0);
 
@@ -351,9 +347,6 @@ static void __pi_table_entry_modify(char *req) {
 
   pi_table_entry_t table_entry;
   pi_action_data_t action_data;
-  action_data.p4info = NULL;  // TODO(antonin)
-  // TODO(antonin): indirect
-  table_entry.entry_type = PI_ACTION_ENTRY_TYPE_DATA;
   table_entry.entry.action_data = &action_data;
   req += retrieve_table_entry(req, &table_entry, 0);
 
@@ -404,6 +397,38 @@ static void __pi_table_entries_fetch(char *req) {
   assert((size_t) bytes == s);
 }
 
+static void __pi_act_prof_mbr_create(char *req) {
+  printf("RPC: _pi_act_prof_mbr_create\n");
+
+  pi_session_handle_t sess;
+  req += retrieve_session_handle(req, &sess);
+  pi_dev_tgt_t dev_tgt;
+  req += retrieve_dev_tgt(req, &dev_tgt);
+  pi_p4_id_t act_prof_id;
+  req += retrieve_p4_id(req, &act_prof_id);
+
+  pi_action_data_t action_data;
+  pi_action_data_t *action_data_ = &action_data;
+  action_data.p4info = NULL;  // TODO(antonin)
+  req += retrieve_action_data(req, &action_data_, 0);
+
+  pi_indirect_handle_t mbr_handle;
+  pi_status_t status = _pi_act_prof_mbr_create(sess, dev_tgt, act_prof_id,
+                                               &action_data, &mbr_handle);
+
+  typedef struct __attribute__((packed)) {
+    rep_hdr_t hdr;
+    s_pi_indirect_handle_t h;
+  } rep_t;
+  rep_t rep;
+  char *rep_ = (char *) &rep;
+  rep_ += emit_rep_hdr(rep_, status);
+  rep_ += emit_indirect_handle(rep_, mbr_handle);
+
+  int bytes = nn_send(state.s, &rep, sizeof(rep), 0);
+  assert(bytes == sizeof(rep));
+}
+
 pi_status_t pi_rpc_server_run(char *rpc_addr) {
   assert(!state.init);
   if (rpc_addr)
@@ -452,6 +477,10 @@ pi_status_t pi_rpc_server_run(char *rpc_addr) {
         __pi_table_entry_modify(req_); break;
       case PI_RPC_TABLE_ENTRIES_FETCH:
         __pi_table_entries_fetch(req_); break;
+
+      case PI_RPC_ACT_PROF_MBR_CREATE:
+        __pi_act_prof_mbr_create(req_); break;
+
       default:
         assert(0);
     }
@@ -480,37 +509,61 @@ size_t retrieve_rpc_type(const char *src, pi_rpc_type_t *v) {
   return retrieve_uint32(src, v);
 }
 
-size_t table_entry_size(const pi_table_entry_t *table_entry) {
+size_t action_data_size(const pi_action_data_t *action_data) {
   size_t s = 0;
   s += sizeof(s_pi_p4_id_t);  // action_id
   s += sizeof(uint32_t);  // action data size
-  // for the specific case of no default action (fetch)
-  if (table_entry->entry_type == PI_ACTION_ENTRY_TYPE_DATA)
-    s += table_entry->entry.action_data->data_size;
+  s += action_data->data_size;
+  return s;
+}
+
+size_t table_entry_size(const pi_table_entry_t *table_entry) {
+  size_t s = 0;
+  s += sizeof(s_pi_action_entry_type_t);
+  switch (table_entry->entry_type) {
+    case PI_ACTION_ENTRY_TYPE_NONE:
+      return s;
+    case PI_ACTION_ENTRY_TYPE_DATA:
+      return s + action_data_size(table_entry->entry.action_data);
+    case PI_ACTION_ENTRY_TYPE_INDIRECT:
+      return s + sizeof(s_pi_indirect_handle_t);
+    default:
+      assert(0);
+      return 0;
+  }
   // TODO(antonin): properties
+}
+
+size_t emit_action_data(char *dst, const pi_action_data_t *action_data) {
+  size_t s = 0;
+  s += emit_p4_id(dst, action_data->action_id);
+  s += emit_uint32(dst + s, action_data->data_size);
+  if (action_data->data_size > 0) {
+    memcpy(dst + s, action_data->data, action_data->data_size);
+    s += action_data->data_size;
+  }
   return s;
 }
 
 size_t emit_table_entry(char *dst, const pi_table_entry_t *table_entry) {
   size_t s = 0;
-  pi_p4_id_t action_id = PI_INVALID_ID;
-  size_t ad_size = 0;
-  // TODO(antonin): indirect
-  if (table_entry->entry_type == PI_ACTION_ENTRY_TYPE_DATA) {
-    action_id = table_entry->entry.action_data->action_id;
-    ad_size = table_entry->entry.action_data->data_size;
-  }
-  s += emit_p4_id(dst, action_id);
-  s += emit_uint32(dst + s, ad_size);
-  if (ad_size > 0) {
-    memcpy(dst + s, table_entry->entry.action_data->data, ad_size);
-    s += ad_size;
+  s += emit_action_entry_type(dst, table_entry->entry_type);
+  switch (table_entry->entry_type) {
+    case PI_ACTION_ENTRY_TYPE_NONE:
+      return s;
+    case PI_ACTION_ENTRY_TYPE_DATA:
+      return s + emit_action_data(dst + s, table_entry->entry.action_data);
+    case PI_ACTION_ENTRY_TYPE_INDIRECT:
+      return s + emit_indirect_handle(dst + s,
+                                      table_entry->entry.indirect_handle);
+    default:
+      assert(0);
+      return 0;
   }
   // TODO(antonin): properties
-  return s;
 }
 
-size_t retrieve_table_entry(char *src, pi_table_entry_t *table_entry,
+size_t retrieve_action_data(char *src, pi_action_data_t **action_data,
                             int copy) {
   size_t s = 0;
   pi_p4_id_t action_id;
@@ -518,35 +571,49 @@ size_t retrieve_table_entry(char *src, pi_table_entry_t *table_entry,
   uint32_t ad_size;
   s += retrieve_uint32(src + s, &ad_size);
 
-  // TODO(antonin): indirect
-  if (action_id == PI_INVALID_ID) {
-    table_entry->entry_type = PI_ACTION_ENTRY_TYPE_NONE;
+  pi_action_data_t *adata;
+  if (copy) {
+    // no alignment issue with malloc
+    char *ad = malloc(sizeof(pi_action_data_t) + ad_size);
+    adata = (pi_action_data_t *) ad;
+    adata->data = ad + sizeof(pi_action_data_t);
+    *action_data = adata;
   } else {
-    table_entry->entry_type = PI_ACTION_ENTRY_TYPE_DATA;
+    adata = *action_data;
+  }
+  adata->p4info = NULL;  // TODO(antonin)
+  adata->action_id = action_id;
+  adata->data_size = ad_size;
 
-    pi_action_data_t *action_data;
-    if (copy) {
-      // no alignment issue with malloc
-      char *ad = malloc(sizeof(pi_action_data_t) + ad_size);
-      action_data = (pi_action_data_t *) ad;
-      action_data->data = ad + sizeof(pi_action_data_t);
-      table_entry->entry.action_data = action_data;
-    } else {
-      action_data = table_entry->entry.action_data;
-    }
-
-    action_data->action_id = action_id;
-    action_data->data_size = ad_size;
-
-    if (copy) {
-      memcpy(action_data->data, src + s, ad_size);
-    } else {
-      action_data->data = src + s;
-    }
+  if (copy) {
+    memcpy(adata->data, src + s, ad_size);
+  } else {
+    adata->data = src + s;
   }
 
   s += ad_size;
 
   // TODO(antonin): properties
   return s;
+}
+
+size_t retrieve_table_entry(char *src, pi_table_entry_t *table_entry,
+                            int copy) {
+  size_t s = 0;
+  pi_action_entry_type_t entry_type;
+  s += retrieve_action_entry_type(src, &entry_type);
+  table_entry->entry_type = entry_type;
+  switch (entry_type) {
+    case PI_ACTION_ENTRY_TYPE_NONE:
+      return s;
+    case PI_ACTION_ENTRY_TYPE_DATA:
+      return s + retrieve_action_data(src + s, &table_entry->entry.action_data,
+                                      copy);
+    case PI_ACTION_ENTRY_TYPE_INDIRECT:
+      return s + retrieve_indirect_handle(src + s,
+                                          &table_entry->entry.indirect_handle);
+    default:
+      assert(0);
+      return s;
+  }
 }
