@@ -25,6 +25,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <algorithm>
 
 #include <cstring>
 
@@ -241,6 +242,44 @@ void modify_indirect_entry(const pi_p4info_t *p4info,
   }
 }
 
+void retrieve_entry(const pi_p4info_t *p4info, const std::string &a_name,
+                    const BmActionData &action_data,
+                    pi_table_entry_t *table_entry) {
+  const pi_p4_id_t action_id = pi_p4info_action_id_from_name(
+      p4info, a_name.c_str());
+
+  table_entry->entry_type = PI_ACTION_ENTRY_TYPE_DATA;
+
+  const size_t adata_size = get_action_data_size(p4info, action_id);
+
+  // no alignment issue with new[]
+  char *data_ = new char[sizeof(pi_action_data_t) + adata_size];
+  pi_action_data_t *adata = reinterpret_cast<pi_action_data_t *>(data_);
+  data_ += sizeof(pi_action_data_t);
+
+  adata->p4info = p4info;
+  adata->action_id = action_id;
+  adata->data_size = adata_size;
+  adata->data = data_;
+
+  table_entry->entry.action_data = adata;
+
+  data_ = dump_action_data(p4info, data_, action_id, action_data);
+}
+
+void retrieve_indirect_entry(const pi_p4info_t *p4info, int32_t h,
+                             bool is_grp_h, pi_table_entry_t *table_entry) {
+  (void) p4info;
+  table_entry->entry_type = PI_ACTION_ENTRY_TYPE_INDIRECT;
+
+  pi_indirect_handle_t indirect_handle = static_cast<pi_indirect_handle_t>(h);
+  if (is_grp_h) {
+    indirect_handle = pibmv2::IndirectHMgr::make_grp_h(indirect_handle);
+  }
+
+  table_entry->entry.indirect_handle = indirect_handle;
+}
+
 }  // namespace
 
 
@@ -371,34 +410,20 @@ pi_status_t _pi_table_default_action_get(pi_session_handle_t session_handle,
     return static_cast<pi_status_t>(PI_STATUS_TARGET_ERROR + ito.code);
   }
 
-  if (entry.action_type == BmActionEntryType::NONE) {
-    table_entry->entry_type = PI_ACTION_ENTRY_TYPE_NONE;
-    // should we return an error code?
-    return PI_STATUS_SUCCESS;
+  switch (entry.action_type) {
+    case BmActionEntryType::NONE:
+      table_entry->entry_type = PI_ACTION_ENTRY_TYPE_NONE;
+      break;
+    case BmActionEntryType::ACTION_DATA:
+      retrieve_entry(p4info, entry.action_name, entry.action_data, table_entry);
+      break;
+    case BmActionEntryType::MBR_HANDLE:
+      retrieve_indirect_entry(p4info, entry.mbr_handle, false, table_entry);
+      break;
+    case BmActionEntryType::GRP_HANDLE:
+      retrieve_indirect_entry(p4info, entry.grp_handle, true, table_entry);
+      break;
   }
-
-  assert(entry.action_type == BmActionEntryType::ACTION_DATA);
-  const pi_p4_id_t action_id = pi_p4info_action_id_from_name(
-      p4info, entry.action_name.c_str());
-
-  // TODO(antonin): indirect
-  table_entry->entry_type = PI_ACTION_ENTRY_TYPE_DATA;
-
-  const size_t adata_size = get_action_data_size(p4info, action_id);
-
-  // no alignment issue with new[]
-  char *data_ = new char[sizeof(pi_action_data_t) + adata_size];
-  pi_action_data_t *action_data = reinterpret_cast<pi_action_data_t *>(data_);
-  data_ += sizeof(pi_action_data_t);
-
-  action_data->p4info = p4info;
-  action_data->action_id = action_id;
-  action_data->data_size = adata_size;
-  action_data->data = data_;
-
-  table_entry->entry.action_data = action_data;
-
-  data_ = dump_action_data(p4info, data_, action_id, entry.action_data);
 
   return PI_STATUS_SUCCESS;
 }
@@ -506,7 +531,10 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
 
   data_size += entries.size() * sizeof(uint64_t);  // entry handles
   data_size += entries.size() * sizeof(uint32_t);  // action ids
+  // not needed for indirect ...
   data_size += entries.size() * sizeof(uint32_t);  // action data nbytes
+  // TODO(antonin): really needed of table type is enough?
+  data_size += entries.size() * sizeof(s_pi_action_entry_type_t);
   // TODO(antonin): make this conditional on the table match type.
   // allocating too much memory is not an issue though
   data_size += entries.size() * 2 * sizeof(uint32_t);  // for priority
@@ -534,10 +562,22 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
   }
 
   for (const auto &e : entries) {
-    data_size += action_map.at(e.action_entry.action_name).s;
+    switch (e.action_entry.action_type) {
+      case BmActionEntryType::NONE:
+        break;
+      case BmActionEntryType::ACTION_DATA:
+        data_size += action_map.at(e.action_entry.action_name).s;
+        break;
+      case BmActionEntryType::MBR_HANDLE:
+      case BmActionEntryType::GRP_HANDLE:
+        data_size += sizeof(s_pi_indirect_handle_t);
+        break;
+    }
   }
 
   char *data = new char[data_size];
+  // in some cases, we do not use the whole buffer
+  std::fill(data, data + data_size, 0);
   res->entries_size = data_size;
   res->entries = data;
 
@@ -574,13 +614,39 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
     }
 
     const BmActionEntry &action_entry = e.action_entry;
-    assert(action_entry.action_type == BmActionEntryType::ACTION_DATA);
-    const ADataSize &adata_size = action_map.at(action_entry.action_name);
-    data += emit_p4_id(data, adata_size.id);
-    data += emit_uint32(data, adata_size.s);
 
-    data = dump_action_data(p4info, data, adata_size.id,
-                            action_entry.action_data);
+    switch (action_entry.action_type) {
+      case BmActionEntryType::NONE:
+        data += emit_action_entry_type(data, PI_ACTION_ENTRY_TYPE_NONE);
+        break;
+      case BmActionEntryType::ACTION_DATA:
+        {
+          data += emit_action_entry_type(data, PI_ACTION_ENTRY_TYPE_DATA);
+          const ADataSize &adata_size = action_map.at(action_entry.action_name);
+          data += emit_p4_id(data, adata_size.id);
+          data += emit_uint32(data, adata_size.s);
+          data = dump_action_data(p4info, data, adata_size.id,
+                                  action_entry.action_data);
+        }
+        break;
+      case BmActionEntryType::MBR_HANDLE:
+        {
+          data += emit_action_entry_type(data, PI_ACTION_ENTRY_TYPE_INDIRECT);
+          pi_indirect_handle_t indirect_handle =
+              static_cast<pi_indirect_handle_t>(action_entry.mbr_handle);
+          data += emit_indirect_handle(data, indirect_handle);
+        }
+        break;
+      case BmActionEntryType::GRP_HANDLE:
+        {
+          data += emit_action_entry_type(data, PI_ACTION_ENTRY_TYPE_INDIRECT);
+          pi_indirect_handle_t indirect_handle =
+              static_cast<pi_indirect_handle_t>(action_entry.mbr_handle);
+          indirect_handle = pibmv2::IndirectHMgr::make_grp_h(indirect_handle);
+          data += emit_indirect_handle(data, indirect_handle);
+        }
+        break;
+    }
 
     const BmAddEntryOptions &options = e.options;
     if (options.__isset.priority) {

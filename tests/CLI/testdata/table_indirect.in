@@ -3,3 +3,4 @@ table_add ecmp_group 10.0.0.1/16 => 0
 table_indirect_create_member ecmp_action_profile set_nhop 10.0.0.2 9
 table_modify ecmp_group 0 => 1
 table_set_default ecmp_group 0
+table_dump ecmp_group

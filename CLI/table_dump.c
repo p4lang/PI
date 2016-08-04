@@ -101,6 +101,11 @@ static void print_action_entry(pi_table_entry_t *entry) {
     return;
   }
 
+  if (entry->entry_type == PI_ACTION_ENTRY_TYPE_INDIRECT) {
+    printf("Indirect handle: %" PRIu64 "\n", entry->entry.indirect_handle);
+    return;
+  }
+
   const pi_action_data_t *action_data = entry->entry.action_data;
   pi_p4_id_t action_id = pi_action_data_action_id_get(action_data);
 
