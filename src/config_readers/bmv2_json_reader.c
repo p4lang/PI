@@ -298,8 +298,9 @@ static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
       if (act_prof_name) {
         pi_p4_id_t pi_act_prof_id = pi_make_act_prof_id(act_prof_id++);
         PI_LOG_DEBUG("Adding action profile '%s'\n", act_prof_name);
-        pi_p4info_act_prof_add(p4info, pi_act_prof_id,
-                               act_prof_name, pi_id, with_selector);
+        pi_p4info_act_prof_add(p4info, pi_act_prof_id, act_prof_name,
+                               with_selector);
+        pi_p4info_act_prof_add_table(p4info, pi_act_prof_id, pi_id);
         pi_p4info_table_set_implementation(p4info, pi_id, pi_act_prof_id);
       }
     }

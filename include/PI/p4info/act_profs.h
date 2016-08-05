@@ -27,8 +27,13 @@ const char *pi_p4info_act_prof_name_from_id(const pi_p4info_t *p4info,
 bool pi_p4info_act_prof_has_selector(const pi_p4info_t *p4info,
                                      pi_p4_id_t act_prof_id);
 
-pi_p4_id_t pi_p4info_act_prof_get_table(const pi_p4info_t *p4info,
-                                        pi_p4_id_t act_prof_id);
+const pi_p4_id_t *pi_p4info_act_prof_get_tables(const pi_p4info_t *p4info,
+                                                pi_p4_id_t act_prof_id,
+                                                size_t *num_tables);
+
+const pi_p4_id_t *pi_p4info_act_prof_get_actions(const pi_p4info_t *p4info,
+                                                 pi_p4_id_t act_prof_id,
+                                                 size_t *num_actions);
 
 pi_p4_id_t pi_p4info_act_prof_begin(const pi_p4info_t *p4info);
 pi_p4_id_t pi_p4info_act_prof_next(const pi_p4info_t *p4info, pi_p4_id_t id);

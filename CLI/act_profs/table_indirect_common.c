@@ -36,13 +36,17 @@ static char *complete_p4_act_prof(const char *text, int len, int state) {
   return NULL;
 }
 
-static char *get_act_prof_table(const char *act_prof_name) {
+// get one of the tables for the action profile, to retrieve the actions
+static char *get_one_act_prof_table(const char *act_prof_name) {
   pi_p4_id_t act_prof_id = pi_p4info_act_prof_id_from_name(p4info,
                                                            act_prof_name);
   if (act_prof_id == PI_INVALID_ID) return NULL;
-  pi_p4_id_t t_id = pi_p4info_act_prof_get_table(p4info, act_prof_id);
-  assert(t_id != PI_INVALID_ID);
-  return strdup(pi_p4info_table_name_from_id(p4info, t_id));
+  size_t num_tables = 0;
+  const pi_p4_id_t *t_ids = pi_p4info_act_prof_get_tables(p4info, act_prof_id,
+                                                          &num_tables);
+  assert(num_tables > 0);
+  assert(*t_ids != PI_INVALID_ID);
+  return strdup(pi_p4info_table_name_from_id(p4info, *t_ids));
 }
 
 char *complete_act_prof(const char *text, int state) {
@@ -82,7 +86,7 @@ char *complete_act_prof_and_action(const char *text, int state) {
     if (!t_name) {
       char *act_prof_name = get_token_from_buffer(rl_line_buffer, 1);
       assert(act_prof_name);
-      t_name = get_act_prof_table(act_prof_name);
+      t_name = get_one_act_prof_table(act_prof_name);
       if (!t_name) return NULL;
     }
     assert(t_name);
