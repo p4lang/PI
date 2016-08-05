@@ -345,7 +345,11 @@ MatchTable::entry_add(const MatchKey &match_key, pi_p4_id_t action_id,
   if (action_id != action_data.action_id) return 1;
   // TODO(antonin): handle device id / pipleline mask
   const pi_dev_tgt_t dev_tgt = {0, 0xffff};
-  pi_table_entry_t entry = {action_id, action_data.get(), NULL, NULL};
+  pi_table_entry_t entry;
+  entry.entry_type = PI_ACTION_ENTRY_TYPE_DATA;
+  entry.entry.action_data = action_data.get();
+  entry.entry_properties = NULL;
+  entry.direct_res_config = NULL;
   return pi_table_entry_add(sess, dev_tgt, table_id, match_key.get(),
                             &entry, overwrite, entry_handle);
 }

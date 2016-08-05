@@ -13,8 +13,8 @@
  * limitations under the License.
  */
 
-#ifndef PI_SRC_TARGET_PI_IMP_H_
-#define PI_SRC_TARGET_PI_IMP_H_
+#ifndef PI_INC_PI_TARGET_PI_IMP_H_
+#define PI_INC_PI_TARGET_PI_IMP_H_
 
 #include "PI/pi.h"
 
@@ -31,4 +31,4 @@ pi_status_t _pi_session_cleanup(pi_session_handle_t session_handle);
 
 pi_status_t _pi_destroy();
 
-#endif  // PI_SRC_TARGET_PI_IMP_H_
+#endif  // PI_INC_PI_TARGET_PI_IMP_H_

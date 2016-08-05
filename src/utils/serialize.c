@@ -37,6 +37,10 @@ size_t emit_entry_handle(char *dst, pi_entry_handle_t v) {
   return emit_uint64(dst, v);
 }
 
+size_t emit_indirect_handle(char *dst, pi_indirect_handle_t v) {
+  return emit_uint64(dst, v);
+}
+
 size_t emit_dev_id(char *dst, pi_dev_id_t v) {
   // TODO(antonin): change to uint16?
   return emit_uint32(dst, v);
@@ -57,6 +61,10 @@ size_t emit_session_handle(char *dst, pi_session_handle_t v) {
   return emit_uint32(dst, v);
 }
 
+size_t emit_action_entry_type(char *dst, pi_action_entry_type_t v) {
+  return emit_uint32(dst, v);
+}
+
 size_t retrieve_uint32(const char *src, uint32_t *v) {
   memcpy(v, src, sizeof(*v));
   return sizeof(*v);
@@ -72,6 +80,10 @@ size_t retrieve_p4_id(const char *src, pi_p4_id_t *v) {
 }
 
 size_t retrieve_entry_handle(const char *src, pi_entry_handle_t *v) {
+  return retrieve_uint64(src, v);
+}
+
+size_t retrieve_indirect_handle(const char *src, pi_indirect_handle_t *v) {
   return retrieve_uint64(src, v);
 }
 
@@ -96,5 +108,9 @@ size_t retrieve_status(const char *src, pi_status_t *v) {
 }
 
 size_t retrieve_session_handle(const char *src, pi_session_handle_t *v) {
+  return retrieve_uint32(src, v);
+}
+
+size_t retrieve_action_entry_type(const char *src, pi_action_entry_type_t *v) {
   return retrieve_uint32(src, v);
 }

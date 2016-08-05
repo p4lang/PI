@@ -47,6 +47,8 @@ const char *error_code_to_string(pi_cli_status_t error) {
       return "Invalid entry handle";
     case PI_CLI_STATUS_INVALID_DEVICE_ID:
       return "Invalid device id";
+    case PI_CLI_STATUS_INVALID_INDIRECT_HANDLE:
+      return "Invalid indirect handle";
   }
   return "Unknown error";
 }

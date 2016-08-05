@@ -59,6 +59,8 @@ pi_status_t pi_action_data_allocate(const pi_p4info_t *p4info,
 
 pi_status_t pi_action_data_init(pi_action_data_t *adata);
 
+pi_p4_id_t pi_action_data_action_id_get(const pi_action_data_t *adata);
+
 pi_status_t pi_action_data_arg_set(pi_action_data_t *adata,
                                    const pi_netv_t *argv);
 pi_status_t pi_action_data_arg_get(const pi_action_data_t *adata,

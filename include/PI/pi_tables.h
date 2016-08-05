@@ -50,15 +50,26 @@ bool pi_entry_properties_is_set(const pi_entry_properties_t *properties,
 
 typedef uint64_t pi_entry_handle_t;
 
+typedef uint64_t pi_indirect_handle_t;
+
 typedef struct pi_match_key_s pi_match_key_t;
 
 typedef struct pi_action_data_s pi_action_data_t;
 
 typedef int pi_res_config_t;
 
+typedef enum {
+  PI_ACTION_ENTRY_TYPE_NONE = 0,
+  PI_ACTION_ENTRY_TYPE_DATA,
+  PI_ACTION_ENTRY_TYPE_INDIRECT,
+} pi_action_entry_type_t;
+
 typedef struct {
-  pi_p4_id_t action_id;  // TODO(antonin): remove?
-  pi_action_data_t *action_data;
+  pi_action_entry_type_t entry_type;
+  union {
+    pi_action_data_t *action_data;
+    pi_indirect_handle_t indirect_handle;
+  } entry;
   const pi_entry_properties_t *entry_properties;
   const pi_res_config_t *direct_res_config;  /* not defined yet */
 } pi_table_entry_t;

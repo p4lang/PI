@@ -16,7 +16,7 @@
 #include "PI/pi_tables.h"
 #include "PI/target/pi_tables_imp.h"
 #include "PI/int/pi_int.h"
-#include "PI/int//serialize.h"
+#include "PI/int/serialize.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -79,9 +79,15 @@ pi_status_t pi_table_default_action_get(pi_session_handle_t session_handle,
   pi_status_t status;
   status = _pi_table_default_action_get(session_handle, dev_id, table_id,
                                         table_entry);
-  if (status == PI_STATUS_SUCCESS && table_entry->action_id != PI_INVALID_ID)
-    table_entry->action_data->p4info = pi_get_device_p4info(dev_id);
-  return status;
+  if (status != PI_STATUS_SUCCESS) return status;
+
+  // TODO(antonin): improve
+  if (table_entry->entry_type == PI_ACTION_ENTRY_TYPE_DATA) {
+    pi_action_data_t *action_data = table_entry->entry.action_data;
+    action_data->p4info = pi_get_device_p4info(dev_id);
+  }
+
+  return PI_STATUS_SUCCESS;
 }
 
 pi_status_t pi_table_default_action_done(pi_session_handle_t session_handle,
@@ -158,15 +164,35 @@ size_t pi_table_entries_next(pi_table_fetch_res_t *res,
   res->curr += res->mkey_nbytes;
 
   pi_table_entry_t *t_entry = &entry->entry;
-  res->curr += retrieve_p4_id(res->entries + res->curr, &t_entry->action_id);
-  uint32_t nbytes;
-  res->curr += retrieve_uint32(res->entries + res->curr, &nbytes);
-  t_entry->action_data = &res->action_datas[res->idx];
-  t_entry->action_data->p4info = res->p4info;
-  t_entry->action_data->action_id = t_entry->action_id;
-  t_entry->action_data->data_size = nbytes;
-  t_entry->action_data->data = res->entries + res->curr;
-  res->curr += nbytes;
+  res->curr += retrieve_action_entry_type(res->entries + res->curr,
+                                          &t_entry->entry_type);
+  switch (t_entry->entry_type) {
+    case PI_ACTION_ENTRY_TYPE_NONE:  // does it even make sense?
+      break;
+    case PI_ACTION_ENTRY_TYPE_DATA:
+      {
+        pi_p4_id_t action_id;
+        res->curr += retrieve_p4_id(res->entries + res->curr, &action_id);
+        uint32_t nbytes;
+        res->curr += retrieve_uint32(res->entries + res->curr, &nbytes);
+        pi_action_data_t *action_data = &res->action_datas[res->idx];
+        t_entry->entry.action_data = action_data;
+        action_data->p4info = res->p4info;
+        action_data->action_id = action_id;
+        action_data->data_size = nbytes;
+        action_data->data = res->entries + res->curr;
+        res->curr += nbytes;
+      }
+      break;
+    case PI_ACTION_ENTRY_TYPE_INDIRECT:
+      {
+        pi_indirect_handle_t indirect_handle;
+        res->curr += retrieve_indirect_handle(res->entries + res->curr,
+                                              &indirect_handle);
+        t_entry->entry.indirect_handle = indirect_handle;
+      }
+      break;
+  }
 
   pi_entry_properties_t *properties = res->properties + res->idx;
   t_entry->entry_properties = properties;

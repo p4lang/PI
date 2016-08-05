@@ -20,6 +20,11 @@ table_common.h \
 table_common.c \
 main.c
 
+libpicli_la_SOURCES += \
+act_profs/table_indirect_create_member.c \
+act_profs/table_indirect_common.h \
+act_profs/table_indirect_common.c
+
 bin_PROGRAMS = pi_CLI_dummy pi_CLI_rpc
 
 common_libs = \

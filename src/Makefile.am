@@ -2,6 +2,7 @@ AM_CPPFLAGS += \
 -I$(top_srcdir)/include \
 -isystem$(top_srcdir)/third_party/cJSON/include
 
+# TODO(antonin): act_prof should be in a different directory (externs)
 libpip4info_la_SOURCES = \
 p4info/actions.c \
 p4info/actions_int.h \
@@ -10,6 +11,8 @@ p4info/fields_int.h \
 p4info/p4info_struct.h \
 p4info/tables.c \
 p4info/tables_int.h \
+p4info/act_profs.c \
+p4info/act_profs_int.h \
 config_readers/bmv2_json_reader.c \
 config_readers/native_json_reader.c \
 config_readers/readers.h \
@@ -22,6 +25,7 @@ libpiutils.la
 libpi_la_SOURCES = \
 pi.c \
 pi_tables.c \
+pi_act_prof.c \
 pi_value.c \
 pi_rpc_server.c
 

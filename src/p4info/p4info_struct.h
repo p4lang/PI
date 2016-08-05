@@ -32,6 +32,10 @@ struct pi_p4info_s {
   size_t num_fields;
   struct _field_data_s *fields;
   Pvoid_t field_name_map;
+
+  size_t num_act_profs;
+  struct _act_prof_data_s *act_profs;
+  Pvoid_t act_prof_name_map;
 };
 
 #endif // PI_SRC_P4INFO_P4INFO_STRUCT_H_

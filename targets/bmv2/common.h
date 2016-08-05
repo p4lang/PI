@@ -31,6 +31,23 @@ static inline device_info_t *get_device_info(size_t dev_id) {
   return &device_info_state[dev_id];
 }
 
+struct IndirectHMgr {
+  static pi_indirect_handle_t make_grp_h(pi_indirect_handle_t h) {
+    return h | grp_prefix;
+  }
+
+  static bool is_grp_h(pi_indirect_handle_t h) {
+    return h & grp_prefix;
+  }
+
+  static pi_indirect_handle_t clear_grp_h(pi_indirect_handle_t h) {
+    return h & (~grp_prefix);
+  }
+
+  static constexpr pi_indirect_handle_t grp_prefix =
+      (1ull << (sizeof(pi_indirect_handle_t) * 8 - 1));
+};
+
 }  // namespace pibmv2
 
 #endif  // PI_BMV2_COMMON_H_

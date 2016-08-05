@@ -95,12 +95,19 @@ static void print_match_param_v(pi_p4_id_t f_id, pi_p4info_match_type_t mt,
 
 static void print_action_entry(pi_table_entry_t *entry) {
   // TODO(antonin): all types of action entries (indirect)
-  pi_p4_id_t action_id = entry->action_id;
 
-  if (action_id == PI_INVALID_ID) {
+  if (entry->entry_type == PI_ACTION_ENTRY_TYPE_NONE) {
     printf("EMPTY\n");
     return;
   }
+
+  if (entry->entry_type == PI_ACTION_ENTRY_TYPE_INDIRECT) {
+    printf("Indirect handle: %" PRIu64 "\n", entry->entry.indirect_handle);
+    return;
+  }
+
+  const pi_action_data_t *action_data = entry->entry.action_data;
+  pi_p4_id_t action_id = pi_action_data_action_id_get(action_data);
 
   const char *action_name = pi_p4info_action_name_from_id(p4info, action_id);
   printf("Action entry: %s - ", action_name);
@@ -109,7 +116,7 @@ static void print_action_entry(pi_table_entry_t *entry) {
                                                             &num_params);
   for (size_t j = 0; j < num_params; j++) {
     pi_netv_t argv;
-    pi_action_data_arg_get(entry->action_data, param_ids[j], &argv);
+    pi_action_data_arg_get(action_data, param_ids[j], &argv);
     print_hexstr(argv.v.ptr, argv.size);
 
     if (j != num_params - 1) printf(", ");

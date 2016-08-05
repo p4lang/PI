@@ -5,9 +5,12 @@ AM_CPPFLAGS += \
 libpi_bmv2_la_SOURCES = \
 pi_imp.cpp \
 pi_tables_imp.cpp \
+pi_act_prof_imp.cpp \
 conn_mgr.h \
 conn_mgr.cpp \
-common.h
+common.h \
+action_helpers.h \
+action_helpers.cpp
 
 libpi_bmv2_la_LIBADD = \
 $(top_builddir)/../../src/libpip4info.la

@@ -53,8 +53,12 @@ static int add_route(uint32_t prefix, int pLen, uint32_t nhop, uint16_t port,
   rc |= pi_action_data_arg_set(adata_set_nhop, &nhop_ipv4_netv);
   rc |= pi_action_data_arg_set(adata_set_nhop, &port_netv);
 
-  pi_table_entry_t t_entry = {PI_ROUTER_ACTION_SET_NHOP, adata_set_nhop,
-                              NULL, NULL};
+  pi_table_entry_t t_entry;
+  t_entry.entry_type = PI_ACTION_ENTRY_TYPE_DATA;
+  t_entry.entry.action_data = adata_set_nhop;
+  t_entry.entry_properties = NULL;
+  t_entry.direct_res_config = NULL;
+
   rc |= pi_table_entry_add(
       sess, dev_tgt, PI_ROUTER_TABLE_IPV4_LPM, mkey_ipv4_lpm, &t_entry, 0,
       handle);

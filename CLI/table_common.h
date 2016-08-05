@@ -30,4 +30,9 @@ pi_cli_status_t read_action_data(char *in, pi_p4_id_t a_id,
 char *complete_table(const char *text, int state);
 char *complete_table_and_action(const char *text, int state);
 
+pi_cli_status_t get_entry_direct(pi_table_entry_t *t_entry);
+pi_cli_status_t get_entry_indirect(pi_table_entry_t *t_entry);
+void cleanup_entry_direct(pi_table_entry_t *t_entry);
+void cleanup_entry_indirect(pi_table_entry_t *t_entry);
+
 #endif  // PI_CLI_TABLE_COMMON_H_

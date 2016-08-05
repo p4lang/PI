@@ -100,9 +100,14 @@ TEST(ReadAndSerialize, Valid) {
   read_and_serialize(TESTDATADIR "/" "valid.json");
 }
 
+TEST(ReadAndSerialize, Ecmp) {
+  read_and_serialize(TESTDATADIR "/" "ecmp.json");
+}
+
 TEST_GROUP_RUNNER(ReadAndSerialize) {
   RUN_TEST_CASE(ReadAndSerialize, SimpleRouter);
   RUN_TEST_CASE(ReadAndSerialize, Valid);
+  RUN_TEST_CASE(ReadAndSerialize, Ecmp);
 }
 
 void test_bmv2_json_reader() {

@@ -17,6 +17,7 @@
 #include "p4info/actions_int.h"
 #include "p4info/tables_int.h"
 #include "p4info/fields_int.h"
+#include "p4info/act_profs_int.h"
 #include "PI/int/pi_int.h"
 
 #include <cJSON/cJSON.h>
@@ -142,6 +143,41 @@ static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
     if (item && item->valueint != PI_INVALID_ID) {
       pi_p4info_table_set_const_default_action(p4info, pi_id, item->valueint);
     }
+
+    item = cJSON_GetObjectItem(table, "implementation");
+    if (item && item->valueint != PI_INVALID_ID) {
+      pi_p4info_table_set_implementation(p4info, pi_id, item->valueint);
+    }
+  }
+
+  return PI_STATUS_SUCCESS;
+}
+
+static pi_status_t read_act_profs(cJSON *root, pi_p4info_t *p4info) {
+  assert(root);
+  cJSON *act_profs = cJSON_GetObjectItem(root, "act_profs");
+  if (!act_profs) return PI_STATUS_CONFIG_READER_ERROR;
+  size_t num_act_profs = cJSON_GetArraySize(act_profs);
+  pi_p4info_act_prof_init(p4info, num_act_profs);
+
+  cJSON *act_prof;
+  cJSON_ArrayForEach(act_prof, act_profs) {
+    const cJSON *item;
+    item = cJSON_GetObjectItem(act_prof, "name");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    const char *name = item->valuestring;
+    item = cJSON_GetObjectItem(act_prof, "id");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    pi_p4_id_t pi_id = item->valueint;
+    item = cJSON_GetObjectItem(act_prof, "table_id");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    pi_p4_id_t table_id = item->valueint;
+    item = cJSON_GetObjectItem(act_prof, "with_selector");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    assert(item->type == cJSON_True || item->type == cJSON_False);
+    bool with_selector = (item->type == cJSON_True);
+
+    pi_p4info_act_prof_add(p4info, pi_id, name, table_id, with_selector);
   }
 
   return PI_STATUS_SUCCESS;
@@ -162,6 +198,10 @@ pi_status_t pi_native_json_reader(const char *config,  pi_p4info_t *p4info) {
   }
 
   if ((status = read_tables(root, p4info)) != PI_STATUS_SUCCESS) {
+    return status;
+  }
+
+  if ((status = read_act_profs(root, p4info)) != PI_STATUS_SUCCESS) {
     return status;
   }
 

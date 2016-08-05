@@ -79,6 +79,9 @@ bool pi_p4info_table_has_const_default_action(const pi_p4info_t *p4info,
 pi_p4_id_t pi_p4info_table_get_const_default_action(const pi_p4info_t *p4info,
                                                     pi_p4_id_t table_id);
 
+pi_p4_id_t pi_p4info_table_get_implementation(const pi_p4info_t *p4info,
+                                              pi_p4_id_t table_id);
+
 pi_p4_id_t pi_p4info_table_begin(const pi_p4info_t *p4info);
 pi_p4_id_t pi_p4info_table_next(const pi_p4info_t *p4info, pi_p4_id_t id);
 pi_p4_id_t pi_p4info_table_end(const pi_p4info_t *p4info);
