@@ -35,8 +35,11 @@ extern conn_mgr_t *conn_mgr_state;
 namespace {
 
 std::string get_table_name(const pi_p4info_t *p4info, pi_p4_id_t act_prof_id) {
-  pi_p4_id_t table_id = pi_p4info_act_prof_get_table(p4info, act_prof_id);
-  return std::string(pi_p4info_table_name_from_id(p4info, table_id));
+  size_t num_tables = 0;
+  const pi_p4_id_t *table_ids = pi_p4info_act_prof_get_tables(
+      p4info, act_prof_id, &num_tables);
+  assert(num_tables == 1);
+  return std::string(pi_p4info_table_name_from_id(p4info, *table_ids));
 }
 
 }  // namespace
@@ -111,11 +114,9 @@ pi_status_t _pi_act_prof_mbr_modify(pi_session_handle_t session_handle,
   const pi_p4info_t *p4info = d_info->p4info;
 
   auto adata = pibmv2::build_action_data(action_data, p4info);
-  pi_p4_id_t table_id = pi_p4info_act_prof_get_table(p4info, act_prof_id);
-  pi_p4_id_t action_id = action_data->action_id;
-
-  std::string t_name(pi_p4info_table_name_from_id(p4info, table_id));
-  std::string a_name(pi_p4info_action_name_from_id(p4info, action_id));
+  std::string a_name(pi_p4info_action_name_from_id(p4info,
+                                                   action_data->action_id));
+  std::string t_name = get_table_name(p4info, act_prof_id);
 
   auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_id);
 

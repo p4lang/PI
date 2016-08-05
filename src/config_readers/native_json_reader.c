@@ -169,15 +169,20 @@ static pi_status_t read_act_profs(cJSON *root, pi_p4info_t *p4info) {
     item = cJSON_GetObjectItem(act_prof, "id");
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
     pi_p4_id_t pi_id = item->valueint;
-    item = cJSON_GetObjectItem(act_prof, "table_id");
-    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
-    pi_p4_id_t table_id = item->valueint;
     item = cJSON_GetObjectItem(act_prof, "with_selector");
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
     assert(item->type == cJSON_True || item->type == cJSON_False);
     bool with_selector = (item->type == cJSON_True);
 
-    pi_p4info_act_prof_add(p4info, pi_id, name, table_id, with_selector);
+    pi_p4info_act_prof_add(p4info, pi_id, name, with_selector);
+
+    item = cJSON_GetObjectItem(act_prof, "tables");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    cJSON *table;
+    cJSON_ArrayForEach(table, item) {
+      pi_p4_id_t id = table->valueint;
+      pi_p4info_act_prof_add_table(p4info, pi_id, id);
+    }
   }
 
   return PI_STATUS_SUCCESS;
