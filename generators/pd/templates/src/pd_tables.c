@@ -220,7 +220,13 @@ ${name}
   pi_entry_properties_set(&entry_properties, PI_ENTRY_PROPERTY_TYPE_PRIORITY,
                           priority);
 //::     #endif
-  pi_table_entry_t t_entry = {${a.id_}, adata, &entry_properties, NULL};
+
+  pi_table_entry_t t_entry;
+  t_entry.entry_type = PI_ACTION_ENTRY_TYPE_DATA;
+  t_entry.entry.action_data = adata;
+  t_entry.entry_properties = &entry_properties;
+  t_entry.direct_res_config = NULL;
+
   pi_status_t rc;
   pi_entry_handle_t handle = 0;
   rc = pi_table_entry_add(sess_hdl, convert_dev_tgt(dev_tgt),
@@ -325,7 +331,13 @@ ${name}
 //::     if has_action_spec:
   build_action_data_${a_name}(p4info, adata, action_spec);
 //::     #endif
-  pi_table_entry_t t_entry = {${a.id_}, adata, NULL, NULL};
+
+  pi_table_entry_t t_entry;
+  t_entry.entry_type = PI_ACTION_ENTRY_TYPE_DATA;
+  t_entry.entry.action_data = adata;
+  t_entry.entry_properties = NULL;
+  t_entry.direct_res_config = NULL;
+
   pi_status_t rc;
   rc = pi_table_entry_modify(sess_hdl, dev_id, ${t.id_}, entry_hdl, &t_entry);
   pi_action_data_destroy(adata);
@@ -365,7 +377,13 @@ ${name}
 //::     if has_action_spec:
   build_action_data_${a_name}(p4info, adata, action_spec);
 //::     #endif
-  pi_table_entry_t t_entry = {${a.id_}, adata, NULL, NULL};
+
+  pi_table_entry_t t_entry;
+  t_entry.entry_type = PI_ACTION_ENTRY_TYPE_DATA;
+  t_entry.entry.action_data = adata;
+  t_entry.entry_properties = NULL;
+  t_entry.direct_res_config = NULL;
+
   pi_status_t rc;
   rc = pi_table_default_action_set(sess_hdl, convert_dev_tgt(dev_tgt),
                                    ${t.id_}, &t_entry);
