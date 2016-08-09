@@ -27,7 +27,7 @@
 #include <string.h>
 
 p4_pd_status_t ${pd_prefix}init(void) {
-  assert(pi_init(256, NULL) == PI_STATUS_SUCCESS);
+  // no call to pi_init: pi is not initialized on a per P4-program basis
   return 0;
 }
 
