@@ -137,8 +137,10 @@ pi_status_t _pi_act_prof_mbr_modify(pi_session_handle_t session_handle,
 pi_status_t _pi_act_prof_grp_create(pi_session_handle_t session_handle,
                                     pi_dev_tgt_t dev_tgt,
                                     pi_p4_id_t act_prof_id,
+                                    size_t max_size,
                                     pi_indirect_handle_t *grp_handle) {
   (void) session_handle;
+  (void) max_size;  // no bound needed / supported in bmv2
 
   pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_tgt.dev_id);
   assert(d_info->assigned);

@@ -87,8 +87,10 @@ pi_status_t _pi_act_prof_mbr_modify(pi_session_handle_t session_handle,
 pi_status_t _pi_act_prof_grp_create(pi_session_handle_t session_handle,
                                     pi_dev_tgt_t dev_tgt,
                                     pi_p4_id_t act_prof_id,
+                                    size_t max_size,
                                     pi_indirect_handle_t *grp_handle) {
-  (void) session_handle; (void) dev_tgt; (void) act_prof_id; (void) grp_handle;
+  (void) session_handle; (void) dev_tgt; (void) act_prof_id; (void) max_size;
+  (void) grp_handle;
   printf("%s\n", __func__);
   return PI_STATUS_SUCCESS;
 }

@@ -45,9 +45,10 @@ pi_status_t pi_act_prof_mbr_modify(pi_session_handle_t session_handle,
 pi_status_t pi_act_prof_grp_create(pi_session_handle_t session_handle,
                                    pi_dev_tgt_t dev_tgt,
                                    pi_p4_id_t act_prof_id,
+                                   size_t max_size,
                                    pi_indirect_handle_t *grp_handle) {
   return _pi_act_prof_grp_create(session_handle, dev_tgt, act_prof_id,
-                                 grp_handle);
+                                 max_size, grp_handle);
 }
 
 pi_status_t pi_act_prof_grp_delete(pi_session_handle_t session_handle,
