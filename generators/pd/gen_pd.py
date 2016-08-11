@@ -39,6 +39,8 @@ ACTIONS = {}
 ACTIONS_BY_ID = {}
 FIELDS = {}
 FIELDS_BY_ID = {}
+ACT_PROFS = {}
+ACT_PROFS_BY_ID = {}
 
 
 def enum(type_name, *sequential, **named):
@@ -79,6 +81,26 @@ class Table:
 
         TABLES[name] = self
         TABLES_BY_ID[id_] = self
+
+    def set_match_type(self):
+        assert(self.match_type is None)
+        match_types = [t for _, t, _ in self.key]
+
+        if len(match_types) == 0:
+            self.match_type = MatchTye.EXACT
+        elif "range" in match_types:
+            self.match_type = MatchType.RANGE
+        elif "ternary" in match_types:
+            self.match_type = MatchType.TERNARY
+        elif match_types.count("lpm") >= 2:
+            print "cannot have 2 different lpm matches in a single table"
+            sys.exit(1)
+        elif "lpm" in match_types:
+            self.match_type = MatchType.LPM
+        else:
+            # that includes the case when we only have one valid match and
+            # nothing else
+            self.match_type == MatchType.EXACT
 
     def num_key_fields(self):
         return len(self.key)
@@ -124,6 +146,17 @@ class Field:
         FIELDS_BY_ID[id_] = self
 
 
+class ActProf:
+    def __init__(self, name, id_, with_selector):
+        self.name = name
+        self.id_ = id_
+        self.with_selector = with_selector
+        self.actions = {}
+
+        ACT_PROFS[name] = self
+        ACT_PROFS_BY_ID[id_] = self
+
+
 def load_json(json_str):
     def get_header_type(header_name, j_headers):
         for h in j_headers:
@@ -165,8 +198,7 @@ def load_json(json_str):
 
     for j_table in json_["tables"]:
         table = Table(j_table["name"], j_table["id"])
-        # table.match_type = MatchType.from_str(j_table["match_type"])
-        table.type_ = TableType.from_str("simple")
+        table.type_ = TableType.SIMPLE
         for action in j_table["actions"]:
             a = ACTIONS_BY_ID[action]
             table.actions[a.name] = a
@@ -176,6 +208,27 @@ def load_json(json_str):
             field_name, bitwidth = (FIELDS_BY_ID[fid].name,
                                     FIELDS_BY_ID[fid].bitwidth)
             table.key += [(field_name, match_type, bitwidth)]
+        table.set_match_type()
+
+    if "act_profs" in json_:
+        for j_act_prof in json_["act_profs"]:
+            t_ids = j_act_prof["tables"]
+            if not t_ids:  # should not happen
+                continue
+            act_prof = ActProf(j_act_prof["name"],
+                               j_act_prof["id"],
+                               j_act_prof["with_selector"])
+            one_t = TABLES_BY_ID[t_ids[0]]
+            act_prof.actions = one_t.actions
+
+            # update type of tables
+            for t_id in t_ids:
+                t = TABLES_BY_ID[t_id]
+                assert(t.type_ == TableType.SIMPLE)
+                if act_prof.with_selector:
+                    t.type_ = TableType.INDIRECT_WS
+                else:
+                    t.type_ = TableType.INDIRECT
 
 
 def ignore_template_file(filename):
@@ -291,6 +344,8 @@ def generate_pd_source(json_dict, dest_dir, p4_prefix, templates_dir, target):
     ACTIONS_BY_ID.clear()
     FIELDS.clear()
     FIELDS_BY_ID.clear()
+    ACT_PROFS.clear()
+    ACT_PROFS_BY_ID.clear()
 
     load_json(json_dict)
     render_dict = {}
@@ -308,6 +363,7 @@ def generate_pd_source(json_dict, dest_dir, p4_prefix, templates_dir, target):
     render_dict["tables"] = TABLES
     render_dict["actions"] = ACTIONS
     render_dict["fields"] = FIELDS
+    render_dict["act_profs"] = ACT_PROFS
     render_dict["render_dict"] = render_dict
 
     if target == "bm":

@@ -88,7 +88,6 @@ ${name}
 //::   t_type = t.type_
 //::   if t_type == TableType.SIMPLE: continue
 //::   t_name = get_c_name(t_name)
-//::   act_prof_name = get_c_name(t.act_prof)
 //::   match_type = t.match_type
 //::   has_match_spec = len(t.key) > 0
 //::   params = ["p4_pd_sess_hdl_t sess_hdl",
@@ -219,13 +218,8 @@ ${name}
 
 //:: #endfor
 
-//:: for t_name, t in tables.items():
-//::   t_type = t.type_
-//::   if t_type == TableType.SIMPLE: continue
-//::   t_name = get_c_name(t_name)
-//::   act_prof_name = get_c_name(t.act_prof)
-//::   match_type = t.match_type
-//::   has_match_spec = len(t.key) > 0
+//:: for act_prof_name, act_prof in act_profs.items():
+//::   act_prof_name = get_c_name(act_prof_name)
 //::   for a_name, a in t.actions.items():
 //::     a_name = get_c_name(a_name)
 //::     has_action_spec = len(a.runtime_data) > 0
@@ -270,7 +264,7 @@ ${name}
  ${param_str}
 );
 
-//::   if t.type_ != TableType.INDIRECT_WS: continue
+//::   if not act_prof.with_selector: continue
 //::
 //::   params = ["p4_pd_sess_hdl_t sess_hdl",
 //::             "p4_pd_dev_target_t dev_tgt",

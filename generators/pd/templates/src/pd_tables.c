@@ -263,8 +263,33 @@ ${name}
 (
  ${param_str}
 ) {
-  // TODO(antonin)
-  return 0;
+  const pi_p4info_t *p4info = pi_get_device_p4info(dev_tgt.device_id);
+  pi_match_key_t *mk;
+  pi_match_key_allocate(p4info, ${t.id_}, &mk);
+//::     if has_match_spec:
+  build_key_${t_name}(p4info, mk, match_spec);
+//::     #endif
+
+  pi_entry_properties_t entry_properties;
+  pi_entry_properties_clear(&entry_properties);
+//::     if match_type in {MatchType.TERNARY, MatchType.RANGE}:
+  pi_entry_properties_set(&entry_properties, PI_ENTRY_PROPERTY_TYPE_PRIORITY,
+                          priority);
+//::     #endif
+
+  pi_table_entry_t t_entry;
+  t_entry.entry_type = PI_ACTION_ENTRY_TYPE_INDIRECT;
+  t_entry.entry.indirect_handle = mbr_hdl;
+  t_entry.entry_properties = &entry_properties;
+  t_entry.direct_res_config = NULL;
+
+  pi_status_t rc;
+  pi_entry_handle_t handle = 0;
+  rc = pi_table_entry_add(sess_hdl, convert_dev_tgt(dev_tgt),
+                          ${t.id_}, mk, &t_entry, 0, &handle);
+  if (rc == PI_STATUS_SUCCESS) *entry_hdl = handle;
+  pi_match_key_destroy(mk);
+  return rc;
 }
 
 //::   if t_type != TableType.INDIRECT_WS: continue
@@ -276,8 +301,33 @@ ${name}
 (
  ${param_str}
 ) {
-  // TODO(antonin)
-  return 0;
+  const pi_p4info_t *p4info = pi_get_device_p4info(dev_tgt.device_id);
+  pi_match_key_t *mk;
+  pi_match_key_allocate(p4info, ${t.id_}, &mk);
+//::     if has_match_spec:
+  build_key_${t_name}(p4info, mk, match_spec);
+//::     #endif
+
+  pi_entry_properties_t entry_properties;
+  pi_entry_properties_clear(&entry_properties);
+//::     if match_type in {MatchType.TERNARY, MatchType.RANGE}:
+  pi_entry_properties_set(&entry_properties, PI_ENTRY_PROPERTY_TYPE_PRIORITY,
+                          priority);
+//::     #endif
+
+  pi_table_entry_t t_entry;
+  t_entry.entry_type = PI_ACTION_ENTRY_TYPE_INDIRECT;
+  t_entry.entry.indirect_handle = grp_hdl;
+  t_entry.entry_properties = &entry_properties;
+  t_entry.direct_res_config = NULL;
+
+  pi_status_t rc;
+  pi_entry_handle_t handle = 0;
+  rc = pi_table_entry_add(sess_hdl, convert_dev_tgt(dev_tgt),
+                          ${t.id_}, mk, &t_entry, 0, &handle);
+  if (rc == PI_STATUS_SUCCESS) *entry_hdl = handle;
+  pi_match_key_destroy(mk);
+  return rc;
 }
 
 //:: #endfor
@@ -428,13 +478,8 @@ ${name}
 
 //:: #endfor
 
-//:: for t_name, t in tables.items():
-//::   t_type = t.type_
-//::   if t_type == TableType.SIMPLE: continue
-//::   t_name = get_c_name(t_name)
-//::   act_prof_name = get_c_name(t.act_prof)
-//::   match_type = t.match_type
-//::   has_match_spec = len(t.key) > 0
+//:: for act_prof_name, act_prof in act_profs.items():
+//::   act_prof_name = get_c_name(act_prof_name)
 //::   for a_name, a in t.actions.items():
 //::     a_name = get_c_name(a_name)
 //::     has_action_spec = len(a.runtime_data) > 0
@@ -451,8 +496,19 @@ ${name}
 (
  ${param_str}
 ) {
-  // TODO(antonin)
-  return 0;
+  const pi_p4info_t *p4info = pi_get_device_p4info(dev_tgt.device_id);
+  pi_action_data_t *adata;
+  pi_action_data_allocate(p4info, ${a.id_}, &adata);
+//::     if has_action_spec:
+  build_action_data_${a_name}(p4info, adata, action_spec);
+//::     #endif
+  pi_status_t rc;
+  pi_indirect_handle_t handle;
+  rc = pi_act_prof_mbr_create(sess_hdl, convert_dev_tgt(dev_tgt),
+                              ${act_prof.id_}, adata, &handle);
+  if (rc == PI_STATUS_SUCCESS) *mbr_hdl = handle;
+  pi_action_data_destroy(adata);
+  return rc;
 }
 
 //::     params = ["p4_pd_sess_hdl_t sess_hdl",
@@ -468,8 +524,17 @@ ${name}
 (
  ${param_str}
 ) {
-  // TODO(antonin)
-  return 0;
+  const pi_p4info_t *p4info = pi_get_device_p4info(dev_id);
+  pi_action_data_t *adata;
+  pi_action_data_allocate(p4info, ${a.id_}, &adata);
+//::     if has_action_spec:
+  build_action_data_${a_name}(p4info, adata, action_spec);
+//::     #endif
+  pi_status_t rc;
+  rc = pi_act_prof_mbr_modify(sess_hdl, dev_id,
+                              ${act_prof.id_}, mbr_hdl, adata);
+  pi_action_data_destroy(adata);
+  return rc;
 }
 
 //::   #endfor
@@ -484,11 +549,10 @@ ${name}
 (
  ${param_str}
 ) {
-  // TODO(antonin)
-  return 0;
+  return pi_act_prof_mbr_delete(sess_hdl, dev_id, ${act_prof.id_}, mbr_hdl);
 }
 
-//::   if t.type_ != TableType.INDIRECT_WS: continue
+//::   if not act_prof.with_selector: continue
 //::
 //::   params = ["p4_pd_sess_hdl_t sess_hdl",
 //::             "p4_pd_dev_target_t dev_tgt",
@@ -501,8 +565,12 @@ ${name}
 (
  ${param_str}
 ) {
-  // TODO(antonin)
-  return 0;
+  pi_status_t rc;
+  pi_indirect_handle_t handle;
+  rc = pi_act_prof_grp_create(sess_hdl, convert_dev_tgt(dev_tgt),
+                              ${act_prof.id_}, max_grp_size, &handle);
+  if (rc == PI_STATUS_SUCCESS) *grp_hdl = handle;
+  return rc;
 }
 
 //::   params = ["p4_pd_sess_hdl_t sess_hdl",
@@ -515,8 +583,7 @@ ${name}
 (
  ${param_str}
 ) {
-  // TODO(antonin)
-  return 0;
+  return pi_act_prof_grp_delete(sess_hdl, dev_id, ${act_prof.id_}, grp_hdl);
 }
 
 //::   params = ["p4_pd_sess_hdl_t sess_hdl",
@@ -530,8 +597,8 @@ ${name}
 (
  ${param_str}
 ) {
-  // TODO(antonin)
-  return 0;
+  return pi_act_prof_grp_add_mbr(sess_hdl, dev_id, ${act_prof.id_},
+                                 grp_hdl, mbr_hdl);
 }
 
 //::   params = ["p4_pd_sess_hdl_t sess_hdl",
@@ -545,8 +612,8 @@ ${name}
 (
  ${param_str}
 ) {
-  // TODO(antonin)
-  return 0;
+  return pi_act_prof_grp_remove_mbr(sess_hdl, dev_id, ${act_prof.id_},
+                                    grp_hdl, mbr_hdl);
 }
 
 //:: #endfor
