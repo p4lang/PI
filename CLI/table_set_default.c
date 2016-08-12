@@ -41,12 +41,12 @@ pi_cli_status_t do_table_set_default(char *subcmd) {
   if (parse_fixed_args(subcmd, args, num_args) < num_args)
     return PI_CLI_STATUS_TOO_FEW_ARGS;
   const char *t_name = args[0];
-  pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, t_name);
+  pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info_curr, t_name);
   if (t_id == PI_INVALID_ID) return PI_CLI_STATUS_INVALID_TABLE_NAME;
 
   pi_cli_status_t status;
 
-  pi_p4_id_t t_imp = pi_p4info_table_get_implementation(p4info, t_id);
+  pi_p4_id_t t_imp = pi_p4info_table_get_implementation(p4info_curr, t_id);
 
   pi_table_entry_t t_entry;
   if (t_imp == PI_INVALID_ID) {

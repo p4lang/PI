@@ -18,18 +18,13 @@
  *
  */
 
-#ifndef PI_CLI_TABLE_INDIRECT_TABLE_INDIRECT_COMMON_H_
-#define PI_CLI_TABLE_INDIRECT_TABLE_INDIRECT_COMMON_H_
+#include <PI/pi.h>
 
-#include "error_codes.h"
+typedef uint32_t p4_config_id_t;
 
-#include "PI/pi.h"
+p4_config_id_t p4_config_add(pi_p4info_t *p4info);
 
-extern const pi_p4info_t *p4info_curr;
-extern pi_dev_tgt_t dev_tgt;
-extern pi_session_handle_t sess;
+pi_p4info_t *p4_config_get(p4_config_id_t id);
+pi_p4info_t *p4_config_get_first();
 
-char *complete_act_prof(const char *text, int state);
-char *complete_act_prof_and_action(const char *text, int state);
-
-#endif  // PI_CLI_TABLE_INDIRECT_TABLE_INDIRECT_COMMON_H_
+void p4_config_cleanup();

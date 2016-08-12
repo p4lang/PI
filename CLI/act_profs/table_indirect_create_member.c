@@ -43,16 +43,17 @@ pi_cli_status_t do_table_indirect_create_member(char *subcmd) {
     return PI_CLI_STATUS_TOO_FEW_ARGS;
   const char *act_prof_name = args[0];
   const char *action_name = args[1];
-  pi_p4_id_t act_prof_id = pi_p4info_act_prof_id_from_name(p4info,
+  pi_p4_id_t act_prof_id = pi_p4info_act_prof_id_from_name(p4info_curr,
                                                            act_prof_name);
   if (act_prof_id == PI_INVALID_ID) return PI_CLI_STATUS_INVALID_TABLE_NAME;
-  pi_p4_id_t action_id = pi_p4info_action_id_from_name(p4info, action_name);
+  pi_p4_id_t action_id = pi_p4info_action_id_from_name(p4info_curr,
+                                                       action_name);
   if (action_id == PI_INVALID_ID) return PI_CLI_STATUS_INVALID_ACTION_NAME;
 
   pi_cli_status_t status;
 
   pi_action_data_t *adata;
-  pi_action_data_allocate(p4info, action_id, &adata);
+  pi_action_data_allocate(p4info_curr, action_id, &adata);
   pi_action_data_init(adata);
   status = read_action_data(NULL, action_id, adata);
   if (status != PI_CLI_STATUS_SUCCESS) {

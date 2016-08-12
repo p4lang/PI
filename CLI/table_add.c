@@ -85,7 +85,7 @@ static int match_key_add_valid_field(pi_p4_id_t f_id, size_t f_bitwidth,
   }
   pi_netv_t f_netv;
   pi_status_t rc;
-  rc = pi_getnetv_u8(p4info, f_id, (uint8_t) v, &f_netv);
+  rc = pi_getnetv_u8(p4info_curr, f_id, (uint8_t) v, &f_netv);
   assert(rc == PI_STATUS_SUCCESS);
   rc = pi_match_key_exact_set(mk, &f_netv);
   assert(rc == PI_STATUS_SUCCESS);
@@ -98,7 +98,7 @@ static int match_key_add_exact_field(pi_p4_id_t f_id, size_t f_bitwidth,
   if (param_to_bytes(mf, bytes, f_bitwidth)) return 1;
   pi_netv_t f_netv;
   pi_status_t rc;
-  rc = pi_getnetv_ptr(p4info, f_id, bytes, (f_bitwidth + 7) / 8, &f_netv);
+  rc = pi_getnetv_ptr(p4info_curr, f_id, bytes, (f_bitwidth + 7) / 8, &f_netv);
   assert(rc == PI_STATUS_SUCCESS);
   rc = pi_match_key_exact_set(mk, &f_netv);
   assert(rc == PI_STATUS_SUCCESS);
@@ -111,7 +111,7 @@ static int match_key_add_LPM_field(pi_p4_id_t f_id, size_t f_bitwidth,
   if (param_to_bytes(mf, bytes, f_bitwidth)) return 1;
   pi_netv_t f_netv;
   pi_status_t rc;
-  rc = pi_getnetv_ptr(p4info, f_id, bytes, (f_bitwidth + 7) / 8, &f_netv);
+  rc = pi_getnetv_ptr(p4info_curr, f_id, bytes, (f_bitwidth + 7) / 8, &f_netv);
   assert(rc == PI_STATUS_SUCCESS);
   rc = pi_match_key_lpm_set(mk, &f_netv, pLen);
   assert(rc == PI_STATUS_SUCCESS);
@@ -128,9 +128,9 @@ static int match_key_add_ternary_field(pi_p4_id_t f_id, size_t f_bitwidth,
   if (param_to_bytes(mask, mask_bytes, f_bitwidth)) return 1;
   pi_netv_t f_netv, m_netv;
   size_t nbytes = (f_bitwidth + 7) / 8;
-  rc = pi_getnetv_ptr(p4info, f_id, bytes, nbytes, &f_netv);
+  rc = pi_getnetv_ptr(p4info_curr, f_id, bytes, nbytes, &f_netv);
   assert(rc == PI_STATUS_SUCCESS);
-  rc = pi_getnetv_ptr(p4info, f_id, mask_bytes, nbytes, &m_netv);
+  rc = pi_getnetv_ptr(p4info_curr, f_id, mask_bytes, nbytes, &m_netv);
   assert(rc == PI_STATUS_SUCCESS);
   rc = pi_match_key_ternary_set(mk, &f_netv, &m_netv);
   assert(rc == PI_STATUS_SUCCESS);
@@ -139,10 +139,10 @@ static int match_key_add_ternary_field(pi_p4_id_t f_id, size_t f_bitwidth,
 
 static pi_cli_status_t read_match_fields(char *in, pi_p4_id_t t_id,
                                          pi_match_key_t *mk) {
-  size_t num_match_fields = pi_p4info_table_num_match_fields(p4info, t_id);
+  size_t num_match_fields = pi_p4info_table_num_match_fields(p4info_curr, t_id);
   for (size_t i = 0; i < num_match_fields; i++) {
     pi_p4info_match_field_info_t finfo;
-    pi_p4info_table_match_field_info(p4info, t_id, i, &finfo);
+    pi_p4info_table_match_field_info(p4info_curr, t_id, i, &finfo);
     pi_p4_id_t f_id = finfo.field_id;
     char *mf = strtok(in, " ");
     in = NULL;
@@ -185,13 +185,13 @@ pi_cli_status_t do_table_add(char *subcmd) {
   if (parse_fixed_args(subcmd, args, num_args) < num_args)
     return PI_CLI_STATUS_TOO_FEW_ARGS;
   const char *t_name = args[0];
-  pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, t_name);
+  pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info_curr, t_name);
   if (t_id == PI_INVALID_ID) return PI_CLI_STATUS_INVALID_TABLE_NAME;
 
   pi_cli_status_t status;
 
   pi_match_key_t *mk;
-  pi_match_key_allocate(p4info, t_id, &mk);
+  pi_match_key_allocate(p4info_curr, t_id, &mk);
   pi_match_key_init(mk);
   status = read_match_fields(NULL, t_id, mk);
   if (status != PI_CLI_STATUS_SUCCESS) {
@@ -206,7 +206,7 @@ pi_cli_status_t do_table_add(char *subcmd) {
     return PI_CLI_STATUS_INVALID_COMMAND_FORMAT;
   }
 
-  pi_p4_id_t t_imp = pi_p4info_table_get_implementation(p4info, t_id);
+  pi_p4_id_t t_imp = pi_p4info_table_get_implementation(p4info_curr, t_id);
 
   pi_table_entry_t t_entry;
   if (t_imp == PI_INVALID_ID) {

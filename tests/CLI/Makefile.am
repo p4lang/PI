@@ -5,7 +5,8 @@ AM_TESTS_ENVIRONMENT = export PI_TEST_WITH_VALGRIND=1;
 TESTS = \
 table_dump.test \
 table_dump_valid.test \
-table_indirect.test
+table_indirect.test \
+device_commands.test
 
 # test_config.py.in included by default
 EXTRA_DIST = \
@@ -22,4 +23,7 @@ testdata/valid.json \
 table_indirect.test \
 testdata/table_indirect.in \
 testdata/table_indirect.out \
-testdata/ecmp.json
+testdata/ecmp.json \
+device_commands.test \
+testdata/device_commands.in \
+testdata/device_commands.out

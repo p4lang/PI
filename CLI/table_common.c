@@ -34,11 +34,11 @@
 pi_cli_status_t read_action_data(char *in, pi_p4_id_t a_id,
                                  pi_action_data_t *adata) {
   size_t num_params;
-  const pi_p4_id_t *param_ids = pi_p4info_action_get_params(p4info, a_id,
+  const pi_p4_id_t *param_ids = pi_p4info_action_get_params(p4info_curr, a_id,
                                                             &num_params);
   for (size_t i = 0; i < num_params; i++) {
     pi_p4_id_t p_id = param_ids[i];
-    size_t p_bitwidth = pi_p4info_action_param_bitwidth(p4info, p_id);
+    size_t p_bitwidth = pi_p4info_action_param_bitwidth(p4info_curr, p_id);
     char *ap = strtok(in, " ");
     in = NULL;
     if (!ap || ap[0] == '=') return PI_CLI_STATUS_TOO_FEW_ACTION_PARAMS;
@@ -47,7 +47,8 @@ pi_cli_status_t read_action_data(char *in, pi_p4_id_t a_id,
     if (param_to_bytes(ap, bytes, p_bitwidth)) return 1;
     pi_netv_t p_netv;
     pi_status_t rc;
-    rc = pi_getnetv_ptr(p4info, p_id, bytes, (p_bitwidth + 7) / 8, &p_netv);
+    rc = pi_getnetv_ptr(p4info_curr, p_id, bytes,
+                        (p_bitwidth + 7) / 8, &p_netv);
     assert(rc == PI_STATUS_SUCCESS);
     rc = pi_action_data_arg_set(adata, &p_netv);
     assert(rc == PI_STATUS_SUCCESS);
@@ -101,12 +102,12 @@ pi_cli_status_t get_entry_direct(pi_table_entry_t *t_entry) {
   pi_cli_status_t status = PI_CLI_STATUS_SUCCESS;
   const char *a_name = strtok(NULL, " ");
 
-  pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, a_name);
+  pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info_curr, a_name);
   if (a_id == PI_INVALID_ID) return PI_CLI_STATUS_INVALID_ACTION_NAME;
 
   t_entry->entry_type = PI_ACTION_ENTRY_TYPE_DATA;
 
-  pi_action_data_allocate(p4info, a_id, &t_entry->entry.action_data);
+  pi_action_data_allocate(p4info_curr, a_id, &t_entry->entry.action_data);
   pi_action_data_t *adata = t_entry->entry.action_data;
   pi_action_data_init(adata);
   status = read_action_data(NULL, a_id, adata);

@@ -34,11 +34,11 @@ char table_dump_hs[] =
     "Dump all entries in a match table: table_dump <table name>";
 
 static int get_name_out_width(int min, pi_p4_id_t t_id) {
-  size_t num_match_fields = pi_p4info_table_num_match_fields(p4info, t_id);
+  size_t num_match_fields = pi_p4info_table_num_match_fields(p4info_curr, t_id);
   size_t max = min;
   for (size_t j = 0; j < num_match_fields; j++) {
     pi_p4info_match_field_info_t finfo;
-    pi_p4info_table_match_field_info(p4info, t_id, j, &finfo);
+    pi_p4info_table_match_field_info(p4info_curr, t_id, j, &finfo);
     size_t L = strlen(finfo.name);
     max = (L > max) ? L : max;
   }
@@ -114,10 +114,12 @@ static void print_action_entry(pi_table_entry_t *entry) {
   const pi_action_data_t *action_data = entry->entry.action_data;
   pi_p4_id_t action_id = pi_action_data_action_id_get(action_data);
 
-  const char *action_name = pi_p4info_action_name_from_id(p4info, action_id);
+  const char *action_name = pi_p4info_action_name_from_id(p4info_curr,
+                                                          action_id);
   printf("Action entry: %s - ", action_name);
   size_t num_params;
-  const pi_p4_id_t *param_ids = pi_p4info_action_get_params(p4info, action_id,
+  const pi_p4_id_t *param_ids = pi_p4info_action_get_params(p4info_curr,
+                                                            action_id,
                                                             &num_params);
   for (size_t j = 0; j < num_params; j++) {
     pi_netv_t argv;
@@ -134,7 +136,7 @@ static pi_cli_status_t dump_entries(pi_p4_id_t t_id,
   printf("==========\n");
   printf("TABLE ENTRIES\n");
 
-  size_t num_match_fields = pi_p4info_table_num_match_fields(p4info, t_id);
+  size_t num_match_fields = pi_p4info_table_num_match_fields(p4info_curr, t_id);
 
   const int name_out_width = get_name_out_width(20, t_id);
 
@@ -149,7 +151,7 @@ static pi_cli_status_t dump_entries(pi_p4_id_t t_id,
     printf("Match key:\n");
     for (size_t j = 0; j < num_match_fields; j++) {
       pi_p4info_match_field_info_t finfo;
-      pi_p4info_table_match_field_info(p4info, t_id, j, &finfo);
+      pi_p4info_table_match_field_info(p4info_curr, t_id, j, &finfo);
       printf("* %-*s: %-10s", name_out_width, finfo.name,
              match_type_to_str(finfo.match_type));
       print_match_param_v(finfo.field_id, finfo.match_type, entry.match_key);
@@ -191,7 +193,7 @@ pi_cli_status_t do_table_dump(char *subcmd) {
   if (parse_fixed_args(subcmd, args, num_args) < num_args)
     return PI_CLI_STATUS_TOO_FEW_ARGS;
   const char *t_name = args[0];
-  pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, t_name);
+  pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info_curr, t_name);
   if (t_id == PI_INVALID_ID) return PI_CLI_STATUS_INVALID_TABLE_NAME;
 
   pi_cli_status_t status = PI_CLI_STATUS_SUCCESS;

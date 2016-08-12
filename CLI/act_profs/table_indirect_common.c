@@ -28,14 +28,14 @@
 
 #include <readline/readline.h>
 
-extern pi_p4info_t *p4info;
+extern const pi_p4info_t *p4info_curr;
 
 static char *complete_p4_act_prof(const char *text, int len, int state) {
   static pi_p4_id_t id;
-  if (!state) id = pi_p4info_act_prof_begin(p4info);
-  while (id != pi_p4info_act_prof_end(p4info)) {
-    const char *name = pi_p4info_act_prof_name_from_id(p4info, id);
-    id = pi_p4info_act_prof_next(p4info, id);
+  if (!state) id = pi_p4info_act_prof_begin(p4info_curr);
+  while (id != pi_p4info_act_prof_end(p4info_curr)) {
+    const char *name = pi_p4info_act_prof_name_from_id(p4info_curr, id);
+    id = pi_p4info_act_prof_next(p4info_curr, id);
     if (!strncmp(name, text, len)) return strdup(name);
   }
   return NULL;
@@ -43,15 +43,16 @@ static char *complete_p4_act_prof(const char *text, int len, int state) {
 
 // get one of the tables for the action profile, to retrieve the actions
 static char *get_one_act_prof_table(const char *act_prof_name) {
-  pi_p4_id_t act_prof_id = pi_p4info_act_prof_id_from_name(p4info,
+  pi_p4_id_t act_prof_id = pi_p4info_act_prof_id_from_name(p4info_curr,
                                                            act_prof_name);
   if (act_prof_id == PI_INVALID_ID) return NULL;
   size_t num_tables = 0;
-  const pi_p4_id_t *t_ids = pi_p4info_act_prof_get_tables(p4info, act_prof_id,
+  const pi_p4_id_t *t_ids = pi_p4info_act_prof_get_tables(p4info_curr,
+                                                          act_prof_id,
                                                           &num_tables);
   assert(num_tables > 0);
   assert(*t_ids != PI_INVALID_ID);
-  return strdup(pi_p4info_table_name_from_id(p4info, *t_ids));
+  return strdup(pi_p4info_table_name_from_id(p4info_curr, *t_ids));
 }
 
 char *complete_act_prof(const char *text, int state) {

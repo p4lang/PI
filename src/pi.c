@@ -24,6 +24,7 @@
 #include "utils/logging.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 #define MAX_DEVICES 256
 
@@ -31,7 +32,7 @@ static size_t num_devices;
 static pi_device_info_t *device_mapping;
 static char *rpc_addr_;
 
-pi_device_info_t *pi_get_device_info(uint16_t dev_id) {
+pi_device_info_t *pi_get_device_info(pi_dev_id_t dev_id) {
   return device_mapping + dev_id;
 }
 
@@ -59,7 +60,7 @@ void pi_update_device_config(pi_dev_id_t dev_id, const pi_p4info_t *p4info) {
 
 void pi_reset_device_config(pi_dev_id_t dev_id) {
   pi_device_info_t *info = &device_mapping[dev_id];
-  info->version = 0;
+  memset(info, 0, sizeof(*info));
 }
 
 pi_status_t pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,

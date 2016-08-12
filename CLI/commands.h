@@ -43,8 +43,20 @@ extern char table_dump_hs[];
 pi_cli_status_t do_table_dump(char *subcmd);
 char *complete_table_dump(const char *text, int state);
 
+extern char add_p4_hs[];
+pi_cli_status_t do_add_p4(char *subcmd);
+
+extern char assign_device_hs[];
+pi_cli_status_t do_assign_device(char *subcmd);
+
 extern char select_device_hs[];
 pi_cli_status_t do_select_device(char *subcmd);
+
+extern char show_devices_hs[];
+pi_cli_status_t do_show_devices(char *subcmd);
+
+extern char remove_device_hs[];
+pi_cli_status_t do_remove_device(char *subcmd);
 
 extern char table_indirect_create_member_hs[];
 pi_cli_status_t do_table_indirect_create_member(char *subcmd);

@@ -137,8 +137,8 @@ def main():
         cmd = ["libtool", "--mode=execute"] + valgrind_with_options
     else:
         cmd = []
-    cmd += [CLI_path, json_path, rpc_addr]
-    input_ = "select_device 0 port={}\n".format(thrift_port)
+    cmd += [CLI_path, "-c", json_path, "-a", rpc_addr]
+    input_ = "assign_device 0 -- port={}\n".format(thrift_port)
     with open(command_path, "r") as f:
         input_ += f.read()
 
@@ -151,6 +151,8 @@ def main():
     rc = p.returncode
 
     if rc:
+        print out
+        print stderr
         fail("CLI returned error code")
 
     assert(out)
@@ -167,9 +169,14 @@ def main():
     with open(output_path, "r") as f:
         expected_parse = parse_data(f.read(), "\?\?\?\?")
         if len(out_parsed) != len(expected_parse):
+            print out_parsed
+            print "****************"
             fail("Mismatch between expected output and actual output")
         for o, e in zip(out_parsed, expected_parse):
             if o != e:
+                print o
+                print "****************"
+                print e
                 fail("Mismatch between expected output and actual output")
 
     # terminate gives the process a chance to flush to the file
