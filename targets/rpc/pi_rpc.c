@@ -13,6 +13,11 @@
  * limitations under the License.
  */
 
+/*
+ * Antonin Bas (antonin@barefootnetworks.com)
+ *
+ */
+
 #include "pi_rpc.h"
 
 /* char *addr = "ipc:///tmp/pi_rpc.ipc"; */

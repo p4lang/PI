@@ -13,6 +13,11 @@
  * limitations under the License.
  */
 
+/*
+ * Antonin Bas (antonin@barefootnetworks.com)
+ *
+ */
+
 #include "PI/pi_value.h"
 #include "utils/utils.h"
 #include "PI/int/pi_int.h"

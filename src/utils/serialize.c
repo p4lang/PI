@@ -13,6 +13,11 @@
  * limitations under the License.
  */
 
+/*
+ * Antonin Bas (antonin@barefootnetworks.com)
+ *
+ */
+
 #include "PI/pi_base.h"
 #include "PI/pi_tables.h"
 

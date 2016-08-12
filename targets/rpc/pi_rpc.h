@@ -13,6 +13,11 @@
  * limitations under the License.
  */
 
+/*
+ * Antonin Bas (antonin@barefootnetworks.com)
+ *
+ */
+
 #ifndef PI_RPC_PI_RPC_H_
 #define PI_RPC_PI_RPC_H_
 

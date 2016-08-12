@@ -13,6 +13,11 @@
  * limitations under the License.
  */
 
+/*
+ * Antonin Bas (antonin@barefootnetworks.com)
+ *
+ */
+
 #ifndef PI_BMV2_COMMON_H_
 #define PI_BMV2_COMMON_H_
 

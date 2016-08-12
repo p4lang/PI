@@ -13,6 +13,11 @@
  * limitations under the License.
  */
 
+/*
+ * Antonin Bas (antonin@barefootnetworks.com)
+ *
+ */
+
 // Generates the PI JSON from the Bmv2 JSON
 
 #include <PI/pi.h>

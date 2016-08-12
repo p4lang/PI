@@ -13,6 +13,11 @@
  * limitations under the License.
  */
 
+/*
+ * Antonin Bas (antonin@barefootnetworks.com)
+ *
+ */
+
 #ifndef PI_CLI_ERROR_CODES_H_
 #define PI_CLI_ERROR_CODES_H_
 

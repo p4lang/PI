@@ -13,6 +13,11 @@
  * limitations under the License.
  */
 
+/*
+ * Antonin Bas (antonin@barefootnetworks.com)
+ *
+ */
+
 #ifndef PI_INC_PI_PI_ACT_PROF_H_
 #define PI_INC_PI_PI_ACT_PROF_H_
 

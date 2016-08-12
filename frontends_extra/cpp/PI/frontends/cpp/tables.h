@@ -13,6 +13,11 @@
  * limitations under the License.
  */
 
+/*
+ * Antonin Bas (antonin@barefootnetworks.com)
+ *
+ */
+
 #ifndef PI_FRONTENDS_CPP_TABLES_H_
 #define PI_FRONTENDS_CPP_TABLES_H_
 

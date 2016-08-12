@@ -13,6 +13,11 @@
  * limitations under the License.
  */
 
+/*
+ * Antonin Bas (antonin@barefootnetworks.com)
+ *
+ */
+
 #include "PI/frontends/generic/pi.h"
 #include "PI/p4info.h"
 #include "PI/int/pi_int.h"

@@ -13,6 +13,11 @@
  * limitations under the License.
  */
 
+/*
+ * Antonin Bas (antonin@barefootnetworks.com)
+ *
+ */
+
 #ifndef PI_SRC_P4INFO_ACT_PROFS_INT_H_
 #define PI_SRC_P4INFO_ACT_PROFS_INT_H_
 

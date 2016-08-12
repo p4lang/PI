@@ -13,6 +13,11 @@
  * limitations under the License.
  */
 
+/*
+ * Antonin Bas (antonin@barefootnetworks.com)
+ *
+ */
+
 #ifndef PI_SRC_CONFIG_READERS_READERS_H_
 #define PI_SRC_CONFIG_READERS_READERS_H_
 

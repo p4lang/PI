@@ -14,6 +14,11 @@
  */
 
 /*
+ * Antonin Bas (antonin@barefootnetworks.com)
+ *
+ */
+
+/*
   RPC built on an abstract transport mechanism (let's start with nanomsg reqrep)
   Request: id | type | dev_tgt / dev_id | body ...
   Reply: id | status | body ...

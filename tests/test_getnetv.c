@@ -13,6 +13,11 @@
  * limitations under the License.
  */
 
+/*
+ * Antonin Bas (antonin@barefootnetworks.com)
+ *
+ */
+
 #include "PI/pi_value.h"
 #include "p4info/p4info_struct.h"
 #include "p4info/fields_int.h"

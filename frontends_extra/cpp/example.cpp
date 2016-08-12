@@ -13,6 +13,11 @@
  * limitations under the License.
  */
 
+/*
+ * Antonin Bas (antonin@barefootnetworks.com)
+ *
+ */
+
 #include "PI/frontends/cpp/tables.h"
 // auto-generated #define's
 #include "pi_fe_defines_p4.h"

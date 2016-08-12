@@ -13,6 +13,11 @@
  * limitations under the License.
  */
 
+/*
+ * Antonin Bas (antonin@barefootnetworks.com)
+ *
+ */
+
 #include "error_codes.h"
 
 const char *error_code_to_string(pi_cli_status_t error) {
