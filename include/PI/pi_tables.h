@@ -74,6 +74,7 @@ typedef struct {
   const pi_res_config_t *direct_res_config;  /* not defined yet */
 } pi_table_entry_t;
 
+// this is used for iterating over entries after a fetch operation
 typedef struct {
   pi_match_key_t *match_key;
   pi_table_entry_t entry;
