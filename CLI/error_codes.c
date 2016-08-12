@@ -28,6 +28,8 @@ const char *error_code_to_string(pi_cli_status_t error) {
       return "Target returned error code";
     case PI_CLI_STATUS_TOO_FEW_ARGS:
       return "Too few arguments";
+    case PI_CLI_STATUS_TOO_MANY_ARGS:
+      return "Too many arguments";
     case PI_CLI_STATUS_INVALID_TABLE_NAME:
       return "Invalid table name";
     case PI_CLI_STATUS_INVALID_ACTION_NAME:
@@ -54,6 +56,14 @@ const char *error_code_to_string(pi_cli_status_t error) {
       return "Invalid device id";
     case PI_CLI_STATUS_INVALID_INDIRECT_HANDLE:
       return "Invalid indirect handle";
+    case PI_CLI_STATUS_INVALID_P4_CONFIG_TYPE:
+      return "Invalid P4 config type";
+    case PI_CLI_STATUS_INVALID_P4_CONFIG:
+      return "Invalid P4 config";
+    case PI_CLI_STATUS_INVALID_P4_CONFIG_ID:
+      return "Invalid P4 config id";
+    case PI_CLI_STATUS_ERROR:
+      return "Other error";
   }
   return "Unknown error";
 }

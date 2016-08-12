@@ -20,23 +20,26 @@
 
 #include "commands.h"
 #include "error_codes.h"
+#include "p4_config_repo.h"
 
 #include "PI/pi.h"
 
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
+#include <ctype.h>
+#include <unistd.h>
 
 #include <readline/readline.h>
 #include <readline/history.h>
 
 #include <Judy.h>
 
-// this contains all the needed P4 information
-pi_p4info_t *p4info = NULL;
+// this contains the current P4 information (for the selected device)
+const pi_p4info_t *p4info_curr = NULL;
 
 pi_dev_tgt_t dev_tgt = {0, 0xffff};
-int is_device_attached = 0;
+int is_device_selected = 0;
 pi_session_handle_t sess;
 
 typedef pi_cli_status_t (*CLIFnPtr)(char *);
@@ -122,7 +125,13 @@ static void register_cmd(const char *name, CLIFnPtr fn, const char *help_str,
 static void init_cmd_map() {
   register_cmd("quit", NULL, "Exits CLI", NULL, 0);
   register_cmd("help", do_help, "Print this message", complete_help, 0);
+
+  register_cmd("add_p4", do_add_p4, add_p4_hs, NULL, 0);
+  register_cmd("assign_device", do_assign_device, assign_device_hs, NULL, 0);
   register_cmd("select_device", do_select_device, select_device_hs, NULL, 0);
+  register_cmd("remove_device", do_remove_device, remove_device_hs, NULL, 0);
+  register_cmd("show_devices", do_show_devices, show_devices_hs, NULL, 0);
+
   register_cmd("table_add", do_table_add, table_add_hs, complete_table_add,
                PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
   register_cmd("table_delete", do_table_delete, table_delete_hs,
@@ -144,9 +153,10 @@ static void cleanup() {
   Word_t bytes;
   JSLFA(bytes, J_cmd_name_map);
 
-  if (is_device_attached) pi_remove_device(dev_tgt.dev_id);
+  if (is_device_selected) pi_remove_device(dev_tgt.dev_id);
 
-  pi_destroy_config(p4info);
+  // will cleanup current config as well
+  p4_config_cleanup();
 
   pi_session_cleanup(sess);
 
@@ -158,7 +168,7 @@ static void dispatch_command(const char *first_word, char *subcmd) {
   const cmd_data_t *cmd_data = get_cmd_data(first_word);
   if (cmd_data) {
     if ((cmd_data->flags & PI_CLI_CMD_FLAGS_REQUIRES_DEVICE) &&
-        !is_device_attached) {
+        !is_device_selected) {
       fprintf(stderr, "Cannot execute this command without selecting a device "
               "first with the 'select_device' command.\n");
       return;
@@ -244,27 +254,81 @@ char *dummy_completion(const char *text, int state) {
   return NULL;
 }
 
-int main(int argc, char *argv[]) {
-  if (argc > 3) {
-    fprintf(stderr, "Too may arguments provided.\n");
-    return 1;
-  } else if (argc < 2) {
-    fprintf(stderr, "P4 configuration needed.\n");
-    fprintf(stderr, "Usage: %s <path to config> [nanomsg addr]\n", argv[0]);
+static void print_help(const char *name) {
+  fprintf(stderr,
+          "Usage: %s [OPTIONS]...\n"
+          "PI CLI\n\n"
+          "-c          path to P4 bmv2 JSON config\n"
+          "-a          nanomsg address, for RPC mod\n",
+          name);
+}
+
+static char *opt_config_path = NULL;
+static char *opt_rpc_addr = NULL;
+
+static int parse_opts(int argc, char * const argv[]) {
+  int c;
+
+  opterr = 0;
+
+  while ((c = getopt (argc, argv, "c:a:h")) != -1) {
+    switch (c) {
+      case 'c':
+        opt_config_path = optarg;
+        break;
+      case 'a':
+        opt_rpc_addr = optarg;
+        break;
+      case 'h':
+        print_help(argv[0]);
+        exit(0);
+      case '?':
+        if (optopt == 'c' || optopt == 'a') {
+          fprintf(stderr, "Option -%c requires an argument.\n\n", optopt);
+          print_help(argv[0]);
+        } else if (isprint (optopt)) {
+          fprintf(stderr, "Unknown option `-%c'.\n\n", optopt);
+          print_help(argv[0]);
+        } else {
+          fprintf(stderr, "Unknown option character `\\x%x'.\n", optopt);
+          print_help(argv[0]);
+        }
+        return 1;
+      default:
+        abort();
+    }
+  }
+
+  int extra_arg = 0;
+  for (int index = optind; index < argc; index++) {
+    fprintf(stderr, "Non-option argument: %s\n", argv[index]);
+    extra_arg = 1;
+  }
+  if (extra_arg) {
+    print_help(argv[0]);
     return 1;
   }
 
-  char *rpc_addr = NULL;
-  if (argc > 2) {
-    rpc_addr = argv[2];
-  }
+  return 0;
+}
+
+int main(int argc, char *argv[]) {
+  if (parse_opts(argc, argv) != 0) return 1;
 
   pi_status_t pirc;
-  pi_init(256, rpc_addr);  // 256 devices max
-  pirc = pi_add_config_from_file(argv[1], PI_CONFIG_TYPE_BMV2_JSON, &p4info);
-  if (pirc != PI_STATUS_SUCCESS) {
-    fprintf(stderr, "Error while loading config\n");
-    return 1;
+  pi_init(256, opt_rpc_addr);  // 256 devices max
+
+  if (opt_config_path) {
+    pi_p4info_t *p4info;
+    pirc = pi_add_config_from_file(opt_config_path,
+                                   PI_CONFIG_TYPE_BMV2_JSON,
+                                   &p4info);
+    if (pirc != PI_STATUS_SUCCESS) {
+      fprintf(stderr, "Error while loading config\n");
+      return 1;
+    }
+    p4_config_id_t p4_config_id = p4_config_add(p4info);
+    (void) p4_config_id;
   }
 
   pirc = pi_session_init(&sess);

@@ -25,7 +25,7 @@
 
 #include "PI/pi.h"
 
-extern pi_p4info_t *p4info;
+extern const pi_p4info_t *p4info_curr;
 extern pi_dev_tgt_t dev_tgt;
 extern pi_session_handle_t sess;
 

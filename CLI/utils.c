@@ -46,14 +46,14 @@ char *get_token_from_buffer(char *buffer, size_t index) {
   return e;
 }
 
-extern pi_p4info_t *p4info;
+extern const pi_p4info_t *p4info_curr;
 
 char *complete_p4_table(const char *text, int len, int state) {
   static pi_p4_id_t id;
-  if (!state) id = pi_p4info_table_begin(p4info);
-  while (id != pi_p4info_table_end(p4info)) {
-    const char *name = pi_p4info_table_name_from_id(p4info, id);
-    id = pi_p4info_table_next(p4info, id);
+  if (!state) id = pi_p4info_table_begin(p4info_curr);
+  while (id != pi_p4info_table_end(p4info_curr)) {
+    const char *name = pi_p4info_table_name_from_id(p4info_curr, id);
+    id = pi_p4info_table_next(p4info_curr, id);
     if (!strncmp(name, text, len)) return strdup(name);
   }
   return NULL;
@@ -66,9 +66,9 @@ char *complete_p4_action(const char *text, int len, int state,
   static size_t num_actions;
   static size_t index;
   if (!state) {
-    t_id = pi_p4info_table_id_from_name(p4info, table);
+    t_id = pi_p4info_table_id_from_name(p4info_curr, table);
     if (t_id == PI_INVALID_ID) return NULL;
-    actions = pi_p4info_table_get_actions(p4info, t_id, &num_actions);
+    actions = pi_p4info_table_get_actions(p4info_curr, t_id, &num_actions);
     index = 0;
   } else if (t_id == PI_INVALID_ID) {
     return NULL;
@@ -76,7 +76,8 @@ char *complete_p4_action(const char *text, int len, int state,
   assert(actions);
 
   while (index < num_actions) {
-    const char *name = pi_p4info_action_name_from_id(p4info, actions[index]);
+    const char *name = pi_p4info_action_name_from_id(p4info_curr,
+                                                     actions[index]);
     index++;
     if (!strncmp(name, text, len)) return strdup(name);
   }
