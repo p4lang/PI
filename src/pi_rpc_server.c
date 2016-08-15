@@ -402,6 +402,20 @@ static void __pi_table_entries_fetch(char *req) {
   assert((size_t) bytes == s);
 }
 
+static void send_indirect_handle(pi_status_t status, pi_indirect_handle_t h) {
+  typedef struct __attribute__((packed)) {
+    rep_hdr_t hdr;
+    s_pi_indirect_handle_t h;
+  } rep_t;
+  rep_t rep;
+  char *rep_ = (char *) &rep;
+  rep_ += emit_rep_hdr(rep_, status);
+  rep_ += emit_indirect_handle(rep_, h);
+
+  int bytes = nn_send(state.s, &rep, sizeof(rep), 0);
+  assert(bytes == sizeof(rep));
+}
+
 static void __pi_act_prof_mbr_create(char *req) {
   printf("RPC: _pi_act_prof_mbr_create\n");
 
@@ -417,22 +431,125 @@ static void __pi_act_prof_mbr_create(char *req) {
   action_data.p4info = NULL;  // TODO(antonin)
   req += retrieve_action_data(req, &action_data_, 0);
 
-  pi_indirect_handle_t mbr_handle;
+  pi_indirect_handle_t mbr_handle = 0;
   pi_status_t status = _pi_act_prof_mbr_create(sess, dev_tgt, act_prof_id,
                                                &action_data, &mbr_handle);
-
-  typedef struct __attribute__((packed)) {
-    rep_hdr_t hdr;
-    s_pi_indirect_handle_t h;
-  } rep_t;
-  rep_t rep;
-  char *rep_ = (char *) &rep;
-  rep_ += emit_rep_hdr(rep_, status);
-  rep_ += emit_indirect_handle(rep_, mbr_handle);
-
-  int bytes = nn_send(state.s, &rep, sizeof(rep), 0);
-  assert(bytes == sizeof(rep));
+  send_indirect_handle(status, mbr_handle);
 }
+
+static void __pi_act_prof_mbr_delete(char *req) {
+  printf("RPC: _pi_act_prof_mbr_delete\n");
+
+  pi_session_handle_t sess;
+  req += retrieve_session_handle(req, &sess);
+  pi_dev_id_t dev_id;
+  req += retrieve_dev_id(req, &dev_id);
+  pi_p4_id_t act_prof_id;
+  req += retrieve_p4_id(req, &act_prof_id);
+  pi_indirect_handle_t mbr_handle;
+  req += retrieve_indirect_handle(req, &mbr_handle);
+
+  pi_status_t status = _pi_act_prof_mbr_delete(sess, dev_id, act_prof_id,
+                                               mbr_handle);
+  send_status(status);
+}
+
+static void __pi_act_prof_mbr_modify(char *req) {
+  printf("RPC: _pi_act_prof_mbr_modify\n");
+
+  pi_session_handle_t sess;
+  req += retrieve_session_handle(req, &sess);
+  pi_dev_id_t dev_id;
+  req += retrieve_dev_id(req, &dev_id);
+  pi_p4_id_t act_prof_id;
+  req += retrieve_p4_id(req, &act_prof_id);
+  pi_indirect_handle_t mbr_handle;
+  req += retrieve_indirect_handle(req, &mbr_handle);
+
+  pi_action_data_t action_data;
+  pi_action_data_t *action_data_ = &action_data;
+  action_data.p4info = NULL;  // TODO(antonin)
+  req += retrieve_action_data(req, &action_data_, 0);
+
+  pi_status_t status = _pi_act_prof_mbr_modify(sess, dev_id, act_prof_id,
+                                               mbr_handle, &action_data);
+  send_status(status);
+}
+
+static void __pi_act_prof_grp_create(char *req) {
+  printf("RPC: _pi_act_prof_grp_create\n");
+
+  pi_session_handle_t sess;
+  req += retrieve_session_handle(req, &sess);
+  pi_dev_tgt_t dev_tgt;
+  req += retrieve_dev_tgt(req, &dev_tgt);
+  pi_p4_id_t act_prof_id;
+  req += retrieve_p4_id(req, &act_prof_id);
+  uint32_t max_size;
+  req += retrieve_uint32(req, &max_size);
+
+  pi_indirect_handle_t grp_handle = 0;
+  pi_status_t status = _pi_act_prof_grp_create(sess, dev_tgt, act_prof_id,
+                                               max_size, &grp_handle);
+  send_indirect_handle(status, grp_handle);
+}
+
+static void __pi_act_prof_grp_delete(char *req) {
+  printf("RPC: _pi_act_prof_grp_delete\n");
+
+  pi_session_handle_t sess;
+  req += retrieve_session_handle(req, &sess);
+  pi_dev_id_t dev_id;
+  req += retrieve_dev_id(req, &dev_id);
+  pi_p4_id_t act_prof_id;
+  req += retrieve_p4_id(req, &act_prof_id);
+  pi_indirect_handle_t grp_handle;
+  req += retrieve_indirect_handle(req, &grp_handle);
+
+  pi_status_t status = _pi_act_prof_grp_delete(sess, dev_id, act_prof_id,
+                                               grp_handle);
+  send_status(status);
+}
+
+static void grp_add_remove_mbr(char *req, pi_rpc_type_t add_or_remove) {
+  pi_session_handle_t sess;
+  req += retrieve_session_handle(req, &sess);
+  pi_dev_id_t dev_id;
+  req += retrieve_dev_id(req, &dev_id);
+  pi_p4_id_t act_prof_id;
+  req += retrieve_p4_id(req, &act_prof_id);
+  pi_indirect_handle_t grp_handle;
+  req += retrieve_indirect_handle(req, &grp_handle);
+  pi_indirect_handle_t mbr_handle;
+  req += retrieve_indirect_handle(req, &mbr_handle);
+
+  pi_status_t status;
+  switch (add_or_remove) {
+    case PI_RPC_ACT_PROF_GRP_ADD_MBR:
+      status = _pi_act_prof_grp_add_mbr(sess, dev_id, act_prof_id,
+                                        grp_handle, mbr_handle);
+      break;
+    case PI_RPC_ACT_PROF_GRP_REMOVE_MBR:
+      status = _pi_act_prof_grp_remove_mbr(sess, dev_id, act_prof_id,
+                                           grp_handle, mbr_handle);
+      break;
+    default:
+      assert(0);
+  }
+
+  send_status(status);
+}
+
+static void __pi_act_prof_grp_add_mbr(char *req) {
+  printf("RPC: _pi_act_prof_grp_add_mbr\n");
+  grp_add_remove_mbr(req, PI_RPC_ACT_PROF_GRP_ADD_MBR);
+}
+
+static void __pi_act_prof_grp_remove_mbr(char *req) {
+  printf("RPC: _pi_act_prof_grp_remove_mbr\n");
+  grp_add_remove_mbr(req, PI_RPC_ACT_PROF_GRP_REMOVE_MBR);
+}
+
 
 pi_status_t pi_rpc_server_run(char *rpc_addr) {
   assert(!state.init);
@@ -485,6 +602,18 @@ pi_status_t pi_rpc_server_run(char *rpc_addr) {
 
       case PI_RPC_ACT_PROF_MBR_CREATE:
         __pi_act_prof_mbr_create(req_); break;
+      case PI_RPC_ACT_PROF_MBR_DELETE:
+        __pi_act_prof_mbr_delete(req_); break;
+      case PI_RPC_ACT_PROF_MBR_MODIFY:
+        __pi_act_prof_mbr_modify(req_); break;
+      case PI_RPC_ACT_PROF_GRP_CREATE:
+        __pi_act_prof_grp_create(req_); break;
+      case PI_RPC_ACT_PROF_GRP_DELETE:
+        __pi_act_prof_grp_delete(req_); break;
+      case PI_RPC_ACT_PROF_GRP_ADD_MBR:
+        __pi_act_prof_grp_add_mbr(req_); break;
+      case PI_RPC_ACT_PROF_GRP_REMOVE_MBR:
+        __pi_act_prof_grp_remove_mbr(req_); break;
 
       default:
         assert(0);

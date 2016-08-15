@@ -40,8 +40,13 @@ typedef enum {
   /* PI_RPC_TABLE_ENTRIES_FETCH_DONE, */
 
   // act profs
-  // TODO(antonin): move
   PI_RPC_ACT_PROF_MBR_CREATE,
+  PI_RPC_ACT_PROF_MBR_DELETE,
+  PI_RPC_ACT_PROF_MBR_MODIFY,
+  PI_RPC_ACT_PROF_GRP_CREATE,
+  PI_RPC_ACT_PROF_GRP_DELETE,
+  PI_RPC_ACT_PROF_GRP_ADD_MBR,
+  PI_RPC_ACT_PROF_GRP_REMOVE_MBR,
 
   // rpc management
   // retrieve state for sync-up when rpc client is started
