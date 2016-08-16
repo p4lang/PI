@@ -67,6 +67,7 @@ pi_status_t pi_destroy_config(pi_p4info_t *p4info) {
   pi_p4info_action_free(p4info);
   pi_p4info_table_free(p4info);
   pi_p4info_field_free(p4info);
+  pi_p4info_act_prof_free(p4info);
   free(p4info);
   return PI_STATUS_SUCCESS;
 }
