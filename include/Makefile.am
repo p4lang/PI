@@ -6,7 +6,9 @@ PI/pi_base.h \
 PI/p4info.h \
 PI/pi_tables.h \
 PI/pi_value.h \
-PI/pi_act_prof.h
+PI/pi_act_prof.h \
+PI/pi_counter.h \
+PI/pi_meter.h
 
 nobase_include_HEADERS += \
 PI/frontends/generic/pi.h
@@ -25,4 +27,6 @@ PI/int/rpc_common.h
 nobase_include_HEADERS += \
 PI/target/pi_imp.h \
 PI/target/pi_tables_imp.h \
-PI/target/pi_act_prof_imp.h
+PI/target/pi_act_prof_imp.h \
+PI/target/pi_counter_imp.h \
+PI/target/pi_meter_imp.h

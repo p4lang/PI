@@ -18,10 +18,10 @@
  *
  */
 
-#include "PI/pi_tables.h"
-#include "PI/target/pi_tables_imp.h"
-#include "PI/int/pi_int.h"
-#include "PI/int/serialize.h"
+#include <PI/pi_tables.h>
+#include <PI/target/pi_tables_imp.h>
+#include <PI/int/pi_int.h>
+#include <PI/int/serialize.h>
 
 #include <stdlib.h>
 #include <string.h>

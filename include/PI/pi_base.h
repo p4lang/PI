@@ -84,6 +84,11 @@ bool pi_is_table_id(pi_p4_id_t id);
 bool pi_is_action_param_id(pi_p4_id_t id);
 bool pi_is_field_id(pi_p4_id_t id);
 
+bool pi_is_act_prof_id(pi_p4_id_t id);
+
+bool pi_is_counter_id(pi_p4_id_t id);
+bool pi_is_meter_id(pi_p4_id_t id);
+
 #ifdef __cplusplus
 }
 #endif

@@ -101,15 +101,27 @@ pi_status_t pi_destroy() {
   return _pi_destroy();
 }
 
-bool pi_is_action_id(pi_p4_id_t id) { return (id >> 24) == PI_ACTION_ID; }
-
-bool pi_is_table_id(pi_p4_id_t id) { return (id >> 24) == PI_TABLE_ID; }
-
-bool pi_is_action_param_id(pi_p4_id_t id) {
-  return (id >> 24) == PI_ACTION_PARAM_ID;
+bool pi_is_action_id(pi_p4_id_t id) {
+  return PI_GET_TYPE_ID(id) == PI_ACTION_ID;
 }
 
-bool pi_is_field_id(pi_p4_id_t id) { return (id >> 24) == PI_FIELD_ID; }
+bool pi_is_table_id(pi_p4_id_t id) { return PI_GET_TYPE_ID(id) == PI_TABLE_ID; }
+
+bool pi_is_action_param_id(pi_p4_id_t id) {
+  return PI_GET_TYPE_ID(id) == PI_ACTION_PARAM_ID;
+}
+
+bool pi_is_field_id(pi_p4_id_t id) { return PI_GET_TYPE_ID(id) == PI_FIELD_ID; }
+
+bool pi_is_act_prof_id(pi_p4_id_t id) {
+  return PI_GET_TYPE_ID(id) == PI_ACT_PROF_ID;
+}
+
+bool pi_is_counter_id(pi_p4_id_t id) {
+  return PI_GET_TYPE_ID(id) == PI_COUNTER_ID;
+}
+
+bool pi_is_meter_id(pi_p4_id_t id) { return PI_GET_TYPE_ID(id) == PI_METER_ID; }
 
 size_t get_match_key_size(const pi_p4info_t *p4info, pi_p4_id_t table_id) {
   size_t s = 0;

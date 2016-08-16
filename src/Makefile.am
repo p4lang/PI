@@ -26,6 +26,8 @@ libpi_la_SOURCES = \
 pi.c \
 pi_tables.c \
 pi_act_prof.c \
+pi_counter.c \
+pi_meter.c \
 pi_value.c \
 pi_rpc_server.c
 
