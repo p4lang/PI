@@ -28,7 +28,7 @@
 
 #define ALIGN 16
 
-#define SAFEGUARD ((int) 0xabababab)
+#define SAFEGUARD ((int)0xabababab)
 
 // possibility to unify more the match keys and action data code, but I don't
 // know if they are going to diverge in the future
@@ -65,8 +65,8 @@ pi_status_t pi_match_key_allocate(const pi_p4info_t *p4info,
 
   size_t num_match_fields = pi_p4info_table_num_match_fields(p4info, table_id);
 
-  _fegen_mbr_info_t *offsets = malloc(
-      sizeof(_fegen_mbr_info_t) * num_match_fields);
+  _fegen_mbr_info_t *offsets =
+      malloc(sizeof(_fegen_mbr_info_t) * num_match_fields);
 
   for (size_t i = 0; i < num_match_fields; i++) {
     offsets[i].is_set = 0;
@@ -81,7 +81,7 @@ pi_status_t pi_match_key_allocate(const pi_p4info_t *p4info,
   s += prefix_space;
   s += sizeof(pi_match_key_t);
   char *key_w_prefix = malloc(s);
-  _fegen_mk_prefix_t *prefix = (_fegen_mk_prefix_t *) key_w_prefix;
+  _fegen_mk_prefix_t *prefix = (_fegen_mk_prefix_t *)key_w_prefix;
   prefix->safeguard = SAFEGUARD;
   prefix->nset = 0;
   prefix->num_fields = num_match_fields;
@@ -89,21 +89,21 @@ pi_status_t pi_match_key_allocate(const pi_p4info_t *p4info,
   memcpy(prefix->f_info, offsets, sizeof(prefix->f_info[0]) * num_match_fields);
   free(offsets);
 
-  *key = (pi_match_key_t *) (key_w_prefix + prefix_space);
+  *key = (pi_match_key_t *)(key_w_prefix + prefix_space);
   (*key)->p4info = p4info;
   (*key)->table_id = table_id;
   (*key)->data_size = mk_size;
-  (*key)->data = (char *) (*key + 1);
+  (*key)->data = (char *)(*key + 1);
   assert(sizeof(_fegen_mk_prefix_t *) <= ALIGN);
-  char *back_ptr = ((char *) (*key)) - ALIGN;
-  *(_fegen_mk_prefix_t **) back_ptr = prefix;
+  char *back_ptr = ((char *)(*key)) - ALIGN;
+  *(_fegen_mk_prefix_t **)back_ptr = prefix;
 
   return PI_STATUS_SUCCESS;
 }
 
 static _fegen_mk_prefix_t *get_mk_prefix(pi_match_key_t *key) {
-  char *back_ptr = ((char *) key) - ALIGN;
-  return *(_fegen_mk_prefix_t **) back_ptr;
+  char *back_ptr = ((char *)key) - ALIGN;
+  return *(_fegen_mk_prefix_t **)back_ptr;
 }
 
 static void check_mk_prefix(const _fegen_mk_prefix_t *prefix) {
@@ -114,8 +114,7 @@ pi_status_t pi_match_key_init(pi_match_key_t *key) {
   _fegen_mk_prefix_t *prefix = get_mk_prefix(key);
   check_mk_prefix(prefix);
   prefix->nset = 0;
-  for (size_t i = 0; i < prefix->num_fields; i++)
-    prefix->f_info[i].is_set = 0;
+  for (size_t i = 0; i < prefix->num_fields; i++) prefix->f_info[i].is_set = 0;
   return PI_STATUS_SUCCESS;
 }
 
@@ -126,7 +125,7 @@ static char *dump_fv(char *dst, const pi_netv_t *fv) {
 }
 
 static void mk_update_fset(_fegen_mk_prefix_t *prefix, size_t index) {
-  if(!prefix->f_info[index].is_set) {
+  if (!prefix->f_info[index].is_set) {
     prefix->nset++;
     prefix->f_info[index].is_set = 1;
   }
@@ -144,8 +143,8 @@ pi_status_t pi_match_key_exact_set(pi_match_key_t *key, const pi_netv_t *fv) {
 
 pi_status_t pi_match_key_exact_get(const pi_match_key_t *key, pi_p4_id_t fid,
                                    pi_netv_t *fv) {
-  size_t f_offset = pi_p4info_table_match_field_offset(
-      key->p4info, key->table_id, fid);
+  size_t f_offset =
+      pi_p4info_table_match_field_offset(key->p4info, key->table_id, fid);
   pi_getnetv_ptr(key->p4info, fid, key->data + f_offset, 0, fv);
   return PI_STATUS_SUCCESS;
 }
@@ -166,19 +165,18 @@ pi_status_t pi_match_key_lpm_set(pi_match_key_t *key, const pi_netv_t *fv,
 pi_status_t pi_match_key_lpm_get(const pi_match_key_t *key, pi_p4_id_t fid,
                                  pi_netv_t *fv,
                                  pi_prefix_length_t *prefix_length) {
-  size_t f_offset = pi_p4info_table_match_field_offset(
-      key->p4info, key->table_id, fid);
+  size_t f_offset =
+      pi_p4info_table_match_field_offset(key->p4info, key->table_id, fid);
   const char *src = key->data + f_offset;
   pi_getnetv_ptr(key->p4info, fid, src, 0, fv);
   src += fv->size;
   uint32_t pLen;
   retrieve_uint32(src, &pLen);
-  *prefix_length = (pi_prefix_length_t) pLen;
+  *prefix_length = (pi_prefix_length_t)pLen;
   return PI_STATUS_SUCCESS;
 }
 
-pi_status_t pi_match_key_ternary_set(pi_match_key_t *key,
-                                     const pi_netv_t *fv,
+pi_status_t pi_match_key_ternary_set(pi_match_key_t *key, const pi_netv_t *fv,
                                      const pi_netv_t *mask) {
   assert(fv->obj_id == mask->obj_id);
   _fegen_mk_prefix_t *prefix = get_mk_prefix(key);
@@ -194,8 +192,8 @@ pi_status_t pi_match_key_ternary_set(pi_match_key_t *key,
 
 pi_status_t pi_match_key_ternary_get(const pi_match_key_t *key, pi_p4_id_t fid,
                                      pi_netv_t *fv, pi_netv_t *mask) {
-  size_t f_offset = pi_p4info_table_match_field_offset(
-      key->p4info, key->table_id, fid);
+  size_t f_offset =
+      pi_p4info_table_match_field_offset(key->p4info, key->table_id, fid);
   const char *src = key->data + f_offset;
   pi_getnetv_ptr(key->p4info, fid, src, 0, fv);
   src += fv->size;
@@ -203,8 +201,7 @@ pi_status_t pi_match_key_ternary_get(const pi_match_key_t *key, pi_p4_id_t fid,
   return PI_STATUS_SUCCESS;
 }
 
-pi_status_t pi_match_key_range_set(pi_match_key_t *key,
-                                   const pi_netv_t *start,
+pi_status_t pi_match_key_range_set(pi_match_key_t *key, const pi_netv_t *start,
                                    const pi_netv_t *end) {
   assert(start->obj_id == end->obj_id);
   _fegen_mk_prefix_t *prefix = get_mk_prefix(key);
@@ -220,8 +217,8 @@ pi_status_t pi_match_key_range_set(pi_match_key_t *key,
 
 pi_status_t pi_match_key_range_get(const pi_match_key_t *key, pi_p4_id_t fid,
                                    pi_netv_t *start, pi_netv_t *end) {
-  size_t f_offset = pi_p4info_table_match_field_offset(
-      key->p4info, key->table_id, fid);
+  size_t f_offset =
+      pi_p4info_table_match_field_offset(key->p4info, key->table_id, fid);
   const char *src = key->data + f_offset;
   pi_getnetv_ptr(key->p4info, fid, src, 0, start);
   src += start->size;
@@ -235,7 +232,6 @@ pi_status_t pi_match_key_destroy(pi_match_key_t *key) {
   free(prefix);
   return PI_STATUS_SUCCESS;
 }
-
 
 // ACTION DATA
 
@@ -263,8 +259,8 @@ pi_status_t pi_action_data_allocate(const pi_p4info_t *p4info,
   size_t s = 0;
 
   size_t num_params;
-  const pi_p4_id_t *params = pi_p4info_action_get_params(p4info, action_id,
-                                                         &num_params);
+  const pi_p4_id_t *params =
+      pi_p4info_action_get_params(p4info, action_id, &num_params);
 
   _fegen_mbr_info_t *offsets = malloc(sizeof(_fegen_mbr_info_t) * num_params);
 
@@ -280,7 +276,7 @@ pi_status_t pi_action_data_allocate(const pi_p4info_t *p4info,
   s += prefix_space;
   s += sizeof(pi_action_data_t);
   char *adata_w_prefix = malloc(s);
-  _fegen_ad_prefix_t *prefix = (_fegen_ad_prefix_t *) adata_w_prefix;
+  _fegen_ad_prefix_t *prefix = (_fegen_ad_prefix_t *)adata_w_prefix;
   prefix->safeguard = SAFEGUARD;
   prefix->nset = 0;
   prefix->num_params = num_params;
@@ -288,21 +284,21 @@ pi_status_t pi_action_data_allocate(const pi_p4info_t *p4info,
   memcpy(prefix->p_info, offsets, sizeof(prefix->p_info[0]) * num_params);
   free(offsets);
 
-  *adata = (pi_action_data_t *) (adata_w_prefix + prefix_space);
+  *adata = (pi_action_data_t *)(adata_w_prefix + prefix_space);
   (*adata)->p4info = p4info;
   (*adata)->action_id = action_id;
   (*adata)->data_size = ad_size;
-  (*adata)->data = (char *) (*adata + 1);
+  (*adata)->data = (char *)(*adata + 1);
   assert(sizeof(_fegen_ad_prefix_t *) <= ALIGN);
-  char *back_ptr = ((char *) (*adata)) - ALIGN;
-  *(_fegen_ad_prefix_t **) back_ptr = prefix;
+  char *back_ptr = ((char *)(*adata)) - ALIGN;
+  *(_fegen_ad_prefix_t **)back_ptr = prefix;
 
   return PI_STATUS_SUCCESS;
 }
 
 static _fegen_ad_prefix_t *get_ad_prefix(pi_action_data_t *adata) {
-  char *back_ptr = ((char *) adata) - ALIGN;
-  return *(_fegen_ad_prefix_t **) back_ptr;
+  char *back_ptr = ((char *)adata) - ALIGN;
+  return *(_fegen_ad_prefix_t **)back_ptr;
 }
 
 static void check_ad_prefix(const _fegen_ad_prefix_t *prefix) {
@@ -313,8 +309,7 @@ pi_status_t pi_action_data_init(pi_action_data_t *adata) {
   _fegen_ad_prefix_t *prefix = get_ad_prefix(adata);
   check_ad_prefix(prefix);
   prefix->nset = 0;
-  for (size_t i = 0; i < prefix->num_params; i++)
-    prefix->p_info[i].is_set = 0;
+  for (size_t i = 0; i < prefix->num_params; i++) prefix->p_info[i].is_set = 0;
   return PI_STATUS_SUCCESS;
 }
 
@@ -336,7 +331,7 @@ pi_status_t pi_action_data_arg_set(pi_action_data_t *adata,
   char *dst = adata->data + prefix->p_info[index].offset;
   memcpy(dst, src, argv->size);
 
-  if(!prefix->p_info[index].is_set) {
+  if (!prefix->p_info[index].is_set) {
     prefix->nset++;
     prefix->p_info[index].is_set = 1;
   }

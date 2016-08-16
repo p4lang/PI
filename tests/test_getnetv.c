@@ -57,7 +57,7 @@ static char get_byte0_mask(size_t bitwidth) {
 TEST(GetNetv, U8) {
   pi_status_t rc;
   for (size_t bitwidth = 1; bitwidth <= 8; bitwidth++) {
-    for (uint32_t v = 0; v < (uint32_t) (1 << bitwidth); v++)  {
+    for (uint32_t v = 0; v < (uint32_t)(1 << bitwidth); v++) {
       uint8_t test_v = v;
       pi_netv_t fv;
       pi_p4_id_t fid = pi_make_field_id(bitwidth - 1);
@@ -75,7 +75,7 @@ TEST(GetNetv, U8) {
 TEST(GetNetv, U8_ExtraBits) {
   pi_status_t rc;
   for (size_t bitwidth = 1; bitwidth <= 8; bitwidth++) {
-    for (uint32_t v = (uint32_t) (1 << bitwidth) - 1; v < 256; v++)  {
+    for (uint32_t v = (uint32_t)(1 << bitwidth) - 1; v < 256; v++) {
       uint8_t test_v = v;
       pi_netv_t fv;
       pi_p4_id_t fid = pi_make_field_id(bitwidth - 1);
@@ -99,7 +99,7 @@ TEST(GetNetv, U8_BadInput) {
 TEST(GetNetv, U16) {
   pi_status_t rc;
   for (size_t bitwidth = 9; bitwidth <= 16; bitwidth++) {
-    for (uint32_t v = 0; v < (uint32_t) (1 << bitwidth); v++)  {
+    for (uint32_t v = 0; v < (uint32_t)(1 << bitwidth); v++) {
       uint16_t test_v = v;
       pi_netv_t fv;
       pi_p4_id_t fid = pi_make_field_id(bitwidth - 1);
@@ -110,7 +110,7 @@ TEST(GetNetv, U16) {
       TEST_ASSERT_EQUAL_UINT(fid, fv.obj_id);
       TEST_ASSERT_EQUAL_UINT(2, fv.size);
       test_v = htons(test_v);
-      char *test_v_ = (char *) &test_v;
+      char *test_v_ = (char *)&test_v;
       TEST_ASSERT_EQUAL_MEMORY(test_v_, fv.v.data, fv.size);
     }
   }
@@ -131,9 +131,8 @@ TEST(GetNetv, U16_BadInput) {
 
 static uint32_t get_rand_u32() {
   uint32_t res;
-  char *res_ = (char *) &res;
-  for (size_t i = 0; i < sizeof(res); i++)
-    res_[i] = rand() % 256;
+  char *res_ = (char *)&res;
+  for (size_t i = 0; i < sizeof(res); i++) res_[i] = rand() % 256;
   return res;
 }
 
@@ -149,7 +148,7 @@ TEST(GetNetv, U32) {
     TEST_ASSERT_EQUAL_UINT(fid, fv.obj_id);
     TEST_ASSERT_EQUAL_UINT((bitwidth + 7) / 8, fv.size);
     test_v = htonl(test_v);
-    char *test_v_ = (char *) &test_v;
+    char *test_v_ = (char *)&test_v;
     if (bitwidth <= 24) test_v_++;
     test_v_[0] &= get_byte0_mask(bitwidth);
     TEST_ASSERT_EQUAL_MEMORY(test_v_, fv.v.data, fv.size);
@@ -187,7 +186,7 @@ TEST(GetNetv, U64) {
     TEST_ASSERT_EQUAL_UINT(fid, fv.obj_id);
     TEST_ASSERT_EQUAL_UINT((bitwidth + 7) / 8, fv.size);
     test_v = htonll(test_v);
-    char *test_v_ = (char *) &test_v;
+    char *test_v_ = (char *)&test_v;
     test_v_ += (8 - fv.size);
     test_v_[0] &= get_byte0_mask(bitwidth);
     TEST_ASSERT_EQUAL_MEMORY(test_v_, fv.v.data, fv.size);
@@ -211,8 +210,7 @@ TEST(GetNetv, Ptr) {
   pi_status_t rc;
   char test_v[16];
   size_t bitwidth = 8 * sizeof(test_v);
-  for (size_t i = 0; i < sizeof(test_v); i++)
-    test_v[i] = rand() % 256;
+  for (size_t i = 0; i < sizeof(test_v); i++) test_v[i] = rand() % 256;
   pi_netv_t fv;
   pi_p4_id_t fid = pi_make_field_id(bitwidth - 1);
   rc = pi_getnetv_ptr(p4info, fid, test_v, sizeof(test_v), &fv);
@@ -257,6 +255,4 @@ TEST_GROUP_RUNNER(GetNetv) {
   RUN_TEST_CASE(GetNetv, BadObjType);
 }
 
-void test_getnetv() {
-  RUN_TEST_GROUP(GetNetv);
-}
+void test_getnetv() { RUN_TEST_GROUP(GetNetv); }

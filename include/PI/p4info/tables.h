@@ -65,8 +65,7 @@ size_t pi_p4info_table_match_field_offset(const pi_p4info_t *p4info,
                                           pi_p4_id_t field_id);
 
 void pi_p4info_table_match_field_info(const pi_p4info_t *p4info,
-                                      pi_p4_id_t table_id,
-                                      size_t index,
+                                      pi_p4_id_t table_id, size_t index,
                                       pi_p4info_match_field_info_t *info);
 
 size_t pi_p4info_table_num_actions(const pi_p4info_t *p4info,

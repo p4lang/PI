@@ -128,7 +128,7 @@ static void process_state_sync(const char *rep) {
 pi_status_t _pi_init(void *extra) {
   assert(!state.init);
   if (extra)
-    addr = strdup((char *) extra);
+    addr = strdup((char *)extra);
   else
     addr = strdup("ipc:///tmp/pi_rpc.ipc");  // so that it can be freed
   state.s = nn_socket(AF_SP, NN_REQ);
@@ -138,9 +138,9 @@ pi_status_t _pi_init(void *extra) {
 
   req_hdr_t req;
   pi_rpc_id_t req_id = state.req_id++;
-  emit_req_hdr((char *) &req, req_id, PI_RPC_INIT);
+  emit_req_hdr((char *)&req, req_id, PI_RPC_INIT);
 
-  int rc = nn_send(state.s, (char *) &req, sizeof(req), 0);
+  int rc = nn_send(state.s, (char *)&req, sizeof(req), 0);
   if (rc != sizeof(req)) return PI_STATUS_RPC_TRANSPORT_ERROR;
 
   char *rep = NULL;
@@ -196,7 +196,7 @@ pi_status_t _pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
   }
 
   int rc = nn_send(state.s, &req, NN_MSG, 0);
-  if ((size_t) rc != s) return PI_STATUS_RPC_TRANSPORT_ERROR;
+  if ((size_t)rc != s) return PI_STATUS_RPC_TRANSPORT_ERROR;
 
   return wait_for_status(req_id);
 }
@@ -208,7 +208,7 @@ pi_status_t _pi_remove_device(pi_dev_id_t dev_id) {
     s_pi_dev_id_t dev_id;
   } req_t;
   req_t req;
-  char *req_ = (char *) &req;
+  char *req_ = (char *)&req;
   pi_rpc_id_t req_id = state.req_id++;
   req_ += emit_req_hdr(req_, req_id, PI_RPC_REMOVE_DEVICE);
   req_ += emit_dev_id(req_, dev_id);
@@ -223,9 +223,9 @@ pi_status_t _pi_destroy() {
   if (!state.init) return PI_STATUS_RPC_NOT_INIT;
   req_hdr_t req;
   pi_rpc_id_t req_id = state.req_id++;
-  emit_req_hdr((char *) &req, req_id, PI_RPC_DESTROY);
+  emit_req_hdr((char *)&req, req_id, PI_RPC_DESTROY);
 
-  int rc = nn_send(state.s, (char *) &req, sizeof(req), 0);
+  int rc = nn_send(state.s, (char *)&req, sizeof(req), 0);
   if (rc != sizeof(req)) return PI_STATUS_RPC_TRANSPORT_ERROR;
 
   free(addr);
@@ -238,9 +238,9 @@ pi_status_t _pi_session_init(pi_session_handle_t *session_handle) {
 
   req_hdr_t req;
   pi_rpc_id_t req_id = state.req_id++;
-  emit_req_hdr((char *) &req, req_id, PI_RPC_SESSION_INIT);
+  emit_req_hdr((char *)&req, req_id, PI_RPC_SESSION_INIT);
 
-  int rc = nn_send(state.s, (char *) &req, sizeof(req), 0);
+  int rc = nn_send(state.s, (char *)&req, sizeof(req), 0);
   if (rc != sizeof(req)) return PI_STATUS_RPC_TRANSPORT_ERROR;
 
   typedef struct __attribute__((packed)) {
@@ -250,9 +250,9 @@ pi_status_t _pi_session_init(pi_session_handle_t *session_handle) {
   rep_t rep;
   rc = nn_recv(state.s, &rep, sizeof(rep), 0);
   if (rc != sizeof(rep)) return PI_STATUS_RPC_TRANSPORT_ERROR;
-  pi_status_t status = retrieve_rep_hdr((char *) &rep, req_id);
+  pi_status_t status = retrieve_rep_hdr((char *)&rep, req_id);
   // condition on success?
-  retrieve_session_handle((char *) &rep.h, session_handle);
+  retrieve_session_handle((char *)&rep.h, session_handle);
   return status;
 }
 
@@ -264,7 +264,7 @@ pi_status_t _pi_session_cleanup(pi_session_handle_t session_handle) {
     s_pi_session_handle_t h;
   } req_t;
   req_t req;
-  char *req_ = (char *) &req;
+  char *req_ = (char *)&req;
   pi_rpc_id_t req_id = state.req_id++;
   req_ += emit_req_hdr(req_, req_id, PI_RPC_SESSION_CLEANUP);
   req_ += emit_session_handle(req_, session_handle);

@@ -65,8 +65,8 @@ static int add_route(uint32_t prefix, int pLen, uint32_t nhop, uint16_t port,
   t_entry.entry_properties = NULL;
   t_entry.direct_res_config = NULL;
 
-  rc |= pi_table_entry_add(
-      sess, dev_tgt, t_ipv4_lpm, mkey_ipv4_lpm, &t_entry, 0, handle);
+  rc |= pi_table_entry_add(sess, dev_tgt, t_ipv4_lpm, mkey_ipv4_lpm, &t_entry,
+                           0, handle);
 
   return rc;
 }
@@ -75,15 +75,16 @@ static void init_ids() {
   t_ipv4_lpm = pi_p4info_table_id_from_name(p4info, "ipv4_lpm");
   a_set_nhop = pi_p4info_action_id_from_name(p4info, "set_nhop");
   f_ipv4_dstAddr = pi_p4info_field_id_from_name(p4info, "ipv4.dstAddr");
-  ap_nhop_ipv4 = pi_p4info_action_param_id_from_name(
-      p4info, a_set_nhop, "nhop_ipv4");
-  ap_port = pi_p4info_action_param_id_from_name(
-      p4info, a_set_nhop, "port");
+  ap_nhop_ipv4 =
+      pi_p4info_action_param_id_from_name(p4info, a_set_nhop, "nhop_ipv4");
+  ap_port = pi_p4info_action_param_id_from_name(p4info, a_set_nhop, "port");
 }
 
 int main() {
   pi_init(256, NULL);  // 256 devices max
-  pi_add_config_from_file(TESTDATADIR "/" "simple_router.json",
+  pi_add_config_from_file(TESTDATADIR
+                          "/"
+                          "simple_router.json",
                           PI_CONFIG_TYPE_BMV2_JSON, &p4info);
 
   pi_session_init(&sess);

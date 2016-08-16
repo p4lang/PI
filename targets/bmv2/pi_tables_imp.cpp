@@ -18,10 +18,6 @@
  *
  */
 
-#include "conn_mgr.h"
-#include "common.h"
-#include "action_helpers.h"
-
 #include <PI/pi.h>
 #include <PI/p4info.h>
 #include <PI/int/pi_int.h>
@@ -33,6 +29,10 @@
 #include <algorithm>
 
 #include <cstring>
+
+#include "conn_mgr.h"
+#include "common.h"
+#include "action_helpers.h"
 
 namespace pibmv2 {
 
@@ -297,7 +297,7 @@ pi_status_t _pi_table_entry_add(pi_session_handle_t session_handle,
                                 const pi_table_entry_t *table_entry,
                                 int overwrite,
                                 pi_entry_handle_t *entry_handle) {
-  (void) overwrite;  // TODO
+  (void) overwrite;  // TODO(antonin)
   (void) session_handle;
 
   pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_tgt.dev_id);
@@ -322,8 +322,8 @@ pi_status_t _pi_table_entry_add(pi_session_handle_t session_handle,
 
   std::string t_name(pi_p4info_table_name_from_id(p4info, table_id));
 
-  // TODO: entry timeout
-  // TODO: direct meters
+  // TODO(antonin): entry timeout
+  // TODO(antonin): direct meters
   try {
     switch (table_entry->entry_type) {
       case PI_ACTION_ENTRY_TYPE_DATA:
@@ -588,7 +588,7 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
   for (auto &e : entries) {
     data += emit_entry_handle(data, e.entry_handle);
     for (auto p : e.match_key) {
-      switch(p.type) {
+      switch (p.type) {
         case BmMatchParamType::type::EXACT:
           std::memcpy(data, p.exact.key.data(), p.exact.key.size());
           data += p.exact.key.size();

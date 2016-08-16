@@ -80,11 +80,13 @@ pi_cli_status_t do_table_modify(char *subcmd) {
   else
     printf("Error when trying to modify entry %" PRIu64 ".\n", handle);
 
-  if (t_imp == PI_INVALID_ID) cleanup_entry_direct(&t_entry);
-  else cleanup_entry_indirect(&t_entry);
+  if (t_imp == PI_INVALID_ID)
+    cleanup_entry_direct(&t_entry);
+  else
+    cleanup_entry_indirect(&t_entry);
 
   return (rc == PI_STATUS_SUCCESS) ? PI_CLI_STATUS_SUCCESS
-      : PI_CLI_STATUS_TARGET_ERROR;
+                                   : PI_CLI_STATUS_TARGET_ERROR;
 };
 
 char *complete_table_modify(const char *text, int state) {

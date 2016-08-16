@@ -32,15 +32,14 @@ static pi_status_t wait_for_handle(uint32_t req_id,
   rep_t rep;
   int rc = nn_recv(state.s, &rep, sizeof(rep), 0);
   if (rc != sizeof(rep)) return PI_STATUS_RPC_TRANSPORT_ERROR;
-  pi_status_t status = retrieve_rep_hdr((char *) &rep, req_id);
+  pi_status_t status = retrieve_rep_hdr((char *)&rep, req_id);
   // condition on success?
-  retrieve_entry_handle((char *) &rep.h, entry_handle);
+  retrieve_entry_handle((char *)&rep.h, entry_handle);
   return status;
 }
 
 pi_status_t _pi_table_entry_add(pi_session_handle_t session_handle,
-                                pi_dev_tgt_t dev_tgt,
-                                pi_p4_id_t table_id,
+                                pi_dev_tgt_t dev_tgt, pi_p4_id_t table_id,
                                 const pi_match_key_t *match_key,
                                 const pi_table_entry_t *table_entry,
                                 int overwrite,
@@ -51,7 +50,7 @@ pi_status_t _pi_table_entry_add(pi_session_handle_t session_handle,
   s += sizeof(req_hdr_t);
   s += sizeof(s_pi_session_handle_t);
   s += sizeof(s_pi_dev_tgt_t);
-  s += sizeof(s_pi_p4_id_t);  // table_id
+  s += sizeof(s_pi_p4_id_t);                     // table_id
   s += sizeof(uint32_t) + match_key->data_size;  // match key with size
   s += table_entry_size(table_entry);
   s += sizeof(uint32_t);  // overwrite
@@ -70,10 +69,10 @@ pi_status_t _pi_table_entry_add(pi_session_handle_t session_handle,
   req_ += emit_uint32(req_, overwrite);
 
   // make sure I have copied exactly the right amount
-  assert((size_t) (req_ - req) == s);
+  assert((size_t)(req_ - req) == s);
 
   int rc = nn_send(state.s, &req, NN_MSG, 0);
-  if ((size_t) rc != s) return PI_STATUS_RPC_TRANSPORT_ERROR;
+  if ((size_t)rc != s) return PI_STATUS_RPC_TRANSPORT_ERROR;
 
   return wait_for_handle(req_id, entry_handle);
 }
@@ -101,10 +100,10 @@ pi_status_t _pi_table_default_action_set(pi_session_handle_t session_handle,
   req_ += emit_table_entry(req_, table_entry);
 
   // make sure I have copied exactly the right amount
-  assert((size_t) (req_ - req) == s);
+  assert((size_t)(req_ - req) == s);
 
   int rc = nn_send(state.s, &req, NN_MSG, 0);
-  if ((size_t) rc != s) return PI_STATUS_RPC_TRANSPORT_ERROR;
+  if ((size_t)rc != s) return PI_STATUS_RPC_TRANSPORT_ERROR;
 
   return wait_for_status(req_id);
 }
@@ -122,7 +121,7 @@ pi_status_t _pi_table_default_action_get(pi_session_handle_t session_handle,
     s_pi_p4_id_t table_id;
   } req_t;
   req_t req;
-  char *req_ = (char *) &req;
+  char *req_ = (char *)&req;
   pi_rpc_id_t req_id = state.req_id++;
   req_ += emit_req_hdr(req_, req_id, PI_RPC_TABLE_DEFAULT_ACTION_GET);
   req_ += emit_session_handle(req_, session_handle);
@@ -154,7 +153,7 @@ pi_status_t _pi_table_default_action_get(pi_session_handle_t session_handle,
 
 pi_status_t _pi_table_default_action_done(pi_session_handle_t session_handle,
                                           pi_table_entry_t *table_entry) {
-  (void) session_handle;
+  (void)session_handle;
   // release memory allocated in retrieve_table_entry
   if (table_entry->entry_type == PI_ACTION_ENTRY_TYPE_DATA)
     free(table_entry->entry.action_data);
@@ -162,8 +161,7 @@ pi_status_t _pi_table_default_action_done(pi_session_handle_t session_handle,
 }
 
 pi_status_t _pi_table_entry_delete(pi_session_handle_t session_handle,
-                                   pi_dev_id_t dev_id,
-                                   pi_p4_id_t table_id,
+                                   pi_dev_id_t dev_id, pi_p4_id_t table_id,
                                    pi_entry_handle_t entry_handle) {
   if (!state.init) return PI_STATUS_RPC_NOT_INIT;
 
@@ -175,7 +173,7 @@ pi_status_t _pi_table_entry_delete(pi_session_handle_t session_handle,
     s_pi_entry_handle_t h;
   } req_t;
   req_t req;
-  char *req_ = (char *) &req;
+  char *req_ = (char *)&req;
   pi_rpc_id_t req_id = state.req_id++;
   req_ += emit_req_hdr(req_, req_id, PI_RPC_TABLE_ENTRY_DELETE);
   req_ += emit_session_handle(req_, session_handle);
@@ -190,8 +188,7 @@ pi_status_t _pi_table_entry_delete(pi_session_handle_t session_handle,
 }
 
 pi_status_t _pi_table_entry_modify(pi_session_handle_t session_handle,
-                                   pi_dev_id_t dev_id,
-                                   pi_p4_id_t table_id,
+                                   pi_dev_id_t dev_id, pi_p4_id_t table_id,
                                    pi_entry_handle_t entry_handle,
                                    const pi_table_entry_t *table_entry) {
   if (!state.init) return PI_STATUS_RPC_NOT_INIT;
@@ -199,8 +196,8 @@ pi_status_t _pi_table_entry_modify(pi_session_handle_t session_handle,
   size_t s = 0;
   s += sizeof(req_hdr_t);
   s += sizeof(s_pi_session_handle_t);
-  s += sizeof(s_pi_dev_id_t);  // dev_id
-  s += sizeof(s_pi_p4_id_t);  // table_id
+  s += sizeof(s_pi_dev_id_t);        // dev_id
+  s += sizeof(s_pi_p4_id_t);         // table_id
   s += sizeof(s_pi_entry_handle_t);  // handle
   s += table_entry_size(table_entry);
 
@@ -215,17 +212,16 @@ pi_status_t _pi_table_entry_modify(pi_session_handle_t session_handle,
   req_ += emit_table_entry(req_, table_entry);
 
   // make sure I have copied exactly the right amount
-  assert((size_t) (req_ - req) == s);
+  assert((size_t)(req_ - req) == s);
 
   int rc = nn_send(state.s, &req, NN_MSG, 0);
-  if ((size_t) rc != s) return PI_STATUS_RPC_TRANSPORT_ERROR;
+  if ((size_t)rc != s) return PI_STATUS_RPC_TRANSPORT_ERROR;
 
   return wait_for_status(req_id);
 }
 
 pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
-                                    pi_dev_id_t dev_id,
-                                    pi_p4_id_t table_id,
+                                    pi_dev_id_t dev_id, pi_p4_id_t table_id,
                                     pi_table_fetch_res_t *res) {
   if (!state.init) return PI_STATUS_RPC_NOT_INIT;
 
@@ -236,7 +232,7 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
     s_pi_p4_id_t table_id;
   } req_t;
   req_t req;
-  char *req_ = (char *) &req;
+  char *req_ = (char *)&req;
   pi_rpc_id_t req_id = state.req_id++;
   req_ += emit_req_hdr(req_, req_id, PI_RPC_TABLE_ENTRIES_FETCH);
   req_ += emit_session_handle(req_, session_handle);
@@ -275,7 +271,7 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
 
 pi_status_t _pi_table_entries_fetch_done(pi_session_handle_t session_handle,
                                          pi_table_fetch_res_t *res) {
-  (void) session_handle;
+  (void)session_handle;
   free(res->entries);
   return PI_STATUS_SUCCESS;
 }

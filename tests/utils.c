@@ -59,7 +59,8 @@ static int cmp_cJSON_(const cJSON *json_1, const cJSON *json_2, int is_array,
   }
   if (is_object) {
     if (json_1->string && json_2->string &&
-        strcmp(json_1->string, json_2->string)) return 0;
+        strcmp(json_1->string, json_2->string))
+      return 0;
     return cmp_cJSON_(json_1->next, json_2->next, 0, 1);
   }
   return 1;

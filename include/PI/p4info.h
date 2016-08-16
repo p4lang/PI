@@ -39,7 +39,6 @@ pi_status_t pi_add_config_from_file(const char *config_path,
 
 pi_status_t pi_destroy_config(pi_p4info_t *p4info);
 
-
 // if fmt=0, non-formatted, else formatted
 char *pi_serialize_config(const pi_p4info_t *p4info, int fmt);
 

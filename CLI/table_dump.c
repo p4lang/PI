@@ -42,11 +42,11 @@ static int get_name_out_width(int min, pi_p4_id_t t_id) {
     size_t L = strlen(finfo.name);
     max = (L > max) ? L : max;
   }
-  return (int) max;
+  return (int)max;
 }
 
 static const char *match_type_to_str(pi_p4info_match_type_t mt) {
-  switch(mt) {
+  switch (mt) {
     case PI_P4INFO_MATCH_TYPE_VALID:
       return "VALID";
     case PI_P4INFO_MATCH_TYPE_EXACT:
@@ -65,26 +65,28 @@ static const char *match_type_to_str(pi_p4info_match_type_t mt) {
 static void print_hexstr(const char *bytes, size_t nbytes) {
   for (size_t i = 0; i < nbytes; i++) {
     // (unsigned char) case necessary otherwise the char is sign-extended
-    printf("%02x", (unsigned char) bytes[i]);
+    printf("%02x", (unsigned char)bytes[i]);
   }
 }
 
 static void print_match_param_v(pi_p4_id_t f_id, pi_p4info_match_type_t mt,
                                 const pi_match_key_t *match_key) {
   pi_netv_t fv;
-  switch(mt) {
+  switch (mt) {
     case PI_P4INFO_MATCH_TYPE_VALID:
     case PI_P4INFO_MATCH_TYPE_EXACT:
       pi_match_key_exact_get(match_key, f_id, &fv);
       print_hexstr(fv.v.ptr, fv.size);
       break;
-    case PI_P4INFO_MATCH_TYPE_LPM:;
+    case PI_P4INFO_MATCH_TYPE_LPM:
+      ;
       pi_prefix_length_t pLen;
       pi_match_key_lpm_get(match_key, f_id, &fv, &pLen);
       print_hexstr(fv.v.ptr, fv.size);
       printf("/%u", pLen);
       break;
-    case PI_P4INFO_MATCH_TYPE_TERNARY:;
+    case PI_P4INFO_MATCH_TYPE_TERNARY:
+      ;
       pi_netv_t fv_mask;
       pi_match_key_ternary_get(match_key, f_id, &fv, &fv_mask);
       print_hexstr(fv.v.ptr, fv.size);
@@ -114,13 +116,12 @@ static void print_action_entry(pi_table_entry_t *entry) {
   const pi_action_data_t *action_data = entry->entry.action_data;
   pi_p4_id_t action_id = pi_action_data_action_id_get(action_data);
 
-  const char *action_name = pi_p4info_action_name_from_id(p4info_curr,
-                                                          action_id);
+  const char *action_name =
+      pi_p4info_action_name_from_id(p4info_curr, action_id);
   printf("Action entry: %s - ", action_name);
   size_t num_params;
-  const pi_p4_id_t *param_ids = pi_p4info_action_get_params(p4info_curr,
-                                                            action_id,
-                                                            &num_params);
+  const pi_p4_id_t *param_ids =
+      pi_p4info_action_get_params(p4info_curr, action_id, &num_params);
   for (size_t j = 0; j < num_params; j++) {
     pi_netv_t argv;
     pi_action_data_arg_get(action_data, param_ids[j], &argv);
@@ -161,7 +162,7 @@ static pi_cli_status_t dump_entries(pi_p4_id_t t_id,
     const pi_entry_properties_t *properties = entry.entry.entry_properties;
     if (pi_entry_properties_is_set(properties, PI_ENTRY_PROPERTY_TYPE_PRIORITY))
       // TODO(antonin): bmv2 quirk, for tables with no priority, -1 is returned
-      if (properties->priority != (uint32_t) -1)
+      if (properties->priority != (uint32_t)-1)
         printf("Priority: %u\n", properties->priority);
 
     print_action_entry(&entry.entry);

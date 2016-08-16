@@ -22,8 +22,7 @@
 
 #include <stdio.h>
 
-static pi_status_t wait_for_handle(uint32_t req_id,
-                                   pi_indirect_handle_t *h) {
+static pi_status_t wait_for_handle(uint32_t req_id, pi_indirect_handle_t *h) {
   typedef struct __attribute__((packed)) {
     rep_hdr_t hdr;
     s_pi_indirect_handle_t h;
@@ -31,9 +30,9 @@ static pi_status_t wait_for_handle(uint32_t req_id,
   rep_t rep;
   int rc = nn_recv(state.s, &rep, sizeof(rep), 0);
   if (rc != sizeof(rep)) return PI_STATUS_RPC_TRANSPORT_ERROR;
-  pi_status_t status = retrieve_rep_hdr((char *) &rep, req_id);
+  pi_status_t status = retrieve_rep_hdr((char *)&rep, req_id);
   // condition on success?
-  retrieve_indirect_handle((char *) &rep.h, h);
+  retrieve_indirect_handle((char *)&rep.h, h);
   return status;
 }
 
@@ -61,17 +60,16 @@ pi_status_t _pi_act_prof_mbr_create(pi_session_handle_t session_handle,
   req_ += emit_action_data(req_, action_data);
 
   // make sure I have copied exactly the right amount
-  assert((size_t) (req_ - req) == s);
+  assert((size_t)(req_ - req) == s);
 
   int rc = nn_send(state.s, &req, NN_MSG, 0);
-  if ((size_t) rc != s) return PI_STATUS_RPC_TRANSPORT_ERROR;
+  if ((size_t)rc != s) return PI_STATUS_RPC_TRANSPORT_ERROR;
 
   return wait_for_handle(req_id, mbr_handle);
 }
 
 pi_status_t _pi_act_prof_mbr_delete(pi_session_handle_t session_handle,
-                                    pi_dev_id_t dev_id,
-                                    pi_p4_id_t act_prof_id,
+                                    pi_dev_id_t dev_id, pi_p4_id_t act_prof_id,
                                     pi_indirect_handle_t mbr_handle) {
   if (!state.init) return PI_STATUS_RPC_NOT_INIT;
 
@@ -83,7 +81,7 @@ pi_status_t _pi_act_prof_mbr_delete(pi_session_handle_t session_handle,
     s_pi_indirect_handle_t h;
   } req_t;
   req_t req;
-  char *req_ = (char *) &req;
+  char *req_ = (char *)&req;
   pi_rpc_id_t req_id = state.req_id++;
 
   req_ += emit_req_hdr(req_, req_id, PI_RPC_ACT_PROF_MBR_DELETE);
@@ -99,8 +97,7 @@ pi_status_t _pi_act_prof_mbr_delete(pi_session_handle_t session_handle,
 }
 
 pi_status_t _pi_act_prof_mbr_modify(pi_session_handle_t session_handle,
-                                    pi_dev_id_t dev_id,
-                                    pi_p4_id_t act_prof_id,
+                                    pi_dev_id_t dev_id, pi_p4_id_t act_prof_id,
                                     pi_indirect_handle_t mbr_handle,
                                     const pi_action_data_t *action_data) {
   if (!state.init) return PI_STATUS_RPC_NOT_INIT;
@@ -124,18 +121,17 @@ pi_status_t _pi_act_prof_mbr_modify(pi_session_handle_t session_handle,
   req_ += emit_action_data(req_, action_data);
 
   // make sure I have copied exactly the right amount
-  assert((size_t) (req_ - req) == s);
+  assert((size_t)(req_ - req) == s);
 
   int rc = nn_send(state.s, &req, NN_MSG, 0);
-  if ((size_t) rc != s) return PI_STATUS_RPC_TRANSPORT_ERROR;
+  if ((size_t)rc != s) return PI_STATUS_RPC_TRANSPORT_ERROR;
 
   return wait_for_status(req_id);
 }
 
 pi_status_t _pi_act_prof_grp_create(pi_session_handle_t session_handle,
                                     pi_dev_tgt_t dev_tgt,
-                                    pi_p4_id_t act_prof_id,
-                                    size_t max_size,
+                                    pi_p4_id_t act_prof_id, size_t max_size,
                                     pi_indirect_handle_t *grp_handle) {
   if (!state.init) return PI_STATUS_RPC_NOT_INIT;
 
@@ -147,7 +143,7 @@ pi_status_t _pi_act_prof_grp_create(pi_session_handle_t session_handle,
     uint32_t max_size;
   } req_t;
   req_t req;
-  char *req_ = (char *) &req;
+  char *req_ = (char *)&req;
   pi_rpc_id_t req_id = state.req_id++;
 
   req_ += emit_req_hdr(req_, req_id, PI_RPC_ACT_PROF_GRP_CREATE);
@@ -163,8 +159,7 @@ pi_status_t _pi_act_prof_grp_create(pi_session_handle_t session_handle,
 }
 
 pi_status_t _pi_act_prof_grp_delete(pi_session_handle_t session_handle,
-                                    pi_dev_id_t dev_id,
-                                    pi_p4_id_t act_prof_id,
+                                    pi_dev_id_t dev_id, pi_p4_id_t act_prof_id,
                                     pi_indirect_handle_t grp_handle) {
   if (!state.init) return PI_STATUS_RPC_NOT_INIT;
 
@@ -176,7 +171,7 @@ pi_status_t _pi_act_prof_grp_delete(pi_session_handle_t session_handle,
     s_pi_indirect_handle_t h;
   } req_t;
   req_t req;
-  char *req_ = (char *) &req;
+  char *req_ = (char *)&req;
   pi_rpc_id_t req_id = state.req_id++;
 
   req_ += emit_req_hdr(req_, req_id, PI_RPC_ACT_PROF_GRP_DELETE);
@@ -208,7 +203,7 @@ static pi_status_t grp_add_remove_mbr(pi_session_handle_t session_handle,
     s_pi_indirect_handle_t mbr_h;
   } req_t;
   req_t req;
-  char *req_ = (char *) &req;
+  char *req_ = (char *)&req;
   pi_rpc_id_t req_id = state.req_id++;
 
   req_ += emit_req_hdr(req_, req_id, add_or_remove);
@@ -225,13 +220,11 @@ static pi_status_t grp_add_remove_mbr(pi_session_handle_t session_handle,
 }
 
 pi_status_t _pi_act_prof_grp_add_mbr(pi_session_handle_t session_handle,
-                                     pi_dev_id_t dev_id,
-                                     pi_p4_id_t act_prof_id,
+                                     pi_dev_id_t dev_id, pi_p4_id_t act_prof_id,
                                      pi_indirect_handle_t grp_handle,
                                      pi_indirect_handle_t mbr_handle) {
-  return grp_add_remove_mbr(session_handle, dev_id, act_prof_id,
-                            grp_handle, mbr_handle,
-                            PI_RPC_ACT_PROF_GRP_ADD_MBR);
+  return grp_add_remove_mbr(session_handle, dev_id, act_prof_id, grp_handle,
+                            mbr_handle, PI_RPC_ACT_PROF_GRP_ADD_MBR);
 }
 
 pi_status_t _pi_act_prof_grp_remove_mbr(pi_session_handle_t session_handle,
@@ -239,7 +232,6 @@ pi_status_t _pi_act_prof_grp_remove_mbr(pi_session_handle_t session_handle,
                                         pi_p4_id_t act_prof_id,
                                         pi_indirect_handle_t grp_handle,
                                         pi_indirect_handle_t mbr_handle) {
-  return grp_add_remove_mbr(session_handle, dev_id, act_prof_id,
-                            grp_handle, mbr_handle,
-                            PI_RPC_ACT_PROF_GRP_REMOVE_MBR);
+  return grp_add_remove_mbr(session_handle, dev_id, act_prof_id, grp_handle,
+                            mbr_handle, PI_RPC_ACT_PROF_GRP_REMOVE_MBR);
 }

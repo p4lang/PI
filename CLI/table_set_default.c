@@ -68,11 +68,13 @@ pi_cli_status_t do_table_set_default(char *subcmd) {
   else
     printf("Error when trying to set default entry.\n");
 
-  if (t_imp == PI_INVALID_ID) cleanup_entry_direct(&t_entry);
-  else cleanup_entry_indirect(&t_entry);
+  if (t_imp == PI_INVALID_ID)
+    cleanup_entry_direct(&t_entry);
+  else
+    cleanup_entry_indirect(&t_entry);
 
   return (rc == PI_STATUS_SUCCESS) ? PI_CLI_STATUS_SUCCESS
-      : PI_CLI_STATUS_TARGET_ERROR;
+                                   : PI_CLI_STATUS_TARGET_ERROR;
 };
 
 char *complete_table_set_default(const char *text, int state) {

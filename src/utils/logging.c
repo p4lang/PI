@@ -15,10 +15,6 @@
 
 int _logs_on = 1;
 
-void pi_logs_on() {
-  _logs_on = 1;
-}
+void pi_logs_on() { _logs_on = 1; }
 
-void pi_logs_off() {
-  _logs_on = 0;
-}
+void pi_logs_off() { _logs_on = 0; }

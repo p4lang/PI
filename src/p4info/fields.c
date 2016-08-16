@@ -50,7 +50,7 @@ static _field_data_t *get_field(const pi_p4info_t *p4info,
 void pi_p4info_field_init(pi_p4info_t *p4info, size_t num_fields) {
   p4info->num_fields = num_fields;
   p4info->fields = calloc(num_fields, sizeof(_field_data_t));
-  p4info->field_name_map = (Pvoid_t) NULL;
+  p4info->field_name_map = (Pvoid_t)NULL;
 }
 
 void pi_p4info_field_free(pi_p4info_t *p4info) {
@@ -79,14 +79,14 @@ void pi_p4info_field_add(pi_p4info_t *p4info, pi_p4_id_t field_id,
   field->byte0_mask = get_byte0_mask(bitwidth);
 
   Word_t *field_id_ptr;
-  JSLI(field_id_ptr, p4info->field_name_map, (const uint8_t *) field->name);
+  JSLI(field_id_ptr, p4info->field_name_map, (const uint8_t *)field->name);
   *field_id_ptr = field_id;
 }
 
 pi_p4_id_t pi_p4info_field_id_from_name(const pi_p4info_t *p4info,
                                         const char *name) {
   Word_t *field_id_ptr;
-  JSLG(field_id_ptr, p4info->field_name_map, (const uint8_t *) name);
+  JSLG(field_id_ptr, p4info->field_name_map, (const uint8_t *)name);
   if (!field_id_ptr) return PI_INVALID_ID;
   return *field_id_ptr;
 }
@@ -114,16 +114,16 @@ char pi_p4info_field_byte0_mask(const pi_p4info_t *p4info,
 
 pi_p4_id_t pi_p4info_field_begin(const pi_p4info_t *p4info) {
   return (p4info->num_fields == 0) ? PI_P4INFO_F_ITERATOR_END
-      : PI_P4INFO_F_ITERATOR_FIRST;
+                                   : PI_P4INFO_F_ITERATOR_FIRST;
 }
 
 pi_p4_id_t pi_p4info_field_next(const pi_p4info_t *p4info, pi_p4_id_t id) {
   return ((id & 0xffffff) == p4info->num_fields - 1) ? PI_P4INFO_F_ITERATOR_END
-      : (id + 1);
+                                                     : (id + 1);
 }
 
 pi_p4_id_t pi_p4info_field_end(const pi_p4info_t *p4info) {
-  (void) p4info;
+  (void)p4info;
   return PI_P4INFO_F_ITERATOR_END;
 }
 

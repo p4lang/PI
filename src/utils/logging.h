@@ -26,8 +26,10 @@ void pi_logs_on();
 void pi_logs_off();
 
 #ifdef PI_LOG_ON
-#define PI_LOG_DEBUG(...) if (_logs_on) printf(__VA_ARGS__)
-#define PI_LOG_ERROR(...) if (_logs_on) printf(__VA_ARGS__)
+#define PI_LOG_DEBUG(...) \
+  if (_logs_on) printf(__VA_ARGS__)
+#define PI_LOG_ERROR(...) \
+  if (_logs_on) printf(__VA_ARGS__)
 #else
 #define PI_LOG_DEBUG
 #define PI_LOG_ERROR

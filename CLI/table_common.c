@@ -34,8 +34,8 @@
 pi_cli_status_t read_action_data(char *in, pi_p4_id_t a_id,
                                  pi_action_data_t *adata) {
   size_t num_params;
-  const pi_p4_id_t *param_ids = pi_p4info_action_get_params(p4info_curr, a_id,
-                                                            &num_params);
+  const pi_p4_id_t *param_ids =
+      pi_p4info_action_get_params(p4info_curr, a_id, &num_params);
   for (size_t i = 0; i < num_params; i++) {
     pi_p4_id_t p_id = param_ids[i];
     size_t p_bitwidth = pi_p4info_action_param_bitwidth(p4info_curr, p_id);
@@ -47,8 +47,8 @@ pi_cli_status_t read_action_data(char *in, pi_p4_id_t a_id,
     if (param_to_bytes(ap, bytes, p_bitwidth)) return 1;
     pi_netv_t p_netv;
     pi_status_t rc;
-    rc = pi_getnetv_ptr(p4info_curr, p_id, bytes,
-                        (p_bitwidth + 7) / 8, &p_netv);
+    rc =
+        pi_getnetv_ptr(p4info_curr, p_id, bytes, (p_bitwidth + 7) / 8, &p_netv);
     assert(rc == PI_STATUS_SUCCESS);
     rc = pi_action_data_arg_set(adata, &p_netv);
     assert(rc == PI_STATUS_SUCCESS);
@@ -133,6 +133,4 @@ void cleanup_entry_direct(pi_table_entry_t *t_entry) {
   pi_action_data_destroy(t_entry->entry.action_data);
 }
 
-void cleanup_entry_indirect(pi_table_entry_t *t_entry) {
-  (void) t_entry;
-}
+void cleanup_entry_indirect(pi_table_entry_t *t_entry) { (void)t_entry; }

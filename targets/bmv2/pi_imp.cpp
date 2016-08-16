@@ -18,13 +18,13 @@
  *
  */
 
-#include "conn_mgr.h"
-#include "common.h"
-
 #include <PI/pi.h>
 
 #include <string>
 #include <cstring>  // for memset
+
+#include "conn_mgr.h"
+#include "common.h"
 
 #define NUM_DEVICES 256
 
