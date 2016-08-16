@@ -21,3 +21,9 @@ bmv2 is installed on your system, build the PI and the CLI with `./configure
     PI CLI> table_add ipv4_lpm 10.0.0.1/24 => set_nhop 10.0.0.1 1
     PI CLI> table_dump ipv4_lpm
     PI CLI> table_delete ipv4_lpm <handle returned by table_add>
+
+## Contributing
+
+All contributed code must pass the style checker, which can be run with
+`./tools/check_style.sh`. If the style checker fails because of a C file, you
+can format this C file with `./tools/clang_format_check.py -s Google -i <file>`.

@@ -37,18 +37,14 @@ static pi_p4info_t *p4info;
 
 TEST_GROUP(P4Info);
 
-TEST_SETUP(P4Info) {
-  p4info = calloc(1, sizeof(pi_p4info_t));
-}
+TEST_SETUP(P4Info) { p4info = calloc(1, sizeof(pi_p4info_t)); }
 
-TEST_TEAR_DOWN(P4Info) {
-  free(p4info);
-}
+TEST_TEAR_DOWN(P4Info) { free(p4info); }
 
 TEST(P4Info, Fields) {
   const size_t num_fields = 3;
   const pi_p4_id_t f0 = pi_make_field_id(0), f1 = pi_make_field_id(1),
-      f2 = pi_make_field_id(2);
+                   f2 = pi_make_field_id(2);
   const size_t bw0 = 11, bw1 = 16, bw2 = 128;
   const char *n0 = "f0", *n1 = "f1", *n2 = "f2";
 
@@ -93,28 +89,28 @@ TEST(P4Info, FieldsByte0Mask) {
     pi_p4info_field_add(p4info, pi_make_field_id(i), name, i + 1);
   }
 
-  TEST_ASSERT_EQUAL_HEX8(0x01, pi_p4info_field_byte0_mask(p4info,
-                                                          pi_make_field_id(0)));
-  TEST_ASSERT_EQUAL_HEX8(0x03, pi_p4info_field_byte0_mask(p4info,
-                                                          pi_make_field_id(1)));
-  TEST_ASSERT_EQUAL_HEX8(0x07, pi_p4info_field_byte0_mask(p4info,
-                                                          pi_make_field_id(2)));
-  TEST_ASSERT_EQUAL_HEX8(0x0f, pi_p4info_field_byte0_mask(p4info,
-                                                          pi_make_field_id(3)));
-  TEST_ASSERT_EQUAL_HEX8(0x1f, pi_p4info_field_byte0_mask(p4info,
-                                                          pi_make_field_id(4)));
-  TEST_ASSERT_EQUAL_HEX8(0x3f, pi_p4info_field_byte0_mask(p4info,
-                                                          pi_make_field_id(5)));
-  TEST_ASSERT_EQUAL_HEX8(0x7f, pi_p4info_field_byte0_mask(p4info,
-                                                          pi_make_field_id(6)));
-  TEST_ASSERT_EQUAL_HEX8(0xff, pi_p4info_field_byte0_mask(p4info,
-                                                          pi_make_field_id(7)));
+  TEST_ASSERT_EQUAL_HEX8(
+      0x01, pi_p4info_field_byte0_mask(p4info, pi_make_field_id(0)));
+  TEST_ASSERT_EQUAL_HEX8(
+      0x03, pi_p4info_field_byte0_mask(p4info, pi_make_field_id(1)));
+  TEST_ASSERT_EQUAL_HEX8(
+      0x07, pi_p4info_field_byte0_mask(p4info, pi_make_field_id(2)));
+  TEST_ASSERT_EQUAL_HEX8(
+      0x0f, pi_p4info_field_byte0_mask(p4info, pi_make_field_id(3)));
+  TEST_ASSERT_EQUAL_HEX8(
+      0x1f, pi_p4info_field_byte0_mask(p4info, pi_make_field_id(4)));
+  TEST_ASSERT_EQUAL_HEX8(
+      0x3f, pi_p4info_field_byte0_mask(p4info, pi_make_field_id(5)));
+  TEST_ASSERT_EQUAL_HEX8(
+      0x7f, pi_p4info_field_byte0_mask(p4info, pi_make_field_id(6)));
+  TEST_ASSERT_EQUAL_HEX8(
+      0xff, pi_p4info_field_byte0_mask(p4info, pi_make_field_id(7)));
   for (size_t i = 8; i < num_fields; i++) {
     char mask;
     size_t bitwidth = i + 1;
     mask = (bitwidth % 8 == 0) ? 0xff : ((1 << (bitwidth % 8)) - 1);
-    TEST_ASSERT_EQUAL_HEX8(mask, pi_p4info_field_byte0_mask(
-        p4info, pi_make_field_id(i)));
+    TEST_ASSERT_EQUAL_HEX8(
+        mask, pi_p4info_field_byte0_mask(p4info, pi_make_field_id(i)));
   }
 
   pi_p4info_field_free(p4info);
@@ -199,10 +195,10 @@ TEST(P4Info, Actions) {
   pi_p4_id_t param_0_1 = pi_make_action_param_id(adata_0.id, 1);
 
   // out of order on purpose
-  pi_p4info_action_add_param(p4info, adata_0.id, param_0_1,
-                             param_names[1], param_bws[1]);
-  pi_p4info_action_add_param(p4info, adata_0.id, param_0_0,
-                             param_names[0], param_bws[0]);
+  pi_p4info_action_add_param(p4info, adata_0.id, param_0_1, param_names[1],
+                             param_bws[1]);
+  pi_p4info_action_add_param(p4info, adata_0.id, param_0_0, param_names[0],
+                             param_bws[0]);
 
   TEST_ASSERT_EQUAL_UINT(adata_0.id,
                          pi_p4info_action_id_from_name(p4info, adata_0.name));
@@ -219,27 +215,25 @@ TEST(P4Info, Actions) {
   TEST_ASSERT_EQUAL_UINT(adata_1.num_params,
                          pi_p4info_action_num_params(p4info, adata_1.id));
 
-  TEST_ASSERT_EQUAL_UINT(
-      param_0_0,
-      pi_p4info_action_param_id_from_name(p4info, adata_0.id, param_names[0]));
-  TEST_ASSERT_EQUAL_UINT(
-      param_0_1,
-      pi_p4info_action_param_id_from_name(p4info, adata_0.id, param_names[1]));
+  TEST_ASSERT_EQUAL_UINT(param_0_0, pi_p4info_action_param_id_from_name(
+                                        p4info, adata_0.id, param_names[0]));
+  TEST_ASSERT_EQUAL_UINT(param_0_1, pi_p4info_action_param_id_from_name(
+                                        p4info, adata_0.id, param_names[1]));
 
   TEST_ASSERT_EQUAL_STRING(
       param_names[0], pi_p4info_action_param_name_from_id(p4info, param_0_0));
   TEST_ASSERT_EQUAL_STRING(
       param_names[1], pi_p4info_action_param_name_from_id(p4info, param_0_1));
 
-  TEST_ASSERT_EQUAL_UINT(
-      param_bws[0], pi_p4info_action_param_bitwidth(p4info, param_0_0));
-  TEST_ASSERT_EQUAL_UINT(
-      param_bws[1], pi_p4info_action_param_bitwidth(p4info, param_0_1));
+  TEST_ASSERT_EQUAL_UINT(param_bws[0],
+                         pi_p4info_action_param_bitwidth(p4info, param_0_0));
+  TEST_ASSERT_EQUAL_UINT(param_bws[1],
+                         pi_p4info_action_param_bitwidth(p4info, param_0_1));
 
-  TEST_ASSERT_EQUAL_UINT(
-      param_offsets[0], pi_p4info_action_param_offset(p4info, param_0_0));
-  TEST_ASSERT_EQUAL_UINT(
-      param_offsets[1], pi_p4info_action_param_offset(p4info, param_0_1));
+  TEST_ASSERT_EQUAL_UINT(param_offsets[0],
+                         pi_p4info_action_param_offset(p4info, param_0_0));
+  TEST_ASSERT_EQUAL_UINT(param_offsets[1],
+                         pi_p4info_action_param_offset(p4info, param_0_1));
 
   pi_p4info_action_free(p4info);
 }
@@ -306,11 +300,10 @@ TEST(P4Info, ActionsStress) {
       TEST_ASSERT_EQUAL_STRING(
           name, pi_p4info_action_param_name_from_id(p4info, p_id));
 
-      TEST_ASSERT_EQUAL_UINT(
-          j, pi_p4info_action_param_bitwidth(p4info, p_id));
+      TEST_ASSERT_EQUAL_UINT(j, pi_p4info_action_param_bitwidth(p4info, p_id));
 
-      TEST_ASSERT_EQUAL_UINT(
-          offset, pi_p4info_action_param_offset(p4info, p_id));
+      TEST_ASSERT_EQUAL_UINT(offset,
+                             pi_p4info_action_param_offset(p4info, p_id));
       offset += (j + 7) / 8;
     }
   }
@@ -365,7 +358,7 @@ typedef struct {
 } tdata_t;
 
 void gen_rand_ids(pi_p4_id_t *ids, pi_p4_id_t max, size_t num) {
-  Pvoid_t set = (Pvoid_t) NULL;
+  Pvoid_t set = (Pvoid_t)NULL;
   for (size_t i = 0; i < num; i++) {
     int Rc = 1;
     pi_p4_id_t v;
@@ -416,12 +409,12 @@ TEST(P4Info, TablesStress) {
     gen_rand_ids(tdata[i].match_fields, num_fields, tdata[i].num_match_fields);
     for (size_t j = 0; j < tdata[i].num_match_fields; j++) {
       pi_p4_id_t id = tdata[i].match_fields[j];
-      snprintf(name, sizeof(name), "f%zu", (size_t) id);
+      snprintf(name, sizeof(name), "f%zu", (size_t)id);
       id = pi_make_field_id(id);
       tdata[i].match_fields[j] = id;
       pi_p4info_match_type_t match_type = (i + j) % PI_P4INFO_MATCH_TYPE_END;
-      size_t bw = (match_type == PI_P4INFO_MATCH_TYPE_VALID) ?
-          1 : (1 + j % 128);
+      size_t bw =
+          (match_type == PI_P4INFO_MATCH_TYPE_VALID) ? 1 : (1 + j % 128);
       // name and bw consistent with field initialization above
       pi_p4info_table_add_match_field(p4info, tdata[i].id, id, name, match_type,
                                       bw);
@@ -452,20 +445,18 @@ TEST(P4Info, TablesStress) {
                                sizeof(pi_p4_id_t) * num);
     }
     for (size_t j = 0; j < tdata[i].num_match_fields; j++) {
-      TEST_ASSERT_TRUE(
-          pi_p4info_table_is_match_field_of(p4info, tdata[i].id,
-                                            tdata[i].match_fields[j]));
+      TEST_ASSERT_TRUE(pi_p4info_table_is_match_field_of(
+          p4info, tdata[i].id, tdata[i].match_fields[j]));
     }
     TEST_ASSERT_FALSE(
         pi_p4info_table_is_match_field_of(p4info, tdata[i].id, num_fields + 1));
     for (size_t j = 0; j < tdata[i].num_match_fields; j++) {
       TEST_ASSERT_EQUAL_UINT(
-          j,
-          pi_p4info_table_match_field_index(p4info, tdata[i].id,
-                                            tdata[i].match_fields[j]));
+          j, pi_p4info_table_match_field_index(p4info, tdata[i].id,
+                                               tdata[i].match_fields[j]));
     }
     TEST_ASSERT_EQUAL_UINT(
-        (size_t) -1,
+        (size_t)-1,
         pi_p4info_table_match_field_index(p4info, tdata[i].id, num_fields + 1));
     size_t offset = 0;
     for (size_t j = 0; j < tdata[i].num_match_fields; j++) {
@@ -476,13 +467,12 @@ TEST(P4Info, TablesStress) {
           pi_p4info_field_name_from_id(p4info, tdata[i].match_fields[j]),
           finfo.name);
       pi_p4info_match_type_t match_type = (i + j) % PI_P4INFO_MATCH_TYPE_END;
-      size_t bw = (match_type == PI_P4INFO_MATCH_TYPE_VALID) ?
-          1 : (1 + j % 128);
+      size_t bw =
+          (match_type == PI_P4INFO_MATCH_TYPE_VALID) ? 1 : (1 + j % 128);
       TEST_ASSERT_EQUAL_INT(match_type, finfo.match_type);
       TEST_ASSERT_EQUAL_UINT(bw, finfo.bitwidth);
-      TEST_ASSERT_EQUAL_UINT(offset,
-                             pi_p4info_table_match_field_offset(
-                                 p4info, tdata[i].id, finfo.field_id));
+      TEST_ASSERT_EQUAL_UINT(offset, pi_p4info_table_match_field_offset(
+                                         p4info, tdata[i].id, finfo.field_id));
       offset += get_match_key_size_one_field(match_type, bw);
     }
 
@@ -497,8 +487,8 @@ TEST(P4Info, TablesStress) {
       TEST_ASSERT_TRUE(pi_p4info_table_is_action_of(p4info, tdata[i].id,
                                                     tdata[i].actions[j]));
     }
-    TEST_ASSERT_FALSE(pi_p4info_table_is_action_of(p4info, tdata[i].id,
-                                                   num_actions + 1));
+    TEST_ASSERT_FALSE(
+        pi_p4info_table_is_action_of(p4info, tdata[i].id, num_actions + 1));
   }
 
   for (size_t i = 0; i < num_tables; i++) {
@@ -513,9 +503,8 @@ TEST(P4Info, TablesStress) {
     pi_p4info_table_set_const_default_action(p4info, tdata[i].id, action_id);
     TEST_ASSERT_TRUE(
         pi_p4info_table_has_const_default_action(p4info, tdata[i].id));
-    TEST_ASSERT_EQUAL_UINT(
-        action_id,
-        pi_p4info_table_get_const_default_action(p4info, tdata[i].id));
+    TEST_ASSERT_EQUAL_UINT(action_id, pi_p4info_table_get_const_default_action(
+                                          p4info, tdata[i].id));
   }
 
   pi_p4info_field_free(p4info);
@@ -551,7 +540,9 @@ TEST(P4Info, TablesIterator) {
 
 TEST(P4Info, Serialize) {
   pi_p4info_t *p4info;
-  char *config = read_file(TESTDATADIR "/" "simple_router.json");
+  char *config = read_file(TESTDATADIR
+                           "/"
+                           "simple_router.json");
   TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS,
                     pi_add_config(config, PI_CONFIG_TYPE_BMV2_JSON, &p4info));
 
@@ -591,6 +582,4 @@ TEST_GROUP_RUNNER(P4Info) {
   RUN_TEST_CASE(P4Info, Serialize);
 }
 
-void test_p4info() {
-  RUN_TEST_GROUP(P4Info);
-}
+void test_p4info() { RUN_TEST_GROUP(P4Info); }

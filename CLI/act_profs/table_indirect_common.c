@@ -43,13 +43,12 @@ static char *complete_p4_act_prof(const char *text, int len, int state) {
 
 // get one of the tables for the action profile, to retrieve the actions
 static char *get_one_act_prof_table(const char *act_prof_name) {
-  pi_p4_id_t act_prof_id = pi_p4info_act_prof_id_from_name(p4info_curr,
-                                                           act_prof_name);
+  pi_p4_id_t act_prof_id =
+      pi_p4info_act_prof_id_from_name(p4info_curr, act_prof_name);
   if (act_prof_id == PI_INVALID_ID) return NULL;
   size_t num_tables = 0;
-  const pi_p4_id_t *t_ids = pi_p4info_act_prof_get_tables(p4info_curr,
-                                                          act_prof_id,
-                                                          &num_tables);
+  const pi_p4_id_t *t_ids =
+      pi_p4info_act_prof_get_tables(p4info_curr, act_prof_id, &num_tables);
   assert(num_tables > 0);
   assert(*t_ids != PI_INVALID_ID);
   return strdup(pi_p4info_table_name_from_id(p4info_curr, *t_ids));

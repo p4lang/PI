@@ -23,8 +23,8 @@
 
 #include "PI/pi_base.h"
 
-pi_status_t pi_bmv2_json_reader(const char *config,  pi_p4info_t *p4info);
+pi_status_t pi_bmv2_json_reader(const char *config, pi_p4info_t *p4info);
 
-pi_status_t pi_native_json_reader(const char *config,  pi_p4info_t *p4info);
+pi_status_t pi_native_json_reader(const char *config, pi_p4info_t *p4info);
 
 #endif  // PI_SRC_CONFIG_READERS_READERS_H_

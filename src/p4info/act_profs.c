@@ -54,7 +54,7 @@ static _act_prof_data_t *get_act_prof(const pi_p4info_t *p4info,
 void pi_p4info_act_prof_init(pi_p4info_t *p4info, size_t num_act_profs) {
   p4info->num_act_profs = num_act_profs;
   p4info->act_profs = calloc(num_act_profs, sizeof(_act_prof_data_t));
-  p4info->act_prof_name_map = (Pvoid_t) NULL;
+  p4info->act_prof_name_map = (Pvoid_t)NULL;
 }
 
 void pi_p4info_act_prof_free(pi_p4info_t *p4info) {
@@ -78,7 +78,7 @@ void pi_p4info_act_prof_add(pi_p4info_t *p4info, pi_p4_id_t act_prof_id,
 
   Word_t *act_prof_id_ptr;
   JSLI(act_prof_id_ptr, p4info->act_prof_name_map,
-       (const uint8_t *) act_prof->name);
+       (const uint8_t *)act_prof->name);
   *act_prof_id_ptr = act_prof_id;
 }
 
@@ -93,7 +93,7 @@ void pi_p4info_act_prof_add_table(pi_p4info_t *p4info, pi_p4_id_t act_prof_id,
 pi_p4_id_t pi_p4info_act_prof_id_from_name(const pi_p4info_t *p4info,
                                            const char *name) {
   Word_t *act_prof_id_ptr;
-  JSLG(act_prof_id_ptr, p4info->act_prof_name_map, (const uint8_t *) name);
+  JSLG(act_prof_id_ptr, p4info->act_prof_name_map, (const uint8_t *)name);
   if (!act_prof_id_ptr) return PI_INVALID_ID;
   return *act_prof_id_ptr;
 }
@@ -135,16 +135,17 @@ const pi_p4_id_t *pi_p4info_act_prof_get_actions(const pi_p4info_t *p4info,
 
 pi_p4_id_t pi_p4info_act_prof_begin(const pi_p4info_t *p4info) {
   return (p4info->num_act_profs == 0) ? PI_P4INFO_A_ITERATOR_END
-      : PI_P4INFO_A_ITERATOR_FIRST;
+                                      : PI_P4INFO_A_ITERATOR_FIRST;
 }
 
 pi_p4_id_t pi_p4info_act_prof_next(const pi_p4info_t *p4info, pi_p4_id_t id) {
-  return ((id & 0xffffff) == p4info->num_act_profs - 1) ?
-      PI_P4INFO_A_ITERATOR_END : (id + 1);
+  return ((id & 0xffffff) == p4info->num_act_profs - 1)
+             ? PI_P4INFO_A_ITERATOR_END
+             : (id + 1);
 }
 
 pi_p4_id_t pi_p4info_act_prof_end(const pi_p4info_t *p4info) {
-  (void) p4info;
+  (void)p4info;
   return PI_P4INFO_A_ITERATOR_END;
 }
 

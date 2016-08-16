@@ -21,15 +21,15 @@
 #ifndef PI_BMV2_CONN_MGR_H_
 #define PI_BMV2_CONN_MGR_H_
 
-#include <mutex>
-
 #include <bm/Standard.h>
 #include <bm/SimplePreLAG.h>
 #include <bm/SimpleSwitch.h>
 
-using namespace  ::bm_runtime::standard;
-using namespace  ::bm_runtime::simple_pre_lag;
-using namespace  ::sswitch_runtime;
+#include <mutex>
+
+using namespace  ::bm_runtime::standard;  // NOLINT(build/namespaces)
+using namespace  ::bm_runtime::simple_pre_lag;  // NOLINT(build/namespaces)
+using namespace  ::sswitch_runtime;  // NOLINT(build/namespaces)
 
 namespace pibmv2 {
 

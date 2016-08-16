@@ -89,7 +89,7 @@ static pi_status_t read_fields(cJSON *root, pi_p4info_t *p4info) {
   cJSON *header_types = cJSON_GetObjectItem(root, "header_types");
   if (!header_types) return PI_STATUS_CONFIG_READER_ERROR;
 
-  Pvoid_t header_type_map = (Pvoid_t) NULL;
+  Pvoid_t header_type_map = (Pvoid_t)NULL;
 
   cJSON *item;
 
@@ -99,8 +99,8 @@ static pi_status_t read_fields(cJSON *root, pi_p4info_t *p4info) {
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
     const char *name = item->valuestring;
     Word_t *header_type_json;
-    JSLI(header_type_json, header_type_map, (const uint8_t *) name);
-    *header_type_json = (Word_t) header_type;
+    JSLI(header_type_json, header_type_map, (const uint8_t *)name);
+    *header_type_json = (Word_t)header_type;
   }
 
   // find out number of fields in the program
@@ -111,9 +111,9 @@ static pi_status_t read_fields(cJSON *root, pi_p4info_t *p4info) {
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
     const char *header_type_name = item->valuestring;
     Word_t *header_type_json = NULL;
-    JSLG(header_type_json, header_type_map, (const uint8_t *) header_type_name);
+    JSLG(header_type_json, header_type_map, (const uint8_t *)header_type_name);
     if (!header_type_json) return PI_STATUS_CONFIG_READER_ERROR;
-    item = (cJSON *) *header_type_json;
+    item = (cJSON *)*header_type_json;
     item = cJSON_GetObjectItem(item, "fields");
     num_fields += cJSON_GetArraySize(item);
     num_fields++;  // for valid field (see below)
@@ -131,9 +131,9 @@ static pi_status_t read_fields(cJSON *root, pi_p4info_t *p4info) {
     item = cJSON_GetObjectItem(header, "header_type");
     const char *header_type_name = item->valuestring;
     Word_t *header_type_json = NULL;
-    JSLG(header_type_json, header_type_map, (const uint8_t *) header_type_name);
+    JSLG(header_type_json, header_type_map, (const uint8_t *)header_type_name);
     if (!header_type_json) return PI_STATUS_CONFIG_READER_ERROR;
-    item = (cJSON *) *header_type_json;
+    item = (cJSON *)*header_type_json;
     item = cJSON_GetObjectItem(item, "fields");
     cJSON *field;
     cJSON_ArrayForEach(field, item) {
@@ -147,8 +147,8 @@ static pi_status_t read_fields(cJSON *root, pi_p4info_t *p4info) {
 
       char fname[256];
       int n = snprintf(fname, sizeof(fname), "%s.%s", header_name, suffix);
-      if (n <= 0 || (size_t) n >= sizeof(fname)) return PI_STATUS_BUFFER_ERROR;
-      size_t bitwidth = (size_t) cJSON_GetArrayItem(field, 1)->valueint;
+      if (n <= 0 || (size_t)n >= sizeof(fname)) return PI_STATUS_BUFFER_ERROR;
+      size_t bitwidth = (size_t)cJSON_GetArrayItem(field, 1)->valueint;
       PI_LOG_DEBUG("Adding field '%s'\n", fname);
       pi_p4info_field_add(p4info, pi_make_field_id(id++), fname, bitwidth);
     }
@@ -156,7 +156,7 @@ static pi_status_t read_fields(cJSON *root, pi_p4info_t *p4info) {
     {
       char fname[256];
       int n = snprintf(fname, sizeof(fname), "%s._valid", header_name);
-      if (n <= 0 || (size_t) n >= sizeof(fname)) return PI_STATUS_BUFFER_ERROR;
+      if (n <= 0 || (size_t)n >= sizeof(fname)) return PI_STATUS_BUFFER_ERROR;
       PI_LOG_DEBUG("Adding validity field '%s'\n", fname);
       // 1 bit field
       pi_p4info_field_add(p4info, pi_make_field_id(id++), fname, 1);
@@ -174,8 +174,7 @@ static pi_p4info_match_type_t match_type_from_str(const char *type) {
     return PI_P4INFO_MATCH_TYPE_VALID;
   if (!strncmp("exact", type, sizeof "exact"))
     return PI_P4INFO_MATCH_TYPE_EXACT;
-  if (!strncmp("lpm", type, sizeof "lpm"))
-    return PI_P4INFO_MATCH_TYPE_LPM;
+  if (!strncmp("lpm", type, sizeof "lpm")) return PI_P4INFO_MATCH_TYPE_LPM;
   if (!strncmp("ternary", type, sizeof "ternary"))
     return PI_P4INFO_MATCH_TYPE_TERNARY;
   if (!strncmp("range", type, sizeof "range"))
@@ -254,8 +253,8 @@ static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
       cJSON_ArrayForEach(match_field, json_match_key) {
         item = cJSON_GetObjectItem(match_field, "match_type");
         if (!item) return PI_STATUS_CONFIG_READER_ERROR;
-        pi_p4info_match_type_t match_type = match_type_from_str(
-            item->valuestring);
+        pi_p4info_match_type_t match_type =
+            match_type_from_str(item->valuestring);
 
         cJSON *target = cJSON_GetObjectItem(match_field, "target");
         if (!target) return PI_STATUS_CONFIG_READER_ERROR;
@@ -270,12 +269,11 @@ static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
           suffix = cJSON_GetArrayItem(target, 1)->valuestring;
         }
         int n = snprintf(fname, sizeof(fname), "%s.%s", header_name, suffix);
-        if (n <= 0 || (size_t) n >= sizeof(fname))
-          return PI_STATUS_BUFFER_ERROR;
+        if (n <= 0 || (size_t)n >= sizeof(fname)) return PI_STATUS_BUFFER_ERROR;
         pi_p4_id_t fid = pi_p4info_field_id_from_name(p4info, fname);
         size_t bitwidth = pi_p4info_field_bitwidth(p4info, fid);
-        pi_p4info_table_add_match_field(p4info, pi_id, fid, fname,
-                                        match_type, bitwidth);
+        pi_p4info_table_add_match_field(p4info, pi_id, fid, fname, match_type,
+                                        bitwidth);
       }
 
       cJSON *action;
@@ -314,7 +312,7 @@ static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
   return PI_STATUS_SUCCESS;
 }
 
-pi_status_t pi_bmv2_json_reader(const char *config,  pi_p4info_t *p4info) {
+pi_status_t pi_bmv2_json_reader(const char *config, pi_p4info_t *p4info) {
   cJSON *root = cJSON_Parse(config);
   if (!root) return PI_STATUS_CONFIG_READER_ERROR;
 

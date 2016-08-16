@@ -33,7 +33,7 @@ void pi_entry_properties_clear(pi_entry_properties_t *properties) {
 pi_status_t pi_entry_properties_set(pi_entry_properties_t *properties,
                                     pi_entry_property_type_t property_type,
                                     uint32_t property_value) {
-                                    /* const pi_value_t *property_value) { */
+  /* const pi_value_t *property_value) { */
   switch (property_type) {
     case PI_ENTRY_PROPERTY_TYPE_PRIORITY:
       properties->priority = property_value;
@@ -59,12 +59,10 @@ bool pi_entry_properties_is_set(const pi_entry_properties_t *properties,
 }
 
 pi_status_t pi_table_entry_add(pi_session_handle_t session_handle,
-                               pi_dev_tgt_t dev_tgt,
-                               pi_p4_id_t table_id,
+                               pi_dev_tgt_t dev_tgt, pi_p4_id_t table_id,
                                const pi_match_key_t *match_key,
                                const pi_table_entry_t *table_entry,
-                               int overwrite,
-                               pi_entry_handle_t *entry_handle) {
+                               int overwrite, pi_entry_handle_t *entry_handle) {
   return _pi_table_entry_add(session_handle, dev_tgt, table_id, match_key,
                              table_entry, overwrite, entry_handle);
 }
@@ -78,8 +76,7 @@ pi_status_t pi_table_default_action_set(pi_session_handle_t session_handle,
 }
 
 pi_status_t pi_table_default_action_get(pi_session_handle_t session_handle,
-                                        pi_dev_id_t dev_id,
-                                        pi_p4_id_t table_id,
+                                        pi_dev_id_t dev_id, pi_p4_id_t table_id,
                                         pi_table_entry_t *table_entry) {
   pi_status_t status;
   status = _pi_table_default_action_get(session_handle, dev_id, table_id,
@@ -101,15 +98,13 @@ pi_status_t pi_table_default_action_done(pi_session_handle_t session_handle,
 }
 
 pi_status_t pi_table_entry_delete(pi_session_handle_t session_handle,
-                                  pi_dev_id_t dev_id,
-                                  pi_p4_id_t table_id,
+                                  pi_dev_id_t dev_id, pi_p4_id_t table_id,
                                   pi_entry_handle_t entry_handle) {
   return _pi_table_entry_delete(session_handle, dev_id, table_id, entry_handle);
 }
 
 pi_status_t pi_table_entry_modify(pi_session_handle_t session_handle,
-                                  pi_dev_id_t dev_id,
-                                  pi_p4_id_t table_id,
+                                  pi_dev_id_t dev_id, pi_p4_id_t table_id,
                                   pi_entry_handle_t entry_handle,
                                   const pi_table_entry_t *table_entry) {
   return _pi_table_entry_modify(session_handle, dev_id, table_id, entry_handle,
@@ -117,12 +112,11 @@ pi_status_t pi_table_entry_modify(pi_session_handle_t session_handle,
 }
 
 pi_status_t pi_table_entries_fetch(pi_session_handle_t session_handle,
-                                   pi_dev_id_t dev_id,
-                                   pi_p4_id_t table_id,
+                                   pi_dev_id_t dev_id, pi_p4_id_t table_id,
                                    pi_table_fetch_res_t **res) {
   pi_table_fetch_res_t *res_ = malloc(sizeof(pi_table_fetch_res_t));
-  pi_status_t status = _pi_table_entries_fetch(session_handle, dev_id, table_id,
-                                               res_);
+  pi_status_t status =
+      _pi_table_entries_fetch(session_handle, dev_id, table_id, res_);
   res_->p4info = pi_get_device_p4info(dev_id);
   res_->table_id = table_id;
   res_->idx = 0;
@@ -174,38 +168,34 @@ size_t pi_table_entries_next(pi_table_fetch_res_t *res,
   switch (t_entry->entry_type) {
     case PI_ACTION_ENTRY_TYPE_NONE:  // does it even make sense?
       break;
-    case PI_ACTION_ENTRY_TYPE_DATA:
-      {
-        pi_p4_id_t action_id;
-        res->curr += retrieve_p4_id(res->entries + res->curr, &action_id);
-        uint32_t nbytes;
-        res->curr += retrieve_uint32(res->entries + res->curr, &nbytes);
-        pi_action_data_t *action_data = &res->action_datas[res->idx];
-        t_entry->entry.action_data = action_data;
-        action_data->p4info = res->p4info;
-        action_data->action_id = action_id;
-        action_data->data_size = nbytes;
-        action_data->data = res->entries + res->curr;
-        res->curr += nbytes;
-      }
-      break;
-    case PI_ACTION_ENTRY_TYPE_INDIRECT:
-      {
-        pi_indirect_handle_t indirect_handle;
-        res->curr += retrieve_indirect_handle(res->entries + res->curr,
-                                              &indirect_handle);
-        t_entry->entry.indirect_handle = indirect_handle;
-      }
-      break;
+    case PI_ACTION_ENTRY_TYPE_DATA: {
+      pi_p4_id_t action_id;
+      res->curr += retrieve_p4_id(res->entries + res->curr, &action_id);
+      uint32_t nbytes;
+      res->curr += retrieve_uint32(res->entries + res->curr, &nbytes);
+      pi_action_data_t *action_data = &res->action_datas[res->idx];
+      t_entry->entry.action_data = action_data;
+      action_data->p4info = res->p4info;
+      action_data->action_id = action_id;
+      action_data->data_size = nbytes;
+      action_data->data = res->entries + res->curr;
+      res->curr += nbytes;
+    } break;
+    case PI_ACTION_ENTRY_TYPE_INDIRECT: {
+      pi_indirect_handle_t indirect_handle;
+      res->curr +=
+          retrieve_indirect_handle(res->entries + res->curr, &indirect_handle);
+      t_entry->entry.indirect_handle = indirect_handle;
+    } break;
   }
 
   pi_entry_properties_t *properties = res->properties + res->idx;
   t_entry->entry_properties = properties;
-  res->curr += retrieve_uint32(res->entries + res->curr,
-                               &properties->valid_properties);
+  res->curr +=
+      retrieve_uint32(res->entries + res->curr, &properties->valid_properties);
   if (properties->valid_properties & (1 << PI_ENTRY_PROPERTY_TYPE_PRIORITY)) {
-    res->curr += retrieve_uint32(res->entries + res->curr,
-                                 &properties->priority);
+    res->curr +=
+        retrieve_uint32(res->entries + res->curr, &properties->priority);
   }
   if (properties->valid_properties & (1 << PI_ENTRY_PROPERTY_TYPE_TTL)) {
     res->curr += retrieve_uint32(res->entries + res->curr, &properties->ttl);

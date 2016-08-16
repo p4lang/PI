@@ -43,12 +43,12 @@ static char *config_path = NULL;
 static char *dest_dir = NULL;
 static char *p4_name = NULL;
 
-static int parse_opts(int argc, char * const argv[]) {
+static int parse_opts(int argc, char *const argv[]) {
   int c;
 
   opterr = 0;
 
-  while ((c = getopt (argc, argv, "c:d:n:h")) != -1) {
+  while ((c = getopt(argc, argv, "c:d:n:h")) != -1) {
     switch (c) {
       case 'c':
         config_path = optarg;
@@ -66,7 +66,7 @@ static int parse_opts(int argc, char * const argv[]) {
         if (optopt == 'c' || optopt == 'd' || optopt == 'n') {
           fprintf(stderr, "Option -%c requires an argument.\n\n", optopt);
           print_help();
-        } else if (isprint (optopt)) {
+        } else if (isprint(optopt)) {
           fprintf(stderr, "Unknown option `-%c'.\n\n", optopt);
           print_help();
         } else {
@@ -103,7 +103,7 @@ static const char prelude[] =
     "/* This file was auto-generated, do not edit !!!\n"
     " */\n\n";
 
-int main(int argc, char * const argv[]) {
+int main(int argc, char *const argv[]) {
   int rc;
   if ((rc = parse_opts(argc, argv)) != 0) return rc;
 
@@ -125,16 +125,17 @@ int main(int argc, char * const argv[]) {
   }
 
   char fname[256];
-  if (strnlen(p4_name, sizeof(fname)) + strlen("pi_fe_defines_") + strlen(".h")
-      >= sizeof(fname)) {
+  if (strnlen(p4_name, sizeof(fname)) + strlen("pi_fe_defines_") +
+          strlen(".h") >=
+      sizeof(fname)) {
     fprintf(stderr, "Provided P4 name (with -n) is too long.\n");
     return 1;
   }
   sprintf(fname, "pi_fe_defines_%s.h", p4_name);
 
   char gen_path[512];
-  if (strnlen(dest_dir, sizeof(gen_path)) + strlen("/") + strlen(fname)
-      >= sizeof(gen_path)) {
+  if (strnlen(dest_dir, sizeof(gen_path)) + strlen("/") + strlen(fname) >=
+      sizeof(gen_path)) {
     fprintf(stderr, "Full path of generated file is too long.\n");
     return 1;
   }
@@ -179,7 +180,8 @@ int main(int argc, char * const argv[]) {
        id = pi_p4info_field_next(p4info, id)) {
     const char *name = pi_p4info_field_name_from_id(p4info, id);
     // quick and dirty
-    char *name_ = strdup(name); sanitize_name(name_);
+    char *name_ = strdup(name);
+    sanitize_name(name_);
     fprintf(gen_fptr, "#define %s_FIELD_%s %#x\n", prefix, name_, id);
     free(name_);
   }
@@ -191,15 +193,17 @@ int main(int argc, char * const argv[]) {
        id = pi_p4info_action_next(p4info, id)) {
     const char *name = pi_p4info_action_name_from_id(p4info, id);
     // quick and dirty
-    char *name_ = strdup(name); sanitize_name(name_);
+    char *name_ = strdup(name);
+    sanitize_name(name_);
     fprintf(gen_fptr, "#define %s_ACTION_%s %#x\n", prefix, name_, id);
     size_t num_params = 0;
-    const pi_p4_id_t *params = pi_p4info_action_get_params(p4info, id,
-                                                           &num_params);
+    const pi_p4_id_t *params =
+        pi_p4info_action_get_params(p4info, id, &num_params);
     for (size_t i = 0; i < num_params; i++) {
       pi_p4_id_t p_id = params[i];
       const char *p_name = pi_p4info_action_param_name_from_id(p4info, p_id);
-      char *p_name_ = strdup(p_name); sanitize_name(p_name_);
+      char *p_name_ = strdup(p_name);
+      sanitize_name(p_name_);
       fprintf(gen_fptr, "#define %s_ACTIONP_%s_%s %#x\n", prefix, name_,
               p_name_, p_id);
       free(p_name_);
@@ -215,7 +219,8 @@ int main(int argc, char * const argv[]) {
        id = pi_p4info_table_next(p4info, id)) {
     const char *name = pi_p4info_table_name_from_id(p4info, id);
     // quick and dirty
-    char *name_ = strdup(name); sanitize_name(name_);
+    char *name_ = strdup(name);
+    sanitize_name(name_);
     fprintf(gen_fptr, "#define %s_TABLE_%s %#x\n", prefix, name_, id);
     free(name_);
   }

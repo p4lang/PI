@@ -77,24 +77,26 @@ static _table_data_t *get_table(const pi_p4info_t *p4info,
 }
 
 static pi_p4_id_t *get_match_field_ids(_table_data_t *table) {
-  return (table->num_match_fields <= INLINE_MATCH_FIELDS) ?
-      table->match_field_ids.direct : table->match_field_ids.indirect;
+  return (table->num_match_fields <= INLINE_MATCH_FIELDS)
+             ? table->match_field_ids.direct
+             : table->match_field_ids.indirect;
 }
 
 static _match_field_data_t *get_match_field_data(_table_data_t *table) {
-  return (table->num_match_fields <= INLINE_MATCH_FIELDS) ?
-      table->match_field_data.direct : table->match_field_data.indirect;
+  return (table->num_match_fields <= INLINE_MATCH_FIELDS)
+             ? table->match_field_data.direct
+             : table->match_field_data.indirect;
 }
 
 static pi_p4_id_t *get_action_ids(_table_data_t *table) {
-  return (table->num_actions <= INLINE_ACTIONS) ?
-      table->action_ids.direct : table->action_ids.indirect;
+  return (table->num_actions <= INLINE_ACTIONS) ? table->action_ids.direct
+                                                : table->action_ids.indirect;
 }
 
 void pi_p4info_table_init(pi_p4info_t *p4info, size_t num_tables) {
   p4info->num_tables = num_tables;
   p4info->tables = calloc(num_tables, sizeof(_table_data_t));
-  p4info->table_name_map = (Pvoid_t) NULL;
+  p4info->table_name_map = (Pvoid_t)NULL;
 }
 
 void pi_p4info_table_free(pi_p4info_t *p4info) {
@@ -146,7 +148,7 @@ void pi_p4info_table_add(pi_p4info_t *p4info, pi_p4_id_t table_id,
   table->implementation = PI_INVALID_ID;
 
   Word_t *table_id_ptr;
-  JSLI(table_id_ptr, p4info->table_name_map, (const uint8_t *) table->name);
+  JSLI(table_id_ptr, p4info->table_name_map, (const uint8_t *)table->name);
   *table_id_ptr = table_id;
 }
 
@@ -171,7 +173,7 @@ void pi_p4info_table_add_match_field(pi_p4info_t *p4info, pi_p4_id_t table_id,
     _match_field_data_t *prev_field = match_field - 1;
     match_field->offset =
         prev_field->offset + get_match_key_size_one_field(
-            prev_field->match_type, prev_field->bitwidth);
+                                 prev_field->match_type, prev_field->bitwidth);
   }
 
   table->match_fields_added++;
@@ -204,9 +206,9 @@ void pi_p4info_table_set_const_default_action(pi_p4info_t *p4info,
 pi_p4_id_t pi_p4info_table_id_from_name(const pi_p4info_t *p4info,
                                         const char *name) {
   Word_t *table_id_ptr;
-  JSLG(table_id_ptr, p4info->table_name_map, (const uint8_t *) name);
+  JSLG(table_id_ptr, p4info->table_name_map, (const uint8_t *)name);
   if (!table_id_ptr) return PI_INVALID_ID;
-  assert (table_id_ptr);
+  assert(table_id_ptr);
   return *table_id_ptr;
 }
 
@@ -247,7 +249,7 @@ size_t pi_p4info_table_match_field_index(const pi_p4info_t *p4info,
   pi_p4_id_t *ids = get_match_field_ids(table);
   for (size_t i = 0; i < table->num_match_fields; i++)
     if (ids[i] == field_id) return i;
-  return (size_t) -1;
+  return (size_t)-1;
 }
 
 size_t pi_p4info_table_match_field_offset(const pi_p4info_t *p4info,
@@ -260,8 +262,7 @@ size_t pi_p4info_table_match_field_offset(const pi_p4info_t *p4info,
 }
 
 void pi_p4info_table_match_field_info(const pi_p4info_t *p4info,
-                                      pi_p4_id_t table_id,
-                                      size_t index,
+                                      pi_p4_id_t table_id, size_t index,
                                       pi_p4info_match_field_info_t *info) {
   _table_data_t *table = get_table(p4info, table_id);
   _match_field_data_t *data = &get_match_field_data(table)[index];
@@ -278,8 +279,7 @@ size_t pi_p4info_table_num_actions(const pi_p4info_t *p4info,
 }
 
 bool pi_p4info_table_is_action_of(const pi_p4info_t *p4info,
-                                  pi_p4_id_t table_id,
-                                  pi_p4_id_t action_id) {
+                                  pi_p4_id_t table_id, pi_p4_id_t action_id) {
   _table_data_t *table = get_table(p4info, table_id);
   pi_p4_id_t *ids = get_action_ids(table);
   for (size_t i = 0; i < table->num_actions; i++)
@@ -294,7 +294,6 @@ const pi_p4_id_t *pi_p4info_table_get_actions(const pi_p4info_t *p4info,
   *num_actions = table->num_actions;
   return get_action_ids(table);
 }
-
 
 bool pi_p4info_table_has_const_default_action(const pi_p4info_t *p4info,
                                               pi_p4_id_t table_id) {
@@ -319,16 +318,16 @@ pi_p4_id_t pi_p4info_table_get_implementation(const pi_p4info_t *p4info,
 
 pi_p4_id_t pi_p4info_table_begin(const pi_p4info_t *p4info) {
   return (p4info->num_tables == 0) ? PI_P4INFO_T_ITERATOR_END
-      : PI_P4INFO_T_ITERATOR_FIRST;
+                                   : PI_P4INFO_T_ITERATOR_FIRST;
 }
 
 pi_p4_id_t pi_p4info_table_next(const pi_p4info_t *p4info, pi_p4_id_t id) {
   return ((id & 0xffffff) == p4info->num_tables - 1) ? PI_P4INFO_T_ITERATOR_END
-      : (id + 1);
+                                                     : (id + 1);
 }
 
 pi_p4_id_t pi_p4info_table_end(const pi_p4info_t *p4info) {
-  (void) p4info;
+  (void)p4info;
   return PI_P4INFO_T_ITERATOR_END;
 }
 

@@ -18,12 +18,13 @@
  *
  */
 
-#include "PI/frontends/cpp/tables.h"
-// auto-generated #define's
-#include "pi_fe_defines_p4.h"
+#include <PI/frontends/cpp/tables.h>
 
 #include <cassert>
 #include <cstring>
+
+// auto-generated #define's
+#include "pi_fe_defines_p4.h"
 
 namespace {
 

@@ -18,8 +18,6 @@
  *
  */
 
-#include <cstring>
-
 #include <arpa/inet.h>
 
 #include <PI/frontends/cpp/tables.h>
@@ -28,7 +26,7 @@
 #include <PI/int/pi_int.h>
 #include <PI/int/serialize.h>
 
-#define SIZEOF_DST_ARR sizeof(((_compact_v_t *) 0)->bytes)
+#include <cstring>
 
 namespace pi {
 
@@ -97,7 +95,7 @@ MatchKey::MatchKey(const pi_p4info_t *p4info, pi_p4_id_t table_id)
   }
 
   // using standard new, no alignment issue
-  _data = std::unique_ptr<char []>(new char[sizeof(*match_key) + s]);
+  _data = std::unique_ptr<char[]>(new char[sizeof(*match_key) + s]);
   match_key = reinterpret_cast<decltype(match_key)>(_data.get());
   match_key->p4info = p4info;
   match_key->table_id = table_id;
@@ -269,7 +267,7 @@ ActionData::ActionData(const pi_p4info_t *p4info, pi_p4_id_t action_id)
   }
 
   // using standard new, no alignment issue
-  _data = std::unique_ptr<char []>(new char[sizeof(*action_data) + s]);
+  _data = std::unique_ptr<char[]>(new char[sizeof(*action_data) + s]);
   action_data = reinterpret_cast<decltype(action_data)>(_data.get());
   action_data->p4info = p4info;
   action_data->action_id = action_id;

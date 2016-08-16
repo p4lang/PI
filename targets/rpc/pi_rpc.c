@@ -39,7 +39,7 @@ pi_status_t wait_for_status(pi_rpc_id_t req_id) {
   rep_hdr_t rep;
   int rc = nn_recv(state.s, &rep, sizeof(rep), 0);
   if (rc != sizeof(rep)) return PI_STATUS_RPC_TRANSPORT_ERROR;
-  return retrieve_rep_hdr((char *) &rep, req_id);
+  return retrieve_rep_hdr((char *)&rep, req_id);
 }
 
 size_t emit_req_hdr(char *hdr, pi_rpc_id_t id, pi_rpc_type_t type) {

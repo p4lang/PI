@@ -18,12 +18,12 @@
  *
  */
 
-#include <iostream>
-
 #include <thrift/protocol/TBinaryProtocol.h>
 #include <thrift/transport/TSocket.h>
 #include <thrift/transport/TTransportUtils.h>
 #include <thrift/protocol/TMultiplexedProtocol.h>
+
+#include <iostream>
 
 #include "conn_mgr.h"
 
@@ -31,9 +31,9 @@ namespace pibmv2 {
 
 #define NUM_DEVICES 256
 
-using namespace ::apache::thrift;
-using namespace ::apache::thrift::protocol;
-using namespace ::apache::thrift::transport;
+using namespace ::apache::thrift;  // NOLINT(build/namespaces)
+using namespace ::apache::thrift::protocol;  // NOLINT(build/namespaces)
+using namespace ::apache::thrift::transport;  // NOLINT(build/namespaces)
 
 struct ClientImp {
   StandardClient *client{nullptr};

@@ -43,4 +43,4 @@ struct pi_p4info_s {
   Pvoid_t act_prof_name_map;
 };
 
-#endif // PI_SRC_P4INFO_P4INFO_STRUCT_H_
+#endif  // PI_SRC_P4INFO_P4INFO_STRUCT_H_

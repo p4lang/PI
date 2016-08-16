@@ -132,10 +132,9 @@ static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
       if (!item) return PI_STATUS_CONFIG_READER_ERROR;
       pi_p4info_match_type_t match_type = item->valueint;
 
-      pi_p4info_table_add_match_field(p4info, pi_id, id,
-                                      pi_p4info_field_name_from_id(p4info, id),
-                                      match_type,
-                                      pi_p4info_field_bitwidth(p4info, id));
+      pi_p4info_table_add_match_field(
+          p4info, pi_id, id, pi_p4info_field_name_from_id(p4info, id),
+          match_type, pi_p4info_field_bitwidth(p4info, id));
     }
 
     cJSON *action;
@@ -193,7 +192,7 @@ static pi_status_t read_act_profs(cJSON *root, pi_p4info_t *p4info) {
   return PI_STATUS_SUCCESS;
 }
 
-pi_status_t pi_native_json_reader(const char *config,  pi_p4info_t *p4info) {
+pi_status_t pi_native_json_reader(const char *config, pi_p4info_t *p4info) {
   cJSON *root = cJSON_Parse(config);
   if (!root) return PI_STATUS_CONFIG_READER_ERROR;
 

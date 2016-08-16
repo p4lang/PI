@@ -33,9 +33,7 @@
 #define TESTDATADIR "testdata"
 #endif
 
-static char *read_json(const char *path) {
-  return read_file(path);
-}
+static char *read_json(const char *path) { return read_file(path); }
 
 TEST_GROUP(SimpleRouter);
 
@@ -43,13 +41,13 @@ TEST_SETUP(SimpleRouter) {
   pi_init(256, NULL);  // 256 max devices
 }
 
-TEST_TEAR_DOWN(SimpleRouter) {
-  pi_destroy();
-}
+TEST_TEAR_DOWN(SimpleRouter) { pi_destroy(); }
 
 TEST(SimpleRouter, Base) {
   pi_p4info_t *p4info;
-  char *config = read_json(TESTDATADIR "/" "simple_router.json");
+  char *config = read_json(TESTDATADIR
+                           "/"
+                           "simple_router.json");
   TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS,
                     pi_add_config(config, PI_CONFIG_TYPE_BMV2_JSON, &p4info));
   TEST_ASSERT_EQUAL_UINT(4u, pi_p4info_action_get_num(p4info));
@@ -57,19 +55,13 @@ TEST(SimpleRouter, Base) {
   free(config);
 }
 
-TEST_GROUP_RUNNER(SimpleRouter) {
-  RUN_TEST_CASE(SimpleRouter, Base);
-}
+TEST_GROUP_RUNNER(SimpleRouter) { RUN_TEST_CASE(SimpleRouter, Base); }
 
 TEST_GROUP(ReadAndSerialize);
 
-TEST_SETUP(ReadAndSerialize) {
-  pi_init(256, NULL);
-}
+TEST_SETUP(ReadAndSerialize) { pi_init(256, NULL); }
 
-TEST_TEAR_DOWN(ReadAndSerialize) {
-  pi_destroy();
-}
+TEST_TEAR_DOWN(ReadAndSerialize) { pi_destroy(); }
 
 static void read_and_serialize(const char *path) {
   pi_p4info_t *p4info;
@@ -98,15 +90,21 @@ static void read_and_serialize(const char *path) {
 }
 
 TEST(ReadAndSerialize, SimpleRouter) {
-  read_and_serialize(TESTDATADIR "/" "simple_router.json");
+  read_and_serialize(TESTDATADIR
+                     "/"
+                     "simple_router.json");
 }
 
 TEST(ReadAndSerialize, Valid) {
-  read_and_serialize(TESTDATADIR "/" "valid.json");
+  read_and_serialize(TESTDATADIR
+                     "/"
+                     "valid.json");
 }
 
 TEST(ReadAndSerialize, Ecmp) {
-  read_and_serialize(TESTDATADIR "/" "ecmp.json");
+  read_and_serialize(TESTDATADIR
+                     "/"
+                     "ecmp.json");
 }
 
 TEST_GROUP_RUNNER(ReadAndSerialize) {

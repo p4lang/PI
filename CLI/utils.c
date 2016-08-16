@@ -26,7 +26,7 @@
 int count_tokens(const char *str) {
   int count = 0;
   const char *ptr = str;
-  while((ptr = strchr(ptr, ' ')) != NULL) {
+  while ((ptr = strchr(ptr, ' ')) != NULL) {
     count++;
     ptr++;
   }
@@ -76,8 +76,8 @@ char *complete_p4_action(const char *text, int len, int state,
   assert(actions);
 
   while (index < num_actions) {
-    const char *name = pi_p4info_action_name_from_id(p4info_curr,
-                                                     actions[index]);
+    const char *name =
+        pi_p4info_action_name_from_id(p4info_curr, actions[index]);
     index++;
     if (!strncmp(name, text, len)) return strdup(name);
   }
@@ -104,7 +104,7 @@ static int try_to_parse_ipv4(char *param, char *bytes) {
     long int v = strtol(b, &endptr, 10);
     if (*endptr != '\0') return 1;
     if (v < 0 || v >= 256) return 1;
-    *bytes++ = (char) v;
+    *bytes++ = (char)v;
   }
   // check that all of the input has been parsed
   if (end != strchr(b, '\0')) return 1;
@@ -123,7 +123,7 @@ static int try_to_parse_macAddr(char *param, char *bytes) {
     long int v = strtol(b, &endptr, 16);
     if (*endptr != '\0') return 1;
     if (v < 0 || v >= 256) return 1;
-    *bytes++ = (char) v;
+    *bytes++ = (char)v;
   }
   // check that all of the input has been parsed
   if (end != strchr(b, '\0')) return 1;
@@ -133,19 +133,17 @@ static int try_to_parse_macAddr(char *param, char *bytes) {
 #include <arpa/inet.h>
 
 // is this portable enough?
-// from http://stackoverflow.com/questions/3736335/tell-whether-a-text-string-is-an-ipv6-address-or-ipv4-address-using-standard-c-s
+// from
+// http://stackoverflow.com/questions/3736335/tell-whether-a-text-string-is-an-ipv6-address-or-ipv4-address-using-standard-c-s
 static int try_to_parse_ipv6(char *param, char *bytes) {
   return (inet_pton(AF_INET6, param, bytes) == 1) ? 0 : 1;
 }
 
 static char char2digit(char c, int *err) {
   *err = 0;
-  if (c >= '0' && c <= '9')
-    return (c - '0');
-  if (c >= 'A' && c <= 'F')
-    return (c - 'A' + 10);
-  if (c >= 'a' && c <= 'f')
-    return (c - 'a' + 10);
+  if (c >= '0' && c <= '9') return (c - '0');
+  if (c >= 'A' && c <= 'F') return (c - 'A' + 10);
+  if (c >= 'a' && c <= 'f') return (c - 'a' + 10);
   *err = 1;
   return 0;
 }
@@ -154,8 +152,7 @@ static int hexstr_to_bytes(char *param, char *bytes, size_t max_s) {
   int err = 0;
   size_t idx = 0;
   size_t s = strlen(param);
-  if (s >= 2 && param[idx] == '0' && param[idx + 1] == 'x')
-    idx += 2;
+  if (s >= 2 && param[idx] == '0' && param[idx + 1] == 'x') idx += 2;
 
   memset(bytes, 0, max_s);
   if (((s - idx) + 1) / 2 > max_s) return 1;
@@ -168,7 +165,7 @@ static int hexstr_to_bytes(char *param, char *bytes, size_t max_s) {
     *bytes++ = c;
   }
 
-  for (; idx < s; ) {
+  for (; idx < s;) {
     char c = char2digit(param[idx++], &err) << 4;
     if (err) return 1;
     c += char2digit(param[idx++], &err);

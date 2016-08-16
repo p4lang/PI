@@ -45,11 +45,11 @@ static void run() {
 }
 
 int main(int argc, const char *argv[]) {
-  unsigned int seed = (unsigned int) time(NULL);
+  unsigned int seed = (unsigned int)time(NULL);
   // TODO(antonin): do something more robust, maybe with getopt
   for (int i = 0; i < argc; i++) {
     if (strcmp(argv[i], "--seed") == 0) {
-      seed = (unsigned int) atoi(argv[++i]);
+      seed = (unsigned int)atoi(argv[++i]);
     }
   }
   printf("Using seed %u for tests\n", seed);

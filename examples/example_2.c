@@ -53,8 +53,8 @@ static int add_route(uint32_t prefix, int pLen, uint32_t nhop, uint16_t port,
   pi_netv_t nhop_ipv4_netv, port_netv;
   rc |= pi_getnetv_u32(p4info, PI_ROUTER_ACTIONP_SET_NHOP_NHOP_IPV4, nhop,
                        &nhop_ipv4_netv);
-  rc |= pi_getnetv_u16(p4info, PI_ROUTER_ACTIONP_SET_NHOP_PORT, port,
-                       &port_netv);
+  rc |=
+      pi_getnetv_u16(p4info, PI_ROUTER_ACTIONP_SET_NHOP_PORT, port, &port_netv);
   rc |= pi_action_data_arg_set(adata_set_nhop, &nhop_ipv4_netv);
   rc |= pi_action_data_arg_set(adata_set_nhop, &port_netv);
 
@@ -64,16 +64,17 @@ static int add_route(uint32_t prefix, int pLen, uint32_t nhop, uint16_t port,
   t_entry.entry_properties = NULL;
   t_entry.direct_res_config = NULL;
 
-  rc |= pi_table_entry_add(
-      sess, dev_tgt, PI_ROUTER_TABLE_IPV4_LPM, mkey_ipv4_lpm, &t_entry, 0,
-      handle);
+  rc |= pi_table_entry_add(sess, dev_tgt, PI_ROUTER_TABLE_IPV4_LPM,
+                           mkey_ipv4_lpm, &t_entry, 0, handle);
 
   return rc;
 }
 
 int main() {
   pi_init(256, NULL);  // 256 devices max
-  pi_add_config_from_file(TESTDATADIR "/" "simple_router.json",
+  pi_add_config_from_file(TESTDATADIR
+                          "/"
+                          "simple_router.json",
                           PI_CONFIG_TYPE_BMV2_JSON, &p4info);
 
   pi_session_init(&sess);

@@ -51,22 +51,22 @@ typedef struct {
 } pi_value_t;
 
 static inline void pi_getv_u8(const uint8_t u8, pi_value_t *v) {
-  v->type_and_size = ((uint8_t) PI_VALUE_TYPE_U8) << 24;
+  v->type_and_size = ((uint8_t)PI_VALUE_TYPE_U8) << 24;
   v->value.u8 = u8;
 }
 
 static inline void pi_getv_u16(const uint16_t u16, pi_value_t *v) {
-  v->type_and_size = ((uint8_t) PI_VALUE_TYPE_U16) << 24;
+  v->type_and_size = ((uint8_t)PI_VALUE_TYPE_U16) << 24;
   v->value.u16 = u16;
 }
 
 static inline void pi_getv_u32(const uint32_t u32, pi_value_t *v) {
-  v->type_and_size = ((uint8_t) PI_VALUE_TYPE_U32) << 24;
+  v->type_and_size = ((uint8_t)PI_VALUE_TYPE_U32) << 24;
   v->value.u32 = u32;
 }
 
 static inline void pi_getv_u64(const uint64_t u64, pi_value_t *v) {
-  v->type_and_size = ((uint8_t) PI_VALUE_TYPE_U64) << 24;
+  v->type_and_size = ((uint8_t)PI_VALUE_TYPE_U64) << 24;
   v->value.u64 = u64;
 }
 
@@ -74,7 +74,7 @@ static inline void pi_getv_u64(const uint64_t u64, pi_value_t *v) {
 // he is done with the value
 static inline void pi_getv_ptr(const char *ptr, uint32_t size, pi_value_t *v) {
   assert(size < (1 << 24));
-  v->type_and_size = ((uint8_t) PI_VALUE_TYPE_PTR) << 24;
+  v->type_and_size = ((uint8_t)PI_VALUE_TYPE_PTR) << 24;
   v->type_and_size |= size;
   v->value.ptr = ptr;
 }

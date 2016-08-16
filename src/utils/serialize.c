@@ -34,9 +34,7 @@ size_t emit_uint64(char *dst, uint64_t v) {
   return sizeof(v);
 }
 
-size_t emit_p4_id(char *dst, pi_p4_id_t v) {
-  return emit_uint32(dst, v);
-}
+size_t emit_p4_id(char *dst, pi_p4_id_t v) { return emit_uint32(dst, v); }
 
 size_t emit_entry_handle(char *dst, pi_entry_handle_t v) {
   return emit_uint64(dst, v);
@@ -58,9 +56,7 @@ size_t emit_dev_tgt(char *dst, pi_dev_tgt_t v) {
   return s;
 }
 
-size_t emit_status(char *dst, pi_status_t v) {
-  return emit_uint32(dst, v);
-}
+size_t emit_status(char *dst, pi_status_t v) { return emit_uint32(dst, v); }
 
 size_t emit_session_handle(char *dst, pi_session_handle_t v) {
   return emit_uint32(dst, v);

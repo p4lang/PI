@@ -73,30 +73,29 @@ static _action_data_t *get_action(const pi_p4info_t *p4info,
 }
 
 static pi_p4_id_t *get_param_ids(_action_data_t *action) {
-  return (action->num_params <= INLINE_PARAMS) ?
-      action->param_ids.direct : action->param_ids.indirect;
+  return (action->num_params <= INLINE_PARAMS) ? action->param_ids.direct
+                                               : action->param_ids.indirect;
 }
 
 static _action_param_data_t *get_param_data(_action_data_t *action) {
-  return (action->num_params <= INLINE_PARAMS) ?
-      action->param_data.direct : action->param_data.indirect;
+  return (action->num_params <= INLINE_PARAMS) ? action->param_data.direct
+                                               : action->param_data.indirect;
 }
 
 static _action_param_data_t *get_param_data_at(_action_data_t *action,
                                                pi_p4_id_t param_id) {
   size_t param_idx = get_param_idx(param_id);
   assert(param_idx < action->num_params);
-  return (action->num_params <= INLINE_PARAMS) ?
-      &action->param_data.direct[param_idx] :
-      &action->param_data.indirect[param_idx];
+  return (action->num_params <= INLINE_PARAMS)
+             ? &action->param_data.direct[param_idx]
+             : &action->param_data.indirect[param_idx];
 }
 
 static pi_p4_id_t get_param_id(_action_data_t *action, const char *name) {
   pi_p4_id_t *param_ids = get_param_ids(action);
   _action_param_data_t *param_data = get_param_data(action);
   for (size_t i = 0; i < action->num_params; i++) {
-    if (!strcmp(name, param_data[i].name))
-      return param_ids[i];
+    if (!strcmp(name, param_data[i].name)) return param_ids[i];
   }
   return 0;
 }
@@ -104,7 +103,7 @@ static pi_p4_id_t get_param_id(_action_data_t *action, const char *name) {
 void pi_p4info_action_init(pi_p4info_t *p4info, size_t num_actions) {
   p4info->num_actions = num_actions;
   p4info->actions = calloc(num_actions, sizeof(_action_data_t));
-  p4info->action_name_map = (Pvoid_t) NULL;
+  p4info->action_name_map = (Pvoid_t)NULL;
 }
 
 void pi_p4info_action_free(pi_p4info_t *p4info) {
@@ -143,7 +142,7 @@ void pi_p4info_action_add(pi_p4info_t *p4info, pi_p4_id_t action_id,
   }
 
   Word_t *action_id_ptr;
-  JSLI(action_id_ptr, p4info->action_name_map, (const uint8_t *) action->name);
+  JSLI(action_id_ptr, p4info->action_name_map, (const uint8_t *)action->name);
   *action_id_ptr = action_id;
 }
 
@@ -186,7 +185,7 @@ size_t pi_p4info_action_get_num(const pi_p4info_t *p4info) {
 pi_p4_id_t pi_p4info_action_id_from_name(const pi_p4info_t *p4info,
                                          const char *name) {
   Word_t *action_id_ptr;
-  JSLG(action_id_ptr, p4info->action_name_map, (const uint8_t *) name);
+  JSLG(action_id_ptr, p4info->action_name_map, (const uint8_t *)name);
   if (!action_id_ptr) return PI_INVALID_ID;
   return *action_id_ptr;
 }
@@ -251,16 +250,16 @@ size_t pi_p4info_action_param_offset(const pi_p4info_t *p4info,
 
 pi_p4_id_t pi_p4info_action_begin(const pi_p4info_t *p4info) {
   return (p4info->num_actions == 0) ? PI_P4INFO_A_ITERATOR_END
-      : PI_P4INFO_A_ITERATOR_FIRST;
+                                    : PI_P4INFO_A_ITERATOR_FIRST;
 }
 
 pi_p4_id_t pi_p4info_action_next(const pi_p4info_t *p4info, pi_p4_id_t id) {
   return ((id & 0xffffff) == p4info->num_actions - 1) ? PI_P4INFO_A_ITERATOR_END
-      : (id + 1);
+                                                      : (id + 1);
 }
 
 pi_p4_id_t pi_p4info_action_end(const pi_p4info_t *p4info) {
-  (void) p4info;
+  (void)p4info;
   return PI_P4INFO_A_ITERATOR_END;
 }
 

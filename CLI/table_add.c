@@ -71,7 +71,7 @@ static int read_priority(char *in, int *priority) {
 
 static int match_key_add_valid_field(pi_p4_id_t f_id, size_t f_bitwidth,
                                      char *mf, pi_match_key_t *mk) {
-  (void) f_bitwidth;
+  (void)f_bitwidth;
   int v;
   if (!strncasecmp("true", mf, sizeof("true"))) {
     v = 1;
@@ -85,7 +85,7 @@ static int match_key_add_valid_field(pi_p4_id_t f_id, size_t f_bitwidth,
   }
   pi_netv_t f_netv;
   pi_status_t rc;
-  rc = pi_getnetv_u8(p4info_curr, f_id, (uint8_t) v, &f_netv);
+  rc = pi_getnetv_u8(p4info_curr, f_id, (uint8_t)v, &f_netv);
   assert(rc == PI_STATUS_SUCCESS);
   rc = pi_match_key_exact_set(mk, &f_netv);
   assert(rc == PI_STATUS_SUCCESS);
@@ -105,8 +105,8 @@ static int match_key_add_exact_field(pi_p4_id_t f_id, size_t f_bitwidth,
   return 0;
 }
 
-static int match_key_add_LPM_field(pi_p4_id_t f_id, size_t f_bitwidth,
-                                   char *mf, int pLen, pi_match_key_t *mk) {
+static int match_key_add_LPM_field(pi_p4_id_t f_id, size_t f_bitwidth, char *mf,
+                                   int pLen, pi_match_key_t *mk) {
   char bytes[BYTES_TEMP_SIZE];
   if (param_to_bytes(mf, bytes, f_bitwidth)) return 1;
   pi_netv_t f_netv;
@@ -147,7 +147,7 @@ static pi_cli_status_t read_match_fields(char *in, pi_p4_id_t t_id,
     char *mf = strtok(in, " ");
     in = NULL;
     if (!mf || mf[0] == '=') return PI_CLI_STATUS_TOO_FEW_MATCH_FIELDS;
-    int pLen;  // for LPM
+    int pLen;    // for LPM
     char *mask;  // for ternary
     switch (finfo.match_type) {
       case PI_P4INFO_MATCH_TYPE_VALID:
@@ -245,11 +245,13 @@ pi_cli_status_t do_table_add(char *subcmd) {
     printf("Error when trying to add entry.\n");
 
   pi_match_key_destroy(mk);
-  if (t_imp == PI_INVALID_ID) cleanup_entry_direct(&t_entry);
-  else cleanup_entry_indirect(&t_entry);
+  if (t_imp == PI_INVALID_ID)
+    cleanup_entry_direct(&t_entry);
+  else
+    cleanup_entry_indirect(&t_entry);
 
   return (rc == PI_STATUS_SUCCESS) ? PI_CLI_STATUS_SUCCESS
-      : PI_CLI_STATUS_TARGET_ERROR;
+                                   : PI_CLI_STATUS_TARGET_ERROR;
 };
 
 char *complete_table_add(const char *text, int state) {

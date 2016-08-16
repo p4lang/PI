@@ -23,20 +23,21 @@
 #include <stdio.h>
 
 pi_status_t _pi_init(void *extra) {
-  (void) extra;
+  (void)extra;
   printf("_pi_init\n");
   return PI_STATUS_SUCCESS;
 }
 
 pi_status_t _pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
                               pi_assign_extra_t *extra) {
-  (void) dev_id; (void) p4info, (void) extra;
+  (void)dev_id;
+  (void)p4info, (void)extra;
   printf("_pi_assign_device\n");
   return PI_STATUS_SUCCESS;
 }
 
 pi_status_t _pi_remove_device(pi_dev_id_t dev_id) {
-  (void) dev_id;
+  (void)dev_id;
   printf("_pi_remove_device\n");
   return PI_STATUS_SUCCESS;
 }
@@ -53,7 +54,7 @@ pi_status_t _pi_session_init(pi_session_handle_t *session_handle) {
 }
 
 pi_status_t _pi_session_cleanup(pi_session_handle_t session_handle) {
-  (void) session_handle;
+  (void)session_handle;
   printf("_pi_session_cleanup\n");
   return PI_STATUS_SUCCESS;
 }

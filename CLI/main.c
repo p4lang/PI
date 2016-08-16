@@ -55,15 +55,15 @@ typedef struct {
   int flags;
 } cmd_data_t;
 
-static Pvoid_t J_cmd_name_map = (Pvoid_t) NULL;
+static Pvoid_t J_cmd_name_map = (Pvoid_t)NULL;
 static cmd_data_t cmd_map[1024];
 static size_t num_cmds = 0u;
 
 static cmd_data_t *get_cmd_data(const char *cmd_name) {
   Word_t *cmd_data_ptr = NULL;
-  JSLG(cmd_data_ptr, J_cmd_name_map, (const uint8_t *) cmd_name);
+  JSLG(cmd_data_ptr, J_cmd_name_map, (const uint8_t *)cmd_name);
   if (!cmd_data_ptr) return NULL;
-  return (cmd_data_t *) (*cmd_data_ptr);
+  return (cmd_data_t *)(*cmd_data_ptr);
 }
 
 typedef void (*CbFn)(const cmd_data_t *cmd_data, void *);
@@ -76,7 +76,7 @@ static void foreach_cmd(CbFn cb, void *cookie) {
 }
 
 static void print_cmd_desc(const cmd_data_t *cmd_data, void *cookie) {
-  (void) cookie;
+  (void)cookie;
   printf("%-20s %s\n", cmd_data->name, cmd_data->help_str);
 }
 
@@ -87,7 +87,8 @@ static pi_cli_status_t do_help(char *subcmd) {
     char *c = strtok(subcmd, " ");
     if (c) {
       cmd_data_t *cmd_data = get_cmd_data(c);
-      if (cmd_data && !cmd_data->help_str) return PI_CLI_STATUS_SUCCESS;;
+      if (cmd_data && !cmd_data->help_str) return PI_CLI_STATUS_SUCCESS;
+      ;
       if (cmd_data && cmd_data->help_str) {
         printf("%-20s %s\n", subcmd, cmd_data->help_str);
         return PI_CLI_STATUS_SUCCESS;
@@ -101,7 +102,7 @@ static pi_cli_status_t do_help(char *subcmd) {
   return PI_CLI_STATUS_SUCCESS;
 }
 
-char* command_generator(const char* text, int state);
+char *command_generator(const char *text, int state);
 
 // re-using command_generator, coz I'm smart and lazy
 static char *complete_help(const char *text, int state) {
@@ -117,8 +118,8 @@ static void register_cmd(const char *name, CLIFnPtr fn, const char *help_str,
   cmd_data->comp_ptr = comp;
   cmd_data->flags = flags;
   Word_t *cmd_data_ptr;
-  JSLI(cmd_data_ptr, J_cmd_name_map, (const uint8_t *) name);
-  *cmd_data_ptr = (Word_t) cmd_data;
+  JSLI(cmd_data_ptr, J_cmd_name_map, (const uint8_t *)name);
+  *cmd_data_ptr = (Word_t)cmd_data;
   num_cmds++;
 }
 
@@ -140,8 +141,8 @@ static void init_cmd_map() {
                complete_table_modify, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
   register_cmd("table_set_default", do_table_set_default, table_set_default_hs,
                complete_table_set_default, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
-  register_cmd("table_dump", do_table_dump, table_dump_hs,
-               complete_table_dump, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
+  register_cmd("table_dump", do_table_dump, table_dump_hs, complete_table_dump,
+               PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
 
   register_cmd("table_indirect_create_member", do_table_indirect_create_member,
                table_indirect_create_member_hs,
@@ -169,7 +170,8 @@ static void dispatch_command(const char *first_word, char *subcmd) {
   if (cmd_data) {
     if ((cmd_data->flags & PI_CLI_CMD_FLAGS_REQUIRES_DEVICE) &&
         !is_device_selected) {
-      fprintf(stderr, "Cannot execute this command without selecting a device "
+      fprintf(stderr,
+              "Cannot execute this command without selecting a device "
               "first with the 'select_device' command.\n");
       return;
     }
@@ -190,7 +192,8 @@ static int process_one_cmd(char *cmd) {
   if (cmd[0] == '\0') return 0;
   add_history(cmd);
   char *token = NULL;
-  for (token = cmd; (*token != '\0') && (*token != ' '); token++);
+  for (token = cmd; (*token != '\0') && (*token != ' '); token++)
+    ;
   char *subcmd = NULL;
   if (token[0] != '\0') {
     subcmd = token + 1;
@@ -201,7 +204,7 @@ static int process_one_cmd(char *cmd) {
   return 0;
 }
 
-char* command_generator(const char* text, int state) {
+char *command_generator(const char *text, int state) {
   static size_t index;
   static int len;
 
@@ -227,7 +230,7 @@ of TEXT that contains the word to complete.  We can use the entire line in case
 we want to do some simple parsing.  Return the array of matches, or NULL if
 there aren't any. */
 char **CLI_completion(const char *text, int start, int end) {
-  (void) end;
+  (void)end;
 
   char **matches = NULL;
 
@@ -250,7 +253,8 @@ char **CLI_completion(const char *text, int start, int end) {
 }
 
 char *dummy_completion(const char *text, int state) {
-  (void) text; (void) state;
+  (void)text;
+  (void)state;
   return NULL;
 }
 
@@ -266,12 +270,12 @@ static void print_help(const char *name) {
 static char *opt_config_path = NULL;
 static char *opt_rpc_addr = NULL;
 
-static int parse_opts(int argc, char * const argv[]) {
+static int parse_opts(int argc, char *const argv[]) {
   int c;
 
   opterr = 0;
 
-  while ((c = getopt (argc, argv, "c:a:h")) != -1) {
+  while ((c = getopt(argc, argv, "c:a:h")) != -1) {
     switch (c) {
       case 'c':
         opt_config_path = optarg;
@@ -286,7 +290,7 @@ static int parse_opts(int argc, char * const argv[]) {
         if (optopt == 'c' || optopt == 'a') {
           fprintf(stderr, "Option -%c requires an argument.\n\n", optopt);
           print_help(argv[0]);
-        } else if (isprint (optopt)) {
+        } else if (isprint(optopt)) {
           fprintf(stderr, "Unknown option `-%c'.\n\n", optopt);
           print_help(argv[0]);
         } else {
@@ -320,15 +324,14 @@ int main(int argc, char *argv[]) {
 
   if (opt_config_path) {
     pi_p4info_t *p4info;
-    pirc = pi_add_config_from_file(opt_config_path,
-                                   PI_CONFIG_TYPE_BMV2_JSON,
+    pirc = pi_add_config_from_file(opt_config_path, PI_CONFIG_TYPE_BMV2_JSON,
                                    &p4info);
     if (pirc != PI_STATUS_SUCCESS) {
       fprintf(stderr, "Error while loading config\n");
       return 1;
     }
     p4_config_id_t p4_config_id = p4_config_add(p4info);
-    (void) p4_config_id;
+    (void)p4_config_id;
   }
 
   pirc = pi_session_init(&sess);

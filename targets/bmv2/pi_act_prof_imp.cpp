@@ -18,10 +18,6 @@
  *
  */
 
-#include "conn_mgr.h"
-#include "common.h"
-#include "action_helpers.h"
-
 #include <PI/pi.h>
 #include <PI/p4info.h>
 #include <PI/int/pi_int.h>
@@ -30,6 +26,10 @@
 #include <vector>
 
 #include <cstdio>
+
+#include "conn_mgr.h"
+#include "common.h"
+#include "action_helpers.h"
 
 namespace pibmv2 {
 

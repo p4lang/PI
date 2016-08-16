@@ -21,12 +21,12 @@
 #ifndef PI_FRONTENDS_CPP_TABLES_H_
 #define PI_FRONTENDS_CPP_TABLES_H_
 
+#include <PI/pi.h>
+
 #include <memory>
 #include <vector>
 
 #include <cstdint>
-
-#include <PI/pi.h>
 
 namespace pi {
 
@@ -73,7 +73,7 @@ class MatchKey {
   size_t nset{0};
   std::vector<size_t> offsets{};
   pi_match_key_t *match_key;
-  std::unique_ptr<char []> _data;
+  std::unique_ptr<char[]> _data;
 };
 
 class ActionData {
@@ -105,7 +105,7 @@ class ActionData {
   size_t nset{0};
   std::vector<size_t> offsets{};
   pi_action_data_t *action_data;
-  std::unique_ptr<char []> _data;
+  std::unique_ptr<char[]> _data;
 };
 
 // TODO(antonin): handle device id / pipleline mask

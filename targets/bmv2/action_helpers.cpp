@@ -23,6 +23,9 @@
 #include <PI/p4info.h>
 #include <PI/int/pi_int.h>
 
+#include <vector>
+#include <string>
+
 namespace pibmv2 {
 
 std::vector<std::string> build_action_data(const pi_action_data_t *action_data,

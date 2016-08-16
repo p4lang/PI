@@ -27,12 +27,12 @@
 extern "C" {
 #endif
 
-#define PI_ACTION_ID        0x01
-#define PI_TABLE_ID         0x02
-#define PI_ACTION_PARAM_ID  0x03
-#define PI_FIELD_ID         0x04
+#define PI_ACTION_ID 0x01
+#define PI_TABLE_ID 0x02
+#define PI_ACTION_PARAM_ID 0x03
+#define PI_FIELD_ID 0x04
 
-#define PI_ACT_PROF_ID      0x11
+#define PI_ACT_PROF_ID 0x11
 
 static inline pi_p4_id_t pi_make_action_id(uint16_t index) {
   return (PI_ACTION_ID << 24) | index;

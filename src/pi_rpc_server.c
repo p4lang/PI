@@ -52,9 +52,9 @@ static size_t emit_rep_hdr(char *hdr, pi_status_t status) {
 
 static void send_status(pi_status_t status) {
   rep_hdr_t rep;
-  size_t s = emit_rep_hdr((char *) &rep, status);
+  size_t s = emit_rep_hdr((char *)&rep, status);
   int bytes = nn_send(state.s, &rep, sizeof(rep), 0);
-  assert((size_t) bytes == s);
+  assert((size_t)bytes == s);
 }
 
 static size_t get_device_version(pi_dev_id_t dev_id) {
@@ -64,7 +64,7 @@ static size_t get_device_version(pi_dev_id_t dev_id) {
 static void __pi_init(char *req) {
   printf("RPC: _pi_init\n");
 
-  (void) req;
+  (void)req;
   size_t num_devices;
   pi_device_info_t *devices = pi_get_devices(&num_devices);
   pi_status_t status = PI_STATUS_SUCCESS;
@@ -115,10 +115,10 @@ static void __pi_init(char *req) {
     free(p4info_tmp);
   }
 
-  assert((size_t) (rep_ - rep) == s);
+  assert((size_t)(rep_ - rep) == s);
 
   int bytes = nn_send(state.s, &rep, NN_MSG, 0);
-  assert((size_t) bytes == s);
+  assert((size_t)bytes == s);
 }
 
 static void __pi_assign_device(char *req) {
@@ -181,20 +181,21 @@ static void __pi_remove_device(char *req) {
 
   if (status == PI_STATUS_SUCCESS) pi_reset_device_config(dev_id);
 
-  send_status(status);;
+  send_status(status);
+  ;
 }
 
 static void __pi_destroy(char *req) {
   printf("RPC: _pi_destroy\n");
 
-  (void) req;
+  (void)req;
   send_status(_pi_destroy());
 }
 
 static void __pi_session_init(char *req) {
   printf("RPC: _pi_session_init\n");
 
-  (void) req;
+  (void)req;
 
   pi_session_handle_t sess = 0;
   pi_status_t status = _pi_session_init(&sess);
@@ -204,7 +205,7 @@ static void __pi_session_init(char *req) {
     s_pi_session_handle_t h;
   } rep_t;
   rep_t rep;
-  char *rep_ = (char *) &rep;
+  char *rep_ = (char *)&rep;
   rep_ += emit_rep_hdr(rep_, status);
   rep_ += emit_session_handle(rep_, sess);
 
@@ -251,16 +252,16 @@ static void __pi_table_entry_add(char *req) {
   req += retrieve_uint32(req, &overwrite);
 
   pi_entry_handle_t entry_handle;
-  pi_status_t status = _pi_table_entry_add(sess, dev_tgt, table_id, &match_key,
-                                           &table_entry, overwrite,
-                                           &entry_handle);
+  pi_status_t status =
+      _pi_table_entry_add(sess, dev_tgt, table_id, &match_key, &table_entry,
+                          overwrite, &entry_handle);
 
   typedef struct __attribute__((packed)) {
     rep_hdr_t hdr;
     s_pi_entry_handle_t h;
   } rep_t;
   rep_t rep;
-  char *rep_ = (char *) &rep;
+  char *rep_ = (char *)&rep;
   rep_ += emit_rep_hdr(rep_, status);
   rep_ += emit_entry_handle(rep_, entry_handle);
 
@@ -284,8 +285,8 @@ static void __pi_table_default_action_set(char *req) {
   table_entry.entry.action_data = &action_data;
   req += retrieve_table_entry(req, &table_entry, 0);
 
-  pi_status_t status = _pi_table_default_action_set(sess, dev_tgt, table_id,
-                                                    &table_entry);
+  pi_status_t status =
+      _pi_table_default_action_set(sess, dev_tgt, table_id, &table_entry);
   send_status(status);
 }
 
@@ -300,8 +301,8 @@ static void __pi_table_default_action_get(char *req) {
   req += retrieve_p4_id(req, &table_id);
 
   pi_table_entry_t default_entry;
-  pi_status_t status = _pi_table_default_action_get(sess, dev_id, table_id,
-                                                    &default_entry);
+  pi_status_t status =
+      _pi_table_default_action_get(sess, dev_id, table_id, &default_entry);
 
   size_t s = 0;
   s += sizeof(rep_hdr_t);
@@ -316,10 +317,10 @@ static void __pi_table_default_action_get(char *req) {
   _pi_table_default_action_done(sess, &default_entry);
 
   // make sure I have copied exactly the right amount
-  assert((size_t) (rep_ - rep) == s);
+  assert((size_t)(rep_ - rep) == s);
 
   int bytes = nn_send(state.s, &rep, NN_MSG, 0);
-  assert((size_t) bytes == s);
+  assert((size_t)bytes == s);
 }
 
 static void __pi_table_entry_delete(char *req) {
@@ -396,10 +397,10 @@ static void __pi_table_entries_fetch(char *req) {
   _pi_table_entries_fetch_done(sess, &res);
 
   // make sure I have copied exactly the right amount
-  assert((size_t) (rep_ - rep) == s);
+  assert((size_t)(rep_ - rep) == s);
 
   int bytes = nn_send(state.s, &rep, NN_MSG, 0);
-  assert((size_t) bytes == s);
+  assert((size_t)bytes == s);
 }
 
 static void send_indirect_handle(pi_status_t status, pi_indirect_handle_t h) {
@@ -408,7 +409,7 @@ static void send_indirect_handle(pi_status_t status, pi_indirect_handle_t h) {
     s_pi_indirect_handle_t h;
   } rep_t;
   rep_t rep;
-  char *rep_ = (char *) &rep;
+  char *rep_ = (char *)&rep;
   rep_ += emit_rep_hdr(rep_, status);
   rep_ += emit_indirect_handle(rep_, h);
 
@@ -449,8 +450,8 @@ static void __pi_act_prof_mbr_delete(char *req) {
   pi_indirect_handle_t mbr_handle;
   req += retrieve_indirect_handle(req, &mbr_handle);
 
-  pi_status_t status = _pi_act_prof_mbr_delete(sess, dev_id, act_prof_id,
-                                               mbr_handle);
+  pi_status_t status =
+      _pi_act_prof_mbr_delete(sess, dev_id, act_prof_id, mbr_handle);
   send_status(status);
 }
 
@@ -506,8 +507,8 @@ static void __pi_act_prof_grp_delete(char *req) {
   pi_indirect_handle_t grp_handle;
   req += retrieve_indirect_handle(req, &grp_handle);
 
-  pi_status_t status = _pi_act_prof_grp_delete(sess, dev_id, act_prof_id,
-                                               grp_handle);
+  pi_status_t status =
+      _pi_act_prof_grp_delete(sess, dev_id, act_prof_id, grp_handle);
   send_status(status);
 }
 
@@ -526,8 +527,8 @@ static void grp_add_remove_mbr(char *req, pi_rpc_type_t add_or_remove) {
   pi_status_t status;
   switch (add_or_remove) {
     case PI_RPC_ACT_PROF_GRP_ADD_MBR:
-      status = _pi_act_prof_grp_add_mbr(sess, dev_id, act_prof_id,
-                                        grp_handle, mbr_handle);
+      status = _pi_act_prof_grp_add_mbr(sess, dev_id, act_prof_id, grp_handle,
+                                        mbr_handle);
       break;
     case PI_RPC_ACT_PROF_GRP_REMOVE_MBR:
       status = _pi_act_prof_grp_remove_mbr(sess, dev_id, act_prof_id,
@@ -550,11 +551,10 @@ static void __pi_act_prof_grp_remove_mbr(char *req) {
   grp_add_remove_mbr(req, PI_RPC_ACT_PROF_GRP_REMOVE_MBR);
 }
 
-
 pi_status_t pi_rpc_server_run(char *rpc_addr) {
   assert(!state.init);
   if (rpc_addr)
-    addr = strdup((char *) rpc_addr);
+    addr = strdup((char *)rpc_addr);
   else
     addr = "ipc:///tmp/pi_rpc.ipc";
   state.s = nn_socket(AF_SP, NN_REP);
@@ -576,44 +576,63 @@ pi_status_t pi_rpc_server_run(char *rpc_addr) {
 
     switch (type) {
       case PI_RPC_INIT:
-        __pi_init(req_); break;
+        __pi_init(req_);
+        break;
       case PI_RPC_ASSIGN_DEVICE:
-        __pi_assign_device(req_); break;
+        __pi_assign_device(req_);
+        break;
       case PI_RPC_REMOVE_DEVICE:
-        __pi_remove_device(req_); break;
+        __pi_remove_device(req_);
+        break;
       case PI_RPC_DESTROY:
-        __pi_destroy(req_); break;
+        __pi_destroy(req_);
+        break;
       case PI_RPC_SESSION_INIT:
-        __pi_session_init(req_); break;
+        __pi_session_init(req_);
+        break;
       case PI_RPC_SESSION_CLEANUP:
-        __pi_session_cleanup(req_); break;
+        __pi_session_cleanup(req_);
+        break;
       case PI_RPC_TABLE_ENTRY_ADD:
-        __pi_table_entry_add(req_); break;
+        __pi_table_entry_add(req_);
+        break;
       case PI_RPC_TABLE_DEFAULT_ACTION_SET:
-        __pi_table_default_action_set(req_); break;
+        __pi_table_default_action_set(req_);
+        break;
       case PI_RPC_TABLE_DEFAULT_ACTION_GET:
-        __pi_table_default_action_get(req_); break;
+        __pi_table_default_action_get(req_);
+        break;
       case PI_RPC_TABLE_ENTRY_DELETE:
-        __pi_table_entry_delete(req_); break;
+        __pi_table_entry_delete(req_);
+        break;
       case PI_RPC_TABLE_ENTRY_MODIFY:
-        __pi_table_entry_modify(req_); break;
+        __pi_table_entry_modify(req_);
+        break;
       case PI_RPC_TABLE_ENTRIES_FETCH:
-        __pi_table_entries_fetch(req_); break;
+        __pi_table_entries_fetch(req_);
+        break;
 
       case PI_RPC_ACT_PROF_MBR_CREATE:
-        __pi_act_prof_mbr_create(req_); break;
+        __pi_act_prof_mbr_create(req_);
+        break;
       case PI_RPC_ACT_PROF_MBR_DELETE:
-        __pi_act_prof_mbr_delete(req_); break;
+        __pi_act_prof_mbr_delete(req_);
+        break;
       case PI_RPC_ACT_PROF_MBR_MODIFY:
-        __pi_act_prof_mbr_modify(req_); break;
+        __pi_act_prof_mbr_modify(req_);
+        break;
       case PI_RPC_ACT_PROF_GRP_CREATE:
-        __pi_act_prof_grp_create(req_); break;
+        __pi_act_prof_grp_create(req_);
+        break;
       case PI_RPC_ACT_PROF_GRP_DELETE:
-        __pi_act_prof_grp_delete(req_); break;
+        __pi_act_prof_grp_delete(req_);
+        break;
       case PI_RPC_ACT_PROF_GRP_ADD_MBR:
-        __pi_act_prof_grp_add_mbr(req_); break;
+        __pi_act_prof_grp_add_mbr(req_);
+        break;
       case PI_RPC_ACT_PROF_GRP_REMOVE_MBR:
-        __pi_act_prof_grp_remove_mbr(req_); break;
+        __pi_act_prof_grp_remove_mbr(req_);
+        break;
 
       default:
         assert(0);
@@ -627,17 +646,13 @@ pi_status_t pi_rpc_server_run(char *rpc_addr) {
 
 // some helper functions declared in rpc_common.h
 
-size_t emit_rpc_id(char *dst, pi_rpc_id_t v) {
-  return emit_uint32(dst, v);
-}
+size_t emit_rpc_id(char *dst, pi_rpc_id_t v) { return emit_uint32(dst, v); }
 
 size_t retrieve_rpc_id(const char *src, pi_rpc_id_t *v) {
   return retrieve_uint32(src, v);
 }
 
-size_t emit_rpc_type(char *dst, pi_rpc_type_t v) {
-  return emit_uint32(dst, v);
-}
+size_t emit_rpc_type(char *dst, pi_rpc_type_t v) { return emit_uint32(dst, v); }
 
 size_t retrieve_rpc_type(const char *src, pi_rpc_type_t *v) {
   return retrieve_uint32(src, v);
@@ -646,7 +661,7 @@ size_t retrieve_rpc_type(const char *src, pi_rpc_type_t *v) {
 size_t action_data_size(const pi_action_data_t *action_data) {
   size_t s = 0;
   s += sizeof(s_pi_p4_id_t);  // action_id
-  s += sizeof(uint32_t);  // action data size
+  s += sizeof(uint32_t);      // action data size
   s += action_data->data_size;
   return s;
 }
@@ -688,8 +703,8 @@ size_t emit_table_entry(char *dst, const pi_table_entry_t *table_entry) {
     case PI_ACTION_ENTRY_TYPE_DATA:
       return s + emit_action_data(dst + s, table_entry->entry.action_data);
     case PI_ACTION_ENTRY_TYPE_INDIRECT:
-      return s + emit_indirect_handle(dst + s,
-                                      table_entry->entry.indirect_handle);
+      return s +
+             emit_indirect_handle(dst + s, table_entry->entry.indirect_handle);
     default:
       assert(0);
       return 0;
@@ -709,7 +724,7 @@ size_t retrieve_action_data(char *src, pi_action_data_t **action_data,
   if (copy) {
     // no alignment issue with malloc
     char *ad = malloc(sizeof(pi_action_data_t) + ad_size);
-    adata = (pi_action_data_t *) ad;
+    adata = (pi_action_data_t *)ad;
     adata->data = ad + sizeof(pi_action_data_t);
     *action_data = adata;
   } else {

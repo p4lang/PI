@@ -52,13 +52,15 @@ static int parse_extras(pi_assign_extra_t *extras) {
     v = NULL;
     token = strtok(NULL, ";");
     if (!token) break;
-    for (; *token == ' '; token++);
+    for (; *token == ' '; token++)
+      ;
     if (extra_idx >= MAX_EXTRAS) return 1;
     char *eq = strchr(token, '=');
     if (eq) {
       *eq = '\0';
       v = eq + 1;
-      for (v = eq + 1; *v == ' '; v++);
+      for (v = eq + 1; *v == ' '; v++)
+        ;
       for (eq = eq - 1; *eq == ' ' && *eq != '\0'; eq--) *eq = '\0';
       for (char *endv = strchr(v, '\0') - 1; *endv == ' ' && endv >= v; endv--)
         *endv = '\0';
@@ -130,7 +132,6 @@ pi_cli_status_t do_assign_device(char *subcmd) {
   return PI_CLI_STATUS_SUCCESS;
 }
 
-
 /* SELECT DEVICE */
 
 char select_device_hs[] =
@@ -165,7 +166,6 @@ pi_cli_status_t do_select_device(char *subcmd) {
   return PI_CLI_STATUS_SUCCESS;
 }
 
-
 /* SHOW DEVICES */
 
 char show_devices_hs[] =
@@ -174,8 +174,7 @@ char show_devices_hs[] =
 
 pi_cli_status_t do_show_devices(char *subcmd) {
   // better way of doing this?
-  if (subcmd && *subcmd != '\0')
-    return PI_CLI_STATUS_TOO_MANY_ARGS;
+  if (subcmd && *subcmd != '\0') return PI_CLI_STATUS_TOO_MANY_ARGS;
 
   // TODO(antonin): improve loop and get more information
   printf("Showing devices:\n");
@@ -191,7 +190,6 @@ pi_cli_status_t do_show_devices(char *subcmd) {
 
   return PI_CLI_STATUS_SUCCESS;
 }
-
 
 /* REMOVE DEVICE */
 

@@ -59,8 +59,8 @@ pi_cli_status_t do_add_p4(char *subcmd) {
   }
 
   pi_p4info_t *new_p4info;
-  pi_status_t pirc = pi_add_config_from_file(config_path, config_type,
-                                             &new_p4info);
+  pi_status_t pirc =
+      pi_add_config_from_file(config_path, config_type, &new_p4info);
   if (pirc != PI_STATUS_SUCCESS) {
     fprintf(stderr, "Error while loading config\n");
     return PI_CLI_STATUS_INVALID_P4_CONFIG;
