@@ -32,3 +32,19 @@ pi_status_t pi_meter_set(pi_session_handle_t session_handle,
                          size_t index, const pi_meter_spec_t *meter_spec) {
   return _pi_meter_set(session_handle, dev_tgt, meter_id, index, meter_spec);
 }
+
+pi_status_t pi_meter_read_direct(pi_session_handle_t session_handle,
+                                 pi_dev_tgt_t dev_tgt, pi_p4_id_t meter_id,
+                                 pi_entry_handle_t entry_handle,
+                                 pi_meter_spec_t *meter_spec) {
+  return _pi_meter_read_direct(session_handle, dev_tgt, meter_id, entry_handle,
+                               meter_spec);
+}
+
+pi_status_t pi_meter_set_direct(pi_session_handle_t session_handle,
+                                pi_dev_tgt_t dev_tgt, pi_p4_id_t meter_id,
+                                pi_entry_handle_t entry_handle,
+                                const pi_meter_spec_t *meter_spec) {
+  return _pi_meter_set_direct(session_handle, dev_tgt, meter_id, entry_handle,
+                              meter_spec);
+}

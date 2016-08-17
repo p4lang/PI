@@ -22,6 +22,7 @@
 #define PI_INC_PI_PI_COUNTER_H_
 
 #include <PI/pi_base.h>
+#include <PI/pi_tables.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -51,6 +52,16 @@ pi_status_t pi_counter_write(pi_session_handle_t session_handle,
                              pi_dev_tgt_t dev_tgt, pi_p4_id_t counter_id,
                              size_t index,
                              const pi_counter_data_t *counter_data);
+
+pi_status_t pi_counter_read_direct(pi_session_handle_t session_handle,
+                                   pi_dev_tgt_t dev_tgt, pi_p4_id_t counter_id,
+                                   pi_entry_handle_t entry_handle, int flags,
+                                   pi_counter_data_t *counter_data);
+
+pi_status_t pi_counter_write_direct(pi_session_handle_t session_handle,
+                                    pi_dev_tgt_t dev_tgt, pi_p4_id_t counter_id,
+                                    pi_entry_handle_t entry_handle,
+                                    const pi_counter_data_t *counter_data);
 
 #ifdef __cplusplus
 }
