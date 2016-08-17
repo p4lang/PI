@@ -18,17 +18,25 @@
  *
  */
 
-#ifndef PI_SRC_P4INFO_FIELDS_INT_H_
-#define PI_SRC_P4INFO_FIELDS_INT_H_
+#include "p4info_name_map.h"
 
-#include "PI/p4info/fields.h"
+#include <Judy.h>
 
-void pi_p4info_field_init(pi_p4info_t *p4info, size_t num_fields);
+void p4info_name_map_add(p4info_name_map_t *map, const char *name,
+                         pi_p4_id_t id) {
+  Word_t *ptr = NULL;
+  JSLI(ptr, *map, (const uint8_t *)name);
+  *ptr = id;
+}
 
-void pi_p4info_field_add(pi_p4info_t *p4info, pi_p4_id_t field_id,
-                         const char *name, size_t bitwidth);
+pi_p4_id_t p4info_name_map_get(const p4info_name_map_t *map, const char *name) {
+  Word_t *ptr = NULL;
+  JSLG(ptr, *map, (const uint8_t *)name);
+  if (!ptr) return PI_INVALID_ID;
+  return *ptr;
+}
 
-typedef struct cJSON cJSON;
-void pi_p4info_field_serialize(cJSON *root, const pi_p4info_t *p4info);
-
-#endif  // PI_SRC_P4INFO_FIELDS_INT_H_
+void p4info_name_map_destroy(p4info_name_map_t *map) {
+  Word_t Rc_word;
+  JSLFA(Rc_word, *map);
+}

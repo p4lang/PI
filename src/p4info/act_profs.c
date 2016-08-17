@@ -39,33 +39,50 @@ typedef struct _act_prof_data_s {
   bool with_selector;
 } _act_prof_data_t;
 
-static size_t get_act_prof_idx(pi_p4_id_t act_prof_id) {
-  assert(PI_GET_TYPE_ID(act_prof_id) == PI_ACT_PROF_ID);
-  return act_prof_id & 0xFFFF;
-}
-
 static _act_prof_data_t *get_act_prof(const pi_p4info_t *p4info,
                                       pi_p4_id_t act_prof_id) {
-  size_t act_prof_idx = get_act_prof_idx(act_prof_id);
-  assert(act_prof_idx < p4info->num_act_profs);
-  return &p4info->act_profs[act_prof_idx];
+  assert(PI_GET_TYPE_ID(act_prof_id) == PI_ACT_PROF_ID);
+  return p4info_get_at(p4info, act_prof_id);
+}
+
+static size_t num_act_profs(const pi_p4info_t *p4info) {
+  return p4info->act_profs->arr.size;
+}
+
+void free_act_prof_data(void *data) {
+  _act_prof_data_t *act_prof = (_act_prof_data_t *)data;
+  if (!act_prof->name) return;
+  free(act_prof->name);
+}
+
+void pi_p4info_act_prof_serialize(cJSON *root, const pi_p4info_t *p4info) {
+  cJSON *aArray = cJSON_CreateArray();
+  const p4info_array_t *act_profs = &p4info->act_profs->arr;
+  for (size_t i = 0; i < act_profs->size; i++) {
+    _act_prof_data_t *act_prof = p4info_array_at(act_profs, i);
+    cJSON *aObject = cJSON_CreateObject();
+
+    cJSON_AddStringToObject(aObject, "name", act_prof->name);
+    cJSON_AddNumberToObject(aObject, "id", act_prof->act_prof_id);
+
+    cJSON *tablesArray = cJSON_CreateArray();
+    for (size_t j = 0; j < act_prof->num_tables; j++) {
+      cJSON *table = cJSON_CreateNumber(act_prof->table_ids[j]);
+      cJSON_AddItemToArray(tablesArray, table);
+    }
+    cJSON_AddItemToObject(aObject, "tables", tablesArray);
+
+    cJSON_AddBoolToObject(aObject, "with_selector", act_prof->with_selector);
+
+    cJSON_AddItemToArray(aArray, aObject);
+  }
+  cJSON_AddItemToObject(root, "act_profs", aArray);
 }
 
 void pi_p4info_act_prof_init(pi_p4info_t *p4info, size_t num_act_profs) {
-  p4info->num_act_profs = num_act_profs;
-  p4info->act_profs = calloc(num_act_profs, sizeof(_act_prof_data_t));
-  p4info->act_prof_name_map = (Pvoid_t)NULL;
-}
-
-void pi_p4info_act_prof_free(pi_p4info_t *p4info) {
-  for (size_t i = 0; i < p4info->num_act_profs; i++) {
-    _act_prof_data_t *act_prof = &p4info->act_profs[i];
-    if (!act_prof->name) continue;
-    free(act_prof->name);
-  }
-  free(p4info->act_profs);
-  Word_t Rc_word;
-  JSLFA(Rc_word, p4info->act_prof_name_map);
+  p4info_init_res(p4info, PI_ACT_PROF_ID, num_act_profs,
+                  sizeof(_act_prof_data_t), free_act_prof_data,
+                  pi_p4info_act_prof_serialize);
 }
 
 void pi_p4info_act_prof_add(pi_p4info_t *p4info, pi_p4_id_t act_prof_id,
@@ -76,10 +93,8 @@ void pi_p4info_act_prof_add(pi_p4info_t *p4info, pi_p4_id_t act_prof_id,
   act_prof->num_tables = 0;
   act_prof->with_selector = with_selector;
 
-  Word_t *act_prof_id_ptr;
-  JSLI(act_prof_id_ptr, p4info->act_prof_name_map,
-       (const uint8_t *)act_prof->name);
-  *act_prof_id_ptr = act_prof_id;
+  p4info_name_map_add(&p4info->act_profs->name_map, act_prof->name,
+                      act_prof_id);
 }
 
 void pi_p4info_act_prof_add_table(pi_p4info_t *p4info, pi_p4_id_t act_prof_id,
@@ -92,10 +107,7 @@ void pi_p4info_act_prof_add_table(pi_p4info_t *p4info, pi_p4_id_t act_prof_id,
 
 pi_p4_id_t pi_p4info_act_prof_id_from_name(const pi_p4info_t *p4info,
                                            const char *name) {
-  Word_t *act_prof_id_ptr;
-  JSLG(act_prof_id_ptr, p4info->act_prof_name_map, (const uint8_t *)name);
-  if (!act_prof_id_ptr) return PI_INVALID_ID;
-  return *act_prof_id_ptr;
+  return p4info_name_map_get(&p4info->act_profs->name_map, name);
 }
 
 const char *pi_p4info_act_prof_name_from_id(const pi_p4info_t *p4info,
@@ -134,12 +146,12 @@ const pi_p4_id_t *pi_p4info_act_prof_get_actions(const pi_p4info_t *p4info,
 #define PI_P4INFO_A_ITERATOR_END ((PI_ACT_PROF_ID << 24) | 0xffffff)
 
 pi_p4_id_t pi_p4info_act_prof_begin(const pi_p4info_t *p4info) {
-  return (p4info->num_act_profs == 0) ? PI_P4INFO_A_ITERATOR_END
+  return (num_act_profs(p4info) == 0) ? PI_P4INFO_A_ITERATOR_END
                                       : PI_P4INFO_A_ITERATOR_FIRST;
 }
 
 pi_p4_id_t pi_p4info_act_prof_next(const pi_p4info_t *p4info, pi_p4_id_t id) {
-  return ((id & 0xffffff) == p4info->num_act_profs - 1)
+  return ((id & 0xffffff) == num_act_profs(p4info) - 1)
              ? PI_P4INFO_A_ITERATOR_END
              : (id + 1);
 }
@@ -147,27 +159,4 @@ pi_p4_id_t pi_p4info_act_prof_next(const pi_p4info_t *p4info, pi_p4_id_t id) {
 pi_p4_id_t pi_p4info_act_prof_end(const pi_p4info_t *p4info) {
   (void)p4info;
   return PI_P4INFO_A_ITERATOR_END;
-}
-
-void pi_p4info_act_prof_serialize(cJSON *root, const pi_p4info_t *p4info) {
-  cJSON *aArray = cJSON_CreateArray();
-  for (size_t i = 0; i < p4info->num_act_profs; i++) {
-    _act_prof_data_t *act_prof = &p4info->act_profs[i];
-    cJSON *aObject = cJSON_CreateObject();
-
-    cJSON_AddStringToObject(aObject, "name", act_prof->name);
-    cJSON_AddNumberToObject(aObject, "id", act_prof->act_prof_id);
-
-    cJSON *tablesArray = cJSON_CreateArray();
-    for (size_t j = 0; j < act_prof->num_tables; j++) {
-      cJSON *table = cJSON_CreateNumber(act_prof->table_ids[j]);
-      cJSON_AddItemToArray(tablesArray, table);
-    }
-    cJSON_AddItemToObject(aObject, "tables", tablesArray);
-
-    cJSON_AddBoolToObject(aObject, "with_selector", act_prof->with_selector);
-
-    cJSON_AddItemToArray(aArray, aObject);
-  }
-  cJSON_AddItemToObject(root, "act_profs", aArray);
 }

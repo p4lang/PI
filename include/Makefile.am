@@ -17,7 +17,8 @@ nobase_include_HEADERS += \
 PI/p4info/actions.h \
 PI/p4info/fields.h \
 PI/p4info/tables.h \
-PI/p4info/act_profs.h
+PI/p4info/act_profs.h \
+PI/p4info/counters.h
 
 nobase_include_HEADERS += \
 PI/int/pi_int.h \

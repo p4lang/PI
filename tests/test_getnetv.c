@@ -21,7 +21,6 @@
 #include "PI/pi_value.h"
 #include "p4info/p4info_struct.h"
 #include "p4info/fields_int.h"
-#include "PI/int/pi_int.h"
 #include "utils/utils.h"
 
 #include "unity/unity_fixture.h"
@@ -34,7 +33,7 @@ static pi_p4info_t *p4info;
 TEST_GROUP(GetNetv);
 
 TEST_SETUP(GetNetv) {
-  p4info = calloc(1, sizeof(pi_p4info_t));
+  pi_add_config(NULL, PI_CONFIG_TYPE_NONE, &p4info);
   pi_p4info_field_init(p4info, 256);
   for (size_t i = 0; i < 256; i++) {
     char name[16];
@@ -43,10 +42,7 @@ TEST_SETUP(GetNetv) {
   }
 }
 
-TEST_TEAR_DOWN(GetNetv) {
-  pi_p4info_field_free(p4info);
-  free(p4info);
-}
+TEST_TEAR_DOWN(GetNetv) { pi_destroy_config(p4info); }
 
 static char get_byte0_mask(size_t bitwidth) {
   if (bitwidth % 8 == 0) return 0xff;

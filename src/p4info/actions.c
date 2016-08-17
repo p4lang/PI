@@ -21,6 +21,7 @@
 #include "PI/p4info/actions.h"
 #include "p4info/p4info_struct.h"
 #include "PI/int/pi_int.h"
+#include "actions_int.h"
 
 #include <cJSON/cJSON.h>
 
@@ -67,9 +68,8 @@ static size_t get_action_idx_from_param_id(pi_p4_id_t param_id) {
 
 static _action_data_t *get_action(const pi_p4info_t *p4info,
                                   pi_p4_id_t action_id) {
-  size_t action_idx = get_action_idx(action_id);
-  assert(action_idx < p4info->num_actions);
-  return &p4info->actions[action_idx];
+  assert(PI_GET_TYPE_ID(action_id) == PI_ACTION_ID);
+  return p4info_get_at(p4info, action_id);
 }
 
 static pi_p4_id_t *get_param_ids(_action_data_t *action) {
@@ -100,33 +100,56 @@ static pi_p4_id_t get_param_id(_action_data_t *action, const char *name) {
   return 0;
 }
 
-void pi_p4info_action_init(pi_p4info_t *p4info, size_t num_actions) {
-  p4info->num_actions = num_actions;
-  p4info->actions = calloc(num_actions, sizeof(_action_data_t));
-  p4info->action_name_map = (Pvoid_t)NULL;
+static size_t num_actions(const pi_p4info_t *p4info) {
+  return p4info->actions->arr.size;
 }
 
-void pi_p4info_action_free(pi_p4info_t *p4info) {
-  for (size_t i = 0; i < p4info->num_actions; i++) {
-    _action_data_t *action = &p4info->actions[i];
-    if (!action->name) continue;
-    free(action->name);
-    _action_param_data_t *params = get_param_data(action);
-    for (size_t j = 0; j < action->num_params; j++) {
-      _action_param_data_t *param = &params[j];
-      if (!param->name) continue;
-      free(param->name);
-    }
-    if (action->num_params > INLINE_PARAMS) {
-      assert(action->param_ids.indirect);
-      assert(action->param_data.indirect);
-      free(action->param_ids.indirect);
-      free(action->param_data.indirect);
-    }
+static void free_action_data(void *data) {
+  _action_data_t *action = (_action_data_t *)data;
+  if (!action->name) return;
+  free(action->name);
+  _action_param_data_t *params = get_param_data(action);
+  for (size_t j = 0; j < action->num_params; j++) {
+    _action_param_data_t *param = &params[j];
+    if (!param->name) continue;
+    free(param->name);
   }
-  free(p4info->actions);
-  Word_t Rc_word;
-  JSLFA(Rc_word, p4info->action_name_map);
+  if (action->num_params > INLINE_PARAMS) {
+    assert(action->param_ids.indirect);
+    assert(action->param_data.indirect);
+    free(action->param_ids.indirect);
+    free(action->param_data.indirect);
+  }
+}
+
+void pi_p4info_action_serialize(cJSON *root, const pi_p4info_t *p4info) {
+  cJSON *aArray = cJSON_CreateArray();
+  const p4info_array_t *actions = &p4info->actions->arr;
+  for (size_t i = 0; i < actions->size; i++) {
+    _action_data_t *action = p4info_array_at(actions, i);
+    cJSON *aObject = cJSON_CreateObject();
+
+    cJSON_AddStringToObject(aObject, "name", action->name);
+    cJSON_AddNumberToObject(aObject, "id", action->action_id);
+
+    cJSON *pArray = cJSON_CreateArray();
+    _action_param_data_t *param_data = get_param_data(action);
+    for (size_t j = 0; j < action->num_params; j++) {
+      cJSON *p = cJSON_CreateObject();
+      cJSON_AddStringToObject(p, "name", param_data[j].name);
+      cJSON_AddNumberToObject(p, "bitwidth", param_data[j].bitwidth);
+      cJSON_AddItemToArray(pArray, p);
+    }
+    cJSON_AddItemToObject(aObject, "params", pArray);
+
+    cJSON_AddItemToArray(aArray, aObject);
+  }
+  cJSON_AddItemToObject(root, "actions", aArray);
+}
+
+void pi_p4info_action_init(pi_p4info_t *p4info, size_t num_actions) {
+  p4info_init_res(p4info, PI_ACTION_ID, num_actions, sizeof(_action_data_t),
+                  free_action_data, pi_p4info_action_serialize);
 }
 
 void pi_p4info_action_add(pi_p4info_t *p4info, pi_p4_id_t action_id,
@@ -141,9 +164,7 @@ void pi_p4info_action_add(pi_p4info_t *p4info, pi_p4_id_t action_id,
         calloc(num_params, sizeof(_action_param_data_t));
   }
 
-  Word_t *action_id_ptr;
-  JSLI(action_id_ptr, p4info->action_name_map, (const uint8_t *)action->name);
-  *action_id_ptr = action_id;
+  p4info_name_map_add(&p4info->actions->name_map, action->name, action_id);
 }
 
 static char get_byte0_mask(size_t bitwidth) {
@@ -179,15 +200,12 @@ void pi_p4info_action_add_param(pi_p4info_t *p4info, pi_p4_id_t action_id,
 }
 
 size_t pi_p4info_action_get_num(const pi_p4info_t *p4info) {
-  return p4info->num_actions;
+  return num_actions(p4info);
 }
 
 pi_p4_id_t pi_p4info_action_id_from_name(const pi_p4info_t *p4info,
                                          const char *name) {
-  Word_t *action_id_ptr;
-  JSLG(action_id_ptr, p4info->action_name_map, (const uint8_t *)name);
-  if (!action_id_ptr) return PI_INVALID_ID;
-  return *action_id_ptr;
+  return p4info_name_map_get(&p4info->actions->name_map, name);
 }
 
 const char *pi_p4info_action_name_from_id(const pi_p4info_t *p4info,
@@ -217,31 +235,33 @@ pi_p4_id_t pi_p4info_action_param_id_from_name(const pi_p4info_t *p4info,
   return get_param_id(action, name);
 }
 
+static _action_data_t *get_action_from_param_id(const pi_p4info_t *p4info,
+                                                pi_p4_id_t param_id) {
+  size_t idx = get_action_idx_from_param_id(param_id);
+  return p4info_array_at(&p4info->actions->arr, idx);
+}
+
 const char *pi_p4info_action_param_name_from_id(const pi_p4info_t *p4info,
                                                 pi_p4_id_t param_id) {
-  _action_data_t *action =
-      &p4info->actions[get_action_idx_from_param_id(param_id)];
+  _action_data_t *action = get_action_from_param_id(p4info, param_id);
   return get_param_data_at(action, param_id)->name;
 }
 
 size_t pi_p4info_action_param_bitwidth(const pi_p4info_t *p4info,
                                        pi_p4_id_t param_id) {
-  _action_data_t *action =
-      &p4info->actions[get_action_idx_from_param_id(param_id)];
+  _action_data_t *action = get_action_from_param_id(p4info, param_id);
   return get_param_data_at(action, param_id)->bitwidth;
 }
 
 char pi_p4info_action_param_byte0_mask(const pi_p4info_t *p4info,
                                        pi_p4_id_t param_id) {
-  _action_data_t *action =
-      &p4info->actions[get_action_idx_from_param_id(param_id)];
+  _action_data_t *action = get_action_from_param_id(p4info, param_id);
   return get_param_data_at(action, param_id)->byte0_mask;
 }
 
 size_t pi_p4info_action_param_offset(const pi_p4info_t *p4info,
                                      pi_p4_id_t param_id) {
-  _action_data_t *action =
-      &p4info->actions[get_action_idx_from_param_id(param_id)];
+  _action_data_t *action = get_action_from_param_id(p4info, param_id);
   return get_param_data_at(action, param_id)->offset;
 }
 
@@ -249,40 +269,16 @@ size_t pi_p4info_action_param_offset(const pi_p4info_t *p4info,
 #define PI_P4INFO_A_ITERATOR_END ((PI_ACTION_ID << 24) | 0xffffff)
 
 pi_p4_id_t pi_p4info_action_begin(const pi_p4info_t *p4info) {
-  return (p4info->num_actions == 0) ? PI_P4INFO_A_ITERATOR_END
+  return (num_actions(p4info) == 0) ? PI_P4INFO_A_ITERATOR_END
                                     : PI_P4INFO_A_ITERATOR_FIRST;
 }
 
 pi_p4_id_t pi_p4info_action_next(const pi_p4info_t *p4info, pi_p4_id_t id) {
-  return ((id & 0xffffff) == p4info->num_actions - 1) ? PI_P4INFO_A_ITERATOR_END
+  return ((id & 0xffffff) == num_actions(p4info) - 1) ? PI_P4INFO_A_ITERATOR_END
                                                       : (id + 1);
 }
 
 pi_p4_id_t pi_p4info_action_end(const pi_p4info_t *p4info) {
   (void)p4info;
   return PI_P4INFO_A_ITERATOR_END;
-}
-
-void pi_p4info_action_serialize(cJSON *root, const pi_p4info_t *p4info) {
-  cJSON *aArray = cJSON_CreateArray();
-  for (size_t i = 0; i < p4info->num_actions; i++) {
-    _action_data_t *action = &p4info->actions[i];
-    cJSON *aObject = cJSON_CreateObject();
-
-    cJSON_AddStringToObject(aObject, "name", action->name);
-    cJSON_AddNumberToObject(aObject, "id", action->action_id);
-
-    cJSON *pArray = cJSON_CreateArray();
-    _action_param_data_t *param_data = get_param_data(action);
-    for (size_t j = 0; j < action->num_params; j++) {
-      cJSON *p = cJSON_CreateObject();
-      cJSON_AddStringToObject(p, "name", param_data[j].name);
-      cJSON_AddNumberToObject(p, "bitwidth", param_data[j].bitwidth);
-      cJSON_AddItemToArray(pArray, p);
-    }
-    cJSON_AddItemToObject(aObject, "params", pArray);
-
-    cJSON_AddItemToArray(aArray, aObject);
-  }
-  cJSON_AddItemToObject(root, "actions", aArray);
 }

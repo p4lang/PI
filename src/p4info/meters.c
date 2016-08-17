@@ -1,0 +1,147 @@
+/* Copyright 2013-present Barefoot Networks, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Antonin Bas (antonin@barefootnetworks.com)
+ *
+ */
+
+#include "PI/p4info/meters.h"
+#include "p4info/p4info_struct.h"
+#include "PI/int/pi_int.h"
+#include "meters_int.h"
+
+#include <cJSON/cJSON.h>
+
+#include <assert.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct _meter_data_s {
+  char *name;
+  pi_p4_id_t meter_id;
+  pi_p4_id_t direct_table;  // PI_INVALID_ID if not direct
+  // TODO(antonin): the API lets us configure this at runtime, do we really need
+  // these?
+  pi_p4info_meter_unit_t meter_unit;
+  pi_p4info_meter_type_t meter_type;
+} _meter_data_t;
+
+static _meter_data_t *get_meter(const pi_p4info_t *p4info,
+                                pi_p4_id_t meter_id) {
+  assert(PI_GET_TYPE_ID(meter_id) == PI_METER_ID);
+  return p4info_get_at(p4info, meter_id);
+}
+
+static size_t num_meters(const pi_p4info_t *p4info) {
+  return p4info->meters->arr.size;
+}
+
+void free_meter_data(void *data) {
+  _meter_data_t *meter = (_meter_data_t *)data;
+  if (!meter->name) return;
+  free(meter->name);
+}
+
+void pi_p4info_meter_serialize(cJSON *root, const pi_p4info_t *p4info) {
+  cJSON *cArray = cJSON_CreateArray();
+  const p4info_array_t *meters = &p4info->meters->arr;
+  for (size_t i = 0; i < meters->size; i++) {
+    _meter_data_t *meter = p4info_array_at(meters, i);
+    cJSON *cObject = cJSON_CreateObject();
+
+    cJSON_AddStringToObject(cObject, "name", meter->name);
+    cJSON_AddNumberToObject(cObject, "id", meter->meter_id);
+    cJSON_AddBoolToObject(cObject, "direct_table", meter->direct_table);
+    cJSON_AddNumberToObject(cObject, "meter_unit", meter->meter_unit);
+    cJSON_AddNumberToObject(cObject, "meter_type", meter->meter_type);
+
+    cJSON_AddItemToArray(cArray, cObject);
+  }
+  cJSON_AddItemToObject(root, "meters", cArray);
+}
+
+void pi_p4info_meter_init(pi_p4info_t *p4info, size_t num_meters) {
+  p4info_init_res(p4info, PI_METER_ID, num_meters, sizeof(_meter_data_t),
+                  free_meter_data, pi_p4info_meter_serialize);
+}
+
+void pi_p4info_meter_add(pi_p4info_t *p4info, pi_p4_id_t meter_id,
+                         const char *name, pi_p4info_meter_unit_t meter_unit,
+                         pi_p4info_meter_type_t meter_type) {
+  _meter_data_t *meter = get_meter(p4info, meter_id);
+  meter->name = strdup(name);
+  meter->meter_id = meter_id;
+  meter->meter_unit = meter_unit;
+  meter->meter_type = meter_type;
+  meter->direct_table = PI_INVALID_ID;
+
+  p4info_name_map_add(&p4info->meters->name_map, meter->name, meter_id);
+}
+
+void pi_p4info_meter_make_direct(pi_p4info_t *p4info, pi_p4_id_t meter_id,
+                                 pi_p4_id_t direct_table_id) {
+  _meter_data_t *meter = get_meter(p4info, meter_id);
+  // TODO(antonin): cannot make direct twice, improve
+  assert(meter->direct_table == PI_INVALID_ID);
+  meter->direct_table = direct_table_id;
+}
+
+pi_p4_id_t pi_p4info_meter_id_from_name(const pi_p4info_t *p4info,
+                                        const char *name) {
+  return p4info_name_map_get(&p4info->meters->name_map, name);
+}
+
+const char *pi_p4info_meter_name_from_id(const pi_p4info_t *p4info,
+                                         pi_p4_id_t meter_id) {
+  _meter_data_t *meter = get_meter(p4info, meter_id);
+  return meter->name;
+}
+
+pi_p4_id_t pi_p4info_meter_get_direct(const pi_p4info_t *p4info,
+                                      pi_p4_id_t meter_id) {
+  _meter_data_t *meter = get_meter(p4info, meter_id);
+  return meter->direct_table;
+}
+
+pi_p4info_meter_unit_t pi_p4info_meter_get_unit(const pi_p4info_t *p4info,
+                                                pi_p4_id_t meter_id) {
+  _meter_data_t *meter = get_meter(p4info, meter_id);
+  return meter->meter_unit;
+}
+
+pi_p4info_meter_type_t pi_p4info_meter_get_type(const pi_p4info_t *p4info,
+                                                pi_p4_id_t meter_id) {
+  _meter_data_t *meter = get_meter(p4info, meter_id);
+  return meter->meter_type;
+}
+
+#define PI_P4INFO_M_ITERATOR_FIRST (PI_METER_ID << 24)
+#define PI_P4INFO_M_ITERATOR_END ((PI_METER_ID << 24) | 0xffffff)
+
+pi_p4_id_t pi_p4info_meter_begin(const pi_p4info_t *p4info) {
+  return (num_meters(p4info) == 0) ? PI_P4INFO_M_ITERATOR_END
+                                   : PI_P4INFO_M_ITERATOR_FIRST;
+}
+
+pi_p4_id_t pi_p4info_meter_next(const pi_p4info_t *p4info, pi_p4_id_t id) {
+  return ((id & 0xffffff) == num_meters(p4info) - 1) ? PI_P4INFO_M_ITERATOR_END
+                                                     : (id + 1);
+}
+
+pi_p4_id_t pi_p4info_meter_end(const pi_p4info_t *p4info) {
+  (void)p4info;
+  return PI_P4INFO_M_ITERATOR_END;
+}

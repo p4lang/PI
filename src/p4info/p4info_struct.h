@@ -21,26 +21,48 @@
 #ifndef PI_SRC_P4INFO_P4INFO_STRUCT_H_
 #define PI_SRC_P4INFO_P4INFO_STRUCT_H_
 
+#include <PI/int/pi_int.h>
+
 #include <stddef.h>
 
 #include <Judy.h>
 
+#include "p4info_vector.h"
+#include "p4info_array.h"
+#include "p4info_name_map.h"
+
+typedef struct cJSON cJSON;
+
+typedef void (*P4InfoSerializeFn)(cJSON *root, const pi_p4info_t *p4info);
+
+typedef struct {
+  int is_init;
+  P4InfoFreeOneFn free_fn;
+  P4InfoSerializeFn serialize_fn;
+  p4info_array_t arr;
+  p4info_name_map_t name_map;
+} pi_p4info_res_t;
+
 struct pi_p4info_s {
-  size_t num_actions;
-  struct _action_data_s *actions;
-  Pvoid_t action_name_map;
+  pi_p4info_res_t resources[256];
 
-  size_t num_tables;
-  struct _table_data_s *tables;
-  Pvoid_t table_name_map;
-
-  size_t num_fields;
-  struct _field_data_s *fields;
-  Pvoid_t field_name_map;
-
-  size_t num_act_profs;
-  struct _act_prof_data_s *act_profs;
-  Pvoid_t act_prof_name_map;
+  // for convenience, maybe remove later
+  pi_p4info_res_t *actions;
+  pi_p4info_res_t *tables;
+  pi_p4info_res_t *fields;
+  pi_p4info_res_t *act_profs;
+  pi_p4info_res_t *counters;
+  pi_p4info_res_t *meters;
 };
+
+static inline void *p4info_get_at(const pi_p4info_t *p4info, pi_p4_id_t id) {
+  const pi_p4info_res_t *res = &p4info->resources[PI_GET_TYPE_ID(id)];
+  size_t idx = id & 0xFFFF;
+  return p4info_array_at(&res->arr, idx);
+}
+
+void p4info_init_res(pi_p4info_t *p4info, int res_type, size_t num,
+                     size_t e_size, P4InfoFreeOneFn free_fn,
+                     P4InfoSerializeFn serialize_fn);
 
 #endif  // PI_SRC_P4INFO_P4INFO_STRUCT_H_

@@ -30,12 +30,26 @@
 #include <cJSON/cJSON.h>
 
 #include <stdlib.h>
+#include <string.h>
 
 pi_status_t pi_add_config(const char *config, pi_config_type_t config_type,
                           pi_p4info_t **p4info) {
   pi_status_t status;
   pi_p4info_t *p4info_ = malloc(sizeof(pi_p4info_t));
+  memset(p4info_, 0, sizeof(*p4info_));
+
+  // for convenience
+  p4info_->actions = &p4info_->resources[PI_ACTION_ID];
+  p4info_->tables = &p4info_->resources[PI_TABLE_ID];
+  p4info_->fields = &p4info_->resources[PI_FIELD_ID];
+  p4info_->act_profs = &p4info_->resources[PI_ACT_PROF_ID];
+  p4info_->counters = &p4info_->resources[PI_COUNTER_ID];
+  p4info_->meters = &p4info_->resources[PI_METER_ID];
+
   switch (config_type) {
+    case PI_CONFIG_TYPE_NONE:
+      status = PI_STATUS_SUCCESS;
+      break;
     case PI_CONFIG_TYPE_BMV2_JSON:
       status = pi_bmv2_json_reader(config, p4info_);
       break;
@@ -64,20 +78,30 @@ pi_status_t pi_add_config_from_file(const char *config_path,
 }
 
 pi_status_t pi_destroy_config(pi_p4info_t *p4info) {
-  pi_p4info_action_free(p4info);
-  pi_p4info_table_free(p4info);
-  pi_p4info_field_free(p4info);
-  pi_p4info_act_prof_free(p4info);
+  for (size_t i = 0;
+       i < sizeof(p4info->resources) / sizeof(p4info->resources[0]); i++) {
+    pi_p4info_res_t *res = &p4info->resources[i];
+    if (!res->is_init) continue;
+    assert(res->free_fn);
+    p4info_array_destroy(&res->arr, res->free_fn);
+    p4info_name_map_destroy(&res->name_map);
+  }
+
   free(p4info);
   return PI_STATUS_SUCCESS;
 }
 
 char *pi_serialize_config(const pi_p4info_t *p4info, int fmt) {
   cJSON *root = cJSON_CreateObject();
-  pi_p4info_field_serialize(root, p4info);
-  pi_p4info_action_serialize(root, p4info);
-  pi_p4info_table_serialize(root, p4info);
-  pi_p4info_act_prof_serialize(root, p4info);
+
+  for (size_t i = 0;
+       i < sizeof(p4info->resources) / sizeof(p4info->resources[0]); i++) {
+    const pi_p4info_res_t *res = &p4info->resources[i];
+    if (!res->is_init) continue;
+    assert(res->serialize_fn);
+    res->serialize_fn(root, p4info);
+  }
+
   // TODO(antonin): use cJSON_PrintBuffered for better performance if needed
   char *str = (fmt) ? cJSON_Print(root) : cJSON_PrintUnformatted(root);
   cJSON_Delete(root);

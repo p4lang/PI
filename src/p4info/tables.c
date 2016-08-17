@@ -64,16 +64,10 @@ typedef struct _table_data_s {
   pi_p4_id_t implementation;
 } _table_data_t;
 
-static size_t get_table_idx(pi_p4_id_t table_id) {
-  assert(PI_GET_TYPE_ID(table_id) == PI_TABLE_ID);
-  return table_id & 0xFFFF;
-}
-
 static _table_data_t *get_table(const pi_p4info_t *p4info,
                                 pi_p4_id_t table_id) {
-  size_t table_idx = get_table_idx(table_id);
-  assert(table_idx < p4info->num_tables);
-  return &p4info->tables[table_idx];
+  assert(PI_GET_TYPE_ID(table_id) == PI_TABLE_ID);
+  return p4info_get_at(p4info, table_id);
 }
 
 static pi_p4_id_t *get_match_field_ids(_table_data_t *table) {
@@ -93,37 +87,73 @@ static pi_p4_id_t *get_action_ids(_table_data_t *table) {
                                                 : table->action_ids.indirect;
 }
 
-void pi_p4info_table_init(pi_p4info_t *p4info, size_t num_tables) {
-  p4info->num_tables = num_tables;
-  p4info->tables = calloc(num_tables, sizeof(_table_data_t));
-  p4info->table_name_map = (Pvoid_t)NULL;
+static size_t num_tables(const pi_p4info_t *p4info) {
+  return p4info->tables->arr.size;
 }
 
-void pi_p4info_table_free(pi_p4info_t *p4info) {
-  for (size_t i = 0; i < p4info->num_tables; i++) {
-    _table_data_t *table = &p4info->tables[i];
-    if (!table->name) continue;
-    free(table->name);
-    _match_field_data_t *match_fields = get_match_field_data(table);
-    for (size_t j = 0; j < table->num_match_fields; j++) {
-      _match_field_data_t *match_field = &match_fields[j];
-      if (!match_field->name) continue;
-      free(match_field->name);
-    }
-    if (table->num_match_fields > INLINE_MATCH_FIELDS) {
-      assert(table->match_field_ids.indirect);
-      assert(table->match_field_data.indirect);
-      free(table->match_field_ids.indirect);
-      free(table->match_field_data.indirect);
-    }
-    if (table->num_actions > INLINE_ACTIONS) {
-      assert(table->action_ids.indirect);
-      free(table->action_ids.indirect);
-    }
+void free_table_data(void *data) {
+  _table_data_t *table = (_table_data_t *)data;
+  if (!table->name) return;
+  free(table->name);
+  _match_field_data_t *match_fields = get_match_field_data(table);
+  for (size_t j = 0; j < table->num_match_fields; j++) {
+    _match_field_data_t *match_field = &match_fields[j];
+    if (!match_field->name) continue;
+    free(match_field->name);
   }
-  free(p4info->tables);
-  Word_t Rc_word;
-  JSLFA(Rc_word, p4info->table_name_map);
+  if (table->num_match_fields > INLINE_MATCH_FIELDS) {
+    assert(table->match_field_ids.indirect);
+    assert(table->match_field_data.indirect);
+    free(table->match_field_ids.indirect);
+    free(table->match_field_data.indirect);
+  }
+  if (table->num_actions > INLINE_ACTIONS) {
+    assert(table->action_ids.indirect);
+    free(table->action_ids.indirect);
+  }
+}
+
+void pi_p4info_table_serialize(cJSON *root, const pi_p4info_t *p4info) {
+  cJSON *tArray = cJSON_CreateArray();
+  const p4info_array_t *tables = &p4info->tables->arr;
+  for (size_t i = 0; i < tables->size; i++) {
+    _table_data_t *table = p4info_array_at(tables, i);
+    cJSON *tObject = cJSON_CreateObject();
+
+    cJSON_AddStringToObject(tObject, "name", table->name);
+    cJSON_AddNumberToObject(tObject, "id", table->table_id);
+
+    cJSON *mfArray = cJSON_CreateArray();
+    _match_field_data_t *mf_data = get_match_field_data(table);
+    for (size_t j = 0; j < table->num_match_fields; j++) {
+      cJSON *mf = cJSON_CreateObject();
+      cJSON_AddNumberToObject(mf, "id", mf_data[j].field_id);
+      cJSON_AddNumberToObject(mf, "match_type", mf_data[j].match_type);
+      cJSON_AddItemToArray(mfArray, mf);
+    }
+    cJSON_AddItemToObject(tObject, "match_fields", mfArray);
+
+    cJSON *actionsArray = cJSON_CreateArray();
+    pi_p4_id_t *action_ids = get_action_ids(table);
+    for (size_t j = 0; j < table->num_actions; j++) {
+      cJSON *action = cJSON_CreateNumber(action_ids[j]);
+      cJSON_AddItemToArray(actionsArray, action);
+    }
+    cJSON_AddItemToObject(tObject, "actions", actionsArray);
+
+    cJSON_AddNumberToObject(tObject, "const_default_action_id",
+                            table->const_default_action_id);
+
+    cJSON_AddNumberToObject(tObject, "implementation", table->implementation);
+
+    cJSON_AddItemToArray(tArray, tObject);
+  }
+  cJSON_AddItemToObject(root, "tables", tArray);
+}
+
+void pi_p4info_table_init(pi_p4info_t *p4info, size_t num_tables) {
+  p4info_init_res(p4info, PI_TABLE_ID, num_tables, sizeof(_table_data_t),
+                  free_table_data, pi_p4info_table_serialize);
 }
 
 void pi_p4info_table_add(pi_p4info_t *p4info, pi_p4_id_t table_id,
@@ -147,9 +177,7 @@ void pi_p4info_table_add(pi_p4info_t *p4info, pi_p4_id_t table_id,
   table->const_default_action_id = PI_INVALID_ID;
   table->implementation = PI_INVALID_ID;
 
-  Word_t *table_id_ptr;
-  JSLI(table_id_ptr, p4info->table_name_map, (const uint8_t *)table->name);
-  *table_id_ptr = table_id;
+  p4info_name_map_add(&p4info->tables->name_map, table->name, table_id);
 }
 
 void pi_p4info_table_add_match_field(pi_p4info_t *p4info, pi_p4_id_t table_id,
@@ -205,11 +233,7 @@ void pi_p4info_table_set_const_default_action(pi_p4info_t *p4info,
 
 pi_p4_id_t pi_p4info_table_id_from_name(const pi_p4info_t *p4info,
                                         const char *name) {
-  Word_t *table_id_ptr;
-  JSLG(table_id_ptr, p4info->table_name_map, (const uint8_t *)name);
-  if (!table_id_ptr) return PI_INVALID_ID;
-  assert(table_id_ptr);
-  return *table_id_ptr;
+  return p4info_name_map_get(&p4info->tables->name_map, name);
 }
 
 const char *pi_p4info_table_name_from_id(const pi_p4info_t *p4info,
@@ -317,53 +341,16 @@ pi_p4_id_t pi_p4info_table_get_implementation(const pi_p4info_t *p4info,
 #define PI_P4INFO_T_ITERATOR_END ((PI_TABLE_ID << 24) | 0xffffff)
 
 pi_p4_id_t pi_p4info_table_begin(const pi_p4info_t *p4info) {
-  return (p4info->num_tables == 0) ? PI_P4INFO_T_ITERATOR_END
+  return (num_tables(p4info) == 0) ? PI_P4INFO_T_ITERATOR_END
                                    : PI_P4INFO_T_ITERATOR_FIRST;
 }
 
 pi_p4_id_t pi_p4info_table_next(const pi_p4info_t *p4info, pi_p4_id_t id) {
-  return ((id & 0xffffff) == p4info->num_tables - 1) ? PI_P4INFO_T_ITERATOR_END
+  return ((id & 0xffffff) == num_tables(p4info) - 1) ? PI_P4INFO_T_ITERATOR_END
                                                      : (id + 1);
 }
 
 pi_p4_id_t pi_p4info_table_end(const pi_p4info_t *p4info) {
   (void)p4info;
   return PI_P4INFO_T_ITERATOR_END;
-}
-
-void pi_p4info_table_serialize(cJSON *root, const pi_p4info_t *p4info) {
-  cJSON *tArray = cJSON_CreateArray();
-  for (size_t i = 0; i < p4info->num_tables; i++) {
-    _table_data_t *table = &p4info->tables[i];
-    cJSON *tObject = cJSON_CreateObject();
-
-    cJSON_AddStringToObject(tObject, "name", table->name);
-    cJSON_AddNumberToObject(tObject, "id", table->table_id);
-
-    cJSON *mfArray = cJSON_CreateArray();
-    _match_field_data_t *mf_data = get_match_field_data(table);
-    for (size_t j = 0; j < table->num_match_fields; j++) {
-      cJSON *mf = cJSON_CreateObject();
-      cJSON_AddNumberToObject(mf, "id", mf_data[j].field_id);
-      cJSON_AddNumberToObject(mf, "match_type", mf_data[j].match_type);
-      cJSON_AddItemToArray(mfArray, mf);
-    }
-    cJSON_AddItemToObject(tObject, "match_fields", mfArray);
-
-    cJSON *actionsArray = cJSON_CreateArray();
-    pi_p4_id_t *action_ids = get_action_ids(table);
-    for (size_t j = 0; j < table->num_actions; j++) {
-      cJSON *action = cJSON_CreateNumber(action_ids[j]);
-      cJSON_AddItemToArray(actionsArray, action);
-    }
-    cJSON_AddItemToObject(tObject, "actions", actionsArray);
-
-    cJSON_AddNumberToObject(tObject, "const_default_action_id",
-                            table->const_default_action_id);
-
-    cJSON_AddNumberToObject(tObject, "implementation", table->implementation);
-
-    cJSON_AddItemToArray(tArray, tObject);
-  }
-  cJSON_AddItemToObject(root, "tables", tArray);
 }

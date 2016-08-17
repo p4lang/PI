@@ -18,17 +18,21 @@
  *
  */
 
-#ifndef PI_SRC_P4INFO_FIELDS_INT_H_
-#define PI_SRC_P4INFO_FIELDS_INT_H_
+#ifndef PI_SRC_P4INFO_COUNTERS_INT_H_
+#define PI_SRC_P4INFO_COUNTERS_INT_H_
 
-#include "PI/p4info/fields.h"
+#include "PI/p4info/counters.h"
 
-void pi_p4info_field_init(pi_p4info_t *p4info, size_t num_fields);
+void pi_p4info_counter_init(pi_p4info_t *p4info, size_t num_counters);
 
-void pi_p4info_field_add(pi_p4info_t *p4info, pi_p4_id_t field_id,
-                         const char *name, size_t bitwidth);
+void pi_p4info_counter_add(pi_p4info_t *p4info, pi_p4_id_t counter_id,
+                           const char *name,
+                           pi_p4info_counter_unit_t counter_unit);
+
+void pi_p4info_counter_make_direct(pi_p4info_t *p4info, pi_p4_id_t counter_id,
+                                   pi_p4_id_t direct_table_id);
 
 typedef struct cJSON cJSON;
-void pi_p4info_field_serialize(cJSON *root, const pi_p4info_t *p4info);
+void pi_p4info_counter_serialize(cJSON *root, const pi_p4info_t *p4info);
 
-#endif  // PI_SRC_P4INFO_FIELDS_INT_H_
+#endif  // PI_SRC_P4INFO_COUNTERS_INT_H_

@@ -18,17 +18,15 @@
  *
  */
 
-#ifndef PI_SRC_P4INFO_FIELDS_INT_H_
-#define PI_SRC_P4INFO_FIELDS_INT_H_
+#include "p4info_struct.h"
 
-#include "PI/p4info/fields.h"
-
-void pi_p4info_field_init(pi_p4info_t *p4info, size_t num_fields);
-
-void pi_p4info_field_add(pi_p4info_t *p4info, pi_p4_id_t field_id,
-                         const char *name, size_t bitwidth);
-
-typedef struct cJSON cJSON;
-void pi_p4info_field_serialize(cJSON *root, const pi_p4info_t *p4info);
-
-#endif  // PI_SRC_P4INFO_FIELDS_INT_H_
+void p4info_init_res(pi_p4info_t *p4info, int res_type, size_t num,
+                     size_t e_size, P4InfoFreeOneFn free_fn,
+                     P4InfoSerializeFn serialize_fn) {
+  pi_p4info_res_t *res = &p4info->resources[res_type];
+  res->is_init = 1;
+  res->free_fn = free_fn;
+  res->serialize_fn = serialize_fn;
+  p4info_array_create(&res->arr, e_size, num);
+  res->name_map = (p4info_name_map_t)NULL;
+}
