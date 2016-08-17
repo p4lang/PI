@@ -41,9 +41,9 @@ typedef enum {
 } pi_meter_type_t;
 
 typedef struct {
-  uint32_t cir;
+  uint64_t cir;
   uint32_t cburst;
-  uint32_t pir;
+  uint64_t pir;
   uint32_t pburst;
   pi_meter_unit_t meter_unit;
   pi_meter_type_t meter_type;

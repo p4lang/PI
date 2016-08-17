@@ -63,6 +63,8 @@ typedef enum {
 
   PI_STATUS_OUT_OF_BOUND_IDX,
 
+  PI_STATUS_NOT_IMPLEMENTED_BY_TARGET,
+
   // everything above 1000 is reserved for targets
   PI_STATUS_TARGET_ERROR = 1000
 } pi_status_t;
