@@ -37,6 +37,7 @@ typedef struct _meter_data_s {
   // these?
   pi_p4info_meter_unit_t meter_unit;
   pi_p4info_meter_type_t meter_type;
+  size_t size;
 } _meter_data_t;
 
 static _meter_data_t *get_meter(const pi_p4info_t *p4info,
@@ -56,21 +57,22 @@ void free_meter_data(void *data) {
 }
 
 void pi_p4info_meter_serialize(cJSON *root, const pi_p4info_t *p4info) {
-  cJSON *cArray = cJSON_CreateArray();
+  cJSON *mArray = cJSON_CreateArray();
   const p4info_array_t *meters = &p4info->meters->arr;
   for (size_t i = 0; i < meters->size; i++) {
     _meter_data_t *meter = p4info_array_at(meters, i);
-    cJSON *cObject = cJSON_CreateObject();
+    cJSON *mObject = cJSON_CreateObject();
 
-    cJSON_AddStringToObject(cObject, "name", meter->name);
-    cJSON_AddNumberToObject(cObject, "id", meter->meter_id);
-    cJSON_AddBoolToObject(cObject, "direct_table", meter->direct_table);
-    cJSON_AddNumberToObject(cObject, "meter_unit", meter->meter_unit);
-    cJSON_AddNumberToObject(cObject, "meter_type", meter->meter_type);
+    cJSON_AddStringToObject(mObject, "name", meter->name);
+    cJSON_AddNumberToObject(mObject, "id", meter->meter_id);
+    cJSON_AddBoolToObject(mObject, "direct_table", meter->direct_table);
+    cJSON_AddNumberToObject(mObject, "meter_unit", meter->meter_unit);
+    cJSON_AddNumberToObject(mObject, "meter_type", meter->meter_type);
+    cJSON_AddNumberToObject(mObject, "size", meter->size);
 
-    cJSON_AddItemToArray(cArray, cObject);
+    cJSON_AddItemToArray(mArray, mObject);
   }
-  cJSON_AddItemToObject(root, "meters", cArray);
+  cJSON_AddItemToObject(root, "meters", mArray);
 }
 
 void pi_p4info_meter_init(pi_p4info_t *p4info, size_t num_meters) {
@@ -80,13 +82,14 @@ void pi_p4info_meter_init(pi_p4info_t *p4info, size_t num_meters) {
 
 void pi_p4info_meter_add(pi_p4info_t *p4info, pi_p4_id_t meter_id,
                          const char *name, pi_p4info_meter_unit_t meter_unit,
-                         pi_p4info_meter_type_t meter_type) {
+                         pi_p4info_meter_type_t meter_type, size_t size) {
   _meter_data_t *meter = get_meter(p4info, meter_id);
   meter->name = strdup(name);
   meter->meter_id = meter_id;
   meter->meter_unit = meter_unit;
   meter->meter_type = meter_type;
   meter->direct_table = PI_INVALID_ID;
+  meter->size = size;
 
   p4info_name_map_add(&p4info->meters->name_map, meter->name, meter_id);
 }
@@ -126,6 +129,12 @@ pi_p4info_meter_type_t pi_p4info_meter_get_type(const pi_p4info_t *p4info,
                                                 pi_p4_id_t meter_id) {
   _meter_data_t *meter = get_meter(p4info, meter_id);
   return meter->meter_type;
+}
+
+size_t pi_p4info_meter_get_size(const pi_p4info_t *p4info,
+                                pi_p4_id_t meter_id) {
+  _meter_data_t *meter = get_meter(p4info, meter_id);
+  return meter->size;
 }
 
 #define PI_P4INFO_M_ITERATOR_FIRST (PI_METER_ID << 24)

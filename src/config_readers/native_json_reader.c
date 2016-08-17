@@ -23,6 +23,8 @@
 #include "p4info/tables_int.h"
 #include "p4info/fields_int.h"
 #include "p4info/act_profs_int.h"
+#include "p4info/counters_int.h"
+#include "p4info/meters_int.h"
 #include "PI/int/pi_int.h"
 
 #include <cJSON/cJSON.h>
@@ -192,6 +194,79 @@ static pi_status_t read_act_profs(cJSON *root, pi_p4info_t *p4info) {
   return PI_STATUS_SUCCESS;
 }
 
+static pi_status_t read_counters(cJSON *root, pi_p4info_t *p4info) {
+  assert(root);
+  cJSON *counters = cJSON_GetObjectItem(root, "counters");
+  if (!counters) return PI_STATUS_CONFIG_READER_ERROR;
+  size_t num_counters = cJSON_GetArraySize(counters);
+  pi_p4info_counter_init(p4info, num_counters);
+
+  cJSON *counter;
+  cJSON_ArrayForEach(counter, counters) {
+    const cJSON *item;
+    item = cJSON_GetObjectItem(counter, "name");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    const char *name = item->valuestring;
+    item = cJSON_GetObjectItem(counter, "id");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    pi_p4_id_t pi_id = item->valueint;
+    item = cJSON_GetObjectItem(counter, "direct_table");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    pi_p4_id_t direct_tid = item->valueint;
+    item = cJSON_GetObjectItem(counter, "counter_unit");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    pi_p4info_counter_unit_t counter_unit = item->valueint;
+    item = cJSON_GetObjectItem(counter, "size");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    size_t size = item->valueint;
+
+    pi_p4info_counter_add(p4info, pi_id, name, counter_unit, size);
+
+    if (direct_tid != PI_INVALID_ID)
+      pi_p4info_counter_make_direct(p4info, pi_id, direct_tid);
+  }
+
+  return PI_STATUS_SUCCESS;
+}
+
+static pi_status_t read_meters(cJSON *root, pi_p4info_t *p4info) {
+  assert(root);
+  cJSON *meters = cJSON_GetObjectItem(root, "meters");
+  if (!meters) return PI_STATUS_CONFIG_READER_ERROR;
+  size_t num_meters = cJSON_GetArraySize(meters);
+  pi_p4info_meter_init(p4info, num_meters);
+
+  cJSON *meter;
+  cJSON_ArrayForEach(meter, meters) {
+    const cJSON *item;
+    item = cJSON_GetObjectItem(meter, "name");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    const char *name = item->valuestring;
+    item = cJSON_GetObjectItem(meter, "id");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    pi_p4_id_t pi_id = item->valueint;
+    item = cJSON_GetObjectItem(meter, "direct_table");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    pi_p4_id_t direct_tid = item->valueint;
+    item = cJSON_GetObjectItem(meter, "meter_unit");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    pi_p4info_meter_unit_t meter_unit = item->valueint;
+    item = cJSON_GetObjectItem(meter, "meter_type");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    pi_p4info_meter_type_t meter_type = item->valueint;
+    item = cJSON_GetObjectItem(meter, "size");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    size_t size = item->valueint;
+
+    pi_p4info_meter_add(p4info, pi_id, name, meter_unit, meter_type, size);
+
+    if (direct_tid != PI_INVALID_ID)
+      pi_p4info_meter_make_direct(p4info, pi_id, direct_tid);
+  }
+
+  return PI_STATUS_SUCCESS;
+}
+
 pi_status_t pi_native_json_reader(const char *config, pi_p4info_t *p4info) {
   cJSON *root = cJSON_Parse(config);
   if (!root) return PI_STATUS_CONFIG_READER_ERROR;
@@ -211,6 +286,14 @@ pi_status_t pi_native_json_reader(const char *config, pi_p4info_t *p4info) {
   }
 
   if ((status = read_act_profs(root, p4info)) != PI_STATUS_SUCCESS) {
+    return status;
+  }
+
+  if ((status = read_counters(root, p4info)) != PI_STATUS_SUCCESS) {
+    return status;
+  }
+
+  if ((status = read_meters(root, p4info)) != PI_STATUS_SUCCESS) {
     return status;
   }
 

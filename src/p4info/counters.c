@@ -34,6 +34,7 @@ typedef struct _counter_data_s {
   pi_p4_id_t counter_id;
   pi_p4_id_t direct_table;                // PI_INVALID_ID if not direct
   pi_p4info_counter_unit_t counter_unit;  // mostly ignored
+  size_t size;
 } _counter_data_t;
 
 static _counter_data_t *get_counter(const pi_p4info_t *p4info,
@@ -63,6 +64,7 @@ void pi_p4info_counter_serialize(cJSON *root, const pi_p4info_t *p4info) {
     cJSON_AddNumberToObject(cObject, "id", counter->counter_id);
     cJSON_AddBoolToObject(cObject, "direct_table", counter->direct_table);
     cJSON_AddNumberToObject(cObject, "counter_unit", counter->counter_unit);
+    cJSON_AddNumberToObject(cObject, "size", counter->size);
 
     cJSON_AddItemToArray(cArray, cObject);
   }
@@ -76,12 +78,13 @@ void pi_p4info_counter_init(pi_p4info_t *p4info, size_t num_counters) {
 
 void pi_p4info_counter_add(pi_p4info_t *p4info, pi_p4_id_t counter_id,
                            const char *name,
-                           pi_p4info_counter_unit_t counter_unit) {
+                           pi_p4info_counter_unit_t counter_unit, size_t size) {
   _counter_data_t *counter = get_counter(p4info, counter_id);
   counter->name = strdup(name);
   counter->counter_id = counter_id;
   counter->counter_unit = counter_unit;
   counter->direct_table = PI_INVALID_ID;
+  counter->size = size;
 
   p4info_name_map_add(&p4info->counters->name_map, counter->name, counter_id);
 }
@@ -115,6 +118,12 @@ pi_p4info_counter_unit_t pi_p4info_counter_get_unit(const pi_p4info_t *p4info,
                                                     pi_p4_id_t counter_id) {
   _counter_data_t *counter = get_counter(p4info, counter_id);
   return counter->counter_unit;
+}
+
+size_t pi_p4info_counter_get_size(const pi_p4info_t *p4info,
+                                  pi_p4_id_t counter_id) {
+  _counter_data_t *counter = get_counter(p4info, counter_id);
+  return counter->size;
 }
 
 #define PI_P4INFO_C_ITERATOR_FIRST (PI_COUNTER_ID << 24)

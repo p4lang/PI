@@ -27,7 +27,7 @@ void pi_p4info_meter_init(pi_p4info_t *p4info, size_t num_meters);
 
 void pi_p4info_meter_add(pi_p4info_t *p4info, pi_p4_id_t meter_id,
                          const char *name, pi_p4info_meter_unit_t meter_unit,
-                         pi_p4info_meter_type_t meter_type);
+                         pi_p4info_meter_type_t meter_type, size_t size);
 
 void pi_p4info_meter_make_direct(pi_p4info_t *p4info, pi_p4_id_t meter_id,
                                  pi_p4_id_t direct_table_id);

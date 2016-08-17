@@ -42,6 +42,9 @@ pi_p4_id_t pi_p4info_counter_get_direct(const pi_p4info_t *p4info,
 pi_p4info_counter_unit_t pi_p4info_counter_get_unit(const pi_p4info_t *p4info,
                                                     pi_p4_id_t counter_id);
 
+size_t pi_p4info_counter_get_size(const pi_p4info_t *p4info,
+                                  pi_p4_id_t counter_id);
+
 pi_p4_id_t pi_p4info_counter_begin(const pi_p4info_t *p4info);
 pi_p4_id_t pi_p4info_counter_next(const pi_p4info_t *p4info, pi_p4_id_t id);
 pi_p4_id_t pi_p4info_counter_end(const pi_p4info_t *p4info);
