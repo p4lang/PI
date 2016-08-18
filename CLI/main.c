@@ -148,6 +148,13 @@ static void init_cmd_map() {
                table_indirect_create_member_hs,
                complete_table_indirect_create_member,
                PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
+
+  register_cmd("counter_read", do_counter_read, counter_read_hs,
+               complete_counter_read, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
+  register_cmd("counter_write", do_counter_write, counter_write_hs,
+               complete_counter_write, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
+  register_cmd("counter_reset", do_counter_reset, counter_reset_hs,
+               complete_counter_reset, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
 }
 
 static void cleanup() {
@@ -245,8 +252,12 @@ char **CLI_completion(const char *text, int start, int end) {
     *e = '\0';
     cmd_data_t *cmd_data = get_cmd_data(rl_line_buffer);
     *e = saved_e;
-    if (cmd_data && cmd_data->comp_ptr)
-      matches = rl_completion_matches(text, cmd_data->comp_ptr);
+    if (cmd_data && cmd_data->comp_ptr) {
+      if (!(cmd_data->flags & PI_CLI_CMD_FLAGS_REQUIRES_DEVICE) ||
+          is_device_selected) {
+        matches = rl_completion_matches(text, cmd_data->comp_ptr);
+      }
+    }
   }
 
   return matches;

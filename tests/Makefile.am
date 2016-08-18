@@ -64,4 +64,5 @@ test_all
 EXTRA_DIST = \
 testdata/simple_router.json \
 testdata/valid.json \
-testdata/ecmp.json
+testdata/ecmp.json \
+testdata/stats.json

@@ -58,7 +58,7 @@ char *complete_p4_table(const char *text, int len, int state) {
   }
   return NULL;
 }
-#include <stdio.h>
+
 char *complete_p4_action(const char *text, int len, int state,
                          const char *table) {
   static pi_p4_id_t t_id;
@@ -90,6 +90,26 @@ size_t parse_fixed_args(char *s, const char **dest, size_t expected) {
     if (!dest[i]) return i;
   }
   return expected;
+}
+
+void parse_kv_pair(char *s, char **k, char **v) {
+  *k = NULL;
+  *v = NULL;
+  char *v_ = NULL;
+  char *token = strtok(s, " ");
+  if (!token) return;
+  char *eq = strchr(token, '=');
+  if (eq) {
+    *eq = '\0';
+    v_ = eq + 1;
+    for (v_ = eq + 1; *v_ == ' '; v_++)
+      ;
+    for (eq = eq - 1; *eq == ' ' && *eq != '\0'; eq--) *eq = '\0';
+    for (char *endv = strchr(v_, '\0') - 1; *endv == ' ' && endv >= v_; endv--)
+      *endv = '\0';
+  }
+  *k = token;
+  *v = v_;
 }
 
 static int try_to_parse_ipv4(char *param, char *bytes) {

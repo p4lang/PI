@@ -160,7 +160,9 @@ def main():
 
     def parse_data(s, pattern):
         # m = re.findall("{}.*\n(.*)\n(?={})".format(pattern, pattern), s)
-        m = re.findall("{}[^\n]*\n(.*?)\n(?={})".format(pattern, pattern), s,
+        # Note how the second \n is optional (\n?), this is to accomodate
+        # commands with an empty output
+        m = re.findall("{}[^\n]*\n(.*?)\n?(?={})".format(pattern, pattern), s,
                        re.DOTALL)
         return m
 

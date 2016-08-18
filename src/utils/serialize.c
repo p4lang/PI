@@ -18,8 +18,9 @@
  *
  */
 
-#include "PI/pi_base.h"
-#include "PI/pi_tables.h"
+#include <PI/pi_base.h>
+#include <PI/pi_tables.h>
+#include <PI/pi_counter.h>
 
 #include <stdint.h>
 #include <string.h>
@@ -64,6 +65,18 @@ size_t emit_session_handle(char *dst, pi_session_handle_t v) {
 
 size_t emit_action_entry_type(char *dst, pi_action_entry_type_t v) {
   return emit_uint32(dst, v);
+}
+
+size_t emit_counter_value(char *dst, pi_counter_value_t v) {
+  return emit_uint64(dst, v);
+}
+
+size_t emit_counter_data(char *dst, const pi_counter_data_t *v) {
+  size_t s = 0;
+  s += emit_uint32(dst, v->valid);
+  s += emit_counter_value(dst + s, v->bytes);
+  s += emit_counter_value(dst + s, v->packets);
+  return s;
 }
 
 size_t retrieve_uint32(const char *src, uint32_t *v) {
@@ -114,4 +127,18 @@ size_t retrieve_session_handle(const char *src, pi_session_handle_t *v) {
 
 size_t retrieve_action_entry_type(const char *src, pi_action_entry_type_t *v) {
   return retrieve_uint32(src, v);
+}
+
+size_t retrieve_counter_value(const char *src, pi_counter_value_t *v) {
+  return retrieve_uint64(src, v);
+}
+
+size_t retrieve_counter_data(const char *src, pi_counter_data_t *v) {
+  size_t s = 0;
+  uint32_t tmp32;
+  s += retrieve_uint32(src, &tmp32);
+  v->valid = tmp32;
+  s += retrieve_counter_value(src + s, &v->bytes);
+  s += retrieve_counter_value(src + s, &v->packets);
+  return s;
 }

@@ -64,6 +64,8 @@ const char *error_code_to_string(pi_cli_status_t error) {
       return "Invalid P4 config id";
     case PI_CLI_STATUS_ERROR:
       return "Other error";
+    case PI_CLI_STATUS_INVALID_COUNTER_NAME:
+      return "Invalid counter name";
   }
   return "Unknown error";
 }

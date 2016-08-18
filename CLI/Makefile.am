@@ -7,6 +7,7 @@ CPPFLAGS = -I$(top_srcdir)/include
 libpicli_la_SOURCES = \
 commands.h \
 add_p4.c \
+counter_commands.c \
 device_commands.c \
 table_add.c \
 table_delete.c \

@@ -56,6 +56,25 @@ BmCounterValue convert_from_counter_data(const pi_counter_data_t *from) {
   return to;
 }
 
+bool are_both_values_set(const pi_counter_data_t *counter_data) {
+  return (counter_data->valid & PI_COUNTER_UNIT_BYTES) &&
+      (counter_data->valid & PI_COUNTER_UNIT_PACKETS);
+}
+
+void merge_current_value(pi_counter_data_t *desired_data,
+                         const pi_counter_data_t *curr_data) {
+  if (!(desired_data->valid & PI_COUNTER_UNIT_BYTES)) {
+    assert(curr_data->valid & PI_COUNTER_UNIT_BYTES);
+    desired_data->valid |= PI_COUNTER_UNIT_BYTES;
+    desired_data->bytes = curr_data->bytes;
+  }
+  if (!(desired_data->valid & PI_COUNTER_UNIT_PACKETS)) {
+    assert(curr_data->valid & PI_COUNTER_UNIT_PACKETS);
+    desired_data->valid |= PI_COUNTER_UNIT_PACKETS;
+    desired_data->packets = curr_data->packets;
+  }
+}
+
 std::string get_direct_t_name(const pi_p4info_t *p4info, pi_p4_id_t c_id) {
   pi_p4_id_t t_id = pi_p4info_counter_get_direct(p4info, c_id);
   // guaranteed by PI common code
@@ -107,7 +126,18 @@ pi_status_t _pi_counter_write(pi_session_handle_t session_handle,
   const pi_p4info_t *p4info = d_info->p4info;
   std::string c_name(pi_p4info_counter_name_from_id(p4info, counter_id));
 
-  BmCounterValue value = convert_from_counter_data(counter_data);
+  // very poor man solution: bmv2 does not (yet) let us set only one of bytes /
+  // packets, so we first retrieve the current data and use it
+  pi_counter_data_t desired_data = *counter_data;
+  if (!are_both_values_set(counter_data)) {
+    pi_counter_data_t curr_data;
+    pi_status_t status = _pi_counter_read(session_handle, dev_tgt,
+                                          counter_id, index, 0, &curr_data);
+    if (status != PI_STATUS_SUCCESS) return status;
+    merge_current_value(&desired_data, &curr_data);
+  }
+
+  BmCounterValue value = convert_from_counter_data(&desired_data);
   auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_tgt.dev_id);
   try {
     client.c->bm_counter_write(0, c_name, index, value);
@@ -163,7 +193,19 @@ pi_status_t _pi_counter_write_direct(pi_session_handle_t session_handle,
   const pi_p4info_t *p4info = d_info->p4info;
   std::string t_name = get_direct_t_name(p4info, counter_id);
 
-  BmCounterValue value = convert_from_counter_data(counter_data);
+  // very poor man solution: bmv2 does not (yet) let us set only one of bytes /
+  // packets, so we first retrieve the current data and use it
+  pi_counter_data_t desired_data = *counter_data;
+  if (!are_both_values_set(counter_data)) {
+    pi_counter_data_t curr_data;
+    pi_status_t status = _pi_counter_read_direct(session_handle, dev_tgt,
+                                                 counter_id, entry_handle, 0,
+                                                 &curr_data);
+    if (status != PI_STATUS_SUCCESS) return status;
+    merge_current_value(&desired_data, &curr_data);
+  }
+
+  BmCounterValue value = convert_from_counter_data(&desired_data);
   auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_tgt.dev_id);
   try {
     client.c->bm_mt_write_counter(0, t_name, entry_handle, value);

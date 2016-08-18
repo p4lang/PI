@@ -48,6 +48,12 @@ typedef enum {
   PI_RPC_ACT_PROF_GRP_ADD_MBR,
   PI_RPC_ACT_PROF_GRP_REMOVE_MBR,
 
+  // counters
+  PI_RPC_COUNTER_READ,
+  PI_RPC_COUNTER_READ_DIRECT,
+  PI_RPC_COUNTER_WRITE,
+  PI_RPC_COUNTER_WRITE_DIRECT,
+
   // rpc management
   // retrieve state for sync-up when rpc client is started
   PI_RPC_INT_GET_STATE = 256,
