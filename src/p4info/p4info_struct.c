@@ -20,11 +20,12 @@
 
 #include "p4info_struct.h"
 
-void p4info_init_res(pi_p4info_t *p4info, int res_type, size_t num,
-                     size_t e_size, P4InfoFreeOneFn free_fn,
-                     P4InfoSerializeFn serialize_fn) {
+void p4info_init_res(pi_p4info_t *p4info, pi_res_type_id_t res_type, size_t num,
+                     size_t e_size, P4InfoRetrieveNameFn retrieve_name_fn,
+                     P4InfoFreeOneFn free_fn, P4InfoSerializeFn serialize_fn) {
   pi_p4info_res_t *res = &p4info->resources[res_type];
   res->is_init = 1;
+  res->retrieve_name_fn = retrieve_name_fn;
   res->free_fn = free_fn;
   res->serialize_fn = serialize_fn;
   p4info_array_create(&res->arr, e_size, num);

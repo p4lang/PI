@@ -104,6 +104,11 @@ static size_t num_actions(const pi_p4info_t *p4info) {
   return p4info->actions->arr.size;
 }
 
+static const char *retrieve_name(const void *data) {
+  const _action_data_t *action = (const _action_data_t *)data;
+  return action->name;
+}
+
 static void free_action_data(void *data) {
   _action_data_t *action = (_action_data_t *)data;
   if (!action->name) return;
@@ -149,7 +154,7 @@ void pi_p4info_action_serialize(cJSON *root, const pi_p4info_t *p4info) {
 
 void pi_p4info_action_init(pi_p4info_t *p4info, size_t num_actions) {
   p4info_init_res(p4info, PI_ACTION_ID, num_actions, sizeof(_action_data_t),
-                  free_action_data, pi_p4info_action_serialize);
+                  retrieve_name, free_action_data, pi_p4info_action_serialize);
 }
 
 void pi_p4info_action_add(pi_p4info_t *p4info, pi_p4_id_t action_id,

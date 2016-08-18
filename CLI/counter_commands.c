@@ -27,41 +27,14 @@
 #include <string.h>
 #include <stdlib.h>
 #include <inttypes.h>
-
-#include <readline/readline.h>
+#include <stdio.h>
 
 extern const pi_p4info_t *p4info_curr;
 extern pi_dev_tgt_t dev_tgt;
 extern pi_session_handle_t sess;
 
-// TODO(antonin): this is the same as for tables,... surely there is a way to
-// avoid code duplication
-static char *complete_p4_counter(const char *text, int len, int state) {
-  static pi_p4_id_t id;
-  if (!state) id = pi_p4info_counter_begin(p4info_curr);
-  while (id != pi_p4info_counter_end(p4info_curr)) {
-    const char *name = pi_p4info_counter_name_from_id(p4info_curr, id);
-    id = pi_p4info_counter_next(p4info_curr, id);
-    if (!strncmp(name, text, len)) return strdup(name);
-  }
-  return NULL;
-}
-
 static char *complete_counter(const char *text, int state) {
-  static int token_count;
-  static int len;
-
-  if (!state) {
-    token_count = count_tokens(rl_line_buffer);
-    len = strlen(text);
-  }
-
-  if (token_count == 0) {  // just the cmd
-    return NULL;
-  } else if (token_count == 1) {
-    return complete_p4_counter(text, len, state);
-  }
-  return NULL;
+  return complete_one_name(text, state, PI_COUNTER_ID);
 }
 
 static void print_counter_data(const pi_counter_data_t *counter_data) {

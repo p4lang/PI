@@ -22,6 +22,7 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <readline/readline.h>
 
 int count_tokens(const char *str) {
   int count = 0;
@@ -210,4 +211,34 @@ int param_to_bytes(const char *param, char *bytes, size_t bitwidth) {
     if (!try_to_parse_ipv6(param_copy, bytes)) return 0;
   }
   return hexstr_to_bytes(param_copy, bytes, s);
+}
+
+char *complete_p4_res(const char *text, int len, int state,
+                      pi_res_type_id_t res_type) {
+  static pi_p4_id_t id;
+  if (!state) id = pi_p4info_any_begin(p4info_curr, res_type);
+  while (id != pi_p4info_any_end(p4info_curr, res_type)) {
+    const char *name = pi_p4info_any_name_from_id(p4info_curr, res_type, id);
+    id = pi_p4info_any_next(id);
+    if (!strncmp(name, text, len)) return strdup(name);
+  }
+  return NULL;
+}
+
+char *complete_one_name(const char *text, int state,
+                        pi_res_type_id_t res_type) {
+  static int token_count;
+  static int len;
+
+  if (!state) {
+    token_count = count_tokens(rl_line_buffer);
+    len = strlen(text);
+  }
+
+  if (token_count == 0) {  // just the cmd
+    return NULL;
+  } else if (token_count == 1) {
+    return complete_p4_res(text, len, state, res_type);
+  }
+  return NULL;
 }

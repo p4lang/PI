@@ -21,6 +21,7 @@
 #include "PI/p4info/tables.h"
 #include "p4info/p4info_struct.h"
 #include "PI/int/pi_int.h"
+#include "act_profs_int.h"
 
 #include <cJSON/cJSON.h>
 
@@ -49,7 +50,12 @@ static size_t num_act_profs(const pi_p4info_t *p4info) {
   return p4info->act_profs->arr.size;
 }
 
-void free_act_prof_data(void *data) {
+static const char *retrieve_name(const void *data) {
+  const _act_prof_data_t *act_prof = (const _act_prof_data_t *)data;
+  return act_prof->name;
+}
+
+static void free_act_prof_data(void *data) {
   _act_prof_data_t *act_prof = (_act_prof_data_t *)data;
   if (!act_prof->name) return;
   free(act_prof->name);
@@ -81,7 +87,7 @@ void pi_p4info_act_prof_serialize(cJSON *root, const pi_p4info_t *p4info) {
 
 void pi_p4info_act_prof_init(pi_p4info_t *p4info, size_t num_act_profs) {
   p4info_init_res(p4info, PI_ACT_PROF_ID, num_act_profs,
-                  sizeof(_act_prof_data_t), free_act_prof_data,
+                  sizeof(_act_prof_data_t), retrieve_name, free_act_prof_data,
                   pi_p4info_act_prof_serialize);
 }
 

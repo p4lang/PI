@@ -47,7 +47,12 @@ static size_t num_counters(const pi_p4info_t *p4info) {
   return p4info->counters->arr.size;
 }
 
-void free_counter_data(void *data) {
+static const char *retrieve_name(const void *data) {
+  const _counter_data_t *counter = (const _counter_data_t *)data;
+  return counter->name;
+}
+
+static void free_counter_data(void *data) {
   _counter_data_t *counter = (_counter_data_t *)data;
   if (!counter->name) return;
   free(counter->name);
@@ -73,7 +78,8 @@ void pi_p4info_counter_serialize(cJSON *root, const pi_p4info_t *p4info) {
 
 void pi_p4info_counter_init(pi_p4info_t *p4info, size_t num_counters) {
   p4info_init_res(p4info, PI_COUNTER_ID, num_counters, sizeof(_counter_data_t),
-                  free_counter_data, pi_p4info_counter_serialize);
+                  retrieve_name, free_counter_data,
+                  pi_p4info_counter_serialize);
 }
 
 void pi_p4info_counter_add(pi_p4info_t *p4info, pi_p4_id_t counter_id,

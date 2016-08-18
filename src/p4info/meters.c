@@ -50,7 +50,12 @@ static size_t num_meters(const pi_p4info_t *p4info) {
   return p4info->meters->arr.size;
 }
 
-void free_meter_data(void *data) {
+static const char *retrieve_name(const void *data) {
+  const _meter_data_t *meter = (const _meter_data_t *)data;
+  return meter->name;
+}
+
+static void free_meter_data(void *data) {
   _meter_data_t *meter = (_meter_data_t *)data;
   if (!meter->name) return;
   free(meter->name);
@@ -77,7 +82,7 @@ void pi_p4info_meter_serialize(cJSON *root, const pi_p4info_t *p4info) {
 
 void pi_p4info_meter_init(pi_p4info_t *p4info, size_t num_meters) {
   p4info_init_res(p4info, PI_METER_ID, num_meters, sizeof(_meter_data_t),
-                  free_meter_data, pi_p4info_meter_serialize);
+                  retrieve_name, free_meter_data, pi_p4info_meter_serialize);
 }
 
 void pi_p4info_meter_add(pi_p4info_t *p4info, pi_p4_id_t meter_id,

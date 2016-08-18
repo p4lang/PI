@@ -21,6 +21,7 @@
 #include "PI/p4info/fields.h"
 #include "p4info/p4info_struct.h"
 #include "PI/int/pi_int.h"
+#include "fields_int.h"
 
 #include <cJSON/cJSON.h>
 
@@ -45,7 +46,12 @@ static size_t num_fields(const pi_p4info_t *p4info) {
   return p4info->fields->arr.size;
 }
 
-void free_field_data(void *data) {
+static const char *retrieve_name(const void *data) {
+  const _field_data_t *field = (const _field_data_t *)data;
+  return field->name;
+}
+
+static void free_field_data(void *data) {
   _field_data_t *field = (_field_data_t *)data;
   if (!field->name) return;
   free(field->name);
@@ -69,7 +75,7 @@ void pi_p4info_field_serialize(cJSON *root, const pi_p4info_t *p4info) {
 
 void pi_p4info_field_init(pi_p4info_t *p4info, size_t num_fields) {
   p4info_init_res(p4info, PI_FIELD_ID, num_fields, sizeof(_field_data_t),
-                  free_field_data, pi_p4info_field_serialize);
+                  retrieve_name, free_field_data, pi_p4info_field_serialize);
 }
 
 static char get_byte0_mask(size_t bitwidth) {

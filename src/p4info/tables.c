@@ -21,6 +21,7 @@
 #include "PI/p4info/tables.h"
 #include "p4info/p4info_struct.h"
 #include "PI/int/pi_int.h"
+#include "tables_int.h"
 
 #include <cJSON/cJSON.h>
 
@@ -91,7 +92,12 @@ static size_t num_tables(const pi_p4info_t *p4info) {
   return p4info->tables->arr.size;
 }
 
-void free_table_data(void *data) {
+static const char *retrieve_name(const void *data) {
+  const _table_data_t *table = (const _table_data_t *)data;
+  return table->name;
+}
+
+static void free_table_data(void *data) {
   _table_data_t *table = (_table_data_t *)data;
   if (!table->name) return;
   free(table->name);
@@ -153,7 +159,7 @@ void pi_p4info_table_serialize(cJSON *root, const pi_p4info_t *p4info) {
 
 void pi_p4info_table_init(pi_p4info_t *p4info, size_t num_tables) {
   p4info_init_res(p4info, PI_TABLE_ID, num_tables, sizeof(_table_data_t),
-                  free_table_data, pi_p4info_table_serialize);
+                  retrieve_name, free_table_data, pi_p4info_table_serialize);
 }
 
 void pi_p4info_table_add(pi_p4info_t *p4info, pi_p4_id_t table_id,
