@@ -27,7 +27,6 @@
 
 #include <Judy.h>
 
-#include "p4info_vector.h"
 #include "p4info_array.h"
 #include "p4info_name_map.h"
 
