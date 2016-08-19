@@ -32,7 +32,8 @@ extern "C" {
 #define PI_INVALID_ID 0
 
 typedef enum {
-  PI_CONFIG_TYPE_BMV2_JSON = 0,
+  PI_CONFIG_TYPE_NONE = 0,  // for testing
+  PI_CONFIG_TYPE_BMV2_JSON,
   PI_CONFIG_TYPE_NATIVE_JSON
 } pi_config_type_t;
 
@@ -60,7 +61,11 @@ typedef enum {
   // TODO(antonin): remove now that we have PI_STATUS_TARGET_ERROR?
   PI_STATUS_INVALID_TABLE_OPERATION,
 
+  PI_STATUS_METER_SPEC_NOT_SET,
+
   PI_STATUS_OUT_OF_BOUND_IDX,
+
+  PI_STATUS_NOT_IMPLEMENTED_BY_TARGET,
 
   // everything above 1000 is reserved for targets
   PI_STATUS_TARGET_ERROR = 1000
@@ -79,10 +84,27 @@ typedef uint32_t pi_session_handle_t;
 
 typedef struct pi_p4info_s pi_p4info_t;
 
+#define PI_ACTION_ID 0x01
+#define PI_TABLE_ID 0x02
+#define PI_ACTION_PARAM_ID 0x03
+#define PI_FIELD_ID 0x04
+
+#define PI_ACT_PROF_ID 0x11
+
+#define PI_COUNTER_ID 0x12
+#define PI_METER_ID 0x13
+
+typedef int pi_res_type_id_t;
+
 bool pi_is_action_id(pi_p4_id_t id);
 bool pi_is_table_id(pi_p4_id_t id);
 bool pi_is_action_param_id(pi_p4_id_t id);
 bool pi_is_field_id(pi_p4_id_t id);
+
+bool pi_is_act_prof_id(pi_p4_id_t id);
+
+bool pi_is_counter_id(pi_p4_id_t id);
+bool pi_is_meter_id(pi_p4_id_t id);
 
 #ifdef __cplusplus
 }

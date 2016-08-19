@@ -21,6 +21,8 @@
 #ifndef PI_CLI_UTILS_H_
 #define PI_CLI_UTILS_H_
 
+#include <PI/pi_base.h>
+
 #include <stddef.h>
 
 int count_tokens(const char *str);
@@ -34,6 +36,14 @@ char *complete_p4_action(const char *text, int len, int state,
 
 size_t parse_fixed_args(char *s, const char **dest, size_t expected);
 
+void parse_kv_pair(char *s, char **k, char **v);
+
 int param_to_bytes(const char *param, char *bytes, size_t bitwidth);
+
+char *complete_p4_res(const char *text, int len, int state,
+                      pi_res_type_id_t res_type);
+
+// meant to be used when the completion only involves one resource name
+char *complete_one_name(const char *text, int state, pi_res_type_id_t res_type);
 
 #endif  // PI_CLI_UTILS_H_

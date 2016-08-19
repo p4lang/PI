@@ -27,9 +27,9 @@
 
 #include <mutex>
 
-using namespace  ::bm_runtime::standard;  // NOLINT(build/namespaces)
-using namespace  ::bm_runtime::simple_pre_lag;  // NOLINT(build/namespaces)
-using namespace  ::sswitch_runtime;  // NOLINT(build/namespaces)
+using namespace ::bm_runtime::standard;        // NOLINT(build/namespaces)
+using namespace ::bm_runtime::simple_pre_lag;  // NOLINT(build/namespaces)
+using namespace ::sswitch_runtime;             // NOLINT(build/namespaces)
 
 namespace pibmv2 {
 

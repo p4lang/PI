@@ -25,8 +25,6 @@
 #include <string>
 #include <vector>
 
-#include <cstdio>
-
 #include "conn_mgr.h"
 #include "common.h"
 #include "action_helpers.h"

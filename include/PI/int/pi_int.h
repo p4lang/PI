@@ -27,13 +27,6 @@
 extern "C" {
 #endif
 
-#define PI_ACTION_ID 0x01
-#define PI_TABLE_ID 0x02
-#define PI_ACTION_PARAM_ID 0x03
-#define PI_FIELD_ID 0x04
-
-#define PI_ACT_PROF_ID 0x11
-
 static inline pi_p4_id_t pi_make_action_id(uint16_t index) {
   return (PI_ACTION_ID << 24) | index;
 }
@@ -54,6 +47,14 @@ static inline pi_p4_id_t pi_make_field_id(uint16_t index) {
 
 static inline pi_p4_id_t pi_make_act_prof_id(uint16_t index) {
   return (PI_ACT_PROF_ID << 24) | index;
+}
+
+static inline pi_p4_id_t pi_make_counter_id(uint16_t index) {
+  return (PI_COUNTER_ID << 24) | index;
+}
+
+static inline pi_p4_id_t pi_make_meter_id(uint16_t index) {
+  return (PI_METER_ID << 24) | index;
 }
 
 #define PI_GET_TYPE_ID(id) (id >> 24)

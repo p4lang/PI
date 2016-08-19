@@ -22,6 +22,7 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <readline/readline.h>
 
 int count_tokens(const char *str) {
   int count = 0;
@@ -58,7 +59,7 @@ char *complete_p4_table(const char *text, int len, int state) {
   }
   return NULL;
 }
-#include <stdio.h>
+
 char *complete_p4_action(const char *text, int len, int state,
                          const char *table) {
   static pi_p4_id_t t_id;
@@ -90,6 +91,26 @@ size_t parse_fixed_args(char *s, const char **dest, size_t expected) {
     if (!dest[i]) return i;
   }
   return expected;
+}
+
+void parse_kv_pair(char *s, char **k, char **v) {
+  *k = NULL;
+  *v = NULL;
+  char *v_ = NULL;
+  char *token = strtok(s, " ");
+  if (!token) return;
+  char *eq = strchr(token, '=');
+  if (eq) {
+    *eq = '\0';
+    v_ = eq + 1;
+    for (v_ = eq + 1; *v_ == ' '; v_++)
+      ;
+    for (eq = eq - 1; *eq == ' ' && *eq != '\0'; eq--) *eq = '\0';
+    for (char *endv = strchr(v_, '\0') - 1; *endv == ' ' && endv >= v_; endv--)
+      *endv = '\0';
+  }
+  *k = token;
+  *v = v_;
 }
 
 static int try_to_parse_ipv4(char *param, char *bytes) {
@@ -190,4 +211,34 @@ int param_to_bytes(const char *param, char *bytes, size_t bitwidth) {
     if (!try_to_parse_ipv6(param_copy, bytes)) return 0;
   }
   return hexstr_to_bytes(param_copy, bytes, s);
+}
+
+char *complete_p4_res(const char *text, int len, int state,
+                      pi_res_type_id_t res_type) {
+  static pi_p4_id_t id;
+  if (!state) id = pi_p4info_any_begin(p4info_curr, res_type);
+  while (id != pi_p4info_any_end(p4info_curr, res_type)) {
+    const char *name = pi_p4info_any_name_from_id(p4info_curr, res_type, id);
+    id = pi_p4info_any_next(id);
+    if (!strncmp(name, text, len)) return strdup(name);
+  }
+  return NULL;
+}
+
+char *complete_one_name(const char *text, int state,
+                        pi_res_type_id_t res_type) {
+  static int token_count;
+  static int len;
+
+  if (!state) {
+    token_count = count_tokens(rl_line_buffer);
+    len = strlen(text);
+  }
+
+  if (token_count == 0) {  // just the cmd
+    return NULL;
+  } else if (token_count == 1) {
+    return complete_p4_res(text, len, state, res_type);
+  }
+  return NULL;
 }

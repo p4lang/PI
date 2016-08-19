@@ -6,7 +6,11 @@ TESTS = \
 table_dump.test \
 table_dump_valid.test \
 table_indirect.test \
-device_commands.test
+device_commands.test \
+counter.test \
+counter_direct.test \
+meter.test \
+meter_direct.test
 
 # test_config.py.in included by default
 EXTRA_DIST = \
@@ -27,3 +31,18 @@ testdata/ecmp.json \
 device_commands.test \
 testdata/device_commands.in \
 testdata/device_commands.out
+
+EXTRA_DIST += \
+testdata/stats.json \
+counter.test \
+testdata/counter.in \
+testdata/counter.out \
+counter_direct.test \
+testdata/counter_direct.in \
+testdata/counter_direct.out \
+meter.test \
+testdata/meter.in \
+testdata/meter.out \
+meter_direct.test \
+testdata/meter_direct.in \
+testdata/meter_direct.out

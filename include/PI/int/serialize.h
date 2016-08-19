@@ -21,8 +21,10 @@
 #ifndef PI_INT_SERIALIZE_H_
 #define PI_INT_SERIALIZE_H_
 
-#include "PI/pi_base.h"
-#include "PI/pi_tables.h"
+#include <PI/pi_base.h>
+#include <PI/pi_tables.h>
+#include <PI/pi_counter.h>
+#include <PI/pi_meter.h>
 
 #include <stddef.h>
 #include <stdint.h>
@@ -45,6 +47,20 @@ typedef struct __attribute__((packed)) {
 typedef uint32_t s_pi_status_t;
 typedef pi_session_handle_t s_pi_session_handle_t;
 typedef uint32_t s_pi_action_entry_type_t;
+typedef uint64_t s_pi_counter_value_t;
+typedef struct __attribute__((packed)) {
+  uint32_t valid;
+  s_pi_counter_value_t bytes;
+  s_pi_counter_value_t packets;
+} s_pi_counter_data_t;
+typedef struct __attribute__((packed)) {
+  uint64_t cir;
+  uint32_t cburst;
+  uint64_t pir;
+  uint32_t pburst;
+  uint32_t unit;
+  uint32_t type;
+} s_pi_meter_spec_t;
 
 size_t emit_p4_id(char *dst, pi_p4_id_t v);
 size_t emit_entry_handle(char *dst, pi_entry_handle_t v);
@@ -54,6 +70,9 @@ size_t emit_dev_tgt(char *dst, pi_dev_tgt_t v);
 size_t emit_status(char *dst, pi_status_t v);
 size_t emit_session_handle(char *dst, pi_session_handle_t v);
 size_t emit_action_entry_type(char *dst, pi_action_entry_type_t v);
+size_t emit_counter_value(char *dst, pi_counter_value_t v);
+size_t emit_counter_data(char *dst, const pi_counter_data_t *v);
+size_t emit_meter_spec(char *dst, const pi_meter_spec_t *v);
 
 size_t retrieve_uint32(const char *src, uint32_t *v);
 size_t retrieve_uint64(const char *src, uint64_t *v);
@@ -66,6 +85,9 @@ size_t retrieve_dev_tgt(const char *src, pi_dev_tgt_t *v);
 size_t retrieve_status(const char *src, pi_status_t *v);
 size_t retrieve_session_handle(const char *src, pi_session_handle_t *v);
 size_t retrieve_action_entry_type(const char *src, pi_action_entry_type_t *v);
+size_t retrieve_counter_value(const char *src, pi_counter_value_t *v);
+size_t retrieve_counter_data(const char *src, pi_counter_data_t *v);
+size_t retrieve_meter_spec(const char *src, pi_meter_spec_t *v);
 
 #ifdef __cplusplus
 }

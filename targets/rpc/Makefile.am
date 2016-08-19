@@ -7,7 +7,9 @@ pi_rpc.h \
 pi_rpc.c \
 pi_imp.c \
 pi_tables_imp.c \
-pi_act_prof_imp.c
+pi_act_prof_imp.c \
+pi_counter_imp.c \
+pi_meter_imp.c
 
 libpi_rpc_la_LIBADD = \
 $(top_builddir)/src/libpip4info.la \

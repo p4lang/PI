@@ -21,6 +21,8 @@
 #include "PI/target/pi_imp.h"
 #include "PI/target/pi_tables_imp.h"
 #include "PI/target/pi_act_prof_imp.h"
+#include "PI/target/pi_counter_imp.h"
+#include "PI/target/pi_meter_imp.h"
 #include "PI/int/pi_int.h"
 #include "PI/int/serialize.h"
 #include "PI/int/rpc_common.h"
@@ -551,6 +553,180 @@ static void __pi_act_prof_grp_remove_mbr(char *req) {
   grp_add_remove_mbr(req, PI_RPC_ACT_PROF_GRP_REMOVE_MBR);
 }
 
+static void counter_read(char *req, pi_rpc_type_t direct_or_not) {
+  pi_session_handle_t sess;
+  req += retrieve_session_handle(req, &sess);
+  pi_dev_tgt_t dev_tgt;
+  req += retrieve_dev_tgt(req, &dev_tgt);
+  pi_p4_id_t counter_id;
+  req += retrieve_p4_id(req, &counter_id);
+  uint64_t h;
+  req += retrieve_uint64(req, &h);
+  uint32_t flags;
+  req += retrieve_uint32(req, &flags);
+
+  pi_counter_data_t counter_data;
+  pi_status_t status;
+  switch (direct_or_not) {
+    case PI_RPC_COUNTER_READ:
+      status =
+          _pi_counter_read(sess, dev_tgt, counter_id, h, flags, &counter_data);
+      break;
+    case PI_RPC_COUNTER_READ_DIRECT:
+      status = _pi_counter_read_direct(sess, dev_tgt, counter_id, h, flags,
+                                       &counter_data);
+      break;
+    default:
+      assert(0);
+  }
+
+  typedef struct __attribute__((packed)) {
+    rep_hdr_t hdr;
+    s_pi_counter_data_t counter_data;
+  } rep_t;
+  rep_t rep;
+  char *rep_ = (char *)&rep;
+  rep_ += emit_rep_hdr(rep_, status);
+  rep_ += emit_counter_data(rep_, &counter_data);
+
+  int bytes = nn_send(state.s, &rep, sizeof(rep), 0);
+  assert(bytes == sizeof(rep));
+}
+
+static void __pi_counter_read(char *req_) {
+  printf("RPC: _pi_counter_read\n");
+  counter_read(req_, PI_RPC_COUNTER_READ);
+}
+
+static void __pi_counter_read_direct(char *req_) {
+  printf("RPC: _pi_counter_read_direct\n");
+  counter_read(req_, PI_RPC_COUNTER_READ_DIRECT);
+}
+
+static void counter_write(char *req, pi_rpc_type_t direct_or_not) {
+  pi_session_handle_t sess;
+  req += retrieve_session_handle(req, &sess);
+  pi_dev_tgt_t dev_tgt;
+  req += retrieve_dev_tgt(req, &dev_tgt);
+  pi_p4_id_t counter_id;
+  req += retrieve_p4_id(req, &counter_id);
+  uint64_t h;
+  req += retrieve_uint64(req, &h);
+  pi_counter_data_t counter_data;
+  req += retrieve_counter_data(req, &counter_data);
+
+  pi_status_t status;
+  switch (direct_or_not) {
+    case PI_RPC_COUNTER_WRITE:
+      status = _pi_counter_write(sess, dev_tgt, counter_id, h, &counter_data);
+      break;
+    case PI_RPC_COUNTER_WRITE_DIRECT:
+      status =
+          _pi_counter_write_direct(sess, dev_tgt, counter_id, h, &counter_data);
+      break;
+    default:
+      assert(0);
+  }
+
+  send_status(status);
+}
+
+static void __pi_counter_write(char *req_) {
+  printf("RPC: _pi_counter_write\n");
+  counter_write(req_, PI_RPC_COUNTER_WRITE);
+}
+
+static void __pi_counter_write_direct(char *req_) {
+  printf("RPC: _pi_counter_write_direct\n");
+  counter_write(req_, PI_RPC_COUNTER_WRITE_DIRECT);
+}
+
+static void meter_read(char *req, pi_rpc_type_t direct_or_not) {
+  pi_session_handle_t sess;
+  req += retrieve_session_handle(req, &sess);
+  pi_dev_tgt_t dev_tgt;
+  req += retrieve_dev_tgt(req, &dev_tgt);
+  pi_p4_id_t meter_id;
+  req += retrieve_p4_id(req, &meter_id);
+  uint64_t h;
+  req += retrieve_uint64(req, &h);
+
+  pi_meter_spec_t meter_spec;
+  pi_status_t status;
+  switch (direct_or_not) {
+    case PI_RPC_METER_READ:
+      status = _pi_meter_read(sess, dev_tgt, meter_id, h, &meter_spec);
+      break;
+    case PI_RPC_METER_READ_DIRECT:
+      status = _pi_meter_read_direct(sess, dev_tgt, meter_id, h, &meter_spec);
+      break;
+    default:
+      assert(0);
+  }
+
+  // e.g. if meter spec was not set previously
+  if (status != PI_STATUS_SUCCESS) memset(&meter_spec, 0, sizeof(meter_spec));
+
+  typedef struct __attribute__((packed)) {
+    rep_hdr_t hdr;
+    s_pi_meter_spec_t meter_spec;
+  } rep_t;
+  rep_t rep;
+  char *rep_ = (char *)&rep;
+  rep_ += emit_rep_hdr(rep_, status);
+  rep_ += emit_meter_spec(rep_, &meter_spec);
+
+  int bytes = nn_send(state.s, &rep, sizeof(rep), 0);
+  assert(bytes == sizeof(rep));
+}
+
+static void __pi_meter_read(char *req_) {
+  printf("RPC: _pi_meter_read\n");
+  meter_read(req_, PI_RPC_METER_READ);
+}
+
+static void __pi_meter_read_direct(char *req_) {
+  printf("RPC: _pi_meter_read_direct\n");
+  meter_read(req_, PI_RPC_METER_READ_DIRECT);
+}
+
+static void meter_set(char *req, pi_rpc_type_t direct_or_not) {
+  pi_session_handle_t sess;
+  req += retrieve_session_handle(req, &sess);
+  pi_dev_tgt_t dev_tgt;
+  req += retrieve_dev_tgt(req, &dev_tgt);
+  pi_p4_id_t meter_id;
+  req += retrieve_p4_id(req, &meter_id);
+  uint64_t h;
+  req += retrieve_uint64(req, &h);
+  pi_meter_spec_t meter_spec;
+  req += retrieve_meter_spec(req, &meter_spec);
+
+  pi_status_t status;
+  switch (direct_or_not) {
+    case PI_RPC_METER_SET:
+      status = _pi_meter_set(sess, dev_tgt, meter_id, h, &meter_spec);
+      break;
+    case PI_RPC_METER_SET_DIRECT:
+      status = _pi_meter_set_direct(sess, dev_tgt, meter_id, h, &meter_spec);
+      break;
+    default:
+      assert(0);
+  }
+
+  send_status(status);
+}
+
+static void __pi_meter_set(char *req_) {
+  printf("RPC: _pi_meter_set\n");
+  meter_set(req_, PI_RPC_METER_SET);
+}
+
+static void __pi_meter_set_direct(char *req_) {
+  printf("RPC: _pi_meter_set_direct\n");
+  meter_set(req_, PI_RPC_METER_SET_DIRECT);
+}
+
 pi_status_t pi_rpc_server_run(char *rpc_addr) {
   assert(!state.init);
   if (rpc_addr)
@@ -632,6 +808,32 @@ pi_status_t pi_rpc_server_run(char *rpc_addr) {
         break;
       case PI_RPC_ACT_PROF_GRP_REMOVE_MBR:
         __pi_act_prof_grp_remove_mbr(req_);
+        break;
+
+      case PI_RPC_COUNTER_READ:
+        __pi_counter_read(req_);
+        break;
+      case PI_RPC_COUNTER_READ_DIRECT:
+        __pi_counter_read_direct(req_);
+        break;
+      case PI_RPC_COUNTER_WRITE:
+        __pi_counter_write(req_);
+        break;
+      case PI_RPC_COUNTER_WRITE_DIRECT:
+        __pi_counter_write_direct(req_);
+        break;
+
+      case PI_RPC_METER_READ:
+        __pi_meter_read(req_);
+        break;
+      case PI_RPC_METER_READ_DIRECT:
+        __pi_meter_read_direct(req_);
+        break;
+      case PI_RPC_METER_SET:
+        __pi_meter_set(req_);
+        break;
+      case PI_RPC_METER_SET_DIRECT:
+        __pi_meter_set_direct(req_);
         break;
 
       default:

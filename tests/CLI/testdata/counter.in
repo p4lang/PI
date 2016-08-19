@@ -1,0 +1,8 @@
+counter_reset CounterA 9
+counter_read CounterA 9
+counter_write CounterA 9 packets=7 bytes=9993
+counter_read CounterA 9
+counter_write CounterA 9 packets=12
+counter_read CounterA 9
+counter_reset CounterA 9
+counter_read CounterA 9

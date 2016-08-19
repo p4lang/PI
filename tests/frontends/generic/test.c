@@ -24,7 +24,6 @@
 #include "p4info/actions_int.h"
 #include "p4info/tables_int.h"
 #include "PI/frontends/generic/pi.h"
-#include "PI/int/pi_int.h"
 #include "PI/int//serialize.h"
 
 #include "unity/unity_fixture.h"
@@ -40,15 +39,16 @@ static pi_p4_id_t fid, aid, tid, pid;
 TEST_GROUP(FrontendGeneric_OneExact);
 
 TEST_SETUP(FrontendGeneric_OneExact) {
-  p4info = calloc(1, sizeof(pi_p4info_t));
   num_fields = 1;
   num_actions = 1;
   num_tables = 1;
 }
 
-TEST_TEAR_DOWN(FrontendGeneric_OneExact) { free(p4info); }
+TEST_TEAR_DOWN(FrontendGeneric_OneExact) {}
 
 static void p4info_init(size_t bitwidth, pi_p4info_match_type_t match_type) {
+  pi_add_config(NULL, PI_CONFIG_TYPE_NONE, &p4info);
+
   pi_p4info_field_init(p4info, num_fields);
   pi_p4info_action_init(p4info, num_actions);
   pi_p4info_table_init(p4info, num_tables);
@@ -71,12 +71,9 @@ static void p4info_init(size_t bitwidth, pi_p4info_match_type_t match_type) {
 
 static void p4info_destroy() {
   pi_match_key_destroy(mkey);
-
   pi_action_data_destroy(adata);
 
-  pi_p4info_field_free(p4info);
-  pi_p4info_action_free(p4info);
-  pi_p4info_table_free(p4info);
+  pi_destroy_config(p4info);
 }
 
 TEST(FrontendGeneric_OneExact, U8) {
@@ -124,13 +121,12 @@ TEST_GROUP_RUNNER(FrontendGeneric_OneExact) {
 TEST_GROUP(FrontendGeneric_OneLPM);
 
 TEST_SETUP(FrontendGeneric_OneLPM) {
-  p4info = calloc(1, sizeof(pi_p4info_t));
   num_fields = 1;
   num_actions = 1;
   num_tables = 1;
 }
 
-TEST_TEAR_DOWN(FrontendGeneric_OneLPM) { free(p4info); }
+TEST_TEAR_DOWN(FrontendGeneric_OneLPM) {}
 
 TEST(FrontendGeneric_OneLPM, U8) {
   pi_status_t rc;
@@ -160,13 +156,12 @@ TEST_GROUP_RUNNER(FrontendGeneric_OneLPM) {
 TEST_GROUP(FrontendGeneric_OneTernary);
 
 TEST_SETUP(FrontendGeneric_OneTernary) {
-  p4info = calloc(1, sizeof(pi_p4info_t));
   num_fields = 1;
   num_actions = 1;
   num_tables = 1;
 }
 
-TEST_TEAR_DOWN(FrontendGeneric_OneTernary) { free(p4info); }
+TEST_TEAR_DOWN(FrontendGeneric_OneTernary) {}
 
 TEST(FrontendGeneric_OneTernary, U8) {
   pi_status_t rc;
@@ -198,13 +193,12 @@ TEST_GROUP_RUNNER(FrontendGeneric_OneTernary) {
 TEST_GROUP(FrontendGeneric_Adata);
 
 TEST_SETUP(FrontendGeneric_Adata) {
-  p4info = calloc(1, sizeof(pi_p4info_t));
   num_fields = 1;
   num_actions = 1;
   num_tables = 1;
 }
 
-TEST_TEAR_DOWN(FrontendGeneric_Adata) { free(p4info); }
+TEST_TEAR_DOWN(FrontendGeneric_Adata) {}
 
 TEST(FrontendGeneric_Adata, U8) {
   pi_status_t rc;

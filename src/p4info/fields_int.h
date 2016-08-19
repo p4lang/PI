@@ -25,8 +25,6 @@
 
 void pi_p4info_field_init(pi_p4info_t *p4info, size_t num_fields);
 
-void pi_p4info_field_free(pi_p4info_t *p4info);
-
 void pi_p4info_field_add(pi_p4info_t *p4info, pi_p4_id_t field_id,
                          const char *name, size_t bitwidth);
 

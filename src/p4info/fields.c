@@ -21,6 +21,7 @@
 #include "PI/p4info/fields.h"
 #include "p4info/p4info_struct.h"
 #include "PI/int/pi_int.h"
+#include "fields_int.h"
 
 #include <cJSON/cJSON.h>
 
@@ -35,33 +36,46 @@ typedef struct _field_data_s {
   char byte0_mask;
 } _field_data_t;
 
-static size_t get_field_idx(pi_p4_id_t field_id) {
-  assert(PI_GET_TYPE_ID(field_id) == PI_FIELD_ID);
-  return field_id & 0xFFFF;
-}
-
 static _field_data_t *get_field(const pi_p4info_t *p4info,
                                 pi_p4_id_t field_id) {
-  size_t field_idx = get_field_idx(field_id);
-  assert(field_idx < p4info->num_fields);
-  return &p4info->fields[field_idx];
+  assert(PI_GET_TYPE_ID(field_id) == PI_FIELD_ID);
+  return p4info_get_at(p4info, field_id);
+}
+
+static size_t num_fields(const pi_p4info_t *p4info) {
+  return p4info->fields->arr.size;
+}
+
+static const char *retrieve_name(const void *data) {
+  const _field_data_t *field = (const _field_data_t *)data;
+  return field->name;
+}
+
+static void free_field_data(void *data) {
+  _field_data_t *field = (_field_data_t *)data;
+  if (!field->name) return;
+  free(field->name);
+}
+
+void pi_p4info_field_serialize(cJSON *root, const pi_p4info_t *p4info) {
+  cJSON *fArray = cJSON_CreateArray();
+  const p4info_array_t *fields = &p4info->fields->arr;
+  for (size_t i = 0; i < fields->size; i++) {
+    _field_data_t *field = p4info_array_at(fields, i);
+    cJSON *fObject = cJSON_CreateObject();
+
+    cJSON_AddStringToObject(fObject, "name", field->name);
+    cJSON_AddNumberToObject(fObject, "id", field->field_id);
+    cJSON_AddNumberToObject(fObject, "bitwidth", field->bitwidth);
+
+    cJSON_AddItemToArray(fArray, fObject);
+  }
+  cJSON_AddItemToObject(root, "fields", fArray);
 }
 
 void pi_p4info_field_init(pi_p4info_t *p4info, size_t num_fields) {
-  p4info->num_fields = num_fields;
-  p4info->fields = calloc(num_fields, sizeof(_field_data_t));
-  p4info->field_name_map = (Pvoid_t)NULL;
-}
-
-void pi_p4info_field_free(pi_p4info_t *p4info) {
-  for (size_t i = 0; i < p4info->num_fields; i++) {
-    _field_data_t *field = &p4info->fields[i];
-    if (!field->name) continue;
-    free(field->name);
-  }
-  free(p4info->fields);
-  Word_t Rc_word;
-  JSLFA(Rc_word, p4info->field_name_map);
+  p4info_init_res(p4info, PI_FIELD_ID, num_fields, sizeof(_field_data_t),
+                  retrieve_name, free_field_data, pi_p4info_field_serialize);
 }
 
 static char get_byte0_mask(size_t bitwidth) {
@@ -78,17 +92,12 @@ void pi_p4info_field_add(pi_p4info_t *p4info, pi_p4_id_t field_id,
   field->bitwidth = bitwidth;
   field->byte0_mask = get_byte0_mask(bitwidth);
 
-  Word_t *field_id_ptr;
-  JSLI(field_id_ptr, p4info->field_name_map, (const uint8_t *)field->name);
-  *field_id_ptr = field_id;
+  p4info_name_map_add(&p4info->fields->name_map, field->name, field_id);
 }
 
 pi_p4_id_t pi_p4info_field_id_from_name(const pi_p4info_t *p4info,
                                         const char *name) {
-  Word_t *field_id_ptr;
-  JSLG(field_id_ptr, p4info->field_name_map, (const uint8_t *)name);
-  if (!field_id_ptr) return PI_INVALID_ID;
-  return *field_id_ptr;
+  return p4info_name_map_get(&p4info->fields->name_map, name);
 }
 
 const char *pi_p4info_field_name_from_id(const pi_p4info_t *p4info,
@@ -113,31 +122,16 @@ char pi_p4info_field_byte0_mask(const pi_p4info_t *p4info,
 #define PI_P4INFO_F_ITERATOR_END ((PI_FIELD_ID << 24) | 0xffffff)
 
 pi_p4_id_t pi_p4info_field_begin(const pi_p4info_t *p4info) {
-  return (p4info->num_fields == 0) ? PI_P4INFO_F_ITERATOR_END
+  return (num_fields(p4info) == 0) ? PI_P4INFO_F_ITERATOR_END
                                    : PI_P4INFO_F_ITERATOR_FIRST;
 }
 
 pi_p4_id_t pi_p4info_field_next(const pi_p4info_t *p4info, pi_p4_id_t id) {
-  return ((id & 0xffffff) == p4info->num_fields - 1) ? PI_P4INFO_F_ITERATOR_END
+  return ((id & 0xffffff) == num_fields(p4info) - 1) ? PI_P4INFO_F_ITERATOR_END
                                                      : (id + 1);
 }
 
 pi_p4_id_t pi_p4info_field_end(const pi_p4info_t *p4info) {
   (void)p4info;
   return PI_P4INFO_F_ITERATOR_END;
-}
-
-void pi_p4info_field_serialize(cJSON *root, const pi_p4info_t *p4info) {
-  cJSON *fArray = cJSON_CreateArray();
-  for (size_t i = 0; i < p4info->num_fields; i++) {
-    _field_data_t *field = &p4info->fields[i];
-    cJSON *fObject = cJSON_CreateObject();
-
-    cJSON_AddStringToObject(fObject, "name", field->name);
-    cJSON_AddNumberToObject(fObject, "id", field->field_id);
-    cJSON_AddNumberToObject(fObject, "bitwidth", field->bitwidth);
-
-    cJSON_AddItemToArray(fArray, fObject);
-  }
-  cJSON_AddItemToObject(root, "fields", fArray);
 }

@@ -23,7 +23,6 @@
 #include "p4info/fields_int.h"
 #include "p4info/actions_int.h"
 #include "p4info/tables_int.h"
-#include "PI/int/pi_int.h"
 #include "utils/utils.h"
 
 #include "utils.h"
@@ -37,9 +36,9 @@ static pi_p4info_t *p4info;
 
 TEST_GROUP(P4Info);
 
-TEST_SETUP(P4Info) { p4info = calloc(1, sizeof(pi_p4info_t)); }
+TEST_SETUP(P4Info) { pi_add_config(NULL, PI_CONFIG_TYPE_NONE, &p4info); }
 
-TEST_TEAR_DOWN(P4Info) { free(p4info); }
+TEST_TEAR_DOWN(P4Info) { pi_destroy_config(p4info); }
 
 TEST(P4Info, Fields) {
   const size_t num_fields = 3;
@@ -66,8 +65,6 @@ TEST(P4Info, Fields) {
   TEST_ASSERT_EQUAL_UINT(bw0, pi_p4info_field_bitwidth(p4info, f0));
   TEST_ASSERT_EQUAL_UINT(bw1, pi_p4info_field_bitwidth(p4info, f1));
   TEST_ASSERT_EQUAL_UINT(bw2, pi_p4info_field_bitwidth(p4info, f2));
-
-  pi_p4info_field_free(p4info);
 }
 
 TEST(P4Info, FieldsInvalidId) {
@@ -75,7 +72,6 @@ TEST(P4Info, FieldsInvalidId) {
   pi_p4info_field_init(p4info, num_fields);
   TEST_ASSERT_EQUAL_UINT(PI_INVALID_ID,
                          pi_p4info_field_id_from_name(p4info, "bad_name"));
-  pi_p4info_field_free(p4info);
 }
 
 TEST(P4Info, FieldsByte0Mask) {
@@ -112,8 +108,6 @@ TEST(P4Info, FieldsByte0Mask) {
     TEST_ASSERT_EQUAL_HEX8(
         mask, pi_p4info_field_byte0_mask(p4info, pi_make_field_id(i)));
   }
-
-  pi_p4info_field_free(p4info);
 }
 
 TEST(P4Info, FieldsStress) {
@@ -143,8 +137,6 @@ TEST(P4Info, FieldsStress) {
     TEST_ASSERT_EQUAL_UINT(
         1 + (i % 128), pi_p4info_field_bitwidth(p4info, pi_make_field_id(i)));
   }
-
-  pi_p4info_field_free(p4info);
 }
 
 TEST(P4Info, FieldsIterator) {
@@ -167,8 +159,6 @@ TEST(P4Info, FieldsIterator) {
   }
 
   TEST_ASSERT_EQUAL_UINT(num_fields, cnt);
-
-  pi_p4info_field_free(p4info);
 }
 
 typedef struct {
@@ -234,8 +224,6 @@ TEST(P4Info, Actions) {
                          pi_p4info_action_param_offset(p4info, param_0_0));
   TEST_ASSERT_EQUAL_UINT(param_offsets[1],
                          pi_p4info_action_param_offset(p4info, param_0_1));
-
-  pi_p4info_action_free(p4info);
 }
 
 TEST(P4Info, ActionsInvalidId) {
@@ -243,7 +231,6 @@ TEST(P4Info, ActionsInvalidId) {
   pi_p4info_action_init(p4info, num_actions);
   TEST_ASSERT_EQUAL_UINT(PI_INVALID_ID,
                          pi_p4info_action_id_from_name(p4info, "bad_name"));
-  pi_p4info_action_free(p4info);
 }
 
 // unity uses a wrapper for the heap allocator, which does not cover strdup
@@ -308,8 +295,6 @@ TEST(P4Info, ActionsStress) {
     }
   }
 
-  pi_p4info_action_free(p4info);
-
   for (size_t i = 0; i < num_actions; i++) {
     free(adata[i].name);
   }
@@ -336,8 +321,6 @@ TEST(P4Info, ActionsIterator) {
   }
 
   TEST_ASSERT_EQUAL_UINT(num_actions, cnt);
-
-  pi_p4info_action_free(p4info);
 }
 
 TEST(P4Info, TablesInvalidId) {
@@ -345,7 +328,6 @@ TEST(P4Info, TablesInvalidId) {
   pi_p4info_table_init(p4info, num_tables);
   TEST_ASSERT_EQUAL_UINT(PI_INVALID_ID,
                          pi_p4info_table_id_from_name(p4info, "bad_name"));
-  pi_p4info_table_free(p4info);
 }
 
 typedef struct {
@@ -507,10 +489,6 @@ TEST(P4Info, TablesStress) {
                                           p4info, tdata[i].id));
   }
 
-  pi_p4info_field_free(p4info);
-  pi_p4info_action_free(p4info);
-  pi_p4info_table_free(p4info);
-
   free(tdata);
 }
 
@@ -534,8 +512,6 @@ TEST(P4Info, TablesIterator) {
   }
 
   TEST_ASSERT_EQUAL_UINT(num_tables, cnt);
-
-  pi_p4info_table_free(p4info);
 }
 
 TEST(P4Info, Serialize) {

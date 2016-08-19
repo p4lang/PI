@@ -6,6 +6,8 @@ libpi_bmv2_la_SOURCES = \
 pi_imp.cpp \
 pi_tables_imp.cpp \
 pi_act_prof_imp.cpp \
+pi_counter_imp.cpp \
+pi_meter_imp.cpp \
 conn_mgr.h \
 conn_mgr.cpp \
 common.h \

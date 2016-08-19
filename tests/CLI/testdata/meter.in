@@ -1,0 +1,5 @@
+meter_read_spec MeterA 9
+meter_set MeterA 9 1:3 2:12
+meter_read_spec MeterA 9
+meter_set MeterA 9 400:300 1000:300
+meter_read_spec MeterA 9
