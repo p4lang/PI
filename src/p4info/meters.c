@@ -70,7 +70,7 @@ void pi_p4info_meter_serialize(cJSON *root, const pi_p4info_t *p4info) {
 
     cJSON_AddStringToObject(mObject, "name", meter->name);
     cJSON_AddNumberToObject(mObject, "id", meter->meter_id);
-    cJSON_AddBoolToObject(mObject, "direct_table", meter->direct_table);
+    cJSON_AddNumberToObject(mObject, "direct_table", meter->direct_table);
     cJSON_AddNumberToObject(mObject, "meter_unit", meter->meter_unit);
     cJSON_AddNumberToObject(mObject, "meter_type", meter->meter_type);
     cJSON_AddNumberToObject(mObject, "size", meter->size);

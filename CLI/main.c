@@ -155,6 +155,11 @@ static void init_cmd_map() {
                complete_counter_write, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
   register_cmd("counter_reset", do_counter_reset, counter_reset_hs,
                complete_counter_reset, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
+
+  register_cmd("meter_read_spec", do_meter_read_spec, meter_read_spec_hs,
+               complete_meter_read_spec, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
+  register_cmd("meter_set", do_meter_set, meter_set_hs, complete_meter_set,
+               PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
 }
 
 static void cleanup() {

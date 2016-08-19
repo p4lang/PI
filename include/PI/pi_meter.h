@@ -35,7 +35,7 @@ typedef enum {
 } pi_meter_unit_t;
 
 typedef enum {
-  PI_METER_TYPE_COLOR_DEFAULT = 0,  // as per the P4 program?
+  PI_METER_TYPE_DEFAULT = 0,  // as per the P4 program?
   PI_METER_TYPE_COLOR_AWARE = 1,
   PI_METER_TYPE_COLOR_UNAWARE = 2,
 } pi_meter_type_t;

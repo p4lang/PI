@@ -1,2 +1,2 @@
 #!/bin/sh
-./run_one_test.py $srcdir/testdata counter stats.json
+./run_one_test.py $srcdir/testdata counter_direct stats.json

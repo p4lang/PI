@@ -41,9 +41,7 @@ struct IndirectHMgr {
     return h | grp_prefix;
   }
 
-  static bool is_grp_h(pi_indirect_handle_t h) {
-    return h & grp_prefix;
-  }
+  static bool is_grp_h(pi_indirect_handle_t h) { return h & grp_prefix; }
 
   static pi_indirect_handle_t clear_grp_h(pi_indirect_handle_t h) {
     return h & (~grp_prefix);

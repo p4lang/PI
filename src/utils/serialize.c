@@ -21,6 +21,7 @@
 #include <PI/pi_base.h>
 #include <PI/pi_tables.h>
 #include <PI/pi_counter.h>
+#include <PI/pi_meter.h>
 
 #include <stdint.h>
 #include <string.h>
@@ -76,6 +77,17 @@ size_t emit_counter_data(char *dst, const pi_counter_data_t *v) {
   s += emit_uint32(dst, v->valid);
   s += emit_counter_value(dst + s, v->bytes);
   s += emit_counter_value(dst + s, v->packets);
+  return s;
+}
+
+size_t emit_meter_spec(char *dst, const pi_meter_spec_t *v) {
+  size_t s = 0;
+  s += emit_uint64(dst, v->cir);
+  s += emit_uint32(dst + s, v->cburst);
+  s += emit_uint64(dst + s, v->pir);
+  s += emit_uint32(dst + s, v->pburst);
+  s += emit_uint32(dst + s, v->meter_unit);
+  s += emit_uint32(dst + s, v->meter_type);
   return s;
 }
 
@@ -140,5 +152,19 @@ size_t retrieve_counter_data(const char *src, pi_counter_data_t *v) {
   v->valid = tmp32;
   s += retrieve_counter_value(src + s, &v->bytes);
   s += retrieve_counter_value(src + s, &v->packets);
+  return s;
+}
+
+size_t retrieve_meter_spec(const char *src, pi_meter_spec_t *v) {
+  size_t s = 0;
+  s += retrieve_uint64(src, &v->cir);
+  s += retrieve_uint32(src + s, &v->cburst);
+  s += retrieve_uint64(src + s, &v->pir);
+  s += retrieve_uint32(src + s, &v->pburst);
+  uint32_t tmp32;
+  s += retrieve_uint32(src + s, &tmp32);
+  v->meter_unit = (pi_meter_unit_t)tmp32;
+  s += retrieve_uint32(src + s, &tmp32);
+  v->meter_type = (pi_meter_type_t)tmp32;
   return s;
 }

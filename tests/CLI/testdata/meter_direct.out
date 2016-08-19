@@ -1,0 +1,40 @@
+????
+Device assigned successfully.
+Selecting device.
+????
+Error when trying to read meter spec
+????
+Entry was successfully added with handle 0.
+????
+Dumping meter spec:
+	Meter unit: p4-specified
+	Meter type: p4-specified
+	Committed information rate: 1
+	Committed burst size: 3
+	Peak information rate: 2
+	Peak burst size: 12
+????
+Dumping meter spec:
+	Meter unit: bytes
+	Meter type: color unaware
+	Committed information rate: 1
+	Committed burst size: 3
+	Peak information rate: 2
+	Peak burst size: 12
+????
+Dumping meter spec:
+	Meter unit: p4-specified
+	Meter type: p4-specified
+	Committed information rate: 400
+	Committed burst size: 300
+	Peak information rate: 1000
+	Peak burst size: 300
+????
+Dumping meter spec:
+	Meter unit: bytes
+	Meter type: color unaware
+	Committed information rate: 400
+	Committed burst size: 300
+	Peak information rate: 1000
+	Peak burst size: 300
+????

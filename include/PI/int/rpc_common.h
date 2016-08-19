@@ -54,6 +54,12 @@ typedef enum {
   PI_RPC_COUNTER_WRITE,
   PI_RPC_COUNTER_WRITE_DIRECT,
 
+  // meters
+  PI_RPC_METER_READ,
+  PI_RPC_METER_READ_DIRECT,
+  PI_RPC_METER_SET,
+  PI_RPC_METER_SET_DIRECT,
+
   // rpc management
   // retrieve state for sync-up when rpc client is started
   PI_RPC_INT_GET_STATE = 256,

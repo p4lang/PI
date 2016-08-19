@@ -24,6 +24,7 @@
 #include <PI/pi_base.h>
 #include <PI/pi_tables.h>
 #include <PI/pi_counter.h>
+#include <PI/pi_meter.h>
 
 #include <stddef.h>
 #include <stdint.h>
@@ -52,6 +53,14 @@ typedef struct __attribute__((packed)) {
   s_pi_counter_value_t bytes;
   s_pi_counter_value_t packets;
 } s_pi_counter_data_t;
+typedef struct __attribute__((packed)) {
+  uint64_t cir;
+  uint32_t cburst;
+  uint64_t pir;
+  uint32_t pburst;
+  uint32_t unit;
+  uint32_t type;
+} s_pi_meter_spec_t;
 
 size_t emit_p4_id(char *dst, pi_p4_id_t v);
 size_t emit_entry_handle(char *dst, pi_entry_handle_t v);
@@ -63,6 +72,7 @@ size_t emit_session_handle(char *dst, pi_session_handle_t v);
 size_t emit_action_entry_type(char *dst, pi_action_entry_type_t v);
 size_t emit_counter_value(char *dst, pi_counter_value_t v);
 size_t emit_counter_data(char *dst, const pi_counter_data_t *v);
+size_t emit_meter_spec(char *dst, const pi_meter_spec_t *v);
 
 size_t retrieve_uint32(const char *src, uint32_t *v);
 size_t retrieve_uint64(const char *src, uint64_t *v);
@@ -77,6 +87,7 @@ size_t retrieve_session_handle(const char *src, pi_session_handle_t *v);
 size_t retrieve_action_entry_type(const char *src, pi_action_entry_type_t *v);
 size_t retrieve_counter_value(const char *src, pi_counter_value_t *v);
 size_t retrieve_counter_data(const char *src, pi_counter_data_t *v);
+size_t retrieve_meter_spec(const char *src, pi_meter_spec_t *v);
 
 #ifdef __cplusplus
 }

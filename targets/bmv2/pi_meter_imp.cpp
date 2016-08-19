@@ -62,6 +62,32 @@ convert_from_meter_spec(const pi_meter_spec_t *meter_spec) {
   return rates;
 }
 
+void
+convert_to_meter_spec(const pi_p4info_t *p4info, pi_p4_id_t m_id,
+                      pi_meter_spec_t *meter_spec,
+                      const std::vector<BmMeterRateConfig> &rates) {
+  auto conv_packets = [](const BmMeterRateConfig &rate,
+                         uint64_t *r, uint32_t *b) {
+    *r = static_cast<uint64_t>(rate.units_per_micros * 1000000.);
+    *b = rate.burst_size;
+  };
+  auto conv_bytes = [](const BmMeterRateConfig &rate,
+                       uint64_t *r, uint32_t *b) {
+    *r = static_cast<uint64_t>(rate.units_per_micros * 8000.);
+    *b = (rate.burst_size * 8) / 1000;
+  };
+  meter_spec->meter_unit = static_cast<pi_meter_unit_t>(
+      pi_p4info_meter_get_unit(p4info, m_id));
+  meter_spec->meter_type = static_cast<pi_meter_type_t>(
+      pi_p4info_meter_get_type(p4info, m_id));
+  assert(meter_spec->meter_unit != PI_METER_UNIT_DEFAULT);
+  // choose appropriate conversion routine
+  auto conv = (meter_spec->meter_unit == PI_METER_UNIT_PACKETS) ?
+      conv_packets : conv_bytes;
+  conv(rates.at(0), &meter_spec->cir, &meter_spec->cburst);
+  conv(rates.at(1), &meter_spec->pir, &meter_spec->pburst);
+}
+
 std::string get_direct_t_name(const pi_p4info_t *p4info, pi_p4_id_t m_id) {
   pi_p4_id_t t_id = pi_p4info_meter_get_direct(p4info, m_id);
   // guaranteed by PI common code
@@ -79,11 +105,27 @@ pi_status_t _pi_meter_read(pi_session_handle_t session_handle,
                            size_t index,
                            pi_meter_spec_t *meter_spec) {
   (void)session_handle;
-  (void)dev_tgt;
-  (void)meter_id;
-  (void)index;
-  (void)meter_spec;
-  return PI_STATUS_NOT_IMPLEMENTED_BY_TARGET;
+
+  pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_tgt.dev_id);
+  assert(d_info->assigned);
+  const pi_p4info_t *p4info = d_info->p4info;
+  std::string m_name(pi_p4info_meter_name_from_id(p4info, meter_id));
+
+  std::vector<BmMeterRateConfig> rates;
+  auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_tgt.dev_id);
+  try {
+    client.c->bm_meter_get_rates(rates, 0, m_name, index);
+  } catch(InvalidMeterOperation &imo) {
+    const char *what =
+        _MeterOperationErrorCode_VALUES_TO_NAMES.find(imo.code)->second;
+    std::cout << "Invalid meter (" << m_name << ") operation ("
+              << imo.code << "): " << what << std::endl;
+    return static_cast<pi_status_t>(PI_STATUS_TARGET_ERROR + imo.code);
+  }
+  if (rates.empty()) return PI_STATUS_METER_SPEC_NOT_SET;
+  convert_to_meter_spec(p4info, meter_id, meter_spec, rates);
+
+  return PI_STATUS_SUCCESS;
 }
 
 pi_status_t _pi_meter_set(pi_session_handle_t session_handle,
@@ -118,11 +160,27 @@ pi_status_t _pi_meter_read_direct(pi_session_handle_t session_handle,
                                   pi_entry_handle_t entry_handle,
                                   pi_meter_spec_t *meter_spec) {
   (void)session_handle;
-  (void)dev_tgt;
-  (void)meter_id;
-  (void)entry_handle;
-  (void)meter_spec;
-  return PI_STATUS_NOT_IMPLEMENTED_BY_TARGET;
+
+  pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_tgt.dev_id);
+  assert(d_info->assigned);
+  const pi_p4info_t *p4info = d_info->p4info;
+  std::string t_name = get_direct_t_name(p4info, meter_id);
+
+  std::vector<BmMeterRateConfig> rates;
+  auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_tgt.dev_id);
+  try {
+    client.c->bm_mt_get_meter_rates(rates, 0, t_name, entry_handle);
+  } catch (InvalidTableOperation &ito) {
+    const char *what =
+        _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
+    std::cout << "Invalid table (" << t_name << ") operation ("
+              << ito.code << "): " << what << std::endl;
+    return static_cast<pi_status_t>(PI_STATUS_TARGET_ERROR + ito.code);
+  }
+  if (rates.empty()) return PI_STATUS_METER_SPEC_NOT_SET;
+  convert_to_meter_spec(p4info, meter_id, meter_spec, rates);
+
+  return PI_STATUS_SUCCESS;
 }
 
 pi_status_t _pi_meter_set_direct(pi_session_handle_t session_handle,

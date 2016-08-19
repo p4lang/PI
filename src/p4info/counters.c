@@ -67,7 +67,7 @@ void pi_p4info_counter_serialize(cJSON *root, const pi_p4info_t *p4info) {
 
     cJSON_AddStringToObject(cObject, "name", counter->name);
     cJSON_AddNumberToObject(cObject, "id", counter->counter_id);
-    cJSON_AddBoolToObject(cObject, "direct_table", counter->direct_table);
+    cJSON_AddNumberToObject(cObject, "direct_table", counter->direct_table);
     cJSON_AddNumberToObject(cObject, "counter_unit", counter->counter_unit);
     cJSON_AddNumberToObject(cObject, "size", counter->size);
 

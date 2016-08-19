@@ -74,4 +74,12 @@ extern char counter_reset_hs[];
 pi_cli_status_t do_counter_reset(char *subcmd);
 char *complete_counter_reset(const char *text, int state);
 
+extern char meter_read_spec_hs[];
+pi_cli_status_t do_meter_read_spec(char *subcmd);
+char *complete_meter_read_spec(const char *text, int state);
+
+extern char meter_set_hs[];
+pi_cli_status_t do_meter_set(char *subcmd);
+char *complete_meter_set(const char *text, int state);
+
 #endif  // PI_CLI_COMMANDS_H_

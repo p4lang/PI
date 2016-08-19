@@ -22,8 +22,6 @@
 
 #include "pi_rpc.h"
 
-#include <stdio.h>
-
 static pi_status_t wait_for_counter_data(uint32_t req_id,
                                          pi_counter_data_t *counter_data) {
   typedef struct __attribute__((packed)) {
