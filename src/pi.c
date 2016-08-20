@@ -21,6 +21,7 @@
 #include "PI/pi.h"
 #include "PI/target/pi_imp.h"
 #include "PI/int/pi_int.h"
+#include "PI/int/serialize.h"
 #include "utils/logging.h"
 
 #include <stdlib.h>
@@ -31,6 +32,17 @@
 static size_t num_devices;
 static pi_device_info_t *device_mapping;
 static char *rpc_addr_;
+
+typedef struct {
+  int is_set;
+  PIDirectResMsgSizeFn msg_size_fn;
+  PIDirectResEmitFn emit_fn;
+  size_t size_of;
+  PIDirectResRetrieveFn retrieve_fn;
+} pi_direct_res_rpc_t;
+
+// allocate at runtime?
+static pi_direct_res_rpc_t direct_res_rpc[PI_RES_TYPE_MAX];
 
 pi_device_info_t *pi_get_device_info(pi_dev_id_t dev_id) {
   return device_mapping + dev_id;
@@ -45,7 +57,47 @@ const pi_p4info_t *pi_get_device_p4info(pi_dev_id_t dev_id) {
   return device_mapping[dev_id].p4info;
 }
 
+static size_t direct_res_counter_msg_size(const void *config) {
+  (void)config;
+  return sizeof(s_pi_counter_data_t);
+}
+
+static size_t direct_res_counter_emit(char *dst, const void *config) {
+  return emit_counter_data(dst, (const pi_counter_data_t *)config);
+}
+
+static size_t direct_res_counter_retrieve(const char *src, void *config) {
+  return retrieve_counter_data(src, (pi_counter_data_t *)config);
+}
+
+static size_t direct_res_meter_msg_size(const void *config) {
+  (void)config;
+  return sizeof(s_pi_meter_spec_t);
+}
+
+static size_t direct_res_meter_emit(char *dst, const void *config) {
+  return emit_meter_spec(dst, (const pi_meter_spec_t *)config);
+}
+
+static size_t direct_res_meter_retrieve(const char *src, void *config) {
+  return retrieve_meter_spec(src, (pi_meter_spec_t *)config);
+}
+
+static void register_std_direct_res() {
+  pi_status_t status;
+  status = pi_direct_res_register(
+      PI_COUNTER_ID, direct_res_counter_msg_size, direct_res_counter_emit,
+      sizeof(pi_counter_data_t), direct_res_counter_retrieve);
+  assert(status == PI_STATUS_SUCCESS);
+  status = pi_direct_res_register(
+      PI_METER_ID, direct_res_meter_msg_size, direct_res_meter_emit,
+      sizeof(pi_meter_spec_t), direct_res_meter_retrieve);
+  assert(status == PI_STATUS_SUCCESS);
+}
+
 pi_status_t pi_init(size_t max_devices, char *rpc_addr) {
+  // TODO(antonin): best place for this? I don't see another option
+  register_std_direct_res();
   num_devices = max_devices;
   device_mapping = calloc(max_devices, sizeof(pi_device_info_t));
   rpc_addr_ = rpc_addr;
@@ -144,4 +196,30 @@ size_t get_action_data_size(const pi_p4info_t *p4info, pi_p4_id_t action_id) {
     s += (bitwidth + 7) / 8;
   }
   return s;
+}
+
+pi_status_t pi_direct_res_register(pi_res_type_id_t res_type,
+                                   PIDirectResMsgSizeFn msg_size_fn,
+                                   PIDirectResEmitFn emit_fn, size_t size_of,
+                                   PIDirectResRetrieveFn retrieve_fn) {
+  if (res_type >= PI_RES_TYPE_MAX) return PI_STATUS_INVALID_RES_TYPE_ID;
+  direct_res_rpc[res_type].is_set = 1;
+  direct_res_rpc[res_type].msg_size_fn = msg_size_fn;
+  direct_res_rpc[res_type].emit_fn = emit_fn;
+  direct_res_rpc[res_type].size_of = size_of;
+  direct_res_rpc[res_type].retrieve_fn = retrieve_fn;
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_direct_res_get_fns(pi_res_type_id_t res_type,
+                                  PIDirectResMsgSizeFn *msg_size_fn,
+                                  PIDirectResEmitFn *emit_fn, size_t *size_of,
+                                  PIDirectResRetrieveFn *retrieve_fn) {
+  if (res_type >= PI_RES_TYPE_MAX) return PI_STATUS_INVALID_RES_TYPE_ID;
+  if (!direct_res_rpc[res_type].is_set) return PI_STATUS_INVALID_RES_TYPE_ID;
+  if (msg_size_fn) *msg_size_fn = direct_res_rpc[res_type].msg_size_fn;
+  if (emit_fn) *emit_fn = direct_res_rpc[res_type].emit_fn;
+  if (size_of) *size_of = direct_res_rpc[res_type].size_of;
+  if (retrieve_fn) *retrieve_fn = direct_res_rpc[res_type].retrieve_fn;
+  return PI_STATUS_SUCCESS;
 }

@@ -65,6 +65,8 @@ typedef enum {
 
   PI_STATUS_OUT_OF_BOUND_IDX,
 
+  PI_STATUS_INVALID_RES_TYPE_ID,
+
   PI_STATUS_NOT_IMPLEMENTED_BY_TARGET,
 
   // everything above 1000 is reserved for targets
@@ -94,8 +96,11 @@ typedef struct pi_p4info_s pi_p4info_t;
 #define PI_COUNTER_ID 0x12
 #define PI_METER_ID 0x13
 
-typedef int pi_res_type_id_t;
+#define PI_RES_TYPE_MAX 0x100
 
+typedef size_t pi_res_type_id_t;
+
+// TODO(antonin): make inline?
 bool pi_is_action_id(pi_p4_id_t id);
 bool pi_is_table_id(pi_p4_id_t id);
 bool pi_is_action_param_id(pi_p4_id_t id);

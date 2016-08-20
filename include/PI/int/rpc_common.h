@@ -97,4 +97,8 @@ size_t emit_action_data(char *dst, const pi_action_data_t *action_data);
 size_t retrieve_action_data(char *src, pi_action_data_t **action_data,
                             int copy);
 
+size_t direct_res_config_size(const pi_direct_res_config_t *direct_res_config);
+size_t emit_direct_res_config(char *dst,
+                              const pi_direct_res_config_t *direct_res_config);
+
 #endif  // PI_INT_RPC_COMMON_H_

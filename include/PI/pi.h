@@ -51,6 +51,30 @@ pi_status_t pi_session_cleanup(pi_session_handle_t session_handle);
 
 pi_status_t pi_destroy();
 
+// TODO(antonin): move this to pi_tables?
+// When adding a table entry, the configuration for direct resources associated
+// with the entry can be provided. The config is then passed as a generic void *
+// pointer. For the sake of the messaging system, we need a way to seriralize /
+// de-serialize the config, thus the need for these:
+// size when serialized
+typedef size_t (*PIDirectResMsgSizeFn)(const void *config);
+// emit function for serialization
+typedef size_t (*PIDirectResEmitFn)(char *dst, const void *config);
+// retrieve function for de-serialization
+typedef size_t (*PIDirectResRetrieveFn)(const char *src, void *config);
+// size_of is the size of memory blob required by retrieve function, alignment
+// is guaranteed to be maximum for the architecture (e.g. 16 bytes for x86_64)
+pi_status_t pi_direct_res_register(pi_res_type_id_t res_type,
+                                   PIDirectResMsgSizeFn msg_size_fn,
+                                   PIDirectResEmitFn emit_fn, size_t size_of,
+                                   PIDirectResRetrieveFn retrieve_fn);
+
+// set ptr to NULL if not interested
+pi_status_t pi_direct_res_get_fns(pi_res_type_id_t res_type,
+                                  PIDirectResMsgSizeFn *msg_size_fn,
+                                  PIDirectResEmitFn *emit_fn, size_t *size_of,
+                                  PIDirectResRetrieveFn *retrieve_fn);
+
 #ifdef __cplusplus
 }
 #endif
