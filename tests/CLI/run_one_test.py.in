@@ -59,8 +59,11 @@ class ConcurrentInteger(object):
         return None
 
 def process_valgrind_output(stderr, name):
+    f_name = None
+    v = None
     with tempfile.NamedTemporaryFile(delete=False) as f:
         print "Valgrind output for", name, "written to", f.name
+        f_name = f.name
         while True:
             L = stderr.readline()
             f.write(L)
@@ -68,7 +71,11 @@ def process_valgrind_output(stderr, name):
                 m = re.search("ERROR SUMMARY: ([0-9]*) errors "
                               "from ([0-9]*) contexts", L)
                 assert(m.lastindex == 2)
-                return (int(m.group(1)) == 0) and (int(m.group(2)) == 0)
+                v = (int(m.group(1)) == 0) and (int(m.group(2)) == 0)
+                break
+    if v:  # success, we can remove files
+        os.remove(f_name)
+    return v
 
 def main():
     def fail_msg(msg):
@@ -101,6 +108,8 @@ def main():
         [sswitch_path, json_path, "--thrift-port", thrift_port,
          "--device-id", device_id],
         stdout=subprocess.PIPE)
+    bmv2_notifications_rpc_path = "/tmp/bmv2-{}-notifications.ipc".format(
+        device_id)
 
     with_valgrind = (os.getenv("PI_TEST_WITH_VALGRIND") != None)
     valgrind_with_options = ["valgrind"]
@@ -122,6 +131,10 @@ def main():
     def remove_rpc():
         try:
             os.remove(rpc_path)
+        except:
+            pass
+        try:
+            os.remove(bmv2_notifications_rpc_path)
         except:
             pass
 
