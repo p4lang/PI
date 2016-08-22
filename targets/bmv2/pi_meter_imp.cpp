@@ -27,6 +27,7 @@
 
 #include "conn_mgr.h"
 #include "common.h"
+#include "direct_res_spec.h"
 
 namespace pibmv2 {
 
@@ -35,32 +36,6 @@ extern conn_mgr_t *conn_mgr_state;
 }  // namespace pibmv2
 
 namespace {
-
-std::vector<BmMeterRateConfig>
-convert_from_meter_spec(const pi_meter_spec_t *meter_spec) {
-  std::vector<BmMeterRateConfig> rates;
-  auto conv_packets = [](uint64_t r, uint32_t b) {
-    BmMeterRateConfig new_rate;
-    new_rate.units_per_micros = static_cast<double>(r) / 1000000.;
-    new_rate.burst_size = b;
-    return new_rate;
-  };
-  auto conv_bytes = [](uint64_t r, uint32_t b) {
-    BmMeterRateConfig new_rate;
-    new_rate.units_per_micros = static_cast<double>(r) / 8000.;
-    new_rate.burst_size = (b * 1000) / 8;
-    return new_rate;
-  };
-  // guaranteed by PI common code
-  assert(meter_spec->meter_unit != PI_METER_UNIT_DEFAULT);
-  // choose appropriate conversion routine
-  auto conv = (meter_spec->meter_unit == PI_METER_UNIT_PACKETS) ?
-      conv_packets : conv_bytes;
-  // perform conversion
-  rates.push_back(conv(meter_spec->cir, meter_spec->cburst));
-  rates.push_back(conv(meter_spec->pir, meter_spec->pburst));
-  return rates;
-}
 
 void
 convert_to_meter_spec(const pi_p4info_t *p4info, pi_p4_id_t m_id,
@@ -140,7 +115,7 @@ pi_status_t _pi_meter_set(pi_session_handle_t session_handle,
   const pi_p4info_t *p4info = d_info->p4info;
   std::string m_name(pi_p4info_meter_name_from_id(p4info, meter_id));
 
-  auto rates = convert_from_meter_spec(meter_spec);
+  auto rates = pibmv2::convert_from_meter_spec(meter_spec);
   auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_tgt.dev_id);
   try {
     client.c->bm_meter_set_rates(0, m_name, index, rates);
@@ -194,7 +169,7 @@ pi_status_t _pi_meter_set_direct(pi_session_handle_t session_handle,
   const pi_p4info_t *p4info = d_info->p4info;
   std::string t_name = get_direct_t_name(p4info, meter_id);
 
-  auto rates = convert_from_meter_spec(meter_spec);
+  auto rates = pibmv2::convert_from_meter_spec(meter_spec);
   auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_tgt.dev_id);
   try {
     client.c->bm_mt_set_meter_rates(0, t_name, entry_handle, rates);

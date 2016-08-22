@@ -45,6 +45,10 @@ void pi_p4info_table_set_const_default_action(pi_p4info_t *p4info,
                                               pi_p4_id_t table_id,
                                               pi_p4_id_t default_action_id);
 
+void pi_p4info_table_add_direct_resource(pi_p4info_t *p4info,
+                                         pi_p4_id_t table_id,
+                                         pi_p4_id_t direct_res_id);
+
 typedef struct cJSON cJSON;
 void pi_p4info_table_serialize(cJSON *root, const pi_p4info_t *p4info);
 

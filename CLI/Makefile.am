@@ -19,10 +19,13 @@ error_codes.h \
 error_codes.c \
 utils.h \
 utils.c \
+vector.h \
+vector.c \
 table_common.h \
 table_common.c \
 p4_config_repo.h \
 p4_config_repo.c \
+direct_res_reset.c \
 main.c
 
 libpicli_la_SOURCES += \

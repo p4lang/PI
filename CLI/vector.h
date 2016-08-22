@@ -1,0 +1,42 @@
+/* Copyright 2013-present Barefoot Networks, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Antonin Bas (antonin@barefootnetworks.com)
+ *
+ */
+
+// TODO(antonin): move to another location
+
+#ifndef PI_CLI_VECTOR_H_
+#define PI_CLI_VECTOR_H_
+
+#include <stddef.h>
+
+typedef struct vector_s vector_t;
+
+vector_t *vector_create(size_t e_size, size_t init_capacity);
+
+void vector_destroy(vector_t *v);
+
+void vector_push_back(vector_t *v, void *e);
+
+void *vector_at(const vector_t *v, size_t index);
+
+void *vector_data(const vector_t *v);
+
+size_t vector_size(vector_t *v);
+
+#endif  // PI_CLI_VECTOR_H_

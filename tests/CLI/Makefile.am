@@ -10,7 +10,9 @@ device_commands.test \
 counter.test \
 counter_direct.test \
 meter.test \
-meter_direct.test
+meter_direct.test \
+counter_and_meter_direct.test \
+direct_res_reset.test
 
 # test_config.py.in included by default
 EXTRA_DIST = \
@@ -45,4 +47,10 @@ testdata/meter.in \
 testdata/meter.out \
 meter_direct.test \
 testdata/meter_direct.in \
-testdata/meter_direct.out
+testdata/meter_direct.out \
+counter_and_meter_direct.test \
+testdata/counter_and_meter_direct.in \
+testdata/counter_and_meter_direct.out \
+direct_res_reset.test \
+testdata/direct_res_reset.in \
+testdata/direct_res_reset.out

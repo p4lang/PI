@@ -61,7 +61,15 @@ typedef struct pi_match_key_s pi_match_key_t;
 
 typedef struct pi_action_data_s pi_action_data_t;
 
-typedef int pi_res_config_t;
+typedef struct {
+  pi_p4_id_t res_id;
+  void *config;
+} pi_direct_res_config_one_t;
+
+typedef struct {
+  size_t num_configs;
+  pi_direct_res_config_one_t *configs;
+} pi_direct_res_config_t;
 
 typedef enum {
   PI_ACTION_ENTRY_TYPE_NONE = 0,
@@ -76,7 +84,7 @@ typedef struct {
     pi_indirect_handle_t indirect_handle;
   } entry;
   const pi_entry_properties_t *entry_properties;
-  const pi_res_config_t *direct_res_config; /* not defined yet */
+  const pi_direct_res_config_t *direct_res_config;
 } pi_table_entry_t;
 
 // this is used for iterating over entries after a fetch operation

@@ -12,7 +12,9 @@ conn_mgr.h \
 conn_mgr.cpp \
 common.h \
 action_helpers.h \
-action_helpers.cpp
+action_helpers.cpp \
+direct_res_spec.h \
+direct_res_spec.cpp
 
 libpi_bmv2_la_LIBADD = \
 $(top_builddir)/../../src/libpip4info.la

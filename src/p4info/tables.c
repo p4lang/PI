@@ -31,6 +31,7 @@
 
 #define INLINE_MATCH_FIELDS 8
 #define INLINE_ACTIONS 8
+#define INLINE_DIRECT_RES 4
 
 typedef struct {
   char *name;
@@ -63,6 +64,11 @@ typedef struct _table_data_s {
   pi_p4_id_t const_default_action_id;
   // PI_INVALID_ID if default
   pi_p4_id_t implementation;
+  size_t num_direct_resources;
+  union {
+    pi_p4_id_t direct[INLINE_DIRECT_RES];
+    pi_p4_id_t *indirect;
+  } direct_resources;
 } _table_data_t;
 
 static _table_data_t *get_table(const pi_p4info_t *p4info,
@@ -86,6 +92,12 @@ static _match_field_data_t *get_match_field_data(_table_data_t *table) {
 static pi_p4_id_t *get_action_ids(_table_data_t *table) {
   return (table->num_actions <= INLINE_ACTIONS) ? table->action_ids.direct
                                                 : table->action_ids.indirect;
+}
+
+static pi_p4_id_t *get_direct_resources(_table_data_t *table) {
+  return (table->num_direct_resources <= INLINE_DIRECT_RES)
+             ? table->direct_resources.direct
+             : table->direct_resources.indirect;
 }
 
 static size_t num_tables(const pi_p4info_t *p4info) {
@@ -152,6 +164,14 @@ void pi_p4info_table_serialize(cJSON *root, const pi_p4info_t *p4info) {
 
     cJSON_AddNumberToObject(tObject, "implementation", table->implementation);
 
+    cJSON *directresArray = cJSON_CreateArray();
+    pi_p4_id_t *direct_res_ids = get_direct_resources(table);
+    for (size_t j = 0; j < table->num_direct_resources; j++) {
+      cJSON *direct_res = cJSON_CreateNumber(direct_res_ids[j]);
+      cJSON_AddItemToArray(directresArray, direct_res);
+    }
+    cJSON_AddItemToObject(tObject, "direct_resources", directresArray);
+
     cJSON_AddItemToArray(tArray, tObject);
   }
   cJSON_AddItemToObject(root, "tables", tArray);
@@ -182,6 +202,7 @@ void pi_p4info_table_add(pi_p4info_t *p4info, pi_p4_id_t table_id,
 
   table->const_default_action_id = PI_INVALID_ID;
   table->implementation = PI_INVALID_ID;
+  table->num_direct_resources = 0;
 
   p4info_name_map_add(&p4info->tables->name_map, table->name, table_id);
 }
@@ -235,6 +256,14 @@ void pi_p4info_table_set_const_default_action(pi_p4info_t *p4info,
   assert(table->num_actions > 0);
   assert(pi_p4info_table_is_action_of(p4info, table_id, default_action_id));
   table->const_default_action_id = default_action_id;
+}
+
+void pi_p4info_table_add_direct_resource(pi_p4info_t *p4info,
+                                         pi_p4_id_t table_id,
+                                         pi_p4_id_t direct_res_id) {
+  _table_data_t *table = get_table(p4info, table_id);
+  get_direct_resources(table)[table->num_direct_resources] = direct_res_id;
+  table->num_direct_resources++;
 }
 
 pi_p4_id_t pi_p4info_table_id_from_name(const pi_p4info_t *p4info,
@@ -341,6 +370,24 @@ pi_p4_id_t pi_p4info_table_get_implementation(const pi_p4info_t *p4info,
                                               pi_p4_id_t table_id) {
   _table_data_t *table = get_table(p4info, table_id);
   return table->implementation;
+}
+
+bool pi_p4info_table_is_direct_resource_of(const pi_p4info_t *p4info,
+                                           pi_p4_id_t table_id,
+                                           pi_p4_id_t direct_res_id) {
+  _table_data_t *table = get_table(p4info, table_id);
+  pi_p4_id_t *ids = get_direct_resources(table);
+  for (size_t i = 0; i < table->num_direct_resources; i++)
+    if (ids[i] == direct_res_id) return true;
+  return false;
+}
+
+const pi_p4_id_t *pi_p4info_table_get_direct_resources(
+    const pi_p4info_t *p4info, pi_p4_id_t table_id,
+    size_t *num_direct_resources) {
+  _table_data_t *table = get_table(p4info, table_id);
+  *num_direct_resources = table->num_direct_resources;
+  return get_direct_resources(table);
 }
 
 #define PI_P4INFO_T_ITERATOR_FIRST (PI_TABLE_ID << 24)

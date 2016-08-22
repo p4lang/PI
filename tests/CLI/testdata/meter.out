@@ -5,8 +5,8 @@ Selecting device.
 Error when trying to read meter spec
 ????
 Dumping meter spec:
-	Meter unit: p4-specified
-	Meter type: p4-specified
+	Meter unit: bytes
+	Meter type: color unaware
 	Committed information rate: 1
 	Committed burst size: 3
 	Peak information rate: 2
@@ -21,8 +21,8 @@ Dumping meter spec:
 	Peak burst size: 12
 ????
 Dumping meter spec:
-	Meter unit: p4-specified
-	Meter type: p4-specified
+	Meter unit: bytes
+	Meter type: color unaware
 	Committed information rate: 400
 	Committed burst size: 300
 	Peak information rate: 1000

@@ -63,6 +63,69 @@ static size_t get_device_version(pi_dev_id_t dev_id) {
   return pi_get_device_info(dev_id)->version;
 }
 
+// all of this is a little complicated, maybe multiple calls to malloc would be
+// just as efficient...
+
+#define ALIGN 16
+#define ALIGN_SIZE(s) (((s) + (ALIGN - 1)) & (~(ALIGN - 1)))
+
+static pi_direct_res_config_t *allocate_direct_res_config(const char *src) {
+  uint32_t num_configs;
+  size_t s = retrieve_uint32(src, &num_configs);
+  if (num_configs == 0) return NULL;
+  size_t required_size = sizeof(pi_direct_res_config_t);
+  required_size = ALIGN_SIZE(required_size);
+  size_t header_stop = required_size;
+  required_size += num_configs * sizeof(pi_direct_res_config_one_t);
+  required_size = ALIGN_SIZE(required_size);
+  size_t config_start = required_size;
+  for (size_t i = 0; i < num_configs; i++) {
+    pi_p4_id_t res_id;
+    s += retrieve_p4_id(src + s, &res_id);
+    pi_res_type_id_t type = PI_GET_TYPE_ID(res_id);
+    uint32_t msg_size;
+    s += retrieve_uint32(src + s, &msg_size);
+    src += msg_size;
+    size_t size_of;
+    pi_direct_res_get_fns(type, NULL, NULL, &size_of, NULL);
+    required_size += size_of;
+    required_size = ALIGN_SIZE(required_size);
+  }
+  char *data = malloc(required_size);
+  pi_direct_res_config_t *direct_config = (pi_direct_res_config_t *)data;
+  direct_config->num_configs = num_configs;
+  direct_config->configs = (pi_direct_res_config_one_t *)(data + header_stop);
+  // num_configs is at least 1
+  // this is a hack to store where configs can be written to (for retrieve fn)
+  direct_config->configs[0].config = data + config_start;
+  return direct_config;
+}
+
+static size_t retrieve_direct_res_config(
+    const char *src, pi_direct_res_config_t *direct_config) {
+  size_t s = sizeof(uint32_t);  // skip num configs
+  if (!direct_config) return s;
+  size_t num_configs = direct_config->num_configs;
+  char *curr = (char *)direct_config->configs[0].config;
+  for (size_t i = 0; i < num_configs; i++) {
+    pi_direct_res_config_one_t *config = &direct_config->configs[i];
+    s += retrieve_p4_id(src + s, &config->res_id);
+    s += sizeof(uint32_t);  // skip size
+    pi_res_type_id_t type = PI_GET_TYPE_ID(config->res_id);
+    PIDirectResRetrieveFn retrieve_fn;
+    size_t size_of;
+    pi_direct_res_get_fns(type, NULL, NULL, &size_of, &retrieve_fn);
+    config->config = curr;
+    curr += ALIGN_SIZE(size_of);
+    s += retrieve_fn(src + s, config->config);
+  }
+  return s;
+}
+
+static void free_direct_res_config(pi_direct_res_config_t *direct_config) {
+  if (direct_config) free(direct_config);
+}
+
 static void __pi_init(char *req) {
   printf("RPC: _pi_init\n");
 
@@ -249,6 +312,9 @@ static void __pi_table_entry_add(char *req) {
   pi_action_data_t action_data;
   table_entry.entry.action_data = &action_data;
   req += retrieve_table_entry(req, &table_entry, 0);
+  pi_direct_res_config_t *direct_config = allocate_direct_res_config(req);
+  req += retrieve_direct_res_config(req, direct_config);
+  table_entry.direct_res_config = direct_config;
 
   uint32_t overwrite;
   req += retrieve_uint32(req, &overwrite);
@@ -257,6 +323,8 @@ static void __pi_table_entry_add(char *req) {
   pi_status_t status =
       _pi_table_entry_add(sess, dev_tgt, table_id, &match_key, &table_entry,
                           overwrite, &entry_handle);
+
+  free_direct_res_config(direct_config);
 
   typedef struct __attribute__((packed)) {
     rep_hdr_t hdr;
@@ -286,9 +354,15 @@ static void __pi_table_default_action_set(char *req) {
   pi_action_data_t action_data;
   table_entry.entry.action_data = &action_data;
   req += retrieve_table_entry(req, &table_entry, 0);
+  pi_direct_res_config_t *direct_config = allocate_direct_res_config(req);
+  req += retrieve_direct_res_config(req, direct_config);
+  table_entry.direct_res_config = direct_config;
 
   pi_status_t status =
       _pi_table_default_action_set(sess, dev_tgt, table_id, &table_entry);
+
+  free_direct_res_config(direct_config);
+
   send_status(status);
 }
 
@@ -303,6 +377,8 @@ static void __pi_table_default_action_get(char *req) {
   req += retrieve_p4_id(req, &table_id);
 
   pi_table_entry_t default_entry;
+  // not supported yet for entry retrieval
+  default_entry.direct_res_config = NULL;
   pi_status_t status =
       _pi_table_default_action_get(sess, dev_id, table_id, &default_entry);
 
@@ -357,8 +433,16 @@ static void __pi_table_entry_modify(char *req) {
   pi_action_data_t action_data;
   table_entry.entry.action_data = &action_data;
   req += retrieve_table_entry(req, &table_entry, 0);
+  pi_direct_res_config_t *direct_config = allocate_direct_res_config(req);
+  req += retrieve_direct_res_config(req, direct_config);
+  table_entry.direct_res_config = direct_config;
 
-  send_status(_pi_table_entry_modify(sess, dev_id, table_id, h, &table_entry));
+  pi_status_t status =
+      _pi_table_entry_modify(sess, dev_id, table_id, h, &table_entry);
+
+  free_direct_res_config(direct_config);
+
+  send_status(status);
 }
 
 static void __pi_table_entries_fetch(char *req) {
@@ -873,16 +957,19 @@ size_t table_entry_size(const pi_table_entry_t *table_entry) {
   s += sizeof(s_pi_action_entry_type_t);
   switch (table_entry->entry_type) {
     case PI_ACTION_ENTRY_TYPE_NONE:
-      return s;
+      break;
     case PI_ACTION_ENTRY_TYPE_DATA:
-      return s + action_data_size(table_entry->entry.action_data);
+      s += action_data_size(table_entry->entry.action_data);
+      break;
     case PI_ACTION_ENTRY_TYPE_INDIRECT:
-      return s + sizeof(s_pi_indirect_handle_t);
+      s += sizeof(s_pi_indirect_handle_t);
+      break;
     default:
       assert(0);
-      return 0;
   }
+  s += direct_res_config_size(table_entry->direct_res_config);
   // TODO(antonin): properties
+  return s;
 }
 
 size_t emit_action_data(char *dst, const pi_action_data_t *action_data) {
@@ -901,17 +988,19 @@ size_t emit_table_entry(char *dst, const pi_table_entry_t *table_entry) {
   s += emit_action_entry_type(dst, table_entry->entry_type);
   switch (table_entry->entry_type) {
     case PI_ACTION_ENTRY_TYPE_NONE:
-      return s;
+      break;
     case PI_ACTION_ENTRY_TYPE_DATA:
-      return s + emit_action_data(dst + s, table_entry->entry.action_data);
+      s += emit_action_data(dst + s, table_entry->entry.action_data);
+      break;
     case PI_ACTION_ENTRY_TYPE_INDIRECT:
-      return s +
-             emit_indirect_handle(dst + s, table_entry->entry.indirect_handle);
+      s += emit_indirect_handle(dst + s, table_entry->entry.indirect_handle);
+      break;
     default:
       assert(0);
-      return 0;
   }
+  s += emit_direct_res_config(dst + s, table_entry->direct_res_config);
   // TODO(antonin): properties
+  return s;
 }
 
 size_t retrieve_action_data(char *src, pi_action_data_t **action_data,
@@ -956,15 +1045,48 @@ size_t retrieve_table_entry(char *src, pi_table_entry_t *table_entry,
   table_entry->entry_type = entry_type;
   switch (entry_type) {
     case PI_ACTION_ENTRY_TYPE_NONE:
-      return s;
+      break;
     case PI_ACTION_ENTRY_TYPE_DATA:
-      return s + retrieve_action_data(src + s, &table_entry->entry.action_data,
-                                      copy);
+      s += retrieve_action_data(src + s, &table_entry->entry.action_data, copy);
+      break;
     case PI_ACTION_ENTRY_TYPE_INDIRECT:
-      return s + retrieve_indirect_handle(src + s,
-                                          &table_entry->entry.indirect_handle);
+      s += retrieve_indirect_handle(src + s,
+                                    &table_entry->entry.indirect_handle);
+      break;
     default:
       assert(0);
-      return s;
   }
+  return s;
+}
+
+size_t direct_res_config_size(const pi_direct_res_config_t *direct_res_config) {
+  size_t s = sizeof(uint32_t);  // num configs
+  if (!direct_res_config) return s;
+  for (size_t i = 0; i < direct_res_config->num_configs; i++) {
+    s += sizeof(s_pi_p4_id_t);
+    s += sizeof(uint32_t);  // deparsed size
+    const pi_direct_res_config_one_t *config = &direct_res_config->configs[i];
+    pi_res_type_id_t type = PI_GET_TYPE_ID(config->res_id);
+    PIDirectResMsgSizeFn msg_size_fn;
+    pi_direct_res_get_fns(type, &msg_size_fn, NULL, NULL, NULL);
+    s += msg_size_fn(config->config);
+  }
+  return s;
+}
+
+size_t emit_direct_res_config(char *dst,
+                              const pi_direct_res_config_t *direct_res_config) {
+  size_t num_configs = (direct_res_config) ? direct_res_config->num_configs : 0;
+  size_t s = emit_uint32(dst, num_configs);
+  for (size_t i = 0; i < num_configs; i++) {
+    const pi_direct_res_config_one_t *config = &direct_res_config->configs[i];
+    s += emit_p4_id(dst + s, config->res_id);
+    pi_res_type_id_t type = PI_GET_TYPE_ID(config->res_id);
+    PIDirectResMsgSizeFn msg_size_fn;
+    PIDirectResEmitFn emit_fn;
+    pi_direct_res_get_fns(type, &msg_size_fn, &emit_fn, NULL, NULL);
+    s += emit_uint32(dst + s, msg_size_fn(config->config));
+    s += emit_fn(dst + s, config->config);
+  }
+  return s;
 }

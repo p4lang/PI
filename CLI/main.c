@@ -160,6 +160,9 @@ static void init_cmd_map() {
                complete_meter_read_spec, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
   register_cmd("meter_set", do_meter_set, meter_set_hs, complete_meter_set,
                PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
+
+  register_cmd("direct_res_reset", do_direct_res_reset, direct_res_reset_hs,
+               NULL, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
 }
 
 static void cleanup() {
@@ -279,7 +282,7 @@ static void print_help(const char *name) {
           "Usage: %s [OPTIONS]...\n"
           "PI CLI\n\n"
           "-c          path to P4 bmv2 JSON config\n"
-          "-a          nanomsg address, for RPC mod\n",
+          "-a          nanomsg address, for RPC mode\n",
           name);
 }
 

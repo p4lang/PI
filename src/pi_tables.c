@@ -18,6 +18,7 @@
  *
  */
 
+#include <PI/pi.h>
 #include <PI/pi_tables.h>
 #include <PI/target/pi_tables_imp.h>
 #include <PI/int/pi_int.h>
@@ -58,11 +59,36 @@ bool pi_entry_properties_is_set(const pi_entry_properties_t *properties,
   return properties->valid_properties & (1 << property_type);
 }
 
+static bool check_direct_res_config(
+    const pi_p4info_t *p4info, pi_p4_id_t table_id,
+    const pi_direct_res_config_t *direct_res_config) {
+  if (!direct_res_config) return true;
+  for (size_t i = 0; i < direct_res_config->num_configs; i++) {
+    pi_p4_id_t res_id = direct_res_config->configs[0].res_id;
+    if (!pi_p4info_table_is_direct_resource_of(p4info, table_id, res_id))
+      return false;
+  }
+  return true;
+}
+
+static pi_status_t check_table_entry(const pi_p4info_t *p4info,
+                                     pi_p4_id_t table_id,
+                                     const pi_table_entry_t *t_entry) {
+  if (!check_direct_res_config(p4info, table_id, t_entry->direct_res_config))
+    return PI_STATUS_NOT_A_DIRECT_RES_OF_TABLE;
+  return PI_STATUS_SUCCESS;
+}
+
 pi_status_t pi_table_entry_add(pi_session_handle_t session_handle,
                                pi_dev_tgt_t dev_tgt, pi_p4_id_t table_id,
                                const pi_match_key_t *match_key,
                                const pi_table_entry_t *table_entry,
                                int overwrite, pi_entry_handle_t *entry_handle) {
+  const pi_p4info_t *p4info = pi_get_device_p4info(dev_tgt.dev_id);
+  if (!p4info) return PI_STATUS_DEV_NOT_ASSIGNED;
+  pi_status_t status = check_table_entry(p4info, table_id, table_entry);
+  if (status != PI_STATUS_SUCCESS) return status;
+
   return _pi_table_entry_add(session_handle, dev_tgt, table_id, match_key,
                              table_entry, overwrite, entry_handle);
 }
@@ -71,6 +97,11 @@ pi_status_t pi_table_default_action_set(pi_session_handle_t session_handle,
                                         pi_dev_tgt_t dev_tgt,
                                         pi_p4_id_t table_id,
                                         const pi_table_entry_t *table_entry) {
+  const pi_p4info_t *p4info = pi_get_device_p4info(dev_tgt.dev_id);
+  if (!p4info) return PI_STATUS_DEV_NOT_ASSIGNED;
+  pi_status_t status = check_table_entry(p4info, table_id, table_entry);
+  if (status != PI_STATUS_SUCCESS) return status;
+
   return _pi_table_default_action_set(session_handle, dev_tgt, table_id,
                                       table_entry);
 }
@@ -107,6 +138,11 @@ pi_status_t pi_table_entry_modify(pi_session_handle_t session_handle,
                                   pi_dev_id_t dev_id, pi_p4_id_t table_id,
                                   pi_entry_handle_t entry_handle,
                                   const pi_table_entry_t *table_entry) {
+  const pi_p4info_t *p4info = pi_get_device_p4info(dev_id);
+  if (!p4info) return PI_STATUS_DEV_NOT_ASSIGNED;
+  pi_status_t status = check_table_entry(p4info, table_id, table_entry);
+  if (status != PI_STATUS_SUCCESS) return status;
+
   return _pi_table_entry_modify(session_handle, dev_id, table_id, entry_handle,
                                 table_entry);
 }

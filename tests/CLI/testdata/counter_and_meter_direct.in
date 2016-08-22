@@ -1,0 +1,9 @@
+counter_write ExactOne_counter NEXT_ENTRY bytes=388
+meter_set ExactOne_meter NEXT_ENTRY 1:1 2:3
+table_add ExactOne 0 => actionA 0
+counter_read ExactOne_counter 0
+meter_read_spec ExactOne_meter 0
+counter_write ExactOne_counter NEXT_ENTRY bytes=99 packets=2
+table_modify ExactOne 0 => actionA 0
+counter_read ExactOne_counter 0
+meter_read_spec ExactOne_meter 0

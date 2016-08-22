@@ -154,6 +154,15 @@ static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
     if (item && item->valueint != PI_INVALID_ID) {
       pi_p4info_table_set_implementation(p4info, pi_id, item->valueint);
     }
+
+    item = cJSON_GetObjectItem(table, "direct_resources");
+    if (item) {
+      cJSON *direct_res;
+      cJSON_ArrayForEach(direct_res, item) {
+        pi_p4_id_t id = direct_res->valueint;
+        pi_p4info_table_add_direct_resource(p4info, pi_id, id);
+      }
+    }
   }
 
   return PI_STATUS_SUCCESS;

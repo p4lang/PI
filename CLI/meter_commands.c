@@ -20,6 +20,7 @@
 
 #include "utils.h"
 #include "error_codes.h"
+#include "table_common.h"  // for holding direct resources
 
 #include <PI/pi.h>
 #include <PI/pi_meter.h>
@@ -32,6 +33,8 @@
 extern const pi_p4info_t *p4info_curr;
 extern pi_dev_tgt_t dev_tgt;
 extern pi_session_handle_t sess;
+
+#define NEXT_ENTRY_TOKEN "NEXT_ENTRY"
 
 static char *complete_meter(const char *text, int state) {
   return complete_one_name(text, state, PI_METER_ID);
@@ -75,9 +78,13 @@ static void print_meter_spec(const pi_meter_spec_t *meter_spec) {
 
 #define REQUIRED_RATES 2
 // return 0 if success, 1 if bad format
-static int parse_meter_spec(pi_meter_spec_t *meter_spec) {
-  meter_spec->meter_unit = PI_METER_UNIT_DEFAULT;
-  meter_spec->meter_type = PI_METER_TYPE_DEFAULT;
+static int parse_meter_spec(pi_p4_id_t m_id, pi_meter_spec_t *meter_spec) {
+  // I was letting the PI code handles this, but it results in an error for
+  // direct meters.
+  /* meter_spec->meter_unit = PI_METER_UNIT_DEFAULT; */
+  /* meter_spec->meter_type = PI_METER_TYPE_DEFAULT; */
+  meter_spec->meter_unit = pi_p4info_meter_get_unit(p4info_curr, m_id);
+  meter_spec->meter_type = pi_p4info_meter_get_type(p4info_curr, m_id);
   typedef struct {
     uint64_t r;
     uint32_t b;
@@ -131,16 +138,26 @@ static int parse_meter_spec(pi_meter_spec_t *meter_spec) {
 }
 #undef REQUIRED_RATES
 
-static pi_cli_status_t parse_common(char *subcmd, pi_p4_id_t *c_id,
-                                    uint64_t *handle) {
+static pi_cli_status_t parse_common(char *subcmd, pi_p4_id_t *m_id,
+                                    uint64_t *handle, int *for_next_t_entry) {
   const char *args[2];
   size_t num_args = sizeof(args) / sizeof(char *);
   if (parse_fixed_args(subcmd, args, num_args) < num_args)
     return PI_CLI_STATUS_TOO_FEW_ARGS;
   const char *c_name = args[0];
   const char *handle_str = args[1];
-  *c_id = pi_p4info_meter_id_from_name(p4info_curr, c_name);
-  if (*c_id == PI_INVALID_ID) return PI_CLI_STATUS_INVALID_METER_NAME;
+  *m_id = pi_p4info_meter_id_from_name(p4info_curr, c_name);
+  if (*m_id == PI_INVALID_ID) return PI_CLI_STATUS_INVALID_METER_NAME;
+  if (!strncmp(NEXT_ENTRY_TOKEN, handle_str, sizeof NEXT_ENTRY_TOKEN)) {
+    if (!for_next_t_entry) {
+      printf(NEXT_ENTRY_TOKEN " not valid for this command\n");
+      return PI_CLI_STATUS_INVALID_ENTRY_HANDLE;
+    }
+    *for_next_t_entry = 1;
+    return PI_CLI_STATUS_SUCCESS;
+  } else if (for_next_t_entry) {
+    *for_next_t_entry = 0;
+  }
   char *endptr;
   *handle = strtoll(handle_str, &endptr, 0);
   if (*endptr != '\0') return PI_CLI_STATUS_INVALID_ENTRY_HANDLE;
@@ -155,8 +172,8 @@ pi_cli_status_t do_meter_read_spec(char *subcmd) {
   pi_p4_id_t m_id;
   uint64_t handle;
   pi_cli_status_t status;
-  if ((status = parse_common(subcmd, &m_id, &handle)) != PI_CLI_STATUS_SUCCESS)
-    return status;
+  status = parse_common(subcmd, &m_id, &handle, NULL);
+  if (status != PI_CLI_STATUS_SUCCESS) return status;
 
   pi_p4_id_t direct_t_id = pi_p4info_meter_get_direct(p4info_curr, m_id);
   pi_status_t rc;
@@ -187,17 +204,39 @@ char meter_set_hs[] =
     "meter_set <meter name> <index | entry handle> "
     "<rate_1>:<burst_1> <rate_2>:<burst_2>";
 
+static pi_cli_status_t store_direct_meter_config(
+    pi_p4_id_t m_id, const pi_meter_spec_t *meter_spec) {
+  pi_p4_id_t direct_t_id = pi_p4info_meter_get_direct(p4info_curr, m_id);
+  if (direct_t_id == PI_INVALID_ID) {
+    printf("Cannot hold resource spec with " NEXT_ENTRY_TOKEN
+           " for none-direct resources.\n");
+    return PI_CLI_STATUS_ERROR;
+  }
+  pi_meter_spec_t *meter_spec_copy = malloc(sizeof(*meter_spec));
+  memcpy(meter_spec_copy, meter_spec, sizeof(*meter_spec));
+  store_direct_resource_config(m_id, meter_spec_copy);
+  return PI_CLI_STATUS_SUCCESS;
+}
+
 pi_cli_status_t do_meter_set(char *subcmd) {
   pi_p4_id_t m_id;
   uint64_t handle;
   pi_cli_status_t status;
-  if ((status = parse_common(subcmd, &m_id, &handle)) != PI_CLI_STATUS_SUCCESS)
-    return status;
+  int for_next_t_entry = 0;
+  status = parse_common(subcmd, &m_id, &handle, &for_next_t_entry);
+  if (status != PI_CLI_STATUS_SUCCESS) return status;
 
   pi_meter_spec_t meter_spec;
-  if (parse_meter_spec(&meter_spec))
+  if (parse_meter_spec(m_id, &meter_spec))
     return PI_CLI_STATUS_INVALID_COMMAND_FORMAT;
   print_meter_spec(&meter_spec);
+
+  if (for_next_t_entry) {
+    status = store_direct_meter_config(m_id, &meter_spec);
+    if (status != PI_CLI_STATUS_SUCCESS) return status;
+    printf("Direct resource spec was stored.\n");
+    return PI_CLI_STATUS_SUCCESS;
+  }
 
   pi_p4_id_t direct_t_id = pi_p4info_meter_get_direct(p4info_curr, m_id);
   pi_status_t rc;

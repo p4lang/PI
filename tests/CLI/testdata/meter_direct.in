@@ -1,5 +1,7 @@
 meter_read_spec ExactOne_meter 0
+meter_set ExactOne_meter NEXT_ENTRY 1:1 2:2
 table_add ExactOne 0 => actionA 0
+meter_read_spec ExactOne_meter 0
 meter_set ExactOne_meter 0 1:3 2:12
 meter_read_spec ExactOne_meter 0
 meter_set ExactOne_meter 0 400:300 1000:300

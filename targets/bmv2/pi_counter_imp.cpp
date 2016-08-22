@@ -26,6 +26,7 @@
 
 #include "conn_mgr.h"
 #include "common.h"
+#include "direct_res_spec.h"
 
 namespace pibmv2 {
 
@@ -41,19 +42,6 @@ void convert_to_counter_data(pi_counter_data_t *to,
   to->valid = PI_COUNTER_UNIT_PACKETS | PI_COUNTER_UNIT_BYTES;
   to->bytes = static_cast<pi_counter_value_t>(from.bytes);
   to->packets = static_cast<pi_counter_value_t>(from.packets);
-}
-
-BmCounterValue convert_from_counter_data(const pi_counter_data_t *from) {
-  BmCounterValue to;
-  if (from->valid & PI_COUNTER_UNIT_BYTES)
-    to.bytes = static_cast<int64_t>(from->bytes);
-  else
-    to.bytes = 0;
-  if (from->valid & PI_COUNTER_UNIT_PACKETS)
-    to.packets = static_cast<int64_t>(from->packets);
-  else
-    to.packets = 0;
-  return to;
 }
 
 bool are_both_values_set(const pi_counter_data_t *counter_data) {
@@ -137,7 +125,7 @@ pi_status_t _pi_counter_write(pi_session_handle_t session_handle,
     merge_current_value(&desired_data, &curr_data);
   }
 
-  BmCounterValue value = convert_from_counter_data(&desired_data);
+  BmCounterValue value = pibmv2::convert_from_counter_data(&desired_data);
   auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_tgt.dev_id);
   try {
     client.c->bm_counter_write(0, c_name, index, value);
@@ -205,7 +193,7 @@ pi_status_t _pi_counter_write_direct(pi_session_handle_t session_handle,
     merge_current_value(&desired_data, &curr_data);
   }
 
-  BmCounterValue value = convert_from_counter_data(&desired_data);
+  BmCounterValue value = pibmv2::convert_from_counter_data(&desired_data);
   auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_tgt.dev_id);
   try {
     client.c->bm_mt_write_counter(0, t_name, entry_handle, value);
