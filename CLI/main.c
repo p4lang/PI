@@ -42,6 +42,11 @@ pi_dev_tgt_t dev_tgt = {0, 0xffff};
 int is_device_selected = 0;
 pi_session_handle_t sess;
 
+// command-line options
+static char *opt_config_path = NULL;
+static char *opt_rpc_addr = NULL;
+static int opt_call_pi_destroy = 0;
+
 typedef pi_cli_status_t (*CLIFnPtr)(char *);
 typedef char *(*CLICompPtr)(const char *text, int state);
 
@@ -176,7 +181,7 @@ static void cleanup() {
 
   pi_session_cleanup(sess);
 
-  pi_destroy();
+  if (opt_call_pi_destroy) pi_destroy();
 }
 
 static void dispatch_command(const char *first_word, char *subcmd) {
@@ -282,25 +287,26 @@ static void print_help(const char *name) {
           "Usage: %s [OPTIONS]...\n"
           "PI CLI\n\n"
           "-c          path to P4 bmv2 JSON config\n"
-          "-a          nanomsg address, for RPC mode\n",
+          "-a          nanomsg address, for RPC mode\n"
+          "-d          call pi_destroy when done\n",
           name);
 }
-
-static char *opt_config_path = NULL;
-static char *opt_rpc_addr = NULL;
 
 static int parse_opts(int argc, char *const argv[]) {
   int c;
 
   opterr = 0;
 
-  while ((c = getopt(argc, argv, "c:a:h")) != -1) {
+  while ((c = getopt(argc, argv, "c:a:dh")) != -1) {
     switch (c) {
       case 'c':
         opt_config_path = optarg;
         break;
       case 'a':
         opt_rpc_addr = optarg;
+        break;
+      case 'd':
+        opt_call_pi_destroy = 1;
         break;
       case 'h':
         print_help(argv[0]);

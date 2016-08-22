@@ -21,8 +21,14 @@
 #include <PI/pi.h>
 
 #include <stdio.h>
+#include <signal.h>
 
 extern pi_status_t pi_rpc_server_run();
+
+static void cleanup_handler(int signum) {
+  (void)signum;
+  pi_destroy();
+}
 
 int main(int argc, char *argv[]) {
   char *addr = NULL;
@@ -36,5 +42,16 @@ int main(int argc, char *argv[]) {
   }
 
   pi_init(256, NULL);
+
+  struct sigaction sa;
+  sa.sa_handler = cleanup_handler;
+  // sigfillset(&sa.sa_mask);
+  sigemptyset(&sa.sa_mask);
+  // Restart the system call, if at all possible
+  sa.sa_flags = SA_RESTART;
+  assert(sigaction(SIGHUP, &sa, NULL) == 0);
+  assert(sigaction(SIGINT, &sa, NULL) == 0);
+  assert(sigaction(SIGTERM, &sa, NULL) == 0);
+
   pi_rpc_server_run(addr);
 }

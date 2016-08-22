@@ -150,6 +150,8 @@ pi_status_t pi_session_cleanup(pi_session_handle_t session_handle) {
 
 pi_status_t pi_destroy() {
   free(device_mapping);
+  device_mapping = NULL;
+  num_devices = 0;
   return _pi_destroy();
 }
 
