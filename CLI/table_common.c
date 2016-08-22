@@ -20,6 +20,7 @@
 
 #include "utils.h"
 #include "table_common.h"
+#include "vector.h"
 
 #include "PI/pi.h"
 #include "PI/frontends/generic/pi.h"
@@ -30,6 +31,8 @@
 #include <readline/readline.h>
 
 #define BYTES_TEMP_SIZE 64
+
+static vector_t *direct_res_configs = NULL;
 
 pi_cli_status_t read_action_data(char *in, pi_p4_id_t a_id,
                                  pi_action_data_t *adata) {
@@ -134,3 +137,35 @@ void cleanup_entry_direct(pi_table_entry_t *t_entry) {
 }
 
 void cleanup_entry_indirect(pi_table_entry_t *t_entry) { (void)t_entry; }
+
+void store_direct_resource_config(pi_p4_id_t res_id, void *config) {
+  if (!direct_res_configs) {
+    direct_res_configs = vector_create(sizeof(pi_direct_res_config_one_t), 4);
+    assert(direct_res_configs);
+  }
+  pi_direct_res_config_one_t stored_config = {res_id, config};
+  vector_push_back(direct_res_configs, &stored_config);
+}
+
+pi_direct_res_config_one_t *retrieve_direct_resource_configs(
+    size_t *num_configs) {
+  if (!direct_res_configs) {
+    *num_configs = 0;
+    return NULL;
+  }
+  *num_configs = vector_size(direct_res_configs);
+  return vector_data(direct_res_configs);
+}
+
+void reset_direct_resource_configs() {
+  if (direct_res_configs) {
+    size_t v_size = vector_size(direct_res_configs);
+    for (size_t i = 0; i < v_size; i++) {
+      pi_direct_res_config_one_t *stored_config =
+          vector_at(direct_res_configs, i);
+      free(stored_config->config);
+    }
+    vector_destroy(direct_res_configs);
+    direct_res_configs = NULL;
+  }
+}

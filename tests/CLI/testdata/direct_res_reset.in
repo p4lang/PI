@@ -1,0 +1,4 @@
+counter_write ExactOne_counter NEXT_ENTRY bytes=388
+direct_res_reset
+table_add ExactOne 0 => actionA 0
+counter_read ExactOne_counter 0

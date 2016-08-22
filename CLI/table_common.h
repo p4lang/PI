@@ -40,4 +40,10 @@ pi_cli_status_t get_entry_indirect(pi_table_entry_t *t_entry);
 void cleanup_entry_direct(pi_table_entry_t *t_entry);
 void cleanup_entry_indirect(pi_table_entry_t *t_entry);
 
+// takes ownership of config
+void store_direct_resource_config(pi_p4_id_t res_id, void *config);
+pi_direct_res_config_one_t *retrieve_direct_resource_configs(
+    size_t *num_configs);
+void reset_direct_resource_configs();
+
 #endif  // PI_CLI_TABLE_COMMON_H_

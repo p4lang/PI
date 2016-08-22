@@ -372,6 +372,16 @@ pi_p4_id_t pi_p4info_table_get_implementation(const pi_p4info_t *p4info,
   return table->implementation;
 }
 
+bool pi_p4info_table_is_direct_resource_of(const pi_p4info_t *p4info,
+                                           pi_p4_id_t table_id,
+                                           pi_p4_id_t direct_res_id) {
+  _table_data_t *table = get_table(p4info, table_id);
+  pi_p4_id_t *ids = get_direct_resources(table);
+  for (size_t i = 0; i < table->num_direct_resources; i++)
+    if (ids[i] == direct_res_id) return true;
+  return false;
+}
+
 const pi_p4_id_t *pi_p4info_table_get_direct_resources(
     const pi_p4info_t *p4info, pi_p4_id_t table_id,
     size_t *num_direct_resources) {

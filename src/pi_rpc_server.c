@@ -117,7 +117,7 @@ static size_t retrieve_direct_res_config(
     pi_direct_res_get_fns(type, NULL, NULL, &size_of, &retrieve_fn);
     config->config = curr;
     curr += ALIGN_SIZE(size_of);
-    s += retrieve_fn(src + s, &config->config);
+    s += retrieve_fn(src + s, config->config);
   }
   return s;
 }

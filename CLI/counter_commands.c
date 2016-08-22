@@ -20,6 +20,7 @@
 
 #include "utils.h"
 #include "error_codes.h"
+#include "table_common.h"  // for holding direct resources
 
 #include <PI/pi.h>
 #include <PI/pi_counter.h>
@@ -32,6 +33,8 @@
 extern const pi_p4info_t *p4info_curr;
 extern pi_dev_tgt_t dev_tgt;
 extern pi_session_handle_t sess;
+
+#define NEXT_ENTRY_TOKEN "NEXT_ENTRY"
 
 static char *complete_counter(const char *text, int state) {
   return complete_one_name(text, state, PI_COUNTER_ID);
@@ -103,7 +106,7 @@ static pi_status_t write_counter(pi_p4_id_t c_id, uint64_t handle,
 }
 
 static pi_cli_status_t parse_common(char *subcmd, pi_p4_id_t *c_id,
-                                    uint64_t *handle) {
+                                    uint64_t *handle, int *for_next_t_entry) {
   const char *args[2];
   size_t num_args = sizeof(args) / sizeof(char *);
   if (parse_fixed_args(subcmd, args, num_args) < num_args)
@@ -112,6 +115,16 @@ static pi_cli_status_t parse_common(char *subcmd, pi_p4_id_t *c_id,
   const char *handle_str = args[1];
   *c_id = pi_p4info_counter_id_from_name(p4info_curr, c_name);
   if (*c_id == PI_INVALID_ID) return PI_CLI_STATUS_INVALID_COUNTER_NAME;
+  if (!strncmp(NEXT_ENTRY_TOKEN, handle_str, sizeof NEXT_ENTRY_TOKEN)) {
+    if (!for_next_t_entry) {
+      printf(NEXT_ENTRY_TOKEN " not valid for this command\n");
+      return PI_CLI_STATUS_INVALID_ENTRY_HANDLE;
+    }
+    *for_next_t_entry = 1;
+    return PI_CLI_STATUS_SUCCESS;
+  } else if (for_next_t_entry) {
+    *for_next_t_entry = 0;
+  }
   char *endptr;
   *handle = strtoll(handle_str, &endptr, 0);
   if (*endptr != '\0') return PI_CLI_STATUS_INVALID_ENTRY_HANDLE;
@@ -126,8 +139,8 @@ pi_cli_status_t do_counter_read(char *subcmd) {
   pi_p4_id_t c_id;
   uint64_t handle;
   pi_cli_status_t status;
-  if ((status = parse_common(subcmd, &c_id, &handle)) != PI_CLI_STATUS_SUCCESS)
-    return status;
+  status = parse_common(subcmd, &c_id, &handle, NULL);
+  if (status != PI_CLI_STATUS_SUCCESS) return status;
 
   pi_p4_id_t direct_t_id = pi_p4info_counter_get_direct(p4info_curr, c_id);
   pi_status_t rc;
@@ -160,17 +173,39 @@ char counter_write_hs[] =
     "counter_write <counter name> <index | entry handle> "
     "[packets=<N>] [bytes=<N>]";
 
+static pi_cli_status_t store_direct_counter_config(
+    pi_p4_id_t c_id, const pi_counter_data_t *counter_data) {
+  pi_p4_id_t direct_t_id = pi_p4info_counter_get_direct(p4info_curr, c_id);
+  if (direct_t_id == PI_INVALID_ID) {
+    printf("Cannot hold resource spec with " NEXT_ENTRY_TOKEN
+           " for none-direct resources.\n");
+    return PI_CLI_STATUS_ERROR;
+  }
+  pi_counter_data_t *counter_data_copy = malloc(sizeof(*counter_data));
+  memcpy(counter_data_copy, counter_data, sizeof(*counter_data));
+  store_direct_resource_config(c_id, counter_data_copy);
+  return PI_CLI_STATUS_SUCCESS;
+}
+
 pi_cli_status_t do_counter_write(char *subcmd) {
   pi_p4_id_t c_id;
   uint64_t handle;
   pi_cli_status_t status;
-  if ((status = parse_common(subcmd, &c_id, &handle)) != PI_CLI_STATUS_SUCCESS)
-    return status;
+  int for_next_t_entry = 0;
+  status = parse_common(subcmd, &c_id, &handle, &for_next_t_entry);
+  if (status != PI_CLI_STATUS_SUCCESS) return status;
 
   pi_counter_data_t counter_data;
   if (parse_counter_data(&counter_data))
     return PI_CLI_STATUS_INVALID_COMMAND_FORMAT;
   print_counter_data(&counter_data);
+
+  if (for_next_t_entry) {
+    status = store_direct_counter_config(c_id, &counter_data);
+    if (status != PI_CLI_STATUS_SUCCESS) return status;
+    printf("Direct resource spec was stored.\n");
+    return PI_CLI_STATUS_SUCCESS;
+  }
 
   pi_status_t rc = write_counter(c_id, handle, &counter_data);
   if (rc != PI_STATUS_SUCCESS) {
@@ -193,8 +228,8 @@ pi_cli_status_t do_counter_reset(char *subcmd) {
   pi_p4_id_t c_id;
   uint64_t handle;
   pi_cli_status_t status;
-  if ((status = parse_common(subcmd, &c_id, &handle)) != PI_CLI_STATUS_SUCCESS)
-    return status;
+  status = parse_common(subcmd, &c_id, &handle, NULL);
+  if (status != PI_CLI_STATUS_SUCCESS) return status;
 
   pi_counter_data_t counter_data;
   counter_data.valid = PI_COUNTER_UNIT_PACKETS | PI_COUNTER_UNIT_BYTES;

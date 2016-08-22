@@ -234,7 +234,12 @@ pi_cli_status_t do_table_add(char *subcmd) {
   }
 
   t_entry.entry_properties = &entry_properties;
-  t_entry.direct_res_config = NULL;
+
+  // direct resources
+  pi_direct_res_config_t direct_res_config;
+  direct_res_config.configs =
+      retrieve_direct_resource_configs(&direct_res_config.num_configs);
+  t_entry.direct_res_config = &direct_res_config;
 
   pi_entry_handle_t handle = 0;
   pi_status_t rc;
@@ -249,6 +254,7 @@ pi_cli_status_t do_table_add(char *subcmd) {
     cleanup_entry_direct(&t_entry);
   else
     cleanup_entry_indirect(&t_entry);
+  reset_direct_resource_configs();
 
   return (rc == PI_STATUS_SUCCESS) ? PI_CLI_STATUS_SUCCESS
                                    : PI_CLI_STATUS_TARGET_ERROR;

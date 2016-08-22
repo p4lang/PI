@@ -86,6 +86,10 @@ pi_p4_id_t pi_p4info_table_get_const_default_action(const pi_p4info_t *p4info,
 pi_p4_id_t pi_p4info_table_get_implementation(const pi_p4info_t *p4info,
                                               pi_p4_id_t table_id);
 
+bool pi_p4info_table_is_direct_resource_of(const pi_p4info_t *p4info,
+                                           pi_p4_id_t table_id,
+                                           pi_p4_id_t direct_res_id);
+
 const pi_p4_id_t *pi_p4info_table_get_direct_resources(
     const pi_p4info_t *p4info, pi_p4_id_t table_id,
     size_t *num_direct_resources);
