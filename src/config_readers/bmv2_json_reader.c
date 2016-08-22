@@ -351,6 +351,7 @@ static pi_status_t read_counters(cJSON *root, pi_p4info_t *p4info) {
           pi_p4info_table_id_from_name(p4info, direct_tname);
       if (direct_tid == PI_INVALID_ID) return PI_STATUS_CONFIG_READER_ERROR;
       pi_p4info_counter_make_direct(p4info, pi_id, direct_tid);
+      pi_p4info_table_add_direct_resource(p4info, direct_tid, pi_id);
     }
   }
 
@@ -409,6 +410,7 @@ static pi_status_t read_meters(cJSON *root, pi_p4info_t *p4info) {
           pi_p4info_table_id_from_name(p4info, direct_tname);
       if (direct_tid == PI_INVALID_ID) return PI_STATUS_CONFIG_READER_ERROR;
       pi_p4info_meter_make_direct(p4info, pi_id, direct_tid);
+      pi_p4info_table_add_direct_resource(p4info, direct_tid, pi_id);
     }
   }
 
