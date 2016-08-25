@@ -31,7 +31,6 @@
 
 static size_t num_devices;
 static pi_device_info_t *device_mapping;
-static char *rpc_addr_;
 
 typedef struct {
   int is_set;
@@ -95,13 +94,12 @@ static void register_std_direct_res() {
   assert(status == PI_STATUS_SUCCESS);
 }
 
-pi_status_t pi_init(size_t max_devices, char *rpc_addr) {
+pi_status_t pi_init(size_t max_devices, pi_remote_addr_t *remote_addr) {
   // TODO(antonin): best place for this? I don't see another option
   register_std_direct_res();
   num_devices = max_devices;
   device_mapping = calloc(max_devices, sizeof(pi_device_info_t));
-  rpc_addr_ = rpc_addr;
-  return _pi_init((void *)rpc_addr);
+  return _pi_init((void *)remote_addr);
 }
 
 void pi_update_device_config(pi_dev_id_t dev_id, const pi_p4info_t *p4info) {

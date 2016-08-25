@@ -2,7 +2,7 @@ ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 
 lib_LTLIBRARIES = libpicli.la
 
-CPPFLAGS = -I$(top_srcdir)/include
+AM_CPPFLAGS = -I$(top_srcdir)/include -I$(top_srcdir)/lib
 
 libpicli_la_SOURCES = \
 commands.h \
@@ -19,8 +19,6 @@ error_codes.h \
 error_codes.c \
 utils.h \
 utils.c \
-vector.h \
-vector.c \
 table_common.h \
 table_common.c \
 p4_config_repo.h \
@@ -40,6 +38,7 @@ libpicli.la \
 $(top_builddir)/src/libpi.la \
 $(top_builddir)/src/libpifegeneric.la \
 $(top_builddir)/src/libpip4info.la \
+$(top_builddir)/lib/libpitoolkit.la \
 -lnanomsg
 
 pi_CLI_dummy_LDADD = $(common_libs) \

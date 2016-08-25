@@ -125,16 +125,37 @@ static void process_state_sync(const char *rep) {
 /*   return PI_STATUS_SUCCESS; */
 /* } */
 
+static void init_addrs(const pi_remote_addr_t *remote_addr) {
+  if (!remote_addr || !remote_addr->rpc_addr)
+    rpc_addr = strdup("ipc:///tmp/pi_rpc.ipc");
+  else
+    rpc_addr = strdup(remote_addr->rpc_addr);
+  // notifications subscription optional
+  if (remote_addr && remote_addr->notifications_addr)
+    notifications_addr = strdup(remote_addr->notifications_addr);
+}
+
+static void free_addrs() {
+  free(rpc_addr);
+  if (notifications_addr) free(notifications_addr);
+}
+
+extern pi_status_t notifications_start(const char *);
+
 pi_status_t _pi_init(void *extra) {
   assert(!state.init);
-  if (extra)
-    addr = strdup((char *)extra);
-  else
-    addr = strdup("ipc:///tmp/pi_rpc.ipc");  // so that it can be freed
+  init_addrs((pi_remote_addr_t *)extra);
   state.s = nn_socket(AF_SP, NN_REQ);
   if (state.s < 0) return PI_STATUS_RPC_CONNECT_ERROR;
-  if (nn_connect(state.s, addr) < 0) return PI_STATUS_RPC_CONNECT_ERROR;
+  if (nn_connect(state.s, rpc_addr) < 0) return PI_STATUS_RPC_CONNECT_ERROR;
   state.init = 1;
+
+  pi_status_t status;
+
+  if (notifications_addr) {
+    status = notifications_start(notifications_addr);
+    if (status != PI_STATUS_SUCCESS) return status;
+  }
 
   req_hdr_t req;
   pi_rpc_id_t req_id = state.req_id++;
@@ -148,7 +169,7 @@ pi_status_t _pi_init(void *extra) {
   if (bytes <= 0) return PI_STATUS_RPC_TRANSPORT_ERROR;
 
   char *rep_ = rep;
-  pi_status_t status = retrieve_rep_hdr(rep_, req_id);
+  status = retrieve_rep_hdr(rep_, req_id);
   if (status != PI_STATUS_SUCCESS) {
     nn_freemsg(rep);
     return status;
@@ -228,7 +249,7 @@ pi_status_t _pi_destroy() {
   int rc = nn_send(state.s, (char *)&req, sizeof(req), 0);
   if (rc != sizeof(req)) return PI_STATUS_RPC_TRANSPORT_ERROR;
 
-  free(addr);
+  free_addrs();
 
   return wait_for_status(req_id);
 }

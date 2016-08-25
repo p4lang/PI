@@ -65,4 +65,5 @@ EXTRA_DIST = \
 testdata/simple_router.json \
 testdata/valid.json \
 testdata/ecmp.json \
-testdata/stats.json
+testdata/stats.json \
+testdata/l2_switch.json

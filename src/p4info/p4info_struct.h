@@ -53,6 +53,7 @@ struct pi_p4info_s {
   pi_p4info_res_t *actions;
   pi_p4info_res_t *tables;
   pi_p4info_res_t *fields;
+  pi_p4info_res_t *field_lists;
   pi_p4info_res_t *act_profs;
   pi_p4info_res_t *counters;
   pi_p4info_res_t *meters;

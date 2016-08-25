@@ -31,8 +31,8 @@ namespace pibmv2 {
 
 BmCounterValue convert_from_counter_data(const pi_counter_data_t *from);
 
-std::vector<BmMeterRateConfig>
-convert_from_meter_spec(const pi_meter_spec_t *meter_spec);
+std::vector<BmMeterRateConfig> convert_from_meter_spec(
+    const pi_meter_spec_t *meter_spec);
 
 }  // namespace pibmv2
 

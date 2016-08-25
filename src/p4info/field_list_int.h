@@ -18,25 +18,21 @@
  *
  */
 
-// TODO(antonin): move to another location
+#ifndef PI_SRC_P4INFO_FIELD_LIST_INT_H_
+#define PI_SRC_P4INFO_FIELD_LIST_INT_H_
 
-#ifndef PI_CLI_VECTOR_H_
-#define PI_CLI_VECTOR_H_
+#include "PI/p4info/field_list.h"
 
-#include <stddef.h>
+void pi_p4info_field_list_init(pi_p4info_t *p4info, size_t num_field_lists);
 
-typedef struct vector_s vector_t;
+void pi_p4info_field_list_add(pi_p4info_t *p4info, pi_p4_id_t field_list_id,
+                              const char *name, size_t num_fields);
 
-vector_t *vector_create(size_t e_size, size_t init_capacity);
+void pi_p4info_field_list_add_field(pi_p4info_t *p4info,
+                                    pi_p4_id_t field_list_id,
+                                    pi_p4_id_t field_id);
 
-void vector_destroy(vector_t *v);
+typedef struct cJSON cJSON;
+void pi_p4info_field_list_serialize(cJSON *root, const pi_p4info_t *p4info);
 
-void vector_push_back(vector_t *v, void *e);
-
-void *vector_at(const vector_t *v, size_t index);
-
-void *vector_data(const vector_t *v);
-
-size_t vector_size(vector_t *v);
-
-#endif  // PI_CLI_VECTOR_H_
+#endif  // PI_SRC_P4INFO_FIELD_LIST _INT_H_

@@ -21,6 +21,8 @@
 #ifndef PI_INC_PI_TARGET_PI_ACT_PROF_IMP_H_
 #define PI_INC_PI_TARGET_PI_ACT_PROF_IMP_H_
 
+#include <PI/pi_act_prof.h>
+
 pi_status_t _pi_act_prof_mbr_create(pi_session_handle_t session_handle,
                                     pi_dev_tgt_t dev_tgt,
                                     pi_p4_id_t act_prof_id,

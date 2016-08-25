@@ -40,6 +40,9 @@ AC_CONFIG_MACRO_DIR([m4])
 # Checks for header files.
 AC_LANG_PUSH(C)
 
+# check for pthreads
+AX_PTHREAD()
+
 # To simplify usage, we will update PATH, CPPFLAGS,.. to include the 'prefix'
 # ones
 adl_RECURSIVE_EVAL([$bindir], [BIN_DIR])
@@ -114,6 +117,7 @@ AC_CONFIG_FILES([Makefile
                  generators/Makefile
                  generators/pd/Makefile
                  include/Makefile
+                 lib/Makefile
                  src/Makefile
                  targets/Makefile
                  targets/dummy/Makefile

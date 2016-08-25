@@ -34,7 +34,12 @@ extern "C" {
 // returns NULL if device not assigned
 const pi_p4info_t *pi_get_device_p4info(pi_dev_id_t dev_id);
 
-pi_status_t pi_init(size_t max_devices, char *rpc_addr);
+typedef struct {
+  char *rpc_addr;
+  char *notifications_addr;
+} pi_remote_addr_t;
+
+pi_status_t pi_init(size_t max_devices, pi_remote_addr_t *remote_addr);
 
 typedef struct {
   int end_of_extras;

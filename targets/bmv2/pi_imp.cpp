@@ -34,6 +34,9 @@ conn_mgr_t *conn_mgr_state = NULL;
 
 device_info_t device_info_state[NUM_DEVICES];
 
+extern void start_learn_listener(const std::string &addr, int rpc_port_num);
+extern void stop_learn_listener();
+
 }  // namespace pibmv2
 
 extern "C" {
@@ -50,6 +53,7 @@ pi_status_t _pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
   pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_id);
   assert(!d_info->assigned);
   int rpc_port_num = -1;
+  std::string bm_notifications_addr("");
   for (; !extra->end_of_extras; extra++) {
     std::string key(extra->key);
     if (key == "port" && extra->v) {
@@ -59,11 +63,17 @@ pi_status_t _pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
       catch (const std::exception& e) {
         return PI_STATUS_INVALID_INIT_EXTRA_PARAM;
       }
+    } else if (key == "notifications" && extra->v) {
+      bm_notifications_addr = std::string(extra->v);
     }
   }
   if (rpc_port_num == -1) return PI_STATUS_MISSING_INIT_EXTRA_PARAM;
   if (conn_mgr_client_init(pibmv2::conn_mgr_state, dev_id, rpc_port_num))
     return PI_STATUS_TARGET_TRANSPORT_ERROR;
+
+  if (bm_notifications_addr != "")
+    pibmv2::start_learn_listener(bm_notifications_addr, rpc_port_num);
+
   d_info->p4info = p4info;
   d_info->assigned = 1;
   return PI_STATUS_SUCCESS;
@@ -79,6 +89,7 @@ pi_status_t _pi_remove_device(pi_dev_id_t dev_id) {
 
 pi_status_t _pi_destroy() {
   pibmv2::conn_mgr_destroy(pibmv2::conn_mgr_state);
+  pibmv2::stop_learn_listener();
   return PI_STATUS_SUCCESS;
 }
 

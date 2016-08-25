@@ -60,6 +60,9 @@ typedef enum {
   PI_RPC_METER_SET,
   PI_RPC_METER_SET_DIRECT,
 
+  // learning
+  PI_RPC_LEARN_MSG_ACK,
+
   // rpc management
   // retrieve state for sync-up when rpc client is started
   PI_RPC_INT_GET_STATE = 256,
@@ -100,5 +103,18 @@ size_t retrieve_action_data(char *src, pi_action_data_t **action_data,
 size_t direct_res_config_size(const pi_direct_res_config_t *direct_res_config);
 size_t emit_direct_res_config(char *dst,
                               const pi_direct_res_config_t *direct_res_config);
+
+// for notifications
+// TODO(antonin): different header?
+typedef char s_pi_notifications_topic_t[6];
+
+typedef struct __attribute__((packed)) {
+  s_pi_notifications_topic_t topic;
+  s_pi_dev_tgt_t dev_tgt;
+  s_pi_p4_id_t id;
+  s_pi_learn_msg_id_t msg_id;
+  uint32_t num;
+  uint32_t entry_size;
+} s_pi_learn_msg_hdr_t;
 
 #endif  // PI_INT_RPC_COMMON_H_

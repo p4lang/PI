@@ -18,9 +18,9 @@
  *
  */
 
-#include "pi_rpc.h"
+#include <PI/target/pi_act_prof_imp.h>
 
-#include <stdio.h>
+#include "pi_rpc.h"
 
 static pi_status_t wait_for_handle(uint32_t req_id, pi_indirect_handle_t *h) {
   typedef struct __attribute__((packed)) {

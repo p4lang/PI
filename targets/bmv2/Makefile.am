@@ -8,6 +8,7 @@ pi_tables_imp.cpp \
 pi_act_prof_imp.cpp \
 pi_counter_imp.cpp \
 pi_meter_imp.cpp \
+pi_learn_imp.cpp \
 conn_mgr.h \
 conn_mgr.cpp \
 common.h \
@@ -17,6 +18,7 @@ direct_res_spec.h \
 direct_res_spec.cpp
 
 libpi_bmv2_la_LIBADD = \
-$(top_builddir)/../../src/libpip4info.la
+$(top_builddir)/../../src/libpip4info.la \
+-lbmp4apps
 
 noinst_LTLIBRARIES = libpi_bmv2.la

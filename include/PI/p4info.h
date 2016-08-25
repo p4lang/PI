@@ -32,6 +32,7 @@ extern "C" {
 #include "p4info/act_profs.h"
 #include "p4info/counters.h"
 #include "p4info/meters.h"
+#include "p4info/field_list.h"
 
 pi_status_t pi_add_config(const char *config, pi_config_type_t config_type,
                           pi_p4info_t **p4info);

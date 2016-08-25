@@ -5,6 +5,7 @@ pi_imp.c \
 pi_tables_imp.c \
 pi_act_prof_imp.c \
 pi_counter_imp.c \
-pi_meter_imp.c
+pi_meter_imp.c \
+pi_learn_imp.c
 
 lib_LTLIBRARIES = libpi_dummy.la

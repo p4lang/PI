@@ -18,32 +18,26 @@
  *
  */
 
-#ifndef PI_RPC_PI_RPC_H_
-#define PI_RPC_PI_RPC_H_
+#ifndef PI_TOOLKIT_VECTOR_H_
+#define PI_TOOLKIT_VECTOR_H_
 
-#include <PI/pi.h>
-#include <PI/int/pi_int.h>
-#include <PI/int/serialize.h>
-#include <PI/int/rpc_common.h>
+#include <stddef.h>
 
-#include <nanomsg/nn.h>
-#include <nanomsg/reqrep.h>
+typedef struct vector_s vector_t;
 
-typedef struct {
-  int init;
-  pi_rpc_id_t req_id;
-  int s;
-} pi_rpc_state_t;
+vector_t *vector_create(size_t e_size, size_t init_capacity);
 
-extern char *rpc_addr;
-extern char *notifications_addr;
+void vector_destroy(vector_t *v);
 
-extern pi_rpc_state_t state;
+void vector_push_back(vector_t *v, void *e);
 
-pi_status_t retrieve_rep_hdr(const char *rep, pi_rpc_id_t req_id);
+void *vector_at(const vector_t *v, size_t index);
 
-pi_status_t wait_for_status(pi_rpc_id_t req_id);
+void *vector_data(const vector_t *v);
 
-size_t emit_req_hdr(char *hdr, pi_rpc_id_t id, pi_rpc_type_t type);
+size_t vector_size(vector_t *v);
 
-#endif  // PI_RPC_PI_RPC_H_
+/* typedef int (*VectorCmpFn)(const void *e1, const void *e2); */
+/* void *vector_search(vector_t *v, VectorCmpFn cmp_fn, size_t start_index); */
+
+#endif  // PI_TOOLKIT_VECTOR_H_

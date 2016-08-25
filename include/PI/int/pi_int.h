@@ -45,6 +45,10 @@ static inline pi_p4_id_t pi_make_field_id(uint16_t index) {
   return (PI_FIELD_ID << 24) | index;
 }
 
+static inline pi_p4_id_t pi_make_field_list_id(uint16_t index) {
+  return (PI_FIELD_LIST_ID << 24) | index;
+}
+
 static inline pi_p4_id_t pi_make_act_prof_id(uint16_t index) {
   return (PI_ACT_PROF_ID << 24) | index;
 }
