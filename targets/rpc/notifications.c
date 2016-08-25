@@ -20,6 +20,7 @@
 
 #include <PI/int/serialize.h>
 #include <PI/int/rpc_common.h>
+#include <PI/target/pi_imp.h>
 #include <PI/target/pi_learn_imp.h>
 
 #include <pthread.h>
@@ -62,6 +63,18 @@ static void handle_LEA(char *msg) {
   pi_learn_new_msg(learn_msg);
 }
 
+static void handle_PKT(char *msg) {
+  size_t s = 0;
+  s += sizeof(s_pi_notifications_topic_t);
+  pi_dev_id_t dev_id;
+  s += retrieve_dev_id(msg + s, &dev_id);
+  uint32_t msg_size;
+  s += retrieve_uint32(msg + s, &msg_size);
+  pi_packetin_receive(dev_id, msg + s, msg_size);
+  // we free the msg right away, app can make copy in cb
+  nn_freemsg(msg);
+}
+
 static void *receive_loop(void *arg) {
   (void)arg;
   while (1) {
@@ -73,10 +86,14 @@ static void *receive_loop(void *arg) {
     if (!memcmp("PILEA|", msg, sizeof "PILEA|")) {
       printf("Received learning notification.\n");
       handle_LEA(msg);
+      nn_freemsg(msg);
+    } else if (!memcmp("PIPKT|", msg, sizeof "PIPKT|")) {
+      printf("Received packet-in notification.\n");
+      handle_PKT(msg);
     } else {
       printf("Unknow notification type\n");
+      nn_freemsg(msg);
     }
-    nn_freemsg(msg);
   }
   return NULL;
 }

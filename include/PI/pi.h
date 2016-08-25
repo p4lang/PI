@@ -58,6 +58,11 @@ pi_status_t pi_session_cleanup(pi_session_handle_t session_handle);
 
 pi_status_t pi_destroy();
 
+typedef void (*PIPacketInCb)(pi_dev_id_t dev_id, const char *pkt, size_t size,
+                             void *cb_cookie);
+pi_status_t pi_packetin_register_cb(PIPacketInCb cb, void *cb_cookie);
+pi_status_t pi_packetout_send(pi_dev_id_t dev_id, const char *pkt, size_t size);
+
 // TODO(antonin): move this to pi_tables?
 // When adding a table entry, the configuration for direct resources associated
 // with the entry can be provided. The config is then passed as a generic void *

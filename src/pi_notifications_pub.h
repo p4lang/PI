@@ -27,4 +27,7 @@ pi_status_t pi_notifications_init(const char *notifications_addr);
 
 void pi_notifications_pub_learn(const pi_learn_msg_t *msg);
 
+void pi_notifications_pub_packetin(pi_dev_id_t dev_id, const char *pkt,
+                                   size_t size);
+
 #endif  // PI_SRC_PI_NOTIFICATIONS_PUB_H_

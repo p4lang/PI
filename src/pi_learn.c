@@ -83,7 +83,7 @@ pi_status_t pi_learn_msg_ack(pi_session_handle_t session_handle,
 pi_status_t pi_learn_msg_done(pi_learn_msg_t *msg) {
   return _pi_learn_msg_done(msg);
 }
-#include <stdio.h>
+
 // called by backend
 pi_status_t pi_learn_new_msg(pi_learn_msg_t *msg) {
   pi_dev_id_t dev_id = msg->dev_tgt.dev_id;
@@ -96,6 +96,5 @@ pi_status_t pi_learn_new_msg(pi_learn_msg_t *msg) {
     default_cb(msg, default_cb_cookie);
     return PI_STATUS_SUCCESS;
   }
-  pi_learn_msg_ack(0, dev_id, msg->learn_id, msg->msg_id);
   return PI_STATUS_LEARN_NO_MATCHING_CB;
 }

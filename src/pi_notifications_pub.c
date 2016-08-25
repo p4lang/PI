@@ -67,6 +67,22 @@ void pi_notifications_pub_learn(const pi_learn_msg_t *msg) {
   pub_notification(pub_msg, pub_msg_size);
 }
 
+void pi_notifications_pub_packetin(pi_dev_id_t dev_id, const char *pkt,
+                                   size_t size) {
+  size_t pub_msg_size = sizeof(s_pi_notifications_topic_t);
+  pub_msg_size += sizeof(s_pi_dev_id_t);
+  pub_msg_size += sizeof(uint32_t);
+  pub_msg_size += size;
+  char *pub_msg = nn_allocmsg(pub_msg_size, 0);
+
+  char *msg = pub_msg;
+  msg += emit_notifications_topic(msg, "PIPKT|");
+  msg += emit_dev_id(msg, dev_id);
+  msg += emit_uint32(msg, size);
+  memcpy(msg, pkt, size);
+  pub_notification(pub_msg, pub_msg_size);
+}
+
 pi_status_t pi_notifications_init(const char *notifications_addr) {
   assert(notifications_addr);
   addr = strdup(notifications_addr);

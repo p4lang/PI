@@ -43,6 +43,13 @@ typedef struct {
 // allocate at runtime?
 static pi_direct_res_rpc_t direct_res_rpc[PI_RES_TYPE_MAX];
 
+typedef struct {
+  PIPacketInCb cb;
+  void *cookie;
+} packetin_cb_data_t;
+
+static packetin_cb_data_t packetin_cb_data;
+
 pi_device_info_t *pi_get_device_info(pi_dev_id_t dev_id) {
   return device_mapping + dev_id;
 }
@@ -221,5 +228,23 @@ pi_status_t pi_direct_res_get_fns(pi_res_type_id_t res_type,
   if (emit_fn) *emit_fn = direct_res_rpc[res_type].emit_fn;
   if (size_of) *size_of = direct_res_rpc[res_type].size_of;
   if (retrieve_fn) *retrieve_fn = direct_res_rpc[res_type].retrieve_fn;
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_packetin_register_cb(PIPacketInCb cb, void *cb_cookie) {
+  packetin_cb_data.cb = cb;
+  packetin_cb_data.cookie = cb_cookie;
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_packetout_send(pi_dev_id_t dev_id, const char *pkt,
+                              size_t size) {
+  return _pi_packetout_send(dev_id, pkt, size);
+}
+
+pi_status_t pi_packetin_receive(pi_dev_id_t dev_id, const char *pkt,
+                                size_t size) {
+  if (!packetin_cb_data.cb) return PI_STATUS_PACKETIN_NO_CB;
+  packetin_cb_data.cb(dev_id, pkt, size, packetin_cb_data.cookie);
   return PI_STATUS_SUCCESS;
 }

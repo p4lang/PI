@@ -19,12 +19,14 @@
  */
 
 #include <PI/pi.h>
+#include <PI/target/pi_imp.h>
 
 #include <string>
 #include <cstring>  // for memset
 
 #include "conn_mgr.h"
 #include "common.h"
+#include "cpu_send_recv.h"
 
 #define NUM_DEVICES 256
 
@@ -39,12 +41,20 @@ extern void stop_learn_listener();
 
 }  // namespace pibmv2
 
+namespace {
+
+pibmv2::CpuSendRecv *cpu_send_recv = nullptr;
+
+}  // namespace
+
 extern "C" {
 
 pi_status_t _pi_init(void *extra) {
   (void) extra;
   memset(pibmv2::device_info_state, 0, sizeof(pibmv2::device_info_state));
   pibmv2::conn_mgr_state = pibmv2::conn_mgr_create();
+  cpu_send_recv = new pibmv2::CpuSendRecv();
+  cpu_send_recv->start();
   return PI_STATUS_SUCCESS;
 }
 
@@ -65,6 +75,9 @@ pi_status_t _pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
       }
     } else if (key == "notifications" && extra->v) {
       bm_notifications_addr = std::string(extra->v);
+    } else if (key == "cpu_iface" && extra->v) {
+      int rc = cpu_send_recv->add_device(std::string(extra->v), dev_id);
+      if (rc < 0) return PI_STATUS_INVALID_INIT_EXTRA_PARAM;
     }
   }
   if (rpc_port_num == -1) return PI_STATUS_MISSING_INIT_EXTRA_PARAM;
@@ -83,6 +96,7 @@ pi_status_t _pi_remove_device(pi_dev_id_t dev_id) {
   pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_id);
   assert(d_info->assigned);
   pibmv2::conn_mgr_client_close(pibmv2::conn_mgr_state, dev_id);
+  cpu_send_recv->remove_device(dev_id);
   d_info->assigned = 0;
   return PI_STATUS_SUCCESS;
 }
@@ -90,6 +104,7 @@ pi_status_t _pi_remove_device(pi_dev_id_t dev_id) {
 pi_status_t _pi_destroy() {
   pibmv2::conn_mgr_destroy(pibmv2::conn_mgr_state);
   pibmv2::stop_learn_listener();
+  delete cpu_send_recv;
   return PI_STATUS_SUCCESS;
 }
 
@@ -101,6 +116,13 @@ pi_status_t _pi_session_init(pi_session_handle_t *session_handle) {
 
 pi_status_t _pi_session_cleanup(pi_session_handle_t session_handle) {
   (void) session_handle;
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_packetout_send(pi_dev_id_t dev_id, const char *pkt,
+                               size_t size) {
+  if (cpu_send_recv->send_pkt(dev_id, pkt, size) != static_cast<int>(size))
+    return PI_STATUS_PACKETOUT_SEND_ERROR;
   return PI_STATUS_SUCCESS;
 }
 

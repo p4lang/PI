@@ -63,6 +63,9 @@ typedef enum {
   // learning
   PI_RPC_LEARN_MSG_ACK,
 
+  // packet in/out
+  PI_RPC_PACKETOUT_SEND,
+
   // rpc management
   // retrieve state for sync-up when rpc client is started
   PI_RPC_INT_GET_STATE = 256,

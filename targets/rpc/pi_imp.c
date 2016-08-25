@@ -26,6 +26,9 @@
   for p4info, need to write some JSON serialization code
 */
 
+#include <PI/pi.h>
+#include <PI/target/pi_imp.h>
+
 #include "pi_rpc.h"
 
 #include <string.h>
@@ -292,6 +295,31 @@ pi_status_t _pi_session_cleanup(pi_session_handle_t session_handle) {
 
   int rc = nn_send(state.s, &req, sizeof(req), 0);
   if (rc != sizeof(req)) return PI_STATUS_RPC_TRANSPORT_ERROR;
+
+  return wait_for_status(req_id);
+}
+
+pi_status_t _pi_packetout_send(pi_dev_id_t dev_id, const char *pkt,
+                               size_t size) {
+  if (!state.init) return PI_STATUS_RPC_NOT_INIT;
+
+  size_t s = 0;
+  s += sizeof(req_hdr_t);
+  s += sizeof(s_pi_dev_id_t);
+  s += sizeof(s_pi_p4_id_t);
+  s += sizeof(uint32_t);
+  s += size;
+
+  char *req = nn_allocmsg(s, 0);
+  char *req_ = req;
+  pi_rpc_id_t req_id = state.req_id++;
+  req_ += emit_req_hdr(req_, req_id, PI_RPC_PACKETOUT_SEND);
+  req_ += emit_dev_id(req_, dev_id);
+  req_ += emit_uint32(req_, size);
+  memcpy(req_, pkt, size);
+
+  int rc = nn_send(state.s, &req, NN_MSG, 0);
+  if ((size_t)rc != s) return PI_STATUS_RPC_TRANSPORT_ERROR;
 
   return wait_for_status(req_id);
 }

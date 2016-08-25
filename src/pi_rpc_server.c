@@ -839,10 +839,27 @@ static void __pi_learn_msg_ack(char *req) {
   send_status(status);
 }
 
+static void __pi_packetout_send(char *req) {
+  printf("RPC: _pi_packetout_send\n");
+  pi_dev_id_t dev_id;
+  req += retrieve_dev_id(req, &dev_id);
+  uint32_t msg_size;
+  req += retrieve_uint32(req, &msg_size);
+
+  pi_status_t status = _pi_packetout_send(dev_id, req, msg_size);
+  send_status(status);
+}
+
 static void learn_cb(pi_learn_msg_t *msg, void *cb_cookie) {
   (void)cb_cookie;
   pi_notifications_pub_learn(msg);
   _pi_learn_msg_done(msg);
+}
+
+static void packetin_cb(pi_dev_id_t dev_id, const char *pkt, size_t size,
+                        void *cb_cookie) {
+  (void)cb_cookie;
+  pi_notifications_pub_packetin(dev_id, pkt, size);
 }
 
 pi_status_t pi_rpc_server_run(const pi_remote_addr_t *remote_addr) {
@@ -856,6 +873,7 @@ pi_status_t pi_rpc_server_run(const pi_remote_addr_t *remote_addr) {
     pi_status_t status = pi_notifications_init(notifications_addr);
     if (status != PI_STATUS_SUCCESS) return status;
     assert(pi_learn_register_default_cb(learn_cb, NULL) == PI_STATUS_SUCCESS);
+    assert(pi_packetin_register_cb(packetin_cb, NULL) == PI_STATUS_SUCCESS);
   }
 
   state.init = 1;
@@ -960,6 +978,10 @@ pi_status_t pi_rpc_server_run(const pi_remote_addr_t *remote_addr) {
 
       case PI_RPC_LEARN_MSG_ACK:
         __pi_learn_msg_ack(req_);
+        break;
+
+      case PI_RPC_PACKETOUT_SEND:
+        __pi_packetout_send(req_);
         break;
 
       default:
