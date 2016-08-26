@@ -18,4 +18,4 @@ $(top_builddir)/src/libpip4info.la \
 -lnanomsg \
 $(PTHREAD_CFLAGS)
 
-noinst_LTLIBRARIES = libpi_rpc.la
+lib_LTLIBRARIES = libpi_rpc.la

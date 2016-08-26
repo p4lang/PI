@@ -84,11 +84,11 @@ static void *receive_loop(void *arg) {
     }
 
     if (!memcmp("PILEA|", msg, sizeof "PILEA|")) {
-      printf("Received learning notification.\n");
+      /* printf("Received learning notification.\n"); */
       handle_LEA(msg);
       nn_freemsg(msg);
     } else if (!memcmp("PIPKT|", msg, sizeof "PIPKT|")) {
-      printf("Received packet-in notification.\n");
+      /* printf("Received packet-in notification.\n"); */
       handle_PKT(msg);
     } else {
       printf("Unknow notification type\n");

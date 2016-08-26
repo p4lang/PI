@@ -42,7 +42,7 @@ static void print_help(const char *name) {
           "Usage: %s [OPTIONS]...\n"
           "PI RPC server\n\n"
           "-a          nanomsg address for RPC\n"
-          "-d          nanomsg address for notifications\n",
+          "-n          nanomsg address for notifications\n",
           name);
 }
 
@@ -63,7 +63,7 @@ static int parse_opts(int argc, char *const argv[]) {
         print_help(argv[0]);
         exit(0);
       case '?':
-        if (optopt == 'c' || optopt == 'a') {
+        if (optopt == 'a' || optopt == 'n') {
           fprintf(stderr, "Option -%c requires an argument.\n\n", optopt);
           print_help(argv[0]);
         } else if (isprint(optopt)) {

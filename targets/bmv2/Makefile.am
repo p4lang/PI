@@ -28,4 +28,4 @@ $(top_builddir)/../../src/libpip4info.la \
 -lbmp4apps \
 $(PTHREAD_CFLAGS)
 
-noinst_LTLIBRARIES = libpi_bmv2.la
+lib_LTLIBRARIES = libpi_bmv2.la

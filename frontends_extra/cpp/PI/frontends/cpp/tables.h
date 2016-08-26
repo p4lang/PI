@@ -111,19 +111,22 @@ class ActionData {
 // TODO(antonin): handle device id / pipleline mask
 class MatchTable {
  public:
-  MatchTable(pi_session_handle_t sess, const pi_p4info_t *p4info,
-             pi_p4_id_t table_id);
+  MatchTable(pi_session_handle_t sess, pi_dev_tgt_t dev_tgt,
+             const pi_p4info_t *p4info, pi_p4_id_t table_id);
 
-  error_code_t entry_add(const MatchKey &match_key, pi_p4_id_t action_id,
-                         const ActionData &action_data, bool overwrite,
-                         pi_entry_handle_t *entry_handle);
+  pi_status_t entry_add(const MatchKey &match_key,
+                        const ActionData &action_data, bool overwrite,
+                        pi_entry_handle_t *entry_handle);
 
-  error_code_t entry_delete(pi_entry_handle_t entry_handle);
+  pi_status_t entry_delete(pi_entry_handle_t entry_handle);
+
+  pi_status_t default_entry_set(const ActionData &action_data);
 
   // many more APIs
 
  private:
   pi_session_handle_t sess;
+  pi_dev_tgt_t dev_tgt;
   const pi_p4info_t *p4info;
   pi_p4_id_t table_id;
 };

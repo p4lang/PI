@@ -30,6 +30,7 @@ namespace {
 
 pi_p4info_t *p4info = nullptr;
 pi_session_handle_t sess;
+pi_dev_tgt_t dev_tgt = {0, 0xffff};
 
 // easy to read version
 int add_route(uint32_t prefix, int pLen, uint32_t nhop, uint16_t port,
@@ -45,9 +46,8 @@ int add_route(uint32_t prefix, int pLen, uint32_t nhop, uint16_t port,
   rc |= action_data.set_arg(PI_P4_ACTIONP_SET_NHOP_NHOP_IPV4, nhop);
   rc |= action_data.set_arg(PI_P4_ACTIONP_SET_NHOP_PORT, port);
 
-  pi::MatchTable mt(sess, p4info, PI_P4_TABLE_IPV4_LPM);
-  rc |= mt.entry_add(match_key, PI_P4_ACTION_SET_NHOP, action_data, true,
-                     handle);
+  pi::MatchTable mt(sess, dev_tgt, p4info, PI_P4_TABLE_IPV4_LPM);
+  rc |= mt.entry_add(match_key, action_data, true, handle);
 
   return rc;
 }
@@ -69,9 +69,8 @@ int add_route_fast(uint32_t prefix, int pLen, uint32_t nhop, uint16_t port,
   rc |= action_data.set_arg(PI_P4_ACTIONP_SET_NHOP_PORT, port);
 
   // so far no state in MatchTable and construction is cheap
-  pi::MatchTable mt(sess, p4info, PI_P4_TABLE_IPV4_LPM);
-  rc |= mt.entry_add(match_key, PI_P4_ACTION_SET_NHOP, action_data, true,
-                     handle);
+  pi::MatchTable mt(sess, dev_tgt, p4info, PI_P4_TABLE_IPV4_LPM);
+  rc |= mt.entry_add(match_key, action_data, true, handle);
 
   return rc;
 }

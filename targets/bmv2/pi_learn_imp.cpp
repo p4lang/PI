@@ -50,7 +50,6 @@ size_t get_learn_sample_size(const pi_p4info_t *p4info,
 void cb_fn(const bm_apps::LearnListener::MsgInfo &msg_info,
            const char *data, void *cookie) {
   (void)cookie;
-  printf("YEAAAAAAAAAAAAA\n");
   pibmv2::device_info_t *d_info = pibmv2::get_device_info(msg_info.switch_id);
   if (!d_info) {
     printf("Unknown switch id\n");
