@@ -51,6 +51,10 @@ pi_status_t pi_learn_register_cb(pi_dev_id_t dev_id, pi_p4_id_t learn_id,
 // one
 pi_status_t pi_learn_register_default_cb(PILearnCb cb, void *cb_cookie);
 
+pi_status_t pi_learn_deregister_cb(pi_dev_id_t dev_id, pi_p4_id_t learn_id);
+
+pi_status_t pi_learn_deregister_default_cb();
+
 pi_status_t pi_learn_msg_ack(pi_session_handle_t session_handle,
                              pi_dev_id_t dev_id, pi_p4_id_t learn_id,
                              pi_learn_msg_id_t msg_id);

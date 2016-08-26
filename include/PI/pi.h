@@ -60,7 +60,13 @@ pi_status_t pi_destroy();
 
 typedef void (*PIPacketInCb)(pi_dev_id_t dev_id, const char *pkt, size_t size,
                              void *cb_cookie);
-pi_status_t pi_packetin_register_cb(PIPacketInCb cb, void *cb_cookie);
+pi_status_t pi_packetin_register_cb(pi_dev_id_t dev_id, PIPacketInCb cb,
+                                    void *cb_cookie);
+pi_status_t pi_packetin_register_default_cb(PIPacketInCb cb, void *cb_cookie);
+pi_status_t pi_packetin_deregister_cb(pi_dev_id_t dev_id);
+pi_status_t pi_packetin_register_default_cb(PIPacketInCb cb, void *cb_cookie);
+pi_status_t pi_packetin_deregister_default_cb();
+
 pi_status_t pi_packetout_send(pi_dev_id_t dev_id, const char *pkt, size_t size);
 
 // TODO(antonin): move this to pi_tables?

@@ -71,3 +71,17 @@ void *vector_at(const vector_t *v, size_t index) {
 void *vector_data(const vector_t *v) { return v->data; }
 
 size_t vector_size(vector_t *v) { return v->size; }
+
+void vector_remove(vector_t *v, size_t index) {
+  assert(index < v->size);
+  v->size--;
+  if (index == v->size) return;
+  memmove(access(v, index), access(v, index + 1),
+          (v->size - index) * v->e_size);
+}
+
+void vector_remove_e(vector_t *v, void *e) {
+  assert(e >= v->data);
+  size_t index = (char *)e - (char *)v->data;
+  vector_remove(v, index);
+}

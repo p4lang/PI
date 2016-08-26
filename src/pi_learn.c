@@ -62,6 +62,13 @@ static void add_cb(pi_dev_id_t dev_id, pi_p4_id_t learn_id, PILearnCb cb,
   vector_push_back(dcbs->cbs, &new_cb_data);
 }
 
+static void rm_cb(pi_dev_id_t dev_id, pi_p4_id_t learn_id) {
+  cb_data_t *cb_data = find_cb(dev_id, learn_id);
+  if (!cb_data) return;
+  one_device_cbs_t *dcbs = &device_cbs[dev_id];
+  vector_remove_e(dcbs->cbs, cb_data);
+}
+
 pi_status_t pi_learn_register_cb(pi_dev_id_t dev_id, pi_p4_id_t learn_id,
                                  PILearnCb cb, void *cb_cookie) {
   add_cb(dev_id, learn_id, cb, cb_cookie);
@@ -71,6 +78,17 @@ pi_status_t pi_learn_register_cb(pi_dev_id_t dev_id, pi_p4_id_t learn_id,
 pi_status_t pi_learn_register_default_cb(PILearnCb cb, void *cb_cookie) {
   default_cb = cb;
   default_cb_cookie = cb_cookie;
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_learn_deregister_cb(pi_dev_id_t dev_id, pi_p4_id_t learn_id) {
+  rm_cb(dev_id, learn_id);
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_learn_deregister_default_cb() {
+  default_cb = NULL;
+  default_cb_cookie = NULL;
   return PI_STATUS_SUCCESS;
 }
 

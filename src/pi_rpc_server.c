@@ -873,7 +873,8 @@ pi_status_t pi_rpc_server_run(const pi_remote_addr_t *remote_addr) {
     pi_status_t status = pi_notifications_init(notifications_addr);
     if (status != PI_STATUS_SUCCESS) return status;
     assert(pi_learn_register_default_cb(learn_cb, NULL) == PI_STATUS_SUCCESS);
-    assert(pi_packetin_register_cb(packetin_cb, NULL) == PI_STATUS_SUCCESS);
+    assert(pi_packetin_register_default_cb(packetin_cb, NULL) ==
+           PI_STATUS_SUCCESS);
   }
 
   state.init = 1;

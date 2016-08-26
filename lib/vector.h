@@ -37,6 +37,10 @@ void *vector_data(const vector_t *v);
 
 size_t vector_size(vector_t *v);
 
+void vector_remove(vector_t *v, size_t index);
+
+void vector_remove_e(vector_t *v, void *e);
+
 /* typedef int (*VectorCmpFn)(const void *e1, const void *e2); */
 /* void *vector_search(vector_t *v, VectorCmpFn cmp_fn, size_t start_index); */
 
