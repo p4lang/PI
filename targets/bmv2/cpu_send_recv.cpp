@@ -33,7 +33,9 @@
 
 namespace pibmv2 {
 
-CpuSendRecv::CpuSendRecv() { }
+CpuSendRecv::CpuSendRecv() {
+  FD_ZERO(&fds);
+}
 
 CpuSendRecv::~CpuSendRecv() {
   {

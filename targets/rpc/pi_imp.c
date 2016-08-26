@@ -306,7 +306,6 @@ pi_status_t _pi_packetout_send(pi_dev_id_t dev_id, const char *pkt,
   size_t s = 0;
   s += sizeof(req_hdr_t);
   s += sizeof(s_pi_dev_id_t);
-  s += sizeof(s_pi_p4_id_t);
   s += sizeof(uint32_t);
   s += size;
 
