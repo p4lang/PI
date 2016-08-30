@@ -23,6 +23,7 @@
 #include "PI/target/pi_act_prof_imp.h"
 #include "PI/target/pi_counter_imp.h"
 #include "PI/target/pi_meter_imp.h"
+#include "PI/target/pi_learn_imp.h"
 #include "PI/int/pi_int.h"
 #include "PI/int/serialize.h"
 #include "PI/int/rpc_common.h"
@@ -34,16 +35,28 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "pi_notifications_pub.h"
+
 typedef struct {
   int init;
   pi_rpc_id_t req_id;
   int s;
 } pi_rpc_state_t;
 
-/* static const char *addr = "ipc:///tmp/pi_rpc.ipc"; */
-static char *addr = NULL;
+static char *rpc_addr = NULL;
+static char *notifications_addr = NULL;
 
 static pi_rpc_state_t state;
+
+static void init_addrs(const pi_remote_addr_t *remote_addr) {
+  if (!remote_addr || !remote_addr->rpc_addr)
+    rpc_addr = strdup("ipc:///tmp/pi_rpc.ipc");
+  else
+    rpc_addr = strdup(remote_addr->rpc_addr);
+  // notifications subscription optional
+  if (remote_addr && remote_addr->notifications_addr)
+    notifications_addr = strdup(remote_addr->notifications_addr);
+}
 
 static size_t emit_rep_hdr(char *hdr, pi_status_t status) {
   size_t s = 0;
@@ -677,14 +690,14 @@ static void counter_read(char *req, pi_rpc_type_t direct_or_not) {
   assert(bytes == sizeof(rep));
 }
 
-static void __pi_counter_read(char *req_) {
+static void __pi_counter_read(char *req) {
   printf("RPC: _pi_counter_read\n");
-  counter_read(req_, PI_RPC_COUNTER_READ);
+  counter_read(req, PI_RPC_COUNTER_READ);
 }
 
-static void __pi_counter_read_direct(char *req_) {
+static void __pi_counter_read_direct(char *req) {
   printf("RPC: _pi_counter_read_direct\n");
-  counter_read(req_, PI_RPC_COUNTER_READ_DIRECT);
+  counter_read(req, PI_RPC_COUNTER_READ_DIRECT);
 }
 
 static void counter_write(char *req, pi_rpc_type_t direct_or_not) {
@@ -715,14 +728,14 @@ static void counter_write(char *req, pi_rpc_type_t direct_or_not) {
   send_status(status);
 }
 
-static void __pi_counter_write(char *req_) {
+static void __pi_counter_write(char *req) {
   printf("RPC: _pi_counter_write\n");
-  counter_write(req_, PI_RPC_COUNTER_WRITE);
+  counter_write(req, PI_RPC_COUNTER_WRITE);
 }
 
-static void __pi_counter_write_direct(char *req_) {
+static void __pi_counter_write_direct(char *req) {
   printf("RPC: _pi_counter_write_direct\n");
-  counter_write(req_, PI_RPC_COUNTER_WRITE_DIRECT);
+  counter_write(req, PI_RPC_COUNTER_WRITE_DIRECT);
 }
 
 static void meter_read(char *req, pi_rpc_type_t direct_or_not) {
@@ -764,14 +777,14 @@ static void meter_read(char *req, pi_rpc_type_t direct_or_not) {
   assert(bytes == sizeof(rep));
 }
 
-static void __pi_meter_read(char *req_) {
+static void __pi_meter_read(char *req) {
   printf("RPC: _pi_meter_read\n");
-  meter_read(req_, PI_RPC_METER_READ);
+  meter_read(req, PI_RPC_METER_READ);
 }
 
-static void __pi_meter_read_direct(char *req_) {
+static void __pi_meter_read_direct(char *req) {
   printf("RPC: _pi_meter_read_direct\n");
-  meter_read(req_, PI_RPC_METER_READ_DIRECT);
+  meter_read(req, PI_RPC_METER_READ_DIRECT);
 }
 
 static void meter_set(char *req, pi_rpc_type_t direct_or_not) {
@@ -801,25 +814,69 @@ static void meter_set(char *req, pi_rpc_type_t direct_or_not) {
   send_status(status);
 }
 
-static void __pi_meter_set(char *req_) {
+static void __pi_meter_set(char *req) {
   printf("RPC: _pi_meter_set\n");
-  meter_set(req_, PI_RPC_METER_SET);
+  meter_set(req, PI_RPC_METER_SET);
 }
 
-static void __pi_meter_set_direct(char *req_) {
+static void __pi_meter_set_direct(char *req) {
   printf("RPC: _pi_meter_set_direct\n");
-  meter_set(req_, PI_RPC_METER_SET_DIRECT);
+  meter_set(req, PI_RPC_METER_SET_DIRECT);
 }
 
-pi_status_t pi_rpc_server_run(char *rpc_addr) {
+static void __pi_learn_msg_ack(char *req) {
+  printf("RPC: _pi_learn_msg_ack\n");
+  pi_session_handle_t sess;
+  req += retrieve_session_handle(req, &sess);
+  pi_dev_id_t dev_id;
+  req += retrieve_dev_id(req, &dev_id);
+  pi_p4_id_t learn_id;
+  req += retrieve_p4_id(req, &learn_id);
+  pi_learn_msg_id_t msg_id;
+  req += retrieve_learn_msg_id(req, &msg_id);
+
+  pi_status_t status = _pi_learn_msg_ack(sess, dev_id, learn_id, msg_id);
+  send_status(status);
+}
+
+static void __pi_packetout_send(char *req) {
+  printf("RPC: _pi_packetout_send\n");
+  pi_dev_id_t dev_id;
+  req += retrieve_dev_id(req, &dev_id);
+  uint32_t msg_size;
+  req += retrieve_uint32(req, &msg_size);
+
+  pi_status_t status = _pi_packetout_send(dev_id, req, msg_size);
+  send_status(status);
+}
+
+static void learn_cb(pi_learn_msg_t *msg, void *cb_cookie) {
+  (void)cb_cookie;
+  pi_notifications_pub_learn(msg);
+  _pi_learn_msg_done(msg);
+}
+
+static void packetin_cb(pi_dev_id_t dev_id, const char *pkt, size_t size,
+                        void *cb_cookie) {
+  (void)cb_cookie;
+  pi_notifications_pub_packetin(dev_id, pkt, size);
+}
+
+pi_status_t pi_rpc_server_run(const pi_remote_addr_t *remote_addr) {
   assert(!state.init);
-  if (rpc_addr)
-    addr = strdup((char *)rpc_addr);
-  else
-    addr = "ipc:///tmp/pi_rpc.ipc";
+  init_addrs(remote_addr);
   state.s = nn_socket(AF_SP, NN_REP);
   if (state.s < 0) return PI_STATUS_RPC_CONNECT_ERROR;
-  if (nn_bind(state.s, addr) < 0) return PI_STATUS_RPC_CONNECT_ERROR;
+  if (nn_bind(state.s, rpc_addr) < 0) return PI_STATUS_RPC_CONNECT_ERROR;
+
+  if (notifications_addr) {
+    pi_status_t status = pi_notifications_init(notifications_addr);
+    if (status != PI_STATUS_SUCCESS) return status;
+    assert(pi_learn_register_default_cb(learn_cb, NULL) == PI_STATUS_SUCCESS);
+    assert(pi_packetin_register_default_cb(packetin_cb, NULL) ==
+           PI_STATUS_SUCCESS);
+  }
+
   state.init = 1;
 
   while (1) {
@@ -918,6 +975,14 @@ pi_status_t pi_rpc_server_run(char *rpc_addr) {
         break;
       case PI_RPC_METER_SET_DIRECT:
         __pi_meter_set_direct(req_);
+        break;
+
+      case PI_RPC_LEARN_MSG_ACK:
+        __pi_learn_msg_ack(req_);
+        break;
+
+      case PI_RPC_PACKETOUT_SEND:
+        __pi_packetout_send(req_);
         break;
 
       default:

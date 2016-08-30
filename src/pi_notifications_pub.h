@@ -18,32 +18,16 @@
  *
  */
 
-#ifndef PI_RPC_PI_RPC_H_
-#define PI_RPC_PI_RPC_H_
+#ifndef PI_SRC_PI_NOTIFICATIONS_PUB_H_
+#define PI_SRC_PI_NOTIFICATIONS_PUB_H_
 
-#include <PI/pi.h>
-#include <PI/int/pi_int.h>
-#include <PI/int/serialize.h>
-#include <PI/int/rpc_common.h>
+#include <PI/pi_learn.h>
 
-#include <nanomsg/nn.h>
-#include <nanomsg/reqrep.h>
+pi_status_t pi_notifications_init(const char *notifications_addr);
 
-typedef struct {
-  int init;
-  pi_rpc_id_t req_id;
-  int s;
-} pi_rpc_state_t;
+void pi_notifications_pub_learn(const pi_learn_msg_t *msg);
 
-extern char *rpc_addr;
-extern char *notifications_addr;
+void pi_notifications_pub_packetin(pi_dev_id_t dev_id, const char *pkt,
+                                   size_t size);
 
-extern pi_rpc_state_t state;
-
-pi_status_t retrieve_rep_hdr(const char *rep, pi_rpc_id_t req_id);
-
-pi_status_t wait_for_status(pi_rpc_id_t req_id);
-
-size_t emit_req_hdr(char *hdr, pi_rpc_id_t id, pi_rpc_type_t type);
-
-#endif  // PI_RPC_PI_RPC_H_
+#endif  // PI_SRC_PI_NOTIFICATIONS_PUB_H_

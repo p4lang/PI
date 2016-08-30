@@ -12,11 +12,11 @@ $(top_builddir)/src/libpip4info.la
 
 # This is the rpc server for bmv2
 if WITH_BMV2
-bin_PROGRAMS += rpc_server
+bin_PROGRAMS += pi_rpc_server
 
-rpc_server_SOURCES = rpc_server.c
+pi_rpc_server_SOURCES = rpc_server.c
 
-rpc_server_LDADD = \
+pi_rpc_server_LDADD = \
 $(top_builddir)/src/libpi.la \
 $(top_builddir)/src/libpip4info.la \
 $(top_builddir)/targets/bmv2/libpi_bmv2.la \
@@ -24,5 +24,5 @@ $(top_builddir)/targets/bmv2/libpi_bmv2.la \
 -lthrift -lruntimestubs -lsimpleswitch_thrift
 
 # Dummy C++ source to cause C++ linking.
-nodist_EXTRA_rpc_server_SOURCES = dummy.cxx
+nodist_EXTRA_pi_rpc_server_SOURCES = dummy.cxx
 endif

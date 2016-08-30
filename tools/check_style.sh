@@ -31,6 +31,7 @@ run_clang_format $ROOT_DIR/tests Google
 run_clang_format $ROOT_DIR/generators Google
 run_clang_format $ROOT_DIR/examples Google
 run_clang_format $ROOT_DIR/bin Google
+run_clang_format $ROOT_DIR/lib Google
 
 run_cpplint $ROOT_DIR/targets/bmv2
 run_cpplint $ROOT_DIR/frontends_extra/cpp frontends_extra/cpp

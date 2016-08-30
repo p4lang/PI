@@ -15,6 +15,9 @@ AC_CONFIG_MACRO_DIR([m4])
 AC_LANG_PUSH(C)
 AC_LANG_PUSH(C++)
 
+# check for pthreads
+AX_PTHREAD()
+
 AX_CXX_COMPILE_STDCXX_11([noext],[mandatory])
 
 # To simplify usage, we will update PATH, CPPFLAGS,.. to include the 'prefix'
@@ -29,6 +32,11 @@ AC_CHECK_HEADER([bm/Standard.h], [],
 
 AC_PATH_PROG([THRIFT], [thrift], [])
 AC_CHECK_HEADER([thrift/Thrift.h], [], [AC_MSG_ERROR([Thrift headers not found. Install Thrift from http://thrift.apache.org/docs/install/])])
+
+AC_CHECK_LIB([pcap], [pcap_create], [], [AC_MSG_ERROR([Missing libpcap])])
+AC_CHECK_LIB([pcap], [pcap_set_immediate_mode], [pcap_fix=yes], [pcap_fix=no])
+
+AM_CONDITIONAL([WITH_PCAP_FIX], [test "$pcap_fix" = "yes"])
 
 AC_TYPE_UINT8_T
 AC_TYPE_UINT16_T

@@ -9,10 +9,13 @@ pi_imp.c \
 pi_tables_imp.c \
 pi_act_prof_imp.c \
 pi_counter_imp.c \
-pi_meter_imp.c
+pi_meter_imp.c \
+pi_learn_imp.c \
+notifications.c
 
 libpi_rpc_la_LIBADD = \
 $(top_builddir)/src/libpip4info.la \
--lnanomsg
+-lnanomsg \
+$(PTHREAD_CFLAGS)
 
-noinst_LTLIBRARIES = libpi_rpc.la
+lib_LTLIBRARIES = libpi_rpc.la

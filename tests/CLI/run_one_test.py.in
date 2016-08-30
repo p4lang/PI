@@ -124,7 +124,7 @@ def main():
     else:
         rpc_server_cmd = []
     rpc_server_cmd += [rpc_server_path]
-    rpc_server_p = subprocess.Popen(rpc_server_cmd + [rpc_addr],
+    rpc_server_p = subprocess.Popen(rpc_server_cmd + ["-a", rpc_addr],
                                     stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE)
 

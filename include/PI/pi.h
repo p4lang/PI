@@ -34,7 +34,12 @@ extern "C" {
 // returns NULL if device not assigned
 const pi_p4info_t *pi_get_device_p4info(pi_dev_id_t dev_id);
 
-pi_status_t pi_init(size_t max_devices, char *rpc_addr);
+typedef struct {
+  char *rpc_addr;
+  char *notifications_addr;
+} pi_remote_addr_t;
+
+pi_status_t pi_init(size_t max_devices, pi_remote_addr_t *remote_addr);
 
 typedef struct {
   int end_of_extras;
@@ -52,6 +57,17 @@ pi_status_t pi_session_init(pi_session_handle_t *session_handle);
 pi_status_t pi_session_cleanup(pi_session_handle_t session_handle);
 
 pi_status_t pi_destroy();
+
+typedef void (*PIPacketInCb)(pi_dev_id_t dev_id, const char *pkt, size_t size,
+                             void *cb_cookie);
+pi_status_t pi_packetin_register_cb(pi_dev_id_t dev_id, PIPacketInCb cb,
+                                    void *cb_cookie);
+pi_status_t pi_packetin_register_default_cb(PIPacketInCb cb, void *cb_cookie);
+pi_status_t pi_packetin_deregister_cb(pi_dev_id_t dev_id);
+pi_status_t pi_packetin_register_default_cb(PIPacketInCb cb, void *cb_cookie);
+pi_status_t pi_packetin_deregister_default_cb();
+
+pi_status_t pi_packetout_send(pi_dev_id_t dev_id, const char *pkt, size_t size);
 
 // TODO(antonin): move this to pi_tables?
 // When adding a table entry, the configuration for direct resources associated

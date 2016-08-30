@@ -18,10 +18,7 @@
  *
  */
 
-#include <PI/pi_base.h>
-#include <PI/pi_tables.h>
-#include <PI/pi_counter.h>
-#include <PI/pi_meter.h>
+#include <PI/int/serialize.h>
 
 #include <stdint.h>
 #include <string.h>
@@ -89,6 +86,10 @@ size_t emit_meter_spec(char *dst, const pi_meter_spec_t *v) {
   s += emit_uint32(dst + s, v->meter_unit);
   s += emit_uint32(dst + s, v->meter_type);
   return s;
+}
+
+size_t emit_learn_msg_id(char *dst, pi_learn_msg_id_t v) {
+  return emit_uint64(dst, v);
 }
 
 size_t retrieve_uint32(const char *src, uint32_t *v) {
@@ -167,4 +168,9 @@ size_t retrieve_meter_spec(const char *src, pi_meter_spec_t *v) {
   s += retrieve_uint32(src + s, &tmp32);
   v->meter_type = (pi_meter_type_t)tmp32;
   return s;
+}
+
+size_t retrieve_learn_msg_id(const char *src, pi_learn_msg_id_t *v) {
+  // works because pi_learn_msg_id_t is typedef'd from uint64
+  return retrieve_uint64(src, v);
 }

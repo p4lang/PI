@@ -25,6 +25,7 @@
 #include "p4info/act_profs_int.h"
 #include "p4info/counters_int.h"
 #include "p4info/meters_int.h"
+#include "p4info/field_list_int.h"
 #include "utils/logging.h"
 #include "PI/int/pi_int.h"
 
@@ -417,6 +418,54 @@ static pi_status_t read_meters(cJSON *root, pi_p4info_t *p4info) {
   return PI_STATUS_SUCCESS;
 }
 
+static pi_status_t read_field_lists(cJSON *root, pi_p4info_t *p4info) {
+  assert(root);
+  cJSON *field_lists = cJSON_GetObjectItem(root, "learn_lists");
+  if (!field_lists) return PI_STATUS_CONFIG_READER_ERROR;
+  size_t num_field_lists = cJSON_GetArraySize(field_lists);
+  pi_p4info_field_list_init(p4info, num_field_lists);
+
+  cJSON *field_list;
+  int id = 0;
+  cJSON_ArrayForEach(field_list, field_lists) {
+    const cJSON *item;
+    item = cJSON_GetObjectItem(field_list, "name");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    const char *name = item->valuestring;
+
+    pi_p4_id_t pi_id = pi_make_field_list_id(id++);
+
+    cJSON *elements = cJSON_GetObjectItem(field_list, "elements");
+    if (!elements) return PI_STATUS_CONFIG_READER_ERROR;
+    size_t num_fields = cJSON_GetArraySize(elements);
+
+    PI_LOG_DEBUG("Adding field_list '%s'\n", name);
+    pi_p4info_field_list_add(p4info, pi_id, name, num_fields);
+
+    cJSON *element;
+    cJSON_ArrayForEach(element, elements) {
+      item = cJSON_GetObjectItem(element, "type");
+      if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+      if (strncmp("field", item->valuestring, sizeof "field"))
+        return PI_STATUS_CONFIG_READER_ERROR;
+      {
+        cJSON *target = cJSON_GetObjectItem(element, "value");
+        if (!target) return PI_STATUS_CONFIG_READER_ERROR;
+        const char *header_name = cJSON_GetArrayItem(target, 0)->valuestring;
+        const char *suffix = cJSON_GetArrayItem(target, 1)->valuestring;
+        char fname[256];
+        int n = snprintf(fname, sizeof(fname), "%s.%s", header_name, suffix);
+        if (n <= 0 || (size_t)n >= sizeof(fname)) return PI_STATUS_BUFFER_ERROR;
+        PI_LOG_DEBUG("Adding field '%s' to field_list\n", fname);
+        pi_p4_id_t f_id = pi_p4info_field_id_from_name(p4info, fname);
+        pi_p4info_field_list_add_field(p4info, pi_id, f_id);
+      }
+    }
+  }
+
+  return PI_STATUS_SUCCESS;
+}
+
 pi_status_t pi_bmv2_json_reader(const char *config, pi_p4info_t *p4info) {
   cJSON *root = cJSON_Parse(config);
   if (!root) return PI_STATUS_CONFIG_READER_ERROR;
@@ -440,6 +489,10 @@ pi_status_t pi_bmv2_json_reader(const char *config, pi_p4info_t *p4info) {
   }
 
   if ((status = read_meters(root, p4info)) != PI_STATUS_SUCCESS) {
+    return status;
+  }
+
+  if ((status = read_field_lists(root, p4info)) != PI_STATUS_SUCCESS) {
     return status;
   }
 

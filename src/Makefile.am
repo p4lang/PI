@@ -1,5 +1,6 @@
 AM_CPPFLAGS += \
 -I$(top_srcdir)/include \
+-I$(top_srcdir)/lib \
 -isystem$(top_srcdir)/third_party/cJSON/include
 
 # TODO(antonin): act_prof should be in a different directory (externs)
@@ -18,6 +19,8 @@ p4info/counters.c \
 p4info/counters_int.h \
 p4info/meters.c \
 p4info/meters_int.h \
+p4info/field_list.c \
+p4info/field_list_int.h \
 config_readers/bmv2_json_reader.c \
 config_readers/native_json_reader.c \
 config_readers/readers.h \
@@ -37,12 +40,16 @@ pi_tables.c \
 pi_act_prof.c \
 pi_counter.c \
 pi_meter.c \
+pi_learn.c \
 pi_value.c \
-pi_rpc_server.c
+pi_rpc_server.c \
+pi_notifications_pub.h \
+pi_notifications_pub.c
 
 libpi_la_LIBADD = \
 libpip4info.la \
 libpiutils.la \
+$(top_builddir)/lib/libpitoolkit.la \
 -lnanomsg
 
 libpiutils_la_SOURCES = \
@@ -63,6 +70,7 @@ $(libpifegeneric_la_SOURCES)
 libpiall_la_LIBADD = \
 $(top_builddir)/third_party/cJSON/libpicjson.la \
 libpiutils.la \
+$(top_builddir)/lib/libpitoolkit.la \
 -lnanomsg
 
 # order important because libpi requires libpip4info

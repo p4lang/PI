@@ -18,32 +18,25 @@
  *
  */
 
-#ifndef PI_RPC_PI_RPC_H_
-#define PI_RPC_PI_RPC_H_
+#ifndef PI_INC_PI_TARGET_PI_LEARN_IMP_H_
+#define PI_INC_PI_TARGET_PI_LEARN_IMP_H_
 
-#include <PI/pi.h>
-#include <PI/int/pi_int.h>
-#include <PI/int/serialize.h>
-#include <PI/int/rpc_common.h>
+#include <PI/pi_learn.h>
 
-#include <nanomsg/nn.h>
-#include <nanomsg/reqrep.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-typedef struct {
-  int init;
-  pi_rpc_id_t req_id;
-  int s;
-} pi_rpc_state_t;
+pi_status_t pi_learn_new_msg(pi_learn_msg_t *msg);
 
-extern char *rpc_addr;
-extern char *notifications_addr;
+pi_status_t _pi_learn_msg_ack(pi_session_handle_t session_handle,
+                              pi_dev_id_t dev_id, pi_p4_id_t learn_id,
+                              pi_learn_msg_id_t msg_id);
 
-extern pi_rpc_state_t state;
+pi_status_t _pi_learn_msg_done(pi_learn_msg_t *msg);
 
-pi_status_t retrieve_rep_hdr(const char *rep, pi_rpc_id_t req_id);
+#ifdef __cplusplus
+}
+#endif
 
-pi_status_t wait_for_status(pi_rpc_id_t req_id);
-
-size_t emit_req_hdr(char *hdr, pi_rpc_id_t id, pi_rpc_type_t type);
-
-#endif  // PI_RPC_PI_RPC_H_
+#endif  // PI_INC_PI_TARGET_PI_LEARN_IMP_H_

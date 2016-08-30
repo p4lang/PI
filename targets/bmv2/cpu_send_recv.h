@@ -18,22 +18,46 @@
  *
  */
 
-#ifndef PI_BMV2_DIRECT_RES_SPEC_H_
-#define PI_BMV2_DIRECT_RES_SPEC_H_
-
 #include <PI/pi.h>
 
+#include <thread>
+#include <mutex>
+#include <string>
 #include <vector>
 
-#include "conn_mgr.h"
+typedef struct pcap pcap_t;
 
 namespace pibmv2 {
 
-BmCounterValue convert_from_counter_data(const pi_counter_data_t *from);
+class CpuSendRecv {
+ public:
+  CpuSendRecv();
 
-std::vector<BmMeterRateConfig> convert_from_meter_spec(
-    const pi_meter_spec_t *meter_spec);
+  ~CpuSendRecv();
+
+  void start();
+  int add_device(const std::string &cpu_iface, pi_dev_id_t dev_id);
+  int remove_device(pi_dev_id_t dev_id);
+
+  int send_pkt(pi_dev_id_t dev_id, const char *pkt, size_t size);
+
+ private:
+  struct OneDevice {
+    std::string cpu_iface;
+    pi_dev_id_t dev_id;
+    pcap_t *pcap;
+    int fd;
+  };
+
+  void recv_loop();
+  void recv_one(const OneDevice &device);
+
+  fd_set fds;
+  int max_fd{0};
+  std::vector<OneDevice> devices{};
+  std::thread recv_thread{};
+  bool stop_recv_thread{false};
+  mutable std::mutex mutex{};
+};
 
 }  // namespace pibmv2
-
-#endif  // PI_BMV2_DIRECT_RES_SPEC_H_

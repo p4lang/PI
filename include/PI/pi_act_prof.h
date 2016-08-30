@@ -21,6 +21,8 @@
 #ifndef PI_INC_PI_PI_ACT_PROF_H_
 #define PI_INC_PI_PI_ACT_PROF_H_
 
+#include <PI/pi_tables.h>
+
 pi_status_t pi_act_prof_mbr_create(pi_session_handle_t session_handle,
                                    pi_dev_tgt_t dev_tgt, pi_p4_id_t act_prof_id,
                                    const pi_action_data_t *action_data,

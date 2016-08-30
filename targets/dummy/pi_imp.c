@@ -18,13 +18,14 @@
  *
  */
 
-#include "PI/pi.h"
+#include <PI/pi.h>
+#include <PI/target/pi_imp.h>
 
 #include <stdio.h>
 
 pi_status_t _pi_init(void *extra) {
   (void)extra;
-  printf("_pi_init\n");
+  printf("%s\n", __func__);
   return PI_STATUS_SUCCESS;
 }
 
@@ -32,29 +33,38 @@ pi_status_t _pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
                               pi_assign_extra_t *extra) {
   (void)dev_id;
   (void)p4info, (void)extra;
-  printf("_pi_assign_device\n");
+  printf("%s\n", __func__);
   return PI_STATUS_SUCCESS;
 }
 
 pi_status_t _pi_remove_device(pi_dev_id_t dev_id) {
   (void)dev_id;
-  printf("_pi_remove_device\n");
+  printf("%s\n", __func__);
   return PI_STATUS_SUCCESS;
 }
 
 pi_status_t _pi_destroy() {
-  printf("_pi_destroy\n");
+  printf("%s\n", __func__);
   return PI_STATUS_SUCCESS;
 }
 
 pi_status_t _pi_session_init(pi_session_handle_t *session_handle) {
   *session_handle = 0;
-  printf("_pi_session_init\n");
+  printf("%s\n", __func__);
   return PI_STATUS_SUCCESS;
 }
 
 pi_status_t _pi_session_cleanup(pi_session_handle_t session_handle) {
   (void)session_handle;
-  printf("_pi_session_cleanup\n");
+  printf("%s\n", __func__);
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_packetout_send(pi_dev_id_t dev_id, const char *pkt,
+                               size_t size) {
+  (void)dev_id;
+  (void)pkt;
+  (void)size;
+  printf("%s\n", __func__);
   return PI_STATUS_SUCCESS;
 }

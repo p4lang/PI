@@ -20,8 +20,8 @@
 
 #include "pi_rpc.h"
 
-/* char *addr = "ipc:///tmp/pi_rpc.ipc"; */
-char *addr = NULL;
+char *rpc_addr = NULL;
+char *notifications_addr = NULL;
 
 pi_rpc_state_t state;
 

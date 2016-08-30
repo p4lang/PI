@@ -45,6 +45,7 @@ pi_session_handle_t sess;
 // command-line options
 static char *opt_config_path = NULL;
 static char *opt_rpc_addr = NULL;
+static char *opt_notifications_addr = NULL;
 static int opt_call_pi_destroy = 0;
 
 typedef pi_cli_status_t (*CLIFnPtr)(char *);
@@ -297,13 +298,16 @@ static int parse_opts(int argc, char *const argv[]) {
 
   opterr = 0;
 
-  while ((c = getopt(argc, argv, "c:a:dh")) != -1) {
+  while ((c = getopt(argc, argv, "c:a:n:dh")) != -1) {
     switch (c) {
       case 'c':
         opt_config_path = optarg;
         break;
       case 'a':
         opt_rpc_addr = optarg;
+        break;
+      case 'n':
+        opt_notifications_addr = optarg;
         break;
       case 'd':
         opt_call_pi_destroy = 1;
@@ -345,7 +349,8 @@ int main(int argc, char *argv[]) {
   if (parse_opts(argc, argv) != 0) return 1;
 
   pi_status_t pirc;
-  pi_init(256, opt_rpc_addr);  // 256 devices max
+  pi_remote_addr_t remote_addr = {opt_rpc_addr, opt_notifications_addr};
+  pi_init(256, &remote_addr);  // 256 devices max
 
   if (opt_config_path) {
     pi_p4info_t *p4info;

@@ -31,7 +31,6 @@
 
 static size_t num_devices;
 static pi_device_info_t *device_mapping;
-static char *rpc_addr_;
 
 typedef struct {
   int is_set;
@@ -43,6 +42,14 @@ typedef struct {
 
 // allocate at runtime?
 static pi_direct_res_rpc_t direct_res_rpc[PI_RES_TYPE_MAX];
+
+typedef struct {
+  PIPacketInCb cb;
+  void *cookie;
+} packetin_cb_data_t;
+
+static packetin_cb_data_t device_packetin_cb_data[MAX_DEVICES];
+static packetin_cb_data_t default_packetin_cb_data;
 
 pi_device_info_t *pi_get_device_info(pi_dev_id_t dev_id) {
   return device_mapping + dev_id;
@@ -95,13 +102,12 @@ static void register_std_direct_res() {
   assert(status == PI_STATUS_SUCCESS);
 }
 
-pi_status_t pi_init(size_t max_devices, char *rpc_addr) {
+pi_status_t pi_init(size_t max_devices, pi_remote_addr_t *remote_addr) {
   // TODO(antonin): best place for this? I don't see another option
   register_std_direct_res();
   num_devices = max_devices;
   device_mapping = calloc(max_devices, sizeof(pi_device_info_t));
-  rpc_addr_ = rpc_addr;
-  return _pi_init((void *)rpc_addr);
+  return _pi_init((void *)remote_addr);
 }
 
 void pi_update_device_config(pi_dev_id_t dev_id, const pi_p4info_t *p4info) {
@@ -224,4 +230,53 @@ pi_status_t pi_direct_res_get_fns(pi_res_type_id_t res_type,
   if (size_of) *size_of = direct_res_rpc[res_type].size_of;
   if (retrieve_fn) *retrieve_fn = direct_res_rpc[res_type].retrieve_fn;
   return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_packetin_register_cb(pi_dev_id_t dev_id, PIPacketInCb cb,
+                                    void *cb_cookie) {
+  if (dev_id >= MAX_DEVICES) return PI_STATUS_DEV_OUT_OF_RANGE;
+  packetin_cb_data_t *packetin_cb_data = &device_packetin_cb_data[dev_id];
+  packetin_cb_data->cb = cb;
+  packetin_cb_data->cookie = cb_cookie;
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_packetin_register_default_cb(PIPacketInCb cb, void *cb_cookie) {
+  default_packetin_cb_data.cb = cb;
+  default_packetin_cb_data.cookie = cb_cookie;
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_packetin_deregister_cb(pi_dev_id_t dev_id) {
+  if (dev_id >= MAX_DEVICES) return PI_STATUS_DEV_OUT_OF_RANGE;
+  packetin_cb_data_t *packetin_cb_data = &device_packetin_cb_data[dev_id];
+  packetin_cb_data->cb = NULL;
+  packetin_cb_data->cookie = NULL;
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_packetin_deregister_default_cb() {
+  default_packetin_cb_data.cb = NULL;
+  default_packetin_cb_data.cookie = NULL;
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_packetout_send(pi_dev_id_t dev_id, const char *pkt,
+                              size_t size) {
+  return _pi_packetout_send(dev_id, pkt, size);
+}
+
+pi_status_t pi_packetin_receive(pi_dev_id_t dev_id, const char *pkt,
+                                size_t size) {
+  assert(dev_id < MAX_DEVICES);
+  packetin_cb_data_t *packetin_cb_data = &device_packetin_cb_data[dev_id];
+  if (packetin_cb_data->cb) {
+    packetin_cb_data->cb(dev_id, pkt, size, packetin_cb_data->cookie);
+    return PI_STATUS_SUCCESS;
+  } else if (default_packetin_cb_data.cb) {
+    default_packetin_cb_data.cb(dev_id, pkt, size,
+                                default_packetin_cb_data.cookie);
+    return PI_STATUS_SUCCESS;
+  }
+  return PI_STATUS_PACKETIN_NO_CB;
 }

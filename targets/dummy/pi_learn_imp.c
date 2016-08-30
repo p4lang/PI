@@ -18,32 +18,23 @@
  *
  */
 
-#ifndef PI_RPC_PI_RPC_H_
-#define PI_RPC_PI_RPC_H_
+#include <PI/target/pi_learn_imp.h>
 
-#include <PI/pi.h>
-#include <PI/int/pi_int.h>
-#include <PI/int/serialize.h>
-#include <PI/int/rpc_common.h>
+#include <stdio.h>
 
-#include <nanomsg/nn.h>
-#include <nanomsg/reqrep.h>
+pi_status_t _pi_learn_msg_ack(pi_session_handle_t session_handle,
+                              pi_dev_id_t dev_id, pi_p4_id_t learn_id,
+                              pi_learn_msg_id_t msg_id) {
+  (void)session_handle;
+  (void)dev_id;
+  (void)learn_id;
+  (void)msg_id;
+  printf("%s\n", __func__);
+  return PI_STATUS_SUCCESS;
+}
 
-typedef struct {
-  int init;
-  pi_rpc_id_t req_id;
-  int s;
-} pi_rpc_state_t;
-
-extern char *rpc_addr;
-extern char *notifications_addr;
-
-extern pi_rpc_state_t state;
-
-pi_status_t retrieve_rep_hdr(const char *rep, pi_rpc_id_t req_id);
-
-pi_status_t wait_for_status(pi_rpc_id_t req_id);
-
-size_t emit_req_hdr(char *hdr, pi_rpc_id_t id, pi_rpc_type_t type);
-
-#endif  // PI_RPC_PI_RPC_H_
+pi_status_t _pi_learn_msg_done(pi_learn_msg_t *msg) {
+  (void)msg;
+  printf("%s\n", __func__);
+  return PI_STATUS_SUCCESS;
+}
