@@ -70,7 +70,8 @@ class SimpleRouterMgr {
 
   typedef std::vector<char> Packet;
 
-  SimpleRouterMgr(pi_dev_tgt_t dev_tgt, pi_p4info_t *p4info);
+  SimpleRouterMgr(pi_dev_tgt_t dev_tgt, pi_p4info_t *p4info,
+                  boost::asio::io_service &io_service);
 
   ~SimpleRouterMgr();
 
@@ -88,7 +89,7 @@ class SimpleRouterMgr {
 
   int update_config(const std::string &config_buffer);
 
-  void start_processing_events();
+  void start_processing_packets();
 
   template <typename E> void post_event(E &&event) {
     io_service.post(std::move(event));
@@ -149,7 +150,5 @@ class SimpleRouterMgr {
   pi_dev_tgt_t dev_tgt;
   pi_p4info_t *p4info{nullptr};
   pi_session_handle_t sess;
-  boost::asio::io_service io_service{};
-  boost::asio::io_service::work *work{nullptr};
-  std::thread event_thread{};
+  boost::asio::io_service &io_service;
 };

@@ -171,8 +171,9 @@ void packetin_cb(pi_dev_id_t dev_id, const char *pkt, size_t size,
 
 }  // namespace
 
-SimpleRouterMgr::SimpleRouterMgr(pi_dev_tgt_t dev_tgt, pi_p4info_t *p4info)
-    : dev_tgt(dev_tgt), p4info(p4info) {
+SimpleRouterMgr::SimpleRouterMgr(pi_dev_tgt_t dev_tgt, pi_p4info_t *p4info,
+                                 boost::asio::io_service &io_service)
+    : dev_tgt(dev_tgt), p4info(p4info), io_service(io_service) {
   pi_session_init(&sess);
 }
 
@@ -594,12 +595,7 @@ SimpleRouterMgr::update_config_(const std::string &config_buffer) {
 }
 
 void
-SimpleRouterMgr::start_processing_events() {
-  work = new boost::asio::io_service::work(io_service);
-  // for some reason std::bind does not work...
-  // I believe it is because of multiple overloads of run
-  event_thread = std::thread(
-      boost::bind(&boost::asio::io_service::run, &io_service));
+SimpleRouterMgr::start_processing_packets() {
   pi_packetin_register_cb(dev_tgt.dev_id, packetin_cb,
                           static_cast<void *>(this));
 }

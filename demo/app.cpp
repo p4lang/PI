@@ -23,6 +23,8 @@
 
 #include <PI/pi.h>
 
+#include <boost/asio.hpp>
+
 #include <ctype.h>
 #include <unistd.h>
 
@@ -134,15 +136,20 @@ int main(int argc, char *argv[]) {
   assign_options[3].end_of_extras = true;
   pi_assign_device(0, p4info, assign_options);
 
+  boost::asio::io_service io_service;
+  boost::asio::io_service::work work(io_service);
+
   pi_dev_tgt_t dev_tgt = {0, 0xffff};
-  SimpleRouterMgr simple_router_mgr(dev_tgt, p4info);
+  SimpleRouterMgr simple_router_mgr(dev_tgt, p4info, io_service);
   simple_router_mgr.set_default_entries();
   simple_router_mgr.static_config();
-  simple_router_mgr.start_processing_events();
 
+  // TODO(antonin): manage web server requests in same boost asio event loop?
   WebServer web_server(&simple_router_mgr);
   web_server.set_json_name(std::string(opt_config_path));
   web_server.start();
 
-  while (true) std::this_thread::sleep_for(std::chrono::seconds(100));
+  simple_router_mgr.start_processing_packets();
+
+  io_service.run();
 }
