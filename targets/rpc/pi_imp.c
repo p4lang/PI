@@ -225,6 +225,54 @@ pi_status_t _pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
   return wait_for_status(req_id);
 }
 
+pi_status_t _pi_update_device_start(pi_dev_id_t dev_id,
+                                    const pi_p4info_t *p4info,
+                                    const char *device_data,
+                                    size_t device_data_size) {
+  if (!state.init) return PI_STATUS_RPC_NOT_INIT;
+  typedef struct __attribute__((packed)) {
+    req_hdr_t hdr;
+    s_pi_dev_id_t dev_id;
+  } hdr_t;
+  char *p4info_json = pi_serialize_config(p4info, 0);
+  size_t p4info_size = strlen(p4info_json) + 1;
+  size_t s = sizeof(hdr_t) + p4info_size + sizeof(uint32_t) + device_data_size;
+  char *req = nn_allocmsg(s, 0);
+  char *req_ = req;
+
+  pi_rpc_id_t req_id = state.req_id++;
+  req_ += emit_req_hdr(req_, req_id, PI_RPC_UPDATE_DEVICE_START);
+  req_ += emit_dev_id(req_, dev_id);
+  memcpy(req_, p4info_json, p4info_size);
+  req_ += p4info_size;
+  free(p4info_json);
+  req_ += emit_uint32(req_, device_data_size);
+  memcpy(req_, device_data, device_data_size);
+
+  int rc = nn_send(state.s, &req, NN_MSG, 0);
+  if ((size_t)rc != s) return PI_STATUS_RPC_TRANSPORT_ERROR;
+
+  return wait_for_status(req_id);
+}
+
+pi_status_t _pi_update_device_end(pi_dev_id_t dev_id) {
+  if (!state.init) return PI_STATUS_RPC_NOT_INIT;
+  typedef struct __attribute__((packed)) {
+    req_hdr_t hdr;
+    s_pi_dev_id_t dev_id;
+  } req_t;
+  req_t req;
+  char *req_ = (char *)&req;
+  pi_rpc_id_t req_id = state.req_id++;
+  req_ += emit_req_hdr(req_, req_id, PI_RPC_UPDATE_DEVICE_END);
+  req_ += emit_dev_id(req_, dev_id);
+
+  int rc = nn_send(state.s, &req, sizeof(req), 0);
+  if (rc != sizeof(req)) return PI_STATUS_RPC_TRANSPORT_ERROR;
+
+  return wait_for_status(req_id);
+}
+
 pi_status_t _pi_remove_device(pi_dev_id_t dev_id) {
   if (!state.init) return PI_STATUS_RPC_NOT_INIT;
   typedef struct __attribute__((packed)) {

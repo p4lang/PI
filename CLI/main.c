@@ -139,6 +139,11 @@ static void init_cmd_map() {
   register_cmd("remove_device", do_remove_device, remove_device_hs, NULL, 0);
   register_cmd("show_devices", do_show_devices, show_devices_hs, NULL, 0);
 
+  register_cmd("update_device_start", do_update_device_start,
+               update_device_start_hs, NULL, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
+  register_cmd("update_device_end", do_update_device_end, update_device_end_hs,
+               NULL, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
+
   register_cmd("table_add", do_table_add, table_add_hs, complete_table_add,
                PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
   register_cmd("table_delete", do_table_delete, table_delete_hs,

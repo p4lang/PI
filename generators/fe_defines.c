@@ -18,7 +18,7 @@
  *
  */
 
-#include "utils/utils.h"
+#include "read_file.h"
 #include "PI/p4info.h"
 
 #include <ctype.h>

@@ -4,4 +4,6 @@ noinst_LTLIBRARIES = libpitoolkit.la
 
 libpitoolkit_la_SOURCES = \
 vector.h \
-vector.c
+vector.c \
+read_file.c \
+read_file.h

@@ -9,6 +9,7 @@ SUBDIRS = . $(MAYBE_CLI_TESTS)
 AM_CPPFLAGS += \
 -I$(top_srcdir)/include \
 -I$(top_srcdir)/src \
+-I$(top_srcdir)/lib \
 -I$(top_srcdir)/third_party/unity/include \
 -I$(top_srcdir)/third_party/cJSON/include \
 -DTESTDATADIR=\"$(abs_srcdir)/testdata\"
@@ -52,6 +53,7 @@ $(top_builddir)/targets/dummy/libpi_dummy.la \
 $(top_builddir)/src/libpip4info.la \
 $(top_builddir)/third_party/unity/libunity.la \
 $(top_builddir)/third_party/cJSON/libpicjson.la \
+$(top_builddir)/lib/libpitoolkit.la \
 -lnanomsg
 
 check_PROGRAMS = \

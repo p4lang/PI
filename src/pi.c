@@ -134,6 +134,21 @@ pi_status_t pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
   return status;
 }
 
+pi_status_t pi_update_device_start(pi_dev_id_t dev_id,
+                                   const pi_p4info_t *p4info,
+                                   const char *device_data,
+                                   size_t device_data_size) {
+  pi_status_t status =
+      _pi_update_device_start(dev_id, p4info, device_data, device_data_size);
+  if (status == PI_STATUS_SUCCESS) pi_update_device_config(dev_id, p4info);
+
+  return status;
+}
+
+pi_status_t pi_update_device_end(pi_dev_id_t dev_id) {
+  return _pi_update_device_end(dev_id);
+}
+
 pi_status_t pi_remove_device(pi_dev_id_t dev_id) {
   if (dev_id >= num_devices) return PI_STATUS_DEV_OUT_OF_RANGE;
 
