@@ -23,7 +23,7 @@
 #include "p4info/fields_int.h"
 #include "p4info/actions_int.h"
 #include "p4info/tables_int.h"
-#include "utils/utils.h"
+#include "read_file.h"
 
 #include "utils.h"
 

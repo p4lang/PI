@@ -92,6 +92,42 @@ pi_status_t _pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
   return PI_STATUS_SUCCESS;
 }
 
+pi_status_t _pi_update_device_start(pi_dev_id_t dev_id,
+                                    const pi_p4info_t *p4info,
+                                    const char *device_data,
+                                    size_t device_data_size) {
+  pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_id);
+  std::string new_config(device_data, device_data_size);
+
+  auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_id);
+  try {
+    client.c->bm_load_new_config(std::move(new_config));
+  } catch (InvalidSwapOperation &iso) {
+    const char *what =
+        _SwapOperationErrorCode_VALUES_TO_NAMES.find(iso.code)->second;
+    std::cout << "Invalid swap operation (" << iso.code << "): "
+              << what << std::endl;
+    return static_cast<pi_status_t>(PI_STATUS_TARGET_ERROR + iso.code);
+  }
+
+  d_info->p4info = p4info;
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_update_device_end(pi_dev_id_t dev_id) {
+  auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_id);
+  try {
+    client.c->bm_swap_configs();
+  } catch (InvalidSwapOperation &iso) {
+    const char *what =
+        _SwapOperationErrorCode_VALUES_TO_NAMES.find(iso.code)->second;
+    std::cout << "Invalid swap operation (" << iso.code << "): "
+              << what << std::endl;
+    return static_cast<pi_status_t>(PI_STATUS_TARGET_ERROR + iso.code);
+  }
+  return PI_STATUS_SUCCESS;
+}
+
 pi_status_t _pi_remove_device(pi_dev_id_t dev_id) {
   pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_id);
   assert(d_info->assigned);

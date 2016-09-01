@@ -32,7 +32,26 @@ pi_status_t _pi_init(void *extra) {
 pi_status_t _pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
                               pi_assign_extra_t *extra) {
   (void)dev_id;
-  (void)p4info, (void)extra;
+  (void)p4info;
+  (void)extra;
+  printf("%s\n", __func__);
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_update_device_start(pi_dev_id_t dev_id,
+                                    const pi_p4info_t *p4info,
+                                    const char *device_data,
+                                    size_t device_data_size) {
+  (void)dev_id;
+  (void)p4info;
+  (void)device_data;
+  (void)device_data_size;
+  printf("%s\n", __func__);
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_update_device_end(pi_dev_id_t dev_id) {
+  (void)dev_id;
   printf("%s\n", __func__);
   return PI_STATUS_SUCCESS;
 }

@@ -58,6 +58,12 @@ pi_cli_status_t do_show_devices(char *subcmd);
 extern char remove_device_hs[];
 pi_cli_status_t do_remove_device(char *subcmd);
 
+extern char update_device_start_hs[];
+pi_cli_status_t do_update_device_start(char *subcmd);
+
+extern char update_device_end_hs[];
+pi_cli_status_t do_update_device_end(char *subcmd);
+
 extern char table_indirect_create_member_hs[];
 pi_cli_status_t do_table_indirect_create_member(char *subcmd);
 char *complete_table_indirect_create_member(const char *text, int state);

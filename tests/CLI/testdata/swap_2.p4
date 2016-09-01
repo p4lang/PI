@@ -13,25 +13,42 @@
  * limitations under the License.
  */
 
-#ifndef PI_SRC_UTILS_UTILS_H_
-#define PI_SRC_UTILS_UTILS_H_
-
-#include <arpa/inet.h>
-
-static inline uint64_t htonll(uint64_t n) {
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-  return n;
-#else
-  return (((uint64_t)htonl(n)) << 32) + htonl(n >> 32);
-#endif
+header_type hdr2_t {
+    fields {
+        f1 : 8;
+        f2 : 8;
+        f3 : 16;
+    }
 }
 
-static inline uint64_t ntohll(uint64_t n) {
-#if __BYTE_ORDER__ == __BIG_ENDIAN__
-  return n;
-#else
-  return (((uint64_t)ntohl(n)) << 32) + ntohl(n >> 32);
-#endif
+header hdr2_t hdr2;
+
+parser start {
+    extract(hdr2);
+    return ingress;
 }
 
-#endif  // PI_SRC_UTILS_UTILS_H_
+action a21() {
+    modify_field(standard_metadata.egress_spec, 3);
+}
+
+action a22() {
+    modify_field(standard_metadata.egress_spec, 4);
+}
+
+table t_ingress_2 {
+    reads {
+        hdr2.f1 : exact;
+    }
+    actions {
+        a21; a22;
+    }
+    size : 64;
+}
+
+control ingress {
+    apply(t_ingress_2);
+}
+
+control egress {
+}

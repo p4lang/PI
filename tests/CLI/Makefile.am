@@ -12,7 +12,8 @@ counter_direct.test \
 meter.test \
 meter_direct.test \
 counter_and_meter_direct.test \
-direct_res_reset.test
+direct_res_reset.test \
+device_update.test
 
 # test_config.py.in included by default
 EXTRA_DIST = \
@@ -54,3 +55,8 @@ testdata/counter_and_meter_direct.out \
 direct_res_reset.test \
 testdata/direct_res_reset.in \
 testdata/direct_res_reset.out
+
+EXTRA_DIST += \
+device_update.test \
+testdata/device_update.in \
+testdata/device_update.out

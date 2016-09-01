@@ -68,6 +68,8 @@ const char *error_code_to_string(pi_cli_status_t error) {
       return "Invalid counter name";
     case PI_CLI_STATUS_INVALID_METER_NAME:
       return "Invalid meter name";
+    case PI_CLI_STATUS_INVALID_FILE_NAME:
+      return "Invalid file name";
   }
   return "Unknown error";
 }

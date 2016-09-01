@@ -21,6 +21,7 @@
 #include "utils.h"
 #include "error_codes.h"
 #include "p4_config_repo.h"
+#include "read_file.h"
 
 #include "PI/pi.h"
 
@@ -164,6 +165,61 @@ pi_cli_status_t do_select_device(char *subcmd) {
   p4info_curr = p4info;
   printf("Device selected successfully.\n");
   return PI_CLI_STATUS_SUCCESS;
+}
+
+/* UPDATE DEVICE */
+
+char update_device_start_hs[] =
+    "Update the P4 config on the selected device, "
+    "update_device_start <p4_config_id> <device_data_path>";
+
+pi_cli_status_t do_update_device_start(char *subcmd) {
+  const char *args[2];
+  size_t num_args = sizeof(args) / sizeof(char *);
+  if (parse_fixed_args(subcmd, args, num_args) < num_args)
+    return PI_CLI_STATUS_TOO_FEW_ARGS;
+  char *endptr;
+  int p4_config_id = strtol(args[0], &endptr, 0);
+  if (*endptr != '\0') return PI_CLI_STATUS_INVALID_P4_CONFIG_ID;
+
+  pi_p4info_t *p4info = p4_config_get(p4_config_id);
+  if (!p4info) return PI_CLI_STATUS_INVALID_P4_CONFIG_ID;
+
+  const char *device_data_path = args[1];
+  char *device_data = read_file(device_data_path);
+  if (!device_data) return PI_CLI_STATUS_INVALID_FILE_NAME;
+  size_t device_data_size = strlen(device_data);
+  pi_status_t rc = pi_update_device_start(dev_tgt.dev_id, p4info, device_data,
+                                          device_data_size);
+  free(device_data);
+
+  if (rc == PI_STATUS_SUCCESS) {
+    p4info_curr = p4info;
+    printf("Device update started.\n");
+    return PI_CLI_STATUS_SUCCESS;
+  } else {
+    printf("Device update error.\n");
+    return PI_CLI_STATUS_TARGET_ERROR;
+  }
+}
+
+char update_device_end_hs[] =
+    "End the P4 config update sequence on the selected device, "
+    "update_device_start";
+
+pi_cli_status_t do_update_device_end(char *subcmd) {
+  // better way of doing this?
+  if (subcmd && *subcmd != '\0') return PI_CLI_STATUS_TOO_MANY_ARGS;
+
+  pi_status_t rc = pi_update_device_end(dev_tgt.dev_id);
+
+  if (rc == PI_STATUS_SUCCESS) {
+    printf("Device update done.\n");
+    return PI_CLI_STATUS_SUCCESS;
+  } else {
+    printf("Device update error.\n");
+    return PI_CLI_STATUS_TARGET_ERROR;
+  }
 }
 
 /* SHOW DEVICES */

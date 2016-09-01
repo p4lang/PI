@@ -244,6 +244,49 @@ static void __pi_assign_device(char *req) {
   send_status(status);
 }
 
+static void __pi_update_device_start(char *req) {
+  printf("RPC: _pi_update_device_start\n");
+
+  pi_status_t status;
+  pi_dev_id_t dev_id;
+  req += retrieve_dev_id(req, &dev_id);
+
+  if (get_device_version(dev_id) == 0) {
+    send_status(PI_STATUS_DEV_NOT_ASSIGNED);
+    return;
+  }
+
+  size_t p4info_size = strlen(req) + 1;
+  pi_p4info_t *p4info;
+  // TODO(antonin): when is this destroyed?
+  status = pi_add_config(req, PI_CONFIG_TYPE_NATIVE_JSON, &p4info);
+  if (status != PI_STATUS_SUCCESS) {
+    send_status(status);
+    return;
+  }
+  req += p4info_size;
+
+  uint32_t device_data_size;
+  req += retrieve_uint32(req, &device_data_size);
+
+  status = _pi_update_device_start(dev_id, p4info, req, device_data_size);
+
+  if (status == PI_STATUS_SUCCESS) pi_update_device_config(dev_id, p4info);
+
+  send_status(status);
+}
+
+static void __pi_update_device_end(char *req) {
+  printf("RPC: _pi_update_device_end\n");
+
+  pi_dev_id_t dev_id;
+  retrieve_dev_id(req, &dev_id);
+
+  pi_status_t status = _pi_update_device_end(dev_id);
+
+  send_status(status);
+}
+
 static void __pi_remove_device(char *req) {
   printf("RPC: _pi_remove_device\n");
 
@@ -260,7 +303,6 @@ static void __pi_remove_device(char *req) {
   if (status == PI_STATUS_SUCCESS) pi_reset_device_config(dev_id);
 
   send_status(status);
-  ;
 }
 
 static void __pi_destroy(char *req) {
@@ -897,6 +939,12 @@ pi_status_t pi_rpc_server_run(const pi_remote_addr_t *remote_addr) {
         break;
       case PI_RPC_ASSIGN_DEVICE:
         __pi_assign_device(req_);
+        break;
+      case PI_RPC_UPDATE_DEVICE_START:
+        __pi_update_device_start(req_);
+        break;
+      case PI_RPC_UPDATE_DEVICE_END:
+        __pi_update_device_end(req_);
         break;
       case PI_RPC_REMOVE_DEVICE:
         __pi_remove_device(req_);

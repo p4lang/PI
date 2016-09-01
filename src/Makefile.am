@@ -32,6 +32,7 @@ p4info/p4info_name_map.c
 
 libpip4info_la_LIBADD = \
 $(top_builddir)/third_party/cJSON/libpicjson.la \
+$(top_builddir)/lib/libpitoolkit.la \
 libpiutils.la
 
 libpi_la_SOURCES = \
@@ -56,7 +57,6 @@ libpiutils_la_SOURCES = \
 utils/logging.h \
 utils/logging.c \
 utils/utils.h \
-utils/utils.c \
 utils/serialize.c
 
 libpifegeneric_la_SOURCES = \

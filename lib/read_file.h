@@ -13,25 +13,9 @@
  * limitations under the License.
  */
 
-#ifndef PI_SRC_UTILS_UTILS_H_
-#define PI_SRC_UTILS_UTILS_H_
+#ifndef PI_TOOLKIT_READ_FILE_H_
+#define PI_TOOLKIT_READ_FILE_H_
 
-#include <arpa/inet.h>
+char *read_file(const char *path);
 
-static inline uint64_t htonll(uint64_t n) {
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-  return n;
-#else
-  return (((uint64_t)htonl(n)) << 32) + htonl(n >> 32);
-#endif
-}
-
-static inline uint64_t ntohll(uint64_t n) {
-#if __BYTE_ORDER__ == __BIG_ENDIAN__
-  return n;
-#else
-  return (((uint64_t)ntohl(n)) << 32) + ntohl(n >> 32);
-#endif
-}
-
-#endif  // PI_SRC_UTILS_UTILS_H_
+#endif  // PI_TOOLKIT_READ_FILE_H_
