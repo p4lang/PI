@@ -18,6 +18,8 @@
  *
  */
 
+//! @file
+
 #ifndef PI_INC_PI_FRONTENDS_GENERIC_PI_H_
 #define PI_INC_PI_FRONTENDS_GENERIC_PI_H_
 
@@ -28,10 +30,13 @@ typedef uint16_t pi_prefix_length_t;
 
 ////////// MATCH KEY //////////
 
+//! Allocate a match jey object for a given table
 pi_status_t pi_match_key_allocate(const pi_p4info_t *p4info,
                                   const pi_p4_id_t table_id,
                                   pi_match_key_t **key);
 
+//! Reset state of a match key. This function does not perform any memory
+//! allocation.
 pi_status_t pi_match_key_init(pi_match_key_t *key);
 
 pi_status_t pi_match_key_exact_set(pi_match_key_t *key, const pi_netv_t *fv);
@@ -54,14 +59,18 @@ pi_status_t pi_match_key_range_set(pi_match_key_t *key, const pi_netv_t *start,
 pi_status_t pi_match_key_range_get(const pi_match_key_t *key, pi_p4_id_t fid,
                                    pi_netv_t *start, pi_netv_t *end);
 
+//! Destroy match key allocated with pi_match_key_allocate
 pi_status_t pi_match_key_destroy(pi_match_key_t *key);
 
 ////////// ACTION DATA //////////
 
+//! Allocate an action data object
 pi_status_t pi_action_data_allocate(const pi_p4info_t *p4info,
                                     const pi_p4_id_t action_id,
                                     pi_action_data_t **adata);
 
+//! Reset state of an action data. This function does not perform any memory
+//! allocation.
 pi_status_t pi_action_data_init(pi_action_data_t *adata);
 
 pi_p4_id_t pi_action_data_action_id_get(const pi_action_data_t *adata);
@@ -71,6 +80,7 @@ pi_status_t pi_action_data_arg_set(pi_action_data_t *adata,
 pi_status_t pi_action_data_arg_get(const pi_action_data_t *adata,
                                    pi_p4_id_t pid, pi_netv_t *argv);
 
+//! Destroy action data allocated with pi_action_data_allocate
 pi_status_t pi_action_data_destroy(pi_action_data_t *action_data);
 
 #endif  // PI_INC_PI_FRONTENDS_GENERIC_PI_H_

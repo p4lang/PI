@@ -18,6 +18,9 @@
  *
  */
 
+//! @file
+//! Functions to query header field information in a p4info object.
+
 #ifndef PI_INC_PI_P4INFO_FIELDS_H_
 #define PI_INC_PI_P4INFO_FIELDS_H_
 

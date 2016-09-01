@@ -18,6 +18,9 @@
  *
  */
 
+//! @file
+//! Functions to query field list information in a p4info object.
+
 #ifndef PI_INC_PI_P4INFO_FIELD_LIST_H_
 #define PI_INC_PI_P4INFO_FIELD_LIST_H_
 

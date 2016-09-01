@@ -18,6 +18,9 @@
  *
  */
 
+//! @file
+//! Functions to query table information in a p4info object.
+
 #ifndef PI_INC_PI_P4INFO_TABLES_H_
 #define PI_INC_PI_P4INFO_TABLES_H_
 

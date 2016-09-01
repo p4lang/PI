@@ -18,6 +18,8 @@
  *
  */
 
+//! @file
+
 #ifndef PI_INC_PI_PI_LEARN_H_
 #define PI_INC_PI_PI_LEARN_H_
 
@@ -29,6 +31,7 @@ extern "C" {
 
 typedef uint64_t pi_learn_msg_id_t;
 
+//! A learn message.
 typedef struct {
   pi_dev_tgt_t dev_tgt;
   pi_p4_id_t learn_id;
@@ -38,27 +41,36 @@ typedef struct {
   char *entries;
 } pi_learn_msg_t;
 
+//! Callback type for learn events.
 typedef void (*PILearnCb)(pi_learn_msg_t *msg, void *cb_cookie);
 
 // no session_handle for these APIs, do they need one?
 // because none of these calls result to a backend driver call, I do not see why
 // they would
 
+//! Register a learn callback for a given device and a given field list
 pi_status_t pi_learn_register_cb(pi_dev_id_t dev_id, pi_p4_id_t learn_id,
                                  PILearnCb cb, void *cb_cookie);
 
-// if no callback registered for the matching (dev_id, learn_id) pair, use this
-// one
+//! Default callback. Will be called if no callback registered for a given
+//! device and a given field list.
 pi_status_t pi_learn_register_default_cb(PILearnCb cb, void *cb_cookie);
 
+//! De-register callback for given device and field list.
 pi_status_t pi_learn_deregister_cb(pi_dev_id_t dev_id, pi_p4_id_t learn_id);
 
+//! De-register default callback.
 pi_status_t pi_learn_deregister_default_cb();
 
+//! Ack a received learn message. This indicates to the target that you have
+//! fully processed the message and that it can remove the message from its
+//! duplicate filter (for example).
 pi_status_t pi_learn_msg_ack(pi_session_handle_t session_handle,
                              pi_dev_id_t dev_id, pi_p4_id_t learn_id,
                              pi_learn_msg_id_t msg_id);
 
+//! Indicate taht you are done with the lean message and that any associated
+//! memory can be released.
 pi_status_t pi_learn_msg_done(pi_learn_msg_t *msg);
 
 #ifdef __cplusplus

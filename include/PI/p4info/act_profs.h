@@ -18,6 +18,9 @@
  *
  */
 
+//! @file
+//! Functions to query action profile information in a p4info object.
+
 #ifndef PI_INC_PI_P4INFO_ACT_PROFS_H_
 #define PI_INC_PI_P4INFO_ACT_PROFS_H_
 

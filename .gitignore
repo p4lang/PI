@@ -60,3 +60,5 @@ py-compile
 
 # Python
 *.pyc
+
+doxygen-out
