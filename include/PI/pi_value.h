@@ -18,6 +18,9 @@
  *
  */
 
+//! @file
+//! This is needed by the C generic frontend. Can probably use some improvement.
+
 #ifndef PI_INC_PI_PI_VALUE_H_
 #define PI_INC_PI_PI_VALUE_H_
 
@@ -39,6 +42,7 @@ typedef enum {
 
 /* 64 bit option can be disabled for 32-bit architecture */
 /* implementation can be hidden from user */
+//! Used to efficiently represent any integral value, in network-byte order.
 typedef struct {
   uint32_t type_and_size;  // first byte is type, rest is size
   union {

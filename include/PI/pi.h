@@ -18,6 +18,8 @@
  *
  */
 
+//! @file
+
 #ifndef PI_INC_PI_PI_H_
 #define PI_INC_PI_PI_H_
 
@@ -31,14 +33,17 @@
 extern "C" {
 #endif
 
-// returns NULL if device not assigned
+//! Returns the P4 config (p4info) associated with that device id, NULL if the
+//! device is not assigned.
 const pi_p4info_t *pi_get_device_p4info(pi_dev_id_t dev_id);
 
+//! Addresses for RPC server and notifications server (PUBSUB)
 typedef struct {
   char *rpc_addr;
   char *notifications_addr;
 } pi_remote_addr_t;
 
+//! Init function for PI
 pi_status_t pi_init(size_t max_devices, pi_remote_addr_t *remote_addr);
 
 typedef struct {
@@ -47,33 +52,53 @@ typedef struct {
   const char *v;
 } pi_assign_extra_t;
 
+//! Assigns a P4 config to a device. Different targets may need different
+//! indormation at that stage, so arbitary parameters can be provided using \p
+//! extra.
 pi_status_t pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
                              pi_assign_extra_t *extra);
 
+//! Inititate a P4 config update on a device. After this function is called,
+//! packets will still be processed by the target using the old config, but all
+//! PI calls (e.g. table updates) will apply to the new config. When you are
+//! ready to swap configs at the target, call pi_update_device_end. Different
+//! target may need a different input at that stage, which is what \p
+//! device_data is for.
 pi_status_t pi_update_device_start(pi_dev_id_t dev_id,
                                    const pi_p4info_t *p4info,
                                    const char *device_data,
                                    size_t device_data_size);
 
+//! Terminates a P4 config update sequence, see pi_update_device_start.
 pi_status_t pi_update_device_end(pi_dev_id_t dev_id);
 
+//! Remove a device.
 pi_status_t pi_remove_device(pi_dev_id_t dev_id);
 
+//! Init a client session.
 pi_status_t pi_session_init(pi_session_handle_t *session_handle);
 
+//! Terminate a client session.
 pi_status_t pi_session_cleanup(pi_session_handle_t session_handle);
 
+//! PI cleanup function.
 pi_status_t pi_destroy();
 
+//! Callback type for packet-in.
 typedef void (*PIPacketInCb)(pi_dev_id_t dev_id, const char *pkt, size_t size,
                              void *cb_cookie);
+//! Register a callback for packet-in events, for a given device.
 pi_status_t pi_packetin_register_cb(pi_dev_id_t dev_id, PIPacketInCb cb,
                                     void *cb_cookie);
+//! Register a default callback for packet-in, which will be used if no specific
+//! callback was specified for the device which issued the packet-in event.
 pi_status_t pi_packetin_register_default_cb(PIPacketInCb cb, void *cb_cookie);
+//! De-register a packet-in callback for a given device
 pi_status_t pi_packetin_deregister_cb(pi_dev_id_t dev_id);
-pi_status_t pi_packetin_register_default_cb(PIPacketInCb cb, void *cb_cookie);
+//! De-register default callback.
 pi_status_t pi_packetin_deregister_default_cb();
 
+//! Inject a packet in the specified device.
 pi_status_t pi_packetout_send(pi_dev_id_t dev_id, const char *pkt, size_t size);
 
 // TODO(antonin): move this to pi_tables?

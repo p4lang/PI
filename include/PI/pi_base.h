@@ -18,6 +18,8 @@
  *
  */
 
+//! @file
+
 #ifndef PI_INC_PI_PI_BASE_H_
 #define PI_INC_PI_PI_BASE_H_
 
@@ -29,14 +31,18 @@
 extern "C" {
 #endif
 
+//! 0 is always an invalid P4 id
 #define PI_INVALID_ID 0
 
+//! The different config types which can be parsed to create a p4info object.
 typedef enum {
   PI_CONFIG_TYPE_NONE = 0,  // for testing
   PI_CONFIG_TYPE_BMV2_JSON,
   PI_CONFIG_TYPE_NATIVE_JSON
 } pi_config_type_t;
 
+//! Possible status codes for PI calls. Values above 1000 are reserved for
+//! target backends.
 typedef enum {
   PI_STATUS_SUCCESS = 0,
   PI_STATUS_INVALID_CONFIG_TYPE,
@@ -81,21 +87,26 @@ typedef enum {
 
   PI_STATUS_NOT_IMPLEMENTED_BY_TARGET,
 
-  // everything above 1000 is reserved for targets
+  //! everything above 1000 is reserved for targets
   PI_STATUS_TARGET_ERROR = 1000
 } pi_status_t;
 
+//! An id for any P4 object.
 typedef uint32_t pi_p4_id_t;
 
+//! Device identifier.
 typedef uint16_t pi_dev_id_t;
 
+//! Identifies a device plus a pipe (or set of pipes?) within device.
 typedef struct {
   pi_dev_id_t dev_id;
   uint16_t dev_pipe_mask;
 } pi_dev_tgt_t;
 
+//! Identifies a client sessions.
 typedef uint32_t pi_session_handle_t;
 
+//! Forward declaration of p4info (P4 config)
 typedef struct pi_p4info_s pi_p4info_t;
 
 #define PI_ACTION_ID 0x01

@@ -18,6 +18,8 @@
  *
  */
 
+//! @file
+
 #ifndef PI_INC_PI_PI_COUNTER_H_
 #define PI_INC_PI_PI_COUNTER_H_
 
@@ -34,6 +36,7 @@ typedef uint64_t pi_counter_value_t;
 #define PI_COUNTER_UNIT_BYTES (1 << 1)
 
 typedef struct {
+  //! member validity: packets, bytes or both?
   int valid;
   pi_counter_value_t bytes;
   pi_counter_value_t packets;
@@ -43,21 +46,25 @@ typedef struct {
 // do a sync with the hw when reading a counter
 #define PI_COUNTER_FLAGS_HW_SYNC (1 << 0)
 
+//! Reads an indirect counter at the given \p index.
 pi_status_t pi_counter_read(pi_session_handle_t session_handle,
                             pi_dev_tgt_t dev_tgt, pi_p4_id_t counter_id,
                             size_t index, int flags,
                             pi_counter_data_t *counter_data);
 
+//! Writes an indirect counter at the given \p index.
 pi_status_t pi_counter_write(pi_session_handle_t session_handle,
                              pi_dev_tgt_t dev_tgt, pi_p4_id_t counter_id,
                              size_t index,
                              const pi_counter_data_t *counter_data);
 
+//! Reads the direct counter for the given \p entry_handle.
 pi_status_t pi_counter_read_direct(pi_session_handle_t session_handle,
                                    pi_dev_tgt_t dev_tgt, pi_p4_id_t counter_id,
                                    pi_entry_handle_t entry_handle, int flags,
                                    pi_counter_data_t *counter_data);
 
+//! Writes the direct counter for the given \p entry_handle.
 pi_status_t pi_counter_write_direct(pi_session_handle_t session_handle,
                                     pi_dev_tgt_t dev_tgt, pi_p4_id_t counter_id,
                                     pi_entry_handle_t entry_handle,

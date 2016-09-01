@@ -18,6 +18,9 @@
  *
  */
 
+//! @file
+//! Functions to query counter information in a p4info object.
+
 #ifndef PI_INC_PI_P4INFO_COUNTERS_H_
 #define PI_INC_PI_P4INFO_COUNTERS_H_
 
