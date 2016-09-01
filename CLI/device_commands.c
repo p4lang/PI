@@ -194,6 +194,7 @@ pi_cli_status_t do_update_device_start(char *subcmd) {
   free(device_data);
 
   if (rc == PI_STATUS_SUCCESS) {
+    p4info_curr = p4info;
     printf("Device update started.\n");
     return PI_CLI_STATUS_SUCCESS;
   } else {

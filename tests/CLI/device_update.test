@@ -1,0 +1,2 @@
+#!/bin/sh
+./run_one_test.py $srcdir/testdata device_update swap_1.json

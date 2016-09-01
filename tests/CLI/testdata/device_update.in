@@ -1,0 +1,9 @@
+add_p4 swap_2.json bmv2
+table_dump t_ingress_1
+table_dump t_ingress_2
+update_device_start 1 swap_2.json
+table_dump t_ingress_1
+table_dump t_ingress_2
+update_device_end
+table_dump t_ingress_1
+table_dump t_ingress_2

@@ -13,26 +13,41 @@
  * limitations under the License.
  */
 
-// TODO: temporary placeholder
+header_type hdr1_t {
+    fields {
+        f1 : 8;
+        f2 : 8;
+    }
+}
 
-#ifndef PI_SRC_UTILS_LOGGING_H_
-#define PI_SRC_UTILS_LOGGING_H_
+header hdr1_t hdr1;
 
-#include <stdio.h>
+parser start {
+    extract(hdr1);
+    return ingress;
+}
 
-extern int _logs_on;
+action a11() {
+    modify_field(standard_metadata.egress_spec, 1);
+}
 
-void pi_logs_on();
-void pi_logs_off();
+action a12() {
+    modify_field(standard_metadata.egress_spec, 2);
+}
 
-#ifdef PI_LOG_ON
-#define PI_LOG_DEBUG(...) \
-  if (_logs_on) fprintf(stderr, __VA_ARGS__)
-#define PI_LOG_ERROR(...) \
-  if (_logs_on) fprintf(stderr, __VA_ARGS__)
-#else
-#define PI_LOG_DEBUG
-#define PI_LOG_ERROR
-#endif
+table t_ingress_1 {
+    reads {
+        hdr1.f1 : exact;
+    }
+    actions {
+        a11; a12;
+    }
+    size : 128;
+}
 
-#endif  // PI_SRC_UTILS_LOGGING_H_
+control ingress {
+    apply(t_ingress_1);
+}
+
+control egress {
+}
