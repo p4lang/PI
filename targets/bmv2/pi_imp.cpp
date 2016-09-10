@@ -157,7 +157,7 @@ pi_status_t _pi_session_cleanup(pi_session_handle_t session_handle) {
 
 pi_status_t _pi_packetout_send(pi_dev_id_t dev_id, const char *pkt,
                                size_t size) {
-  if (cpu_send_recv->send_pkt(dev_id, pkt, size) != static_cast<int>(size))
+  if (cpu_send_recv->send_pkt(dev_id, pkt, size) != 0)
     return PI_STATUS_PACKETOUT_SEND_ERROR;
   return PI_STATUS_SUCCESS;
 }
