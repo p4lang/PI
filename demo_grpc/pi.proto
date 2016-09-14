@@ -1,0 +1,198 @@
+syntax = "proto3";
+
+package pirpc;
+
+service PI {
+  rpc Init(InitRequest) returns (Status) {}
+
+  rpc DeviceAssign(DeviceAssignRequest) returns (Status) {}
+  rpc DeviceRemove(DeviceRemoveRequest) returns (Status) {}
+  rpc DeviceUpdateStart(DeviceUpdateStartRequest) returns (Status) {}
+  rpc DeviceUpdateEnd(DeviceUpdateEndRequest) returns (Status) {}
+
+  // Needed? use gRPC metadata for session?
+  // rpc SessionInit(Empty) returns (SessionInitResponse) {}
+  // rpc SessionCleanup(SessionCleanupRequest) returns (Status) {}
+
+  rpc PacketInReceive(Empty) returns (stream PacketIn) {}
+  rpc PacketOutSend(PacketOut) returns (Status) {}
+
+  rpc TableAdd(TableAddRequest) returns (TableAddResponse) {}
+  rpc TableDelete(TableDeleteRequest) returns (Status) {}
+  rpc TableSetDefault(TableSetDefaultRequest) returns (Status) {}
+
+  rpc CounterRead(CounterReadRequest) returns (CounterReadResponse) {}
+  rpc CounterWrite(CounterWriteRequest) returns (Status) {}
+}
+
+message Empty { }
+
+message InitRequest {
+  int32 num_devices = 1;
+}
+
+message DeviceAssignRequest {
+  int32 device_id = 1;
+  string native_p4info_json = 2;
+  map<string, string> extras = 3;  // or extension for backend specific args?
+}
+
+message DeviceRemoveRequest {
+  int32 device_id = 1;
+}
+
+message DeviceUpdateStartRequest {
+  int32 device_id = 1;
+  string native_p4info_json = 2;
+  bytes device_data = 3;  // or use extension?
+}
+
+message DeviceUpdateEndRequest {
+  int32 device_id = 1;
+}
+
+message SessionInitResponse {
+  int32 session_handle = 1;
+}
+
+message SessionCleanupRequest {
+  int32 session_handle = 1;
+}
+
+message PacketIn {
+  int32 device_id = 1;
+  bytes packet_data = 2;
+}
+
+message PacketOut {
+  int32 device_id = 1;
+  bytes packet_data = 2;
+}
+
+message ActionData {
+  int32 action_id = 1;
+  message ActionArg {
+    int32 param_id = 1;
+    bytes value = 2;
+  }
+  repeated ActionArg args = 2;
+}
+
+message TableEntry {
+  enum EntryType {
+    NONE = 0;
+    DATA = 1;
+    INDIRECT = 2;
+  }
+  EntryType entry_type = 1;
+  oneof entry {
+    ActionData action_data = 2;
+    int64 indirect_handle = 3;
+  }
+}
+
+message TableMatchEntry {
+  message MatchField {
+    enum MatchType {
+      EXACT = 0;
+      LPM = 1;
+      TERNARY = 2;
+      VALID = 3;
+      RANGE = 4;
+    }
+    MatchType match_type = 1;
+
+    int32 field_id = 2;
+
+    message MFExact {
+      bytes value = 1;
+    }
+
+    message MFLPM {
+      bytes value = 1;
+      int32 prefix_len = 2;
+    }
+
+    message MFTernary {
+      bytes value = 1;
+      bytes mask = 2;
+    }
+
+    message MFValid {
+      bool bvalue = 1;
+    }
+
+    message MFRange {
+      bytes start = 1;
+      bytes end = 2;
+    }
+
+    oneof field {
+      MFExact exact = 3;
+      MFLPM lpm = 4;
+      MFTernary ternary = 5;
+      MFValid valid = 6;
+      MFRange range = 7;
+    }
+  }
+  repeated MatchField match_key = 1;
+  TableEntry entry = 2;
+  // TODO(antonin): options
+}
+
+message Status {
+  int32 status = 1;
+}
+
+message TableAddRequest {
+  int32 device_id = 1;
+  int32 table_id = 2;
+  TableMatchEntry entry = 3;
+  bool overwrite = 4;
+}
+
+message TableAddResponse {
+  Status status = 1;
+  int64 entry_handle = 2;
+}
+
+message TableDeleteRequest {
+  int32 device_id = 1;
+  int32 table_id = 2;
+  int64 entry_handle = 3;
+}
+
+message TableSetDefaultRequest {
+  int32 device_id = 1;
+  int32 table_id = 2;
+  TableEntry entry = 3;
+}
+
+message CounterData {
+  int64 bytes = 1;
+  int64 packets = 2;
+}
+
+message CounterReadRequest {
+  int32 device_id = 1;
+  int32 counter_id = 2;
+  oneof target {
+    int64 entry_handle = 3;
+    int64 index = 4;
+  }
+}
+
+message CounterReadResponse {
+  Status status = 1;
+  CounterData data = 2;
+}
+
+message CounterWriteRequest {
+  int32 device_id = 1;
+  int32 counter_id = 2;
+  oneof target {
+    int64 entry_handle = 3;
+    int64 index = 4;
+  }
+  CounterData data = 5;
+}
