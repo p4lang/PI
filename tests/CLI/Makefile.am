@@ -59,4 +59,6 @@ testdata/direct_res_reset.out
 EXTRA_DIST += \
 device_update.test \
 testdata/device_update.in \
-testdata/device_update.out
+testdata/device_update.out \
+testdata/swap_1.json \
+testdata/swap_2.json

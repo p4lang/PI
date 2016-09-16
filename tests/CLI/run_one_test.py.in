@@ -37,7 +37,7 @@ import tempfile
 
 sswitch_path = "@BM_SIMPLE_SWITCH@"
 CLI_path = os.path.join("@abs_top_builddir@", "CLI", "pi_CLI_rpc")
-rpc_server_path = os.path.join("@abs_top_builddir@", "bin", "rpc_server")
+rpc_server_path = os.path.join("@abs_top_builddir@", "bin", "pi_rpc_server")
 valgrind_supp = os.path.join("@abs_srcdir@", "test.supp")
 
 # Class written by Mihai Budiu, for Barefoot Networks, Inc.
