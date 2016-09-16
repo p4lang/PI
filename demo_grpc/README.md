@@ -5,8 +5,19 @@
 - [bmv2] (https://github.com/p4lang/behavioral-model) and all its
   dependencies. We use bmv2 to simulate the P4 dataplane.
 - [gRPC] (https://github.com/grpc/grpc)
+- the PI libraries (see below)
+
+## Installing the PI
+
+Run the following at the root of this repository:
+- `./autogen.sh`
+- `./configure --with-bmv2 --with-fe-cpp`
+- `make`
+- `sudo make install`
 
 ## Overview
+
+![Demo topology](resources/demo_topology.png)
 
 ![Demo overview](resources/architecture.png)
 
