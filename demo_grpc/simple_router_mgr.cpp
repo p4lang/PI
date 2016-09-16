@@ -568,8 +568,8 @@ SimpleRouterMgr::handle_arp_reply(const arp_header_t &arp_header) {
       std::cout << "Reinjecting data packet\n";
       send_packetout(p.data(), p.size());
     }
+    packet_queues.erase(it);
   }
-  packet_queues.erase(it);
 }
 
 void

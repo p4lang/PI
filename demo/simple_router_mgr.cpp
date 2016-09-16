@@ -444,8 +444,8 @@ SimpleRouterMgr::handle_arp_reply(const arp_header_t &arp_header) {
       std::cout << "Reinjecting data packet\n";
       pi_packetout_send(dev_tgt.dev_id, p.data(), p.size());
     }
+    packet_queues.erase(it);
   }
-  packet_queues.erase(it);
 }
 
 void
