@@ -5,6 +5,9 @@
 - [bmv2] (https://github.com/p4lang/behavioral-model) and all its
   dependencies. We use bmv2 to simulate the P4 dataplane.
 - [gRPC] (https://github.com/grpc/grpc)
+- [libmicrohttpd] (https://www.gnu.org/software/libmicrohttpd). We use it to
+  access some of the controller functions through a web page. In Ubuntu, you can
+  install it with ` sudo apt-get install libmicrohttpd-dev`.
 - the PI libraries (see below)
 
 ## Installing the PI
