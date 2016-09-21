@@ -47,6 +47,8 @@ FIELDS = {}
 FIELDS_BY_ID = {}
 ACT_PROFS = {}
 ACT_PROFS_BY_ID = {}
+COUNTER_ARRAYS = {}
+COUNTER_ARRAYS_BY_ID = {}
 
 
 def enum(type_name, *sequential, **named):
@@ -163,6 +165,19 @@ class ActProf:
         ACT_PROFS_BY_ID[id_] = self
 
 
+class CounterArray:
+    def __init__(self, name, id_, is_direct):
+        self.name = name
+        self.id_ = id_
+        self.is_direct = is_direct
+
+        COUNTER_ARRAYS[name] = self
+        COUNTER_ARRAYS_BY_ID[id_] = self
+
+    def counter_str(self):
+        return "{0:30} [{1}, {2}]".format(self.name, self.is_direct)
+
+
 def load_json(json_str):
     def get_header_type(header_name, j_headers):
         for h in j_headers:
@@ -235,6 +250,13 @@ def load_json(json_str):
                     t.type_ = TableType.INDIRECT_WS
                 else:
                     t.type_ = TableType.INDIRECT
+
+    if "counters" in json_:
+        for j_counter in json_["counters"]:
+            # 0 is PI_INVALID_ID
+            is_direct = (j_counter["direct_table"] != 0)
+            counter = CounterArray(j_counter["name"], j_counter["id"],
+                                   is_direct)
 
 
 def ignore_template_file(filename):
@@ -352,6 +374,8 @@ def generate_pd_source(json_dict, dest_dir, p4_prefix, templates_dir, target):
     FIELDS_BY_ID.clear()
     ACT_PROFS.clear()
     ACT_PROFS_BY_ID.clear()
+    COUNTER_ARRAYS.clear()
+    COUNTER_ARRAYS_BY_ID.clear()
 
     load_json(json_dict)
     render_dict = {}
@@ -370,6 +394,7 @@ def generate_pd_source(json_dict, dest_dir, p4_prefix, templates_dir, target):
     render_dict["actions"] = ACTIONS
     render_dict["fields"] = FIELDS
     render_dict["act_profs"] = ACT_PROFS
+    render_dict["counter_arrays"] = COUNTER_ARRAYS
     render_dict["render_dict"] = render_dict
 
     if target == "bm":

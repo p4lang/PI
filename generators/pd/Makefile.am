@@ -27,8 +27,11 @@ nobase_dist_pkgdata_DATA = \
 templates/pd/pd.h \
 templates/pd/pd_tables.h \
 templates/pd/pd_types.h \
+templates/pd/pd_counters.h \
 templates/src/pd.c \
 templates/src/pd_tables.c \
+templates/src/pd_counters.c \
+templates/src/pd_utils.h \
 templates/thrift/p4_pd_rpc.thrift \
 templates/thrift-src/p4_pd_rpc_server.ipp \
 templates/thrift-src/pd_rpc_server.cpp \
