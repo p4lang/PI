@@ -25,26 +25,18 @@
  *
  */
 
-#ifndef _P4_PD_H_
-#define _P4_PD_H_
+#ifndef _P4_PD_UTILS_H_
+#define _P4_PD_UTILS_H_
 
-#include "pd_tables.h"
-#include "pd_counters.h"
+#include ${target_common_h}
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <PI/pi.h>
 
-p4_pd_status_t ${pd_prefix}init(void);
-
-p4_pd_status_t ${pd_prefix}assign_device(int dev_id,
-                                         const char *config_path);
-                                         /* const pd_assign_extra_t *extra); */
-
-p4_pd_status_t ${pd_prefix}remove_device(int dev_id);
-
-#ifdef __cplusplus
+static inline pi_dev_tgt_t convert_dev_tgt(p4_pd_dev_target_t pd_dev_tgt) {
+  pi_dev_tgt_t pi_dev_tgt;
+  pi_dev_tgt.dev_id = pd_dev_tgt.device_id;
+  pi_dev_tgt.dev_pipe_mask = pd_dev_tgt.dev_pipe_id;
+  return pi_dev_tgt;
 }
-#endif
 
 #endif

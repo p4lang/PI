@@ -650,4 +650,87 @@ public:
         return pd_entry;
     }
 //:: #endfor
+
+    // COUNTERS
+
+//:: for ca_name, ca in counter_arrays.items():
+//::   if ca.is_direct:
+//::     name = "counter_read_" + ca_name
+//::     pd_name = pd_prefix + name
+    void ${name}(${api_prefix}counter_value_t &counter_value, const SessionHandle_t sess_hdl, const DevTarget_t &dev_tgt, const EntryHandle_t entry, const ${api_prefix}counter_flags_t &flags) {
+      std::cerr << "In ${name}\n";
+
+      p4_pd_dev_target_t pd_dev_tgt;
+      pd_dev_tgt.device_id = dev_tgt.dev_id;
+      pd_dev_tgt.dev_pipe_id = dev_tgt.dev_pipe_id;
+
+      int pd_flags = 0;
+      if(flags.read_hw_sync) pd_flags |= COUNTER_READ_HW_SYNC;
+
+      p4_pd_counter_value_t value = ${pd_name}(sess_hdl, pd_dev_tgt, entry, pd_flags);
+      counter_value.packets = value.packets;
+      counter_value.bytes = value.bytes;
+    }
+
+//::     name = "counter_write_" + ca_name
+//::     pd_name = pd_prefix + name
+    int32_t ${name}(const SessionHandle_t sess_hdl, const DevTarget_t &dev_tgt, const EntryHandle_t entry, const ${api_prefix}counter_value_t &counter_value) {
+      std::cerr << "In ${name}\n";
+
+      p4_pd_dev_target_t pd_dev_tgt;
+      pd_dev_tgt.device_id = dev_tgt.dev_id;
+      pd_dev_tgt.dev_pipe_id = dev_tgt.dev_pipe_id;
+
+      p4_pd_counter_value_t value;
+      value.packets = counter_value.packets;
+      value.bytes = counter_value.bytes;
+
+      return ${pd_name}(sess_hdl, pd_dev_tgt, entry, value);
+    }
+
+//::   else:
+//::     name = "counter_read_" + ca_name
+//::     pd_name = pd_prefix + name
+    void ${name}(${api_prefix}counter_value_t &counter_value, const SessionHandle_t sess_hdl, const DevTarget_t &dev_tgt, const int32_t index, const ${api_prefix}counter_flags_t &flags) {
+      std::cerr << "In ${name}\n";
+
+      p4_pd_dev_target_t pd_dev_tgt;
+      pd_dev_tgt.device_id = dev_tgt.dev_id;
+      pd_dev_tgt.dev_pipe_id = dev_tgt.dev_pipe_id;
+
+      int pd_flags = 0;
+      if(flags.read_hw_sync) pd_flags |= COUNTER_READ_HW_SYNC;
+
+      p4_pd_counter_value_t value = ${pd_name}(sess_hdl, pd_dev_tgt, index, pd_flags);
+      counter_value.packets = value.packets;
+      counter_value.bytes = value.bytes;
+    }
+
+//::     name = "counter_write_" + ca_name
+//::     pd_name = pd_prefix + name
+    int32_t ${name}(const SessionHandle_t sess_hdl, const DevTarget_t &dev_tgt, const int32_t index, const ${api_prefix}counter_value_t &counter_value) {
+      std::cerr << "In ${name}\n";
+
+      p4_pd_dev_target_t pd_dev_tgt;
+      pd_dev_tgt.device_id = dev_tgt.dev_id;
+      pd_dev_tgt.dev_pipe_id = dev_tgt.dev_pipe_id;
+
+      p4_pd_counter_value_t value;
+      value.packets = counter_value.packets;
+      value.bytes = counter_value.bytes;
+
+      return ${pd_name}(sess_hdl, pd_dev_tgt, index, value);
+    }
+
+//::   #endif
+//:: #endfor
+
+//:: for ca_name, ca in counter_arrays.items():
+//::   name = "counter_hw_sync_" + ca_name
+//::   pd_name = pd_prefix + name
+    int32_t ${name}(const SessionHandle_t sess_hdl, const DevTarget_t &dev_tgt) {
+      return 0;
+    }
+
+//:: #endfor
 };

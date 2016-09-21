@@ -147,3 +147,14 @@ pi_status_t _pi_counter_write_direct(pi_session_handle_t session_handle,
   return counter_write(PI_RPC_COUNTER_WRITE_DIRECT, session_handle, dev_tgt,
                        counter_id, entry_handle, counter_data);
 }
+
+pi_status_t _pi_counter_hw_sync(pi_session_handle_t session_handle,
+                                pi_dev_tgt_t dev_tgt, pi_p4_id_t counter_id,
+                                PICounterHwSyncCb cb, void *cb_cookie) {
+  (void)session_handle;
+  (void)dev_tgt;
+  (void)counter_id;
+  (void)cb;
+  (void)cb_cookie;
+  return PI_STATUS_RPC_NOT_IMPLEMENTED;
+}

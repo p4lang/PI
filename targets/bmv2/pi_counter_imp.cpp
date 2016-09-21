@@ -30,6 +30,7 @@
 #include <PI/target/pi_counter_imp.h>
 
 #include <string>
+#include <thread>
 
 #include "conn_mgr.h"
 #include "common.h"
@@ -212,6 +213,16 @@ pi_status_t _pi_counter_write_direct(pi_session_handle_t session_handle,
     return static_cast<pi_status_t>(PI_STATUS_TARGET_ERROR + ito.code);
   }
 
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_counter_hw_sync(pi_session_handle_t session_handle,
+                                pi_dev_tgt_t dev_tgt, pi_p4_id_t counter_id,
+                                PICounterHwSyncCb cb, void *cb_cookie) {
+  (void)session_handle;
+  if (!cb) return PI_STATUS_SUCCESS;
+  std::thread cb_thread(cb, dev_tgt.dev_id, counter_id, cb_cookie);
+  cb_thread.detach();
   return PI_STATUS_SUCCESS;
 }
 

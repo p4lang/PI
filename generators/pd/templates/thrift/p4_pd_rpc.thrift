@@ -355,7 +355,28 @@ service ${p4_prefix} {
     EntryHandle_t ${name}(${param_str});
 //:: #endfor
 
+    # counters
 
+//:: for ca_name, ca in counter_arrays.items():
+//::   if ca.is_direct:
+//::     name = "counter_read_" + ca_name
+    ${api_prefix}counter_value_t ${name}(1:res.SessionHandle_t sess_hdl, 2:res.DevTarget_t dev_tgt, 3:EntryHandle_t entry, 4:${api_prefix}counter_flags_t flags);
+//::     name = "counter_write_" + ca_name
+    i32 ${name}(1:res.SessionHandle_t sess_hdl, 2:res.DevTarget_t dev_tgt, 3:EntryHandle_t entry, 4:${api_prefix}counter_value_t counter_value);
+
+//::   else:
+//::     name = "counter_read_" + ca_name
+    ${api_prefix}counter_value_t ${name}(1:res.SessionHandle_t sess_hdl, 2:res.DevTarget_t dev_tgt, 3:i32 index, 4:${api_prefix}counter_flags_t flags);
+//::     name = "counter_write_" + ca_name
+    i32 ${name}(1:res.SessionHandle_t sess_hdl, 2:res.DevTarget_t dev_tgt, 3:i32 index, 4:${api_prefix}counter_value_t counter_value);
+
+//::   #endif
+//:: #endfor
+
+//:: for ca_name, ca in counter_arrays.items():
+//::   name = "counter_hw_sync_" + ca_name
+    i32 ${name}(1:res.SessionHandle_t sess_hdl, 2:res.DevTarget_t dev_tgt);
+//:: #endfor
 
     # clean all state
 //:: name = "clean_all"
