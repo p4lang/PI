@@ -55,8 +55,8 @@ convert_from_meter_spec(const pi_meter_spec_t *meter_spec) {
   };
   auto conv_bytes = [](uint64_t r, uint32_t b) {
     BmMeterRateConfig new_rate;
-    new_rate.units_per_micros = static_cast<double>(r) / 8000.;
-    new_rate.burst_size = (b * 1000) / 8;
+    new_rate.units_per_micros = static_cast<double>(r) / 1000000.;
+    new_rate.burst_size = b;
     return new_rate;
   };
   // guaranteed by PI common code

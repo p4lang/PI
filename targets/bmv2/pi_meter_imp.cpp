@@ -55,8 +55,8 @@ convert_to_meter_spec(const pi_p4info_t *p4info, pi_p4_id_t m_id,
   };
   auto conv_bytes = [](const BmMeterRateConfig &rate,
                        uint64_t *r, uint32_t *b) {
-    *r = static_cast<uint64_t>(rate.units_per_micros * 8000.);
-    *b = (rate.burst_size * 8) / 1000;
+    *r = static_cast<uint64_t>(rate.units_per_micros * 1000000.);
+    *b = rate.burst_size;
   };
   meter_spec->meter_unit = static_cast<pi_meter_unit_t>(
       pi_p4info_meter_get_unit(p4info, m_id));
