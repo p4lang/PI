@@ -49,6 +49,8 @@ ACT_PROFS = {}
 ACT_PROFS_BY_ID = {}
 COUNTER_ARRAYS = {}
 COUNTER_ARRAYS_BY_ID = {}
+METER_ARRAYS = {}
+METER_ARRAYS_BY_ID = {}
 
 
 def enum(type_name, *sequential, **named):
@@ -70,7 +72,8 @@ def enum(type_name, *sequential, **named):
 
 MatchType = enum('MatchType', 'EXACT', 'LPM', 'TERNARY', 'VALID', 'RANGE')
 TableType = enum('TableType', 'SIMPLE', 'INDIRECT', 'INDIRECT_WS')
-MeterType = enum('MeterType', 'PACKETS', 'BYTES')
+MeterUnit = enum('MeterUnit', 'PACKETS', 'BYTES')
+MeterType = enum('MeterType', 'COLOR_AWARE', 'COLOR_UNAWARE')
 
 
 class Table:
@@ -175,7 +178,27 @@ class CounterArray:
         COUNTER_ARRAYS_BY_ID[id_] = self
 
     def counter_str(self):
-        return "{0:30} [{1}, {2}]".format(self.name, self.is_direct)
+        return "{0:30} [{1}]".format(self.name, self.is_direct)
+
+
+class MeterArray:
+    # hacks to make them more easily accessible in template
+    MeterUnit = MeterUnit
+    MeterType = MeterType
+
+    def __init__(self, name, id_, is_direct, unit, type_):
+        self.name = name
+        self.id_ = id_
+        self.is_direct = is_direct
+        self.unit = unit
+        self.type_ = type_
+
+        METER_ARRAYS[name] = self
+        METER_ARRAYS_BY_ID[id_] = self
+
+    def meter_str(self):
+        return "{0:30} [{1}, {2}]".format(self.name, self.is_direct,
+                                          MeterUnit.to_str(self.unit))
 
 
 def load_json(json_str):
@@ -257,6 +280,25 @@ def load_json(json_str):
             is_direct = (j_counter["direct_table"] != 0)
             counter = CounterArray(j_counter["name"], j_counter["id"],
                                    is_direct)
+
+    if "meters" in json_:
+        for j_meter in json_["meters"]:
+            # 0 is PI_INVALID_ID
+            direct_t_id = j_meter["direct_table"]
+            is_direct = (direct_t_id != 0)
+            unit = {
+                1 : MeterUnit.PACKETS,
+                2 : MeterUnit.BYTES,
+            }[j_meter["meter_unit"]]
+            type_ = {
+                1 : MeterType.COLOR_AWARE,
+                2 : MeterType.COLOR_UNAWARE,
+            }[j_meter["meter_type"]]
+            meter = MeterArray(j_meter["name"], j_meter["id"], is_direct, unit,
+                               type_)
+            if is_direct:
+                t = TABLES_BY_ID[direct_t_id]
+                t.direct_meters = meter
 
 
 def ignore_template_file(filename):
@@ -376,6 +418,8 @@ def generate_pd_source(json_dict, dest_dir, p4_prefix, templates_dir, target):
     ACT_PROFS_BY_ID.clear()
     COUNTER_ARRAYS.clear()
     COUNTER_ARRAYS_BY_ID.clear()
+    METER_ARRAYS.clear()
+    METER_ARRAYS_BY_ID.clear()
 
     load_json(json_dict)
     render_dict = {}
@@ -383,6 +427,7 @@ def generate_pd_source(json_dict, dest_dir, p4_prefix, templates_dir, target):
     render_dict["pd_prefix"] = "p4_pd_" + p4_prefix + "_"
     render_dict["MatchType"] = MatchType
     render_dict["TableType"] = TableType
+    render_dict["MeterUnit"] = MeterUnit
     render_dict["MeterType"] = MeterType
     render_dict["gen_match_params"] = gen_match_params
     render_dict["gen_action_params"] = gen_action_params
@@ -395,6 +440,7 @@ def generate_pd_source(json_dict, dest_dir, p4_prefix, templates_dir, target):
     render_dict["fields"] = FIELDS
     render_dict["act_profs"] = ACT_PROFS
     render_dict["counter_arrays"] = COUNTER_ARRAYS
+    render_dict["meter_arrays"] = METER_ARRAYS
     render_dict["render_dict"] = render_dict
 
     if target == "bm":

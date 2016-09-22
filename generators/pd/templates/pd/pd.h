@@ -30,6 +30,7 @@
 
 #include "pd_tables.h"
 #include "pd_counters.h"
+#include "pd_meters.h"
 
 #ifdef __cplusplus
 extern "C" {

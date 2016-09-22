@@ -33,6 +33,7 @@
 
 #include <stdlib.h>
 
+__attribute__ ((unused))
 static void convert_to_counter_data(const pi_p4info_t *p4info,
                                     pi_p4_id_t counter_id,
                                     const p4_pd_counter_value_t *counter_value,
@@ -61,6 +62,7 @@ typedef struct {
   p4_pd_stat_sync_cb pd_cb;
 } hw_sync_cb_data_t;
 
+__attribute__ ((unused))
 static void hw_sync_cb_wrapper(pi_dev_id_t dev_id, pi_p4_id_t counter_id,
                                void *cb_cookie) {
   hw_sync_cb_data_t *cookie = (hw_sync_cb_data_t *) cb_cookie;

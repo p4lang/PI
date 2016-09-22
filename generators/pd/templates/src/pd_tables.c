@@ -152,18 +152,14 @@ static void build_action_data_${a_name} (
 
 //:: #endfor
 
-//:: def get_direct_parameter_specs(d, t):
-//::   for k in d:
-//::     exec "%s=d[k]" % k
-//::   #endfor
+//:: def get_direct_parameter_specs(t):
 //::   specs = []
 //::   if t.direct_meters:
-//::     m_name = t.direct_meters
-//::     m = meter_arrays[m_name]
-//::     if m.type_ == MeterType.PACKETS:
-//::       specs += ["p4_pd_packets_meter_spec_t *" + m_name + "_spec"]
+//::     m = t.direct_meters
+//::     if m.unit == m.MeterUnit.PACKETS:
+//::       specs += ["p4_pd_packets_meter_spec_t *" + m.name + "_spec"]
 //::     else:
-//::       specs += ["p4_pd_bytes_meter_spec_t *" + m_name + "_spec"]
+//::       specs += ["p4_pd_bytes_meter_spec_t *" + m.name + "_spec"]
 //::     #endif
 //::   #endif
 //::   return specs
@@ -194,7 +190,7 @@ static void build_action_data_${a_name} (
 //::     if t.support_timeout:
 //::       params += ["uint32_t ttl"]
 //::     #endif
-//::     params += get_direct_parameter_specs(render_dict, t)
+//::     params += get_direct_parameter_specs(t)
 //::     params += ["p4_pd_entry_hdl_t *entry_hdl"]
 //::     param_str = ",\n ".join(params)
 //::     name = pd_prefix + t_name + "_table_add_with_" + a_name
@@ -226,7 +222,23 @@ ${name}
   t_entry.entry_type = PI_ACTION_ENTRY_TYPE_DATA;
   t_entry.entry.action_data = adata;
   t_entry.entry_properties = &entry_properties;
+//::     if t.direct_meters:
+  pi_direct_res_config_one_t meter_config;
+  pi_direct_res_config_t configs;
+  t_entry.direct_res_config = &configs;
+  configs.num_configs = 1;
+  configs.configs = &meter_config;
+  meter_config.res_id = ${t.direct_meters.id_};
+  pi_meter_spec_t pi_meter_spec;
+  meter_config.config = (void *) &pi_meter_spec;
+//::       if t.direct_meters.unit == MeterUnit.PACKETS:
+  pd_to_pi_packets_meter_spec(${t.direct_meters.name}_spec, &pi_meter_spec);
+//::       else:
+  pd_to_pi_bytes_meter_spec(${t.direct_meters.name}_spec, &pi_meter_spec);
+//::       #endif
+//::     else:
   t_entry.direct_res_config = NULL;
+//::     #endif
 
   pi_status_t rc;
   pi_entry_handle_t handle = 0;
@@ -368,7 +380,7 @@ ${name}
 //::     if has_action_spec:
 //::       params += [pd_prefix + a_name + "_action_spec_t *action_spec"]
 //::     #endif
-//::     params += get_direct_parameter_specs(render_dict, t)
+//::     params += get_direct_parameter_specs(t)
 //::     param_str = ",\n ".join(params)
 //::     name = pd_prefix + t_name + "_table_modify_with_" + a_name
 p4_pd_status_t
@@ -387,7 +399,23 @@ ${name}
   t_entry.entry_type = PI_ACTION_ENTRY_TYPE_DATA;
   t_entry.entry.action_data = adata;
   t_entry.entry_properties = NULL;
+//::     if t.direct_meters:
+  pi_direct_res_config_one_t meter_config;
+  pi_direct_res_config_t configs;
+  t_entry.direct_res_config = &configs;
+  configs.num_configs = 1;
+  configs.configs = &meter_config;
+  meter_config.res_id = ${t.direct_meters.id_};
+  pi_meter_spec_t pi_meter_spec;
+  meter_config.config = (void *) &pi_meter_spec;
+//::       if t.direct_meters.unit == MeterUnit.PACKETS:
+  pd_to_pi_packets_meter_spec(${t.direct_meters.name}_spec, &pi_meter_spec);
+//::       else:
+  pd_to_pi_bytes_meter_spec(${t.direct_meters.name}_spec, &pi_meter_spec);
+//::       #endif
+//::     else:
   t_entry.direct_res_config = NULL;
+//::     #endif
 
   pi_status_t rc;
   rc = pi_table_entry_modify(sess_hdl, dev_id, ${t.id_}, entry_hdl, &t_entry);
@@ -413,7 +441,7 @@ ${name}
 //::     if has_action_spec:
 //::       params += [pd_prefix + a_name + "_action_spec_t *action_spec"]
 //::     #endif
-//::     params += get_direct_parameter_specs(render_dict, t)
+//::     params += get_direct_parameter_specs(t)
 //::     params += ["p4_pd_entry_hdl_t *entry_hdl"]
 //::     param_str = ",\n ".join(params)
 //::     name = pd_prefix + t_name + "_set_default_action_" + a_name
@@ -433,7 +461,23 @@ ${name}
   t_entry.entry_type = PI_ACTION_ENTRY_TYPE_DATA;
   t_entry.entry.action_data = adata;
   t_entry.entry_properties = NULL;
+//::     if t.direct_meters:
+  pi_direct_res_config_one_t meter_config;
+  pi_direct_res_config_t configs;
+  t_entry.direct_res_config = &configs;
+  configs.num_configs = 1;
+  configs.configs = &meter_config;
+  meter_config.res_id = ${t.direct_meters.id_};
+  pi_meter_spec_t pi_meter_spec;
+  meter_config.config = (void *) &pi_meter_spec;
+//::       if t.direct_meters.unit == MeterUnit.PACKETS:
+  pd_to_pi_packets_meter_spec(${t.direct_meters.name}_spec, &pi_meter_spec);
+//::       else:
+  pd_to_pi_bytes_meter_spec(${t.direct_meters.name}_spec, &pi_meter_spec);
+//::       #endif
+//::     else:
   t_entry.direct_res_config = NULL;
+//::     #endif
 
   pi_status_t rc;
   rc = pi_table_default_action_set(sess_hdl, convert_dev_tgt(dev_tgt),
