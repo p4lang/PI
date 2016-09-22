@@ -18,18 +18,64 @@
 using namespace  ::p4_pd_rpc;
 using namespace  ::res_pd_rpc;
 
-//:: def get_direct_parameter_specs(d, t, api_prefix):
-//::   for k in d:
-//::     exec "%s=d[k]" % k
-//::   #endfor
+namespace {
+
+__attribute__ ((unused))
+void bytes_meter_spec_thrift_to_pd(
+    const ${api_prefix}bytes_meter_spec_t &meter_spec,
+    p4_pd_bytes_meter_spec_t *pd_meter_spec) {
+  pd_meter_spec->cir_kbps = meter_spec.cir_kbps;
+  pd_meter_spec->cburst_kbits = meter_spec.cburst_kbits;
+  pd_meter_spec->pir_kbps = meter_spec.pir_kbps;
+  pd_meter_spec->pburst_kbits = meter_spec.pburst_kbits;
+  pd_meter_spec->meter_type = meter_spec.color_aware ?
+      PD_METER_TYPE_COLOR_AWARE : PD_METER_TYPE_COLOR_UNAWARE;
+}
+
+__attribute__ ((unused))
+void packets_meter_spec_thrift_to_pd(
+    const ${api_prefix}packets_meter_spec_t &meter_spec,
+    p4_pd_packets_meter_spec_t *pd_meter_spec) {
+  pd_meter_spec->cir_pps = meter_spec.cir_pps;
+  pd_meter_spec->cburst_pkts = meter_spec.cburst_pkts;
+  pd_meter_spec->pir_pps = meter_spec.pir_pps;
+  pd_meter_spec->pburst_pkts = meter_spec.pburst_pkts;
+  pd_meter_spec->meter_type = meter_spec.color_aware ?
+      PD_METER_TYPE_COLOR_AWARE : PD_METER_TYPE_COLOR_UNAWARE;
+}
+
+__attribute__ ((unused))
+void bytes_meter_spec_pd_to_thrift(
+    const p4_pd_bytes_meter_spec_t &pd_meter_spec,
+    ${api_prefix}bytes_meter_spec_t *meter_spec) {
+  meter_spec->cir_kbps = pd_meter_spec.cir_kbps;
+  meter_spec->cburst_kbits = pd_meter_spec.cburst_kbits;
+  meter_spec->pir_kbps = pd_meter_spec.pir_kbps;
+  meter_spec->pburst_kbits = pd_meter_spec.pburst_kbits;
+  meter_spec->color_aware = (pd_meter_spec.meter_type == PD_METER_TYPE_COLOR_AWARE);
+}
+
+__attribute__ ((unused))
+void packets_meter_spec_pd_to_thrift(
+    const p4_pd_packets_meter_spec_t &pd_meter_spec,
+    ${api_prefix}packets_meter_spec_t *meter_spec) {
+  meter_spec->cir_pps = pd_meter_spec.cir_pps;
+  meter_spec->cburst_pkts = pd_meter_spec.cburst_pkts;
+  meter_spec->pir_pps = pd_meter_spec.pir_pps;
+  meter_spec->pburst_pkts = pd_meter_spec.pburst_pkts;
+  meter_spec->color_aware = (pd_meter_spec.meter_type == PD_METER_TYPE_COLOR_AWARE);
+}
+
+}  // namespace
+
+//:: def get_direct_parameter_specs(t, api_prefix):
 //::   specs = []
 //::   if t.direct_meters:
-//::     m_name = t.direct_meters
-//::     m = meter_arrays[m_name]
-//::     if m.type_ == MeterType.PACKETS:
-//::       specs += ["const " + api_prefix + "packets_meter_spec_t &" + m_name + "_spec"]
+//::     m = t.direct_meters
+//::     if m.unit == m.MeterUnit.PACKETS:
+//::       specs += ["const " + api_prefix + "packets_meter_spec_t &" + m.name + "_spec"]
 //::     else:
-//::       specs += ["const " + api_prefix + "bytes_meter_spec_t &" + m_name + "_spec"]
+//::       specs += ["const " + api_prefix + "bytes_meter_spec_t &" + m.name + "_spec"]
 //::     #endif
 //::   #endif
 //::   return specs
@@ -102,7 +148,7 @@ public:
 //::     if t.support_timeout:
 //::       params += ["const int32_t ttl"]
 //::     #endif
-//::     params += get_direct_parameter_specs(render_dict, t, api_prefix)
+//::     params += get_direct_parameter_specs(t, api_prefix)
 //::     param_str = ", ".join(params)
 //::     name = t_name + "_table_add_with_" + a_name
 //::     pd_name = pd_prefix + name
@@ -156,12 +202,11 @@ public:
 //::     #endif
 //::     # direct parameter specs
 //::     if t.direct_meters:
-//::       m_name = t.direct_meters
-//::       m = meter_arrays[m_name]
-//::       type_name = MeterType.to_str(m.type_)
-        p4_pd_${type_name}_meter_spec_t pd_${m_name}_spec;
-        ${type_name}_meter_spec_thrift_to_pd(${m_name}_spec, &pd_${m_name}_spec);
-//::       pd_params += ["&pd_" + m_name + "_spec"]
+//::       m = t.direct_meters
+//::       unit_name = MeterUnit.to_str(m.unit)
+        p4_pd_${unit_name}_meter_spec_t pd_${m.name}_spec;
+        ${unit_name}_meter_spec_thrift_to_pd(${m.name}_spec, &pd_${m.name}_spec);
+//::       pd_params += ["&pd_" + m.name + "_spec"]
 //::     #endif
 //::     pd_params += ["&pd_entry"]
 //::     pd_param_str = ", ".join(pd_params)
@@ -188,7 +233,7 @@ public:
 //::     if has_action_spec:
 //::       params += ["const " + api_prefix + a_name + "_action_spec_t &action_spec"]
 //::     #endif
-//::     params += get_direct_parameter_specs(render_dict, t, api_prefix)
+//::     params += get_direct_parameter_specs(t, api_prefix)
 //::     param_str = ", ".join(params)
 //::     name = t_name + "_table_modify_with_" + a_name
 //::     pd_name = pd_prefix + name
@@ -215,12 +260,11 @@ public:
 //::     #endif
 //::     # direct parameter specs
 //::     if t.direct_meters:
-//::       m_name = t.direct_meters
-//::       m = meter_arrays[m_name]
-//::       type_name = MeterType.to_str(m.type_)
-        p4_pd_${type_name}_meter_spec_t pd_${m_name}_spec;
-        ${type_name}_meter_spec_thrift_to_pd(${m_name}_spec, &pd_${m_name}_spec);
-//::       pd_params += ["&pd_" + m_name + "_spec"]
+//::       m = t.direct_meters
+//::       unit_name = MeterUnit.to_str(m.unit)
+        p4_pd_${unit_name}_meter_spec_t pd_${m.name}_spec;
+        ${unit_name}_meter_spec_thrift_to_pd(${m.name}_spec, &pd_${m.name}_spec);
+//::       pd_params += ["&pd_" + m.name + "_spec"]
 //::     #endif
 //::     pd_param_str = ", ".join(pd_params)
         return ${pd_name}(${pd_param_str});
@@ -263,7 +307,7 @@ public:
 //::     if has_action_spec:
 //::       params += ["const " + api_prefix + a_name + "_action_spec_t &action_spec"]
 //::     #endif
-//::     params += get_direct_parameter_specs(render_dict, t, api_prefix)
+//::     params += get_direct_parameter_specs(t, api_prefix)
 //::     param_str = ", ".join(params)
 //::     name = t_name + "_set_default_action_" + a_name
 //::     pd_name = pd_prefix + name
@@ -295,12 +339,11 @@ public:
 //::     #endif
 //::     # direct parameter specs
 //::     if t.direct_meters:
-//::       m_name = t.direct_meters
-//::       m = meter_arrays[m_name]
-//::       type_name = MeterType.to_str(m.type_)
-        p4_pd_${type_name}_meter_spec_t pd_${m_name}_spec;
-        ${type_name}_meter_spec_thrift_to_pd(${m_name}_spec, &pd_${m_name}_spec);
-//::       pd_params += ["&pd_" + m_name + "_spec"]
+//::       m = t.direct_meters
+//::       unit_name = MeterUnit.to_str(m.unit)
+        p4_pd_${unit_name}_meter_spec_t pd_${m.name}_spec;
+        ${unit_name}_meter_spec_thrift_to_pd(${m.name}_spec, &pd_${m.name}_spec);
+//::       pd_params += ["&pd_" + m.name + "_spec"]
 //::     #endif
 //::     pd_params += ["&pd_entry"]
 //::     pd_param_str = ", ".join(pd_params)
@@ -731,6 +774,95 @@ public:
     int32_t ${name}(const SessionHandle_t sess_hdl, const DevTarget_t &dev_tgt) {
       return 0;
     }
+
+//:: #endfor
+
+  // METERS
+
+//:: for ma_name, ma in meter_arrays.items():
+//::   params = ["const SessionHandle_t sess_hdl",
+//::             "const DevTarget_t &dev_tgt"]
+//::   pd_params = ["sess_hdl", "pd_dev_tgt"]
+//::   if ma.is_direct:
+//::     params += ["const EntryHandle_t entry"]
+//::     pd_params += ["entry"]
+//::   else:
+//::     params += ["const int32_t index"]
+//::     pd_params += ["index"]
+//::   #endif
+//::   if ma.unit == MeterUnit.PACKETS:
+//::     params += ["const " + api_prefix + "packets_meter_spec_t &meter_spec"]
+//::   else:
+//::     params += ["const " + api_prefix + "bytes_meter_spec_t &meter_spec"]
+//::   #endif
+//::   pd_params += ["&pd_meter_spec"]
+//::   param_str = ", ".join(params)
+//::
+//::   pd_param_str = ", ".join(pd_params)
+//::
+//::   name = "meter_set_" + ma_name
+//::   pd_name = pd_prefix + name
+  int32_t ${name}(${param_str}) {
+      std::cerr << "In ${name}\n";
+
+      p4_pd_dev_target_t pd_dev_tgt;
+      pd_dev_tgt.device_id = dev_tgt.dev_id;
+      pd_dev_tgt.dev_pipe_id = dev_tgt.dev_pipe_id;
+
+//::   if ma.unit == MeterUnit.PACKETS:
+      p4_pd_packets_meter_spec_t pd_meter_spec;
+      packets_meter_spec_thrift_to_pd(meter_spec, &pd_meter_spec);
+//::   else:
+      p4_pd_bytes_meter_spec_t pd_meter_spec;
+      bytes_meter_spec_thrift_to_pd(meter_spec, &pd_meter_spec);
+//::   #endif
+
+      return ${pd_name}(${pd_param_str});
+  }
+
+//::   if ma.unit == MeterUnit.PACKETS:
+//::     params = [api_prefix + "packets_meter_spec_t &meter_spec"]
+//::   else:
+//::     params = [api_prefix + "bytes_meter_spec_t &meter_spec"]
+//::   #endif
+//::   params += ["const SessionHandle_t sess_hdl",
+//::              "const DevTarget_t &dev_tgt"]
+//::   pd_params = ["sess_hdl", "pd_dev_tgt"]
+//::   if ma.is_direct:
+//::     params += ["const EntryHandle_t entry"]
+//::     pd_params += ["entry"]
+//::   else:
+//::     params += ["const int32_t index"]
+//::     pd_params += ["index"]
+//::   #endif
+//::   pd_params += ["&pd_meter_spec"]
+//::   param_str = ", ".join(params)
+//::
+//::   pd_param_str = ", ".join(pd_params)
+//::
+//::   name = "meter_read_" + ma_name
+//::   pd_name = pd_prefix + name
+  void ${name}(${param_str}) {
+      std::cerr << "In ${name}\n";
+
+      p4_pd_dev_target_t pd_dev_tgt;
+      pd_dev_tgt.device_id = dev_tgt.dev_id;
+      pd_dev_tgt.dev_pipe_id = dev_tgt.dev_pipe_id;
+
+//::   if ma.unit == MeterUnit.PACKETS:
+      p4_pd_packets_meter_spec_t pd_meter_spec;
+//::   else:
+      p4_pd_bytes_meter_spec_t pd_meter_spec;
+//::   #endif
+      p4_pd_status_t status = ${pd_name}(${pd_param_str});
+      if (status) return;
+
+//::   if ma.unit == MeterUnit.PACKETS:
+      packets_meter_spec_pd_to_thrift(pd_meter_spec, &meter_spec);
+//::   else:
+      bytes_meter_spec_pd_to_thrift(pd_meter_spec, &meter_spec);
+//::   #endif
+  }
 
 //:: #endfor
 };

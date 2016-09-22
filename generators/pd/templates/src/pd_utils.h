@@ -31,6 +31,7 @@
 #include ${target_common_h}
 
 #include <PI/pi.h>
+#include <PI/pi_meter.h>
 
 static inline pi_dev_tgt_t convert_dev_tgt(p4_pd_dev_target_t pd_dev_tgt) {
   pi_dev_tgt_t pi_dev_tgt;
@@ -38,5 +39,11 @@ static inline pi_dev_tgt_t convert_dev_tgt(p4_pd_dev_target_t pd_dev_tgt) {
   pi_dev_tgt.dev_pipe_mask = pd_dev_tgt.dev_pipe_id;
   return pi_dev_tgt;
 }
+
+void pd_to_pi_bytes_meter_spec(const p4_pd_bytes_meter_spec_t *meter_spec,
+                               pi_meter_spec_t *pi_meter_spec);
+
+void pd_to_pi_packets_meter_spec(const p4_pd_packets_meter_spec_t *meter_spec,
+                                 pi_meter_spec_t *pi_meter_spec);
 
 #endif

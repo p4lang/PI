@@ -106,18 +106,14 @@ struct ${api_prefix}${a_name}_action_spec_t {
 //:: #endfor
 
 
-//:: def get_direct_parameter_specs(d, t, api_prefix):
-//::   for k in d:
-//::     exec "%s=d[k]" % k
-//::   #endfor
+//:: def get_direct_parameter_specs(t, api_prefix):
 //::   specs = []
 //::   if t.direct_meters:
-//::     m_name = t.direct_meters
-//::     m = meter_arrays[m_name]
-//::     if m.type_ == MeterType.PACKETS:
-//::       specs += [api_prefix + "packets_meter_spec_t " + m_name + "_spec"]
+//::     m = t.direct_meters
+//::     if m.unit == m.MeterUnit.PACKETS:
+//::       specs += [api_prefix + "packets_meter_spec_t " + m.name + "_spec"]
 //::     else:
-//::       specs += [api_prefix + "bytes_meter_spec_t " + m_name + "_spec"]
+//::       specs += [api_prefix + "bytes_meter_spec_t " + m.name + "_spec"]
 //::     #endif
 //::   #endif
 //::   return specs
@@ -149,7 +145,7 @@ service ${p4_prefix} {
 //::     if t.support_timeout:
 //::       params += ["i32 ttl"]
 //::     #endif
-//::     params += get_direct_parameter_specs(render_dict, t, api_prefix)
+//::     params += get_direct_parameter_specs(t, api_prefix)
 //::     param_list = [str(count + 1) + ":" + p for count, p in enumerate(params)]
 //::     param_str = ", ".join(param_list)
 //::     name = t_name + "_table_add_with_" + a_name
@@ -171,7 +167,7 @@ service ${p4_prefix} {
 //::     if has_action_spec:
 //::       params += [api_prefix + a_name + "_action_spec_t action_spec"]
 //::     #endif
-//::     params += get_direct_parameter_specs(render_dict, t, api_prefix)
+//::     params += get_direct_parameter_specs(t, api_prefix)
 //::     param_list = [str(count + 1) + ":" + p for count, p in enumerate(params)]
 //::     param_str = ", ".join(param_list)
 //::     name = t_name + "_table_modify_with_" + a_name
@@ -205,7 +201,7 @@ service ${p4_prefix} {
 //::     if has_action_spec:
 //::       params += [api_prefix + a_name + "_action_spec_t action_spec"]
 //::     #endif
-//::     params += get_direct_parameter_specs(render_dict, t, api_prefix)
+//::     params += get_direct_parameter_specs(t, api_prefix)
 //::     param_list = [str(count + 1) + ":" + p for count, p in enumerate(params)]
 //::     param_str = ", ".join(param_list)
 //::     name = t_name + "_set_default_action_" + a_name
@@ -371,6 +367,45 @@ service ${p4_prefix} {
     i32 ${name}(1:res.SessionHandle_t sess_hdl, 2:res.DevTarget_t dev_tgt, 3:i32 index, 4:${api_prefix}counter_value_t counter_value);
 
 //::   #endif
+//:: #endfor
+
+    # meters
+
+//:: for ma_name, ma in meter_arrays.items():
+//::   params = ["res.SessionHandle_t sess_hdl",
+//::             "res.DevTarget_t dev_tgt"]
+//::   if ma.is_direct:
+//::     params += ["EntryHandle_t entry"]
+//::   else:
+//::     params += ["i32 index"]
+//::   #endif
+//::   if ma.unit == MeterUnit.PACKETS:
+//::     params += [api_prefix + "packets_meter_spec_t meter_spec"]
+//::   else:
+//::     params += [api_prefix + "bytes_meter_spec_t meter_spec"]
+//::   #endif
+//::   param_list = [str(count + 1) + ":" + p for count, p in enumerate(params)]
+//::   param_str = ", ".join(param_list)
+//::   name = "meter_set_" + ma_name
+    i32 ${name}(${param_str});
+
+//::   params = ["res.SessionHandle_t sess_hdl",
+//::             "res.DevTarget_t dev_tgt"]
+//::   if ma.is_direct:
+//::     params += ["EntryHandle_t entry"]
+//::   else:
+//::     params += ["i32 index"]
+//::   #endif
+//::   param_list = [str(count + 1) + ":" + p for count, p in enumerate(params)]
+//::   param_str = ", ".join(param_list)
+//::   if ma.unit == MeterUnit.PACKETS:
+//::     return_type = api_prefix + "packets_meter_spec_t"
+//::   else:
+//::     return_type = api_prefix + "bytes_meter_spec_t"
+//::   #endif
+//::   name = "meter_read_" + ma_name
+    ${return_type} ${name}(${param_str});
+
 //:: #endfor
 
 //:: for ca_name, ca in counter_arrays.items():
