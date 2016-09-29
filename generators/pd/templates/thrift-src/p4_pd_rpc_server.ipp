@@ -14,6 +14,7 @@
 #include <mutex>
 #include <thread>
 #include <condition_variable>
+#include <future>
 
 using namespace  ::p4_pd_rpc;
 using namespace  ::res_pd_rpc;
@@ -772,6 +773,24 @@ public:
 //::   name = "counter_hw_sync_" + ca_name
 //::   pd_name = pd_prefix + name
     int32_t ${name}(const SessionHandle_t sess_hdl, const DevTarget_t &dev_tgt) {
+      p4_pd_dev_target_t pd_dev_tgt;
+      pd_dev_tgt.device_id = dev_tgt.dev_id;
+      pd_dev_tgt.dev_pipe_id = dev_tgt.dev_pipe_id;
+
+      std::promise<void> promise;
+      auto future = promise.get_future();
+      struct HwSync {
+        HwSync(std::promise<void> &promise)
+            : promise(promise) { }
+        std::promise<void> &promise;
+      };
+      // lambda does not capture, so can be used as function pointer
+      auto cb = [](int device_id, void *cookie) {
+        static_cast<HwSync *>(cookie)->promise.set_value();
+      };
+      HwSync h(promise);
+      ${pd_name}(sess_hdl, pd_dev_tgt, cb, static_cast<void *>(&h));
+      future.wait();
       return 0;
     }
 
