@@ -213,7 +213,7 @@ service ${p4_prefix} {
 
 //:: for act_prof_name, act_prof in act_profs.items():
 //::   act_prof_name = get_c_name(act_prof_name)
-//::   for a_name, a in t.actions.items():
+//::   for a_name, a in act_prof.actions.items():
 //::     a_name = get_c_name(a_name)
 //::     has_action_spec = len(a.runtime_data) > 0
 //::     params = ["res.SessionHandle_t sess_hdl",
