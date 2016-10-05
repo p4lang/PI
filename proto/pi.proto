@@ -46,8 +46,8 @@ message TableWriteRequest {
 }
 
 message TableWriteResponse {
-  // Corresponds one-to-one to request.updates, and populated only
-  // if one or more updates didn't succeed.
+  // Corresponds one-to-one to request.updates, and populated only if one or
+  // more updates didn't succeed. errors.size == 0 implies success.
   repeated .google.rpc.Status errors = 1;
 }
 
@@ -146,8 +146,8 @@ message ActionProfileWriteRequest {
 }
 
 message ActionProfileWriteResponse {
-  // Corresponds one-to-one to request.updates, and populated only
-  // if one or more updates didn't succeed.
+  // Corresponds one-to-one to request.updates, and populated only if one or
+  // more updates didn't succeed. errors.size == 0 implies success.
   repeated .google.rpc.Status errors = 1;
 }
 
