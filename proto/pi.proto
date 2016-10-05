@@ -1,0 +1,257 @@
+// Copyright (c) 2016, Google Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+import "google/rpc/status.proto";
+
+// P4 spec: http://p4.org/wp-content/uploads/2015/04/p4-latest.pdf
+
+// This package and its contents are a work-in-progress.
+
+package p4;
+
+service PI {
+  rpc TableWrite(TableWriteRequest) returns (TableWriteResponse) {
+  }
+  rpc TableRead(TableReadRequest) returns (stream TableReadResponse) {
+  }
+
+  rpc ActionProfileWrite(ActionProfileWriteRequest)
+      returns (ActionProfileWriteResponse) {
+  }
+  rpc ActionProfileRead(ActionProfileReadRequest)
+      returns (stream ActionProfileReadResponse) {
+  }
+
+  rpc PacketIO(stream PacketOutUpdate) returns (stream PacketInUpdate) {
+  }
+}
+
+//------------------------------------------------------------------------------
+message TableWriteRequest {
+  uint64 device_id = 1;
+  repeated TableUpdate updates = 2;
+}
+
+message TableWriteResponse {
+  // Corresponds one-to-one to request.updates, and populated only if one or
+  // more updates didn't succeed. errors.size == 0 implies success.
+  repeated .google.rpc.Status errors = 1;
+}
+
+message TableReadRequest {
+  uint64 device_id = 1;
+  // Read all if empty.
+  repeated int32 table_ids = 2;
+}
+
+message TableReadResponse {
+  TableEntry table_entry = 1;
+  // Set to true if no responses will follow this one.
+  bool complete = 2;
+}
+
+message TableUpdate {
+  enum Type {
+    UNSPECIFIED = 0;
+    INSERT = 1;
+    MODIFY = 2;
+    DELETE = 3;
+  }
+  Type type = 1;
+  TableEntry table_entry = 3;
+}
+
+// From Section 11 of P4 spec:
+// At run time, the table entry insert operation (not part of P4) must specify:
+// – Values for each field specified in the reads entry.
+// – The name of the action from the action_specification or the
+//   action_profile_specification and the parameters to be passed to the action
+//   function when it is called.
+
+message TableEntry {
+  int32 table_id = 1;
+  repeated FieldMatch match = 2;
+  TableAction action = 3;
+  int32 priority = 4;  // ignored unless match => TCAM
+  uint64 controller_metadata = 5;  // cookie
+}
+
+// field_match_type ::= exact | ternary | lpm | range | valid
+message FieldMatch {
+  int32 field_id = 1;
+
+  message Exact {
+    bytes value = 1;
+  }
+  message Ternary {
+    bytes mask = 1;
+    bytes value = 2;
+  }
+  message LPM {
+    int32 prefix_len = 1;  // in bits
+    bytes value = 2;
+  }
+  message Range {
+    int32 low = 1;
+    int32 high = 2;
+  }
+  message Valid {
+    bool value = 1;
+  }
+
+  oneof field_match_type {
+    Exact exact = 2;
+    Ternary ternary = 3;
+    LPM lpm = 4;
+    Range range = 6;
+    Valid valid = 7;
+  }
+}
+
+// table_actions ::= action_specification | action_profile_specification
+message TableAction {
+  oneof type {
+    Action action = 1;
+    uint32 action_profile_member_id = 2;
+    uint32 action_profile_group_id = 3;
+  }
+}
+
+message Action {
+  int32 action_id = 1;
+  message Param {
+    int32 param_id = 2;
+    bytes value = 3;
+  }
+  repeated Param params = 4;
+}
+
+//------------------------------------------------------------------------------
+message ActionProfileWriteRequest {
+  uint64 device_id = 1;
+  repeated ActionProfileUpdate updates = 2;
+}
+
+message ActionProfileWriteResponse {
+  // Corresponds one-to-one to request.updates, and populated only if one or
+  // more updates didn't succeed. errors.size == 0 implies success.
+  repeated .google.rpc.Status errors = 1;
+}
+
+message ActionProfileReadRequest {
+  uint64 device_id = 1;
+  // Read all if empty.
+  repeated int32 action_profile_ids = 2;
+}
+
+message ActionProfileReadResponse {
+  ActionProfileEntry action_profile_entry = 1;
+  // Set to true if no responses will follow this one.
+  bool complete = 2;
+}
+
+message ActionProfileUpdate {
+  enum Type {
+    UNSPECIFIED = 0;
+    CREATE = 1;
+    MODIFY = 2;
+    DELETE = 3;
+  }
+  Type type = 1;
+  ActionProfileEntry action_profile_entry = 2;
+}
+
+message ActionProfileEntry {
+  oneof type {
+    ActionProfileMember member = 1;
+    ActionProfileGroup group = 2;
+  }
+}
+
+message ActionProfileMember {
+  uint32 member_id = 1;
+  uint32 action_profile_id = 2;
+  Action action = 3;
+  uint32 weight = 4;  // For WCMP
+  uint32 watch = 5;   // For fast-failover, this is TBD
+}
+
+message ActionProfileGroup {
+  uint32 group_id = 1;
+  uint32 action_profile_id = 2;
+  // This will likely go away (become part of the P4 program)
+  enum Type {
+    UNSPECIFIED = 0;
+    SELECT = 1;
+    FAST_FAILOVER = 2;
+  }
+  Type type = 4;
+  repeated uint32 member_id = 5;
+  uint32 max_size = 6;
+}
+
+//------------------------------------------------------------------------------
+message PacketOutUpdate {
+  oneof update {
+    InitPacketOutStream init = 1;
+    MasterArbitrationUpdate arbitration = 2;
+    PacketOut packet = 3;
+  }
+}
+
+message InitPacketOutStream {
+  // Device/node ID. 0 is not a valid value.
+  uint64 device_id = 1;
+}
+
+// Packet sent from the controller to the switch.
+message PacketOut {
+  bytes payload = 1;
+  oneof pipeline {
+    uint32 egress_physical_port = 2;
+    IngressPipelineSpec ingress_pipeline_spec = 3;
+  }
+}
+
+message IngressPipelineSpec {
+  // Ingress port to associate with the packet.
+  uint32 ingress_port = 1;
+}
+
+message PacketInUpdate {
+  oneof update {
+    PacketIn packet = 1;
+  }
+}
+
+// Packet sent from the switch to the controller.
+message PacketIn {
+  bytes payload = 1;
+  uint32 ingress_physical_port = 2;
+  uint32 ingress_logical_port = 3;
+}
+
+message MasterArbitrationUpdate {
+  // The stream RPC with the highest election_id is the master.
+  Uint128 election_id = 1;
+}
+
+message Uint128 {
+  // Highest 64 bits of a 128 bit number.
+  uint64 high = 1;
+  // Lowest 64 bits of a 128 bit number.
+  uint64 low = 2;
+}
