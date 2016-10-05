@@ -101,7 +101,7 @@ message FieldMatch {
     bytes value = 2;
   }
   message LPM {
-    int32 prefix_len = 1;
+    int32 prefix_len = 1;  // in bits
     bytes value = 2;
   }
   message Range {
