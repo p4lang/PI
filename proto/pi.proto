@@ -51,7 +51,6 @@ message TableWriteResponse {
   repeated .google.rpc.Status errors = 1;
 }
 
-// Notes: Should we also consider a stream model for TableWrite?
 message TableReadRequest {
   uint64 device_id = 1;
   // Read all if empty.
