@@ -217,18 +217,6 @@ message InitPacketOutStream {
   uint64 device_id = 1;
 }
 
-message MasterArbitrationUpdate {
-  // The stream RPC with the highest election_id is the master.
-  Uint128 election_id = 1;
-}
-
-message Uint128 {
-  // Highest 64 bits of a 128 bit number.
-  uint64 high = 1;
-  // Lowest 64 bits of a 128 bit number.
-  uint64 low = 2;
-}
-
 // Packet sent from the controller to the switch.
 message PacketOut {
   bytes payload = 1;
@@ -243,7 +231,6 @@ message IngressPipelineSpec {
   uint32 ingress_port = 1;
 }
 
-
 message PacketInUpdate {
   oneof update {
     PacketIn packet = 1;
@@ -255,4 +242,16 @@ message PacketIn {
   bytes payload = 1;
   uint32 ingress_physical_port = 2;
   uint32 ingress_logical_port = 3;
+}
+
+message MasterArbitrationUpdate {
+  // The stream RPC with the highest election_id is the master.
+  Uint128 election_id = 1;
+}
+
+message Uint128 {
+  // Highest 64 bits of a 128 bit number.
+  uint64 high = 1;
+  // Lowest 64 bits of a 128 bit number.
+  uint64 low = 2;
 }
