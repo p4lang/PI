@@ -1,7 +1,11 @@
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 
+if WITH_PROTO
+MAYBE_PROTO = proto
+endif
+
 # examples need to come after generators!
 SUBDIRS = third_party lib include src generators targets CLI examples bin \
-tests frontends_extra
+tests frontends_extra $(MAYBE_PROTO)
 
 AM_DISTCHECK_CONFIGURE_FLAGS = --with-bmv2 --with-fe-cpp

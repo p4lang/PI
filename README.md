@@ -1,11 +1,18 @@
 # PI LIBRARY REPOSITORY
 
+**This repository has submodules; after cloning it you should run `git submodule
+  update --init --recursive`.**
+
 See [examples] (examples/) for how to use the PI.
 
 ## Dependencies
 
 - libjudy-dev
 - libreadline-dev
+
+## Building pi.proto
+
+To include `pi.proto` in the build, please run `configure` with `--with-proto`.
 
 ## PI CLI
 
