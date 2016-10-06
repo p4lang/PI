@@ -13,7 +13,7 @@ AC_PROG_CC_C99
 # did not want to have this, but needed to link the CLI for bmv2
 # cannot be executed conditionally
 # it will not cause configure to error though if no g++ compiler is detected (so
-# long as --with-bmv2 is not specified of course)
+# long as --with-bmv2 / --with-fe-cpp / --with-proto is not specified of course)
 AC_PROG_CXX
 
 # TODO: make this conditional on the PD if possible
@@ -31,7 +31,18 @@ AC_ARG_WITH([fe_cpp],
     AS_HELP_STRING([--with-fe-cpp], [Build with C++ frontend]),
     [want_fe_cpp=yes], [])
 
+AC_ARG_WITH([proto],
+    AS_HELP_STRING([--with-proto], [Compile pi.proto and associated frontend]),
+    [with_proto="$withval"], [with_proto=no])
+
+AS_IF([test "$with_proto" = yes && test "$want_fe_cpp" = no], [
+    AC_MSG_NOTICE([C++ frontend needed for pi.proto, turning it on])
+    want_fe_cpp=yes
+])
+
 AM_CONDITIONAL([WITH_FE_CPP], [test "$want_fe_cpp" = yes])
+
+AM_CONDITIONAL([WITH_PROTO], [test "$with_proto" = yes])
 
 LT_INIT
 
@@ -135,17 +146,22 @@ AS_IF([test "$want_fe_cpp" = yes], [
 AM_COND_IF([WITH_CLI_TESTS],
            AC_CONFIG_FILES([tests/CLI/run_one_test.py],
                            [chmod +x tests/CLI/run_one_test.py]))
+AS_IF([test "$with_proto" = yes], [
+  AC_CONFIG_SUBDIRS([proto])
+])
 
 AC_OUTPUT
 
-AS_IF([test "$want_bmv2" = no && test "x$CXX" = x], [
-  AS_ECHO("No C++ compiler detected but you are fine because you did not use --with-bmv2")
+dnl with_proto => want_fe_cpp so we can omit it from the condition
+AS_IF([test "x$CXX" = x && test "$want_bmv2" = no && test "$want_fe_cpp" = no], [
+  AS_ECHO("No C++ compiler detected but you are fine")
 ])
 
 AS_ECHO("")
-AS_ECHO("Features recap ......................")
-AS_ECHO("Compile for bmv2 .............. : $want_bmv2")
+AS_ECHO("Features recap ......................................")
+AS_ECHO("Compile for bmv2 ............................. : $want_bmv2")
 AS_IF([test "$want_bmv2" = yes], [
-AS_ECHO("  simple_switch found ......... : $simple_switch_found")
+AS_ECHO("  simple_switch found ........................ : $simple_switch_found")
 ])
-AS_ECHO("Compile CPP frontend .......... : $want_fe_cpp")
+AS_ECHO("Compile C++ frontend ......................... : $want_fe_cpp")
+AS_ECHO("Compile pi.proto and associated frontend ..... : $with_proto")
