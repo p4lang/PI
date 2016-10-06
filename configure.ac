@@ -147,7 +147,9 @@ AM_COND_IF([WITH_CLI_TESTS],
            AC_CONFIG_FILES([tests/CLI/run_one_test.py],
                            [chmod +x tests/CLI/run_one_test.py]))
 AS_IF([test "$with_proto" = yes], [
+  AX_CXX_COMPILE_STDCXX_11([noext],[mandatory])
   AC_CONFIG_SUBDIRS([proto])
+  AC_CONFIG_FILES([frontends_extra/proto/Makefile])
 ])
 
 AC_OUTPUT

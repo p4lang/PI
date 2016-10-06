@@ -4,4 +4,8 @@ if WITH_FE_CPP
 MAYBE_CPP = cpp
 endif
 
-SUBDIRS = $(MAYBE_CPP)
+if WITH_PROTO
+MAYBE_PROTO = proto
+endif
+
+SUBDIRS = $(MAYBE_CPP) $(MAYBE_PROTO)
