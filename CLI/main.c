@@ -178,7 +178,12 @@ static void init_cmd_map() {
 
 static void cleanup() {
   Word_t bytes;
+  // there is code in Judy headers that raises a warning with some compiler
+  // versions
+#pragma GCC diagnostic push
+#pragma GCC diagnostic warning "-Wsign-compare"
   JSLFA(bytes, J_cmd_name_map);
+#pragma GCC diagnostic pop
 
   if (is_device_selected) pi_remove_device(dev_tgt.dev_id);
 
