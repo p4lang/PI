@@ -352,7 +352,10 @@ void gen_rand_ids(pi_p4_id_t *ids, pi_p4_id_t max, size_t num) {
     ids[i] = v;
   }
   Word_t Rc_word;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic warning "-Wsign-compare"
   J1FA(Rc_word, set);
+#pragma GCC diagnostic pop
 }
 
 TEST(P4Info, TablesStress) {
