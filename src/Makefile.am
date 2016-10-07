@@ -42,16 +42,19 @@ pi_act_prof.c \
 pi_counter.c \
 pi_meter.c \
 pi_learn.c \
-pi_value.c \
+pi_value.c
+
+if WITH_INTERNAL_RPC
+libpi_la_SOURCES += \
 pi_rpc_server.c \
 pi_notifications_pub.h \
 pi_notifications_pub.c
+endif
 
 libpi_la_LIBADD = \
 libpip4info.la \
 libpiutils.la \
-$(top_builddir)/lib/libpitoolkit.la \
--lnanomsg
+$(top_builddir)/lib/libpitoolkit.la
 
 libpiutils_la_SOURCES = \
 utils/logging.h \
@@ -70,8 +73,7 @@ $(libpifegeneric_la_SOURCES)
 libpiall_la_LIBADD = \
 $(top_builddir)/third_party/cJSON/libpicjson.la \
 libpiutils.la \
-$(top_builddir)/lib/libpitoolkit.la \
--lnanomsg
+$(top_builddir)/lib/libpitoolkit.la
 
 # order important because libpi requires libpip4info
 lib_LTLIBRARIES = libpip4info.la libpi.la libpifegeneric.la libpiall.la
