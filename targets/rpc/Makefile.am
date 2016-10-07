@@ -15,7 +15,6 @@ notifications.c
 
 libpi_rpc_la_LIBADD = \
 $(top_builddir)/src/libpip4info.la \
--lnanomsg \
 $(PTHREAD_CFLAGS)
 
 lib_LTLIBRARIES = libpi_rpc.la

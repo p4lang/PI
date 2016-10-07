@@ -38,8 +38,7 @@ libpicli.la \
 $(top_builddir)/src/libpi.la \
 $(top_builddir)/src/libpifegeneric.la \
 $(top_builddir)/src/libpip4info.la \
-$(top_builddir)/lib/libpitoolkit.la \
--lnanomsg
+$(top_builddir)/lib/libpitoolkit.la
 
 pi_CLI_dummy_LDADD = $(common_libs) \
 $(top_builddir)/targets/dummy/libpi_dummy.la

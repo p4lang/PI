@@ -53,8 +53,7 @@ $(top_builddir)/targets/dummy/libpi_dummy.la \
 $(top_builddir)/src/libpip4info.la \
 $(top_builddir)/third_party/unity/libunity.la \
 $(top_builddir)/third_party/cJSON/libpicjson.la \
-$(top_builddir)/lib/libpitoolkit.la \
--lnanomsg
+$(top_builddir)/lib/libpitoolkit.la
 
 check_PROGRAMS = \
 test_bmv2_json_reader \

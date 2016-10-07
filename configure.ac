@@ -44,6 +44,19 @@ AM_CONDITIONAL([WITH_FE_CPP], [test "$want_fe_cpp" = yes])
 
 AM_CONDITIONAL([WITH_PROTO], [test "$with_proto" = yes])
 
+AC_ARG_WITH([internal-rpc],
+    AS_HELP_STRING([--with-internal-rpc],
+                   [Build internal rpc (nanomsg) code @<:@default=yes@:>@]),
+    [with_internal_rpc="$withval"], [with_internal_rpc=yes])
+
+AM_CONDITIONAL([WITH_INTERNAL_RPC], [test "$with_internal_rpc" = yes])
+
+AC_ARG_WITH([cli],
+    AS_HELP_STRING([--with-cli], [Build PI C CLI @<:@default=yes@:>@]),
+    [with_cli="$withval"], [with_cli=yes])
+
+AM_CONDITIONAL([WITH_CLI], [test "$with_cli" = yes])
+
 LT_INIT
 
 AC_CONFIG_MACRO_DIR([m4])
@@ -70,8 +83,11 @@ AS_IF([test "$want_bmv2" = yes], [
                    we won't run the tests requiring simple_switch])], [
       simple_switch_found=yes])
 ])
-AM_CONDITIONAL([WITH_SIMPLE_SWITCH], [test "$simple_switch_found" = "yes"])
-AM_CONDITIONAL([WITH_CLI_TESTS], [test "$simple_switch_found" = "yes"])
+AM_CONDITIONAL([WITH_SIMPLE_SWITCH], [test "$simple_switch_found" = yes])
+AM_CONDITIONAL([WITH_CLI_TESTS],
+               [test "$with_cli" = yes\
+                && test "$simple_switch_found" = yes\
+                && test "$with_internal_rpc" = yes])
 
 AC_CHECK_HEADERS([stdlib.h string.h assert.h stdio.h stdint.h stdbool.h\
                   stddef.h time.h ctype.h unistd.h arpa/inet.h\
@@ -107,7 +123,14 @@ AC_PREPROC_IFELSE(
 # Check for libjudy
 AC_CHECK_LIB([Judy], [Judy1Next], [], [AC_MSG_ERROR([Missing libJudy])])
 
-AC_CHECK_LIB([readline], [readline], [], [AC_MSG_ERROR([Missing readline lib])])
+AM_COND_IF([WITH_CLI], [
+  AC_CHECK_LIB([readline], [readline], [],
+               [AC_MSG_ERROR([Missing readline lib])])
+])
+
+AM_COND_IF([WITH_INTERNAL_RPC], [
+  AC_CHECK_LIB([nanomsg], [nn_errno], [], [AC_MSG_ERROR([Missing libnanomsg])])
+])
 
 AC_TYPE_UINT8_T
 AC_TYPE_UINT16_T
@@ -167,3 +190,5 @@ AS_ECHO("  simple_switch found ........................ : $simple_switch_found")
 ])
 AS_ECHO("Compile C++ frontend ......................... : $want_fe_cpp")
 AS_ECHO("Compile pi.proto and associated frontend ..... : $with_proto")
+AS_ECHO("Compile internal RPC ......................... : $with_internal_rpc")
+AS_ECHO("Compile PI C CLI ............................. : $with_cli")
