@@ -47,9 +47,10 @@ class DeviceMgrImp {
   }
 
   // TODO(antonin)
-  std::vector<p4::TableEntry> table_read(p4_id_t table_id) const {
-    (void) table_id;
-    return {};
+  Status table_read(p4_id_t table_id,
+                    std::vector<p4::TableEntry> *entries) const {
+    (void) table_id; (void) entries;
+    return Status();
   }
 
   // TODO(antonin)
@@ -60,10 +61,11 @@ class DeviceMgrImp {
   }
 
   // TODO(antonin)
-  std::vector<p4::ActionProfileEntry> action_profile_read(
-      p4_id_t action_profile_id) const {
-    (void) action_profile_id;
-    return {};
+  Status action_profile_read(
+      p4_id_t action_profile_id,
+      std::vector<p4::ActionProfileEntry> *entries) const {
+    (void) action_profile_id; (void) entries;
+    return Status();
   }
 
   // TODO(antonin)
@@ -94,9 +96,10 @@ DeviceMgr::table_write(const p4::TableUpdate &table_update) {
   return pimp->table_write(table_update);
 }
 
-std::vector<p4::TableEntry>
-DeviceMgr::table_read(p4_id_t table_id) const {
-  return pimp->table_read(table_id);
+Status
+DeviceMgr::table_read(p4_id_t table_id,
+                      std::vector<p4::TableEntry> *entries) const {
+  return pimp->table_read(table_id, entries);
 }
 
 Status
@@ -105,9 +108,11 @@ DeviceMgr::action_profile_write(
   return pimp->action_profile_write(action_profile_update);
 }
 
-std::vector<p4::ActionProfileEntry>
-DeviceMgr::action_profile_read(p4_id_t action_profile_id) const {
-  return pimp->action_profile_read(action_profile_id);
+Status
+DeviceMgr::action_profile_read(
+    p4_id_t action_profile_id,
+    std::vector<p4::ActionProfileEntry> *entries) const {
+  return pimp->action_profile_read(action_profile_id, entries);
 }
 
 Status

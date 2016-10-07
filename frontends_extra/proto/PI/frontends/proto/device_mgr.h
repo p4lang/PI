@@ -56,13 +56,15 @@ class DeviceMgr {
   // that the gRPC server can then wrap in a Status message
   Status table_write(const p4::TableUpdate &table_update);
 
-  std::vector<p4::TableEntry> table_read(p4_id_t table_id) const;
+  Status table_read(p4_id_t table_id,
+                    std::vector<p4::TableEntry> *entries) const;
 
   Status action_profile_write(
       const p4::ActionProfileUpdate &action_profile_update);
 
-  std::vector<p4::ActionProfileEntry> action_profile_read(
-      p4_id_t action_profile_id) const;
+  Status action_profile_read(
+      p4_id_t action_profile_id,
+      std::vector<p4::ActionProfileEntry> *entries) const;
 
   // from the perspective of P4, a punted packet is just bytes. Either the
   // controller is responsible for encapsulating the packet in the appropriate
