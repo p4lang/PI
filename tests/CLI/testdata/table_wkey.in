@@ -1,0 +1,8 @@
+table_add ipv4_lpm 10.0.0.1/12 => set_nhop 10.0.0.1 13
+table_dump ipv4_lpm
+table_delete_wkey ipv4_lpm 10.0.0.1/12
+table_dump ipv4_lpm
+table_add ipv4_lpm 10.0.0.1/12 => set_nhop 10.0.0.1 13
+table_dump ipv4_lpm
+table_modify_wkey ipv4_lpm 10.0.0.1/12 => set_nhop 10.0.0.2 99
+table_dump ipv4_lpm

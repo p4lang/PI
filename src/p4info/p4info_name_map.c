@@ -38,8 +38,8 @@ pi_p4_id_t p4info_name_map_get(const p4info_name_map_t *map, const char *name) {
 
 void p4info_name_map_destroy(p4info_name_map_t *map) {
   Word_t Rc_word;
-  // there is code in Judy headers that raises a warning with some compiler
-  // versions
+// there is code in Judy headers that raises a warning with some compiler
+// versions
 #pragma GCC diagnostic push
 #pragma GCC diagnostic warning "-Wsign-compare"
   JSLFA(Rc_word, *map);

@@ -92,6 +92,7 @@ pi_status_t pi_match_key_allocate(const pi_p4info_t *p4info,
   *key = (pi_match_key_t *)(key_w_prefix + prefix_space);
   (*key)->p4info = p4info;
   (*key)->table_id = table_id;
+  (*key)->priority = 0;
   (*key)->data_size = mk_size;
   (*key)->data = (char *)(*key + 1);
   assert(sizeof(_fegen_mk_prefix_t *) <= ALIGN);
@@ -111,11 +112,20 @@ static void check_mk_prefix(const _fegen_mk_prefix_t *prefix) {
 }
 
 pi_status_t pi_match_key_init(pi_match_key_t *key) {
+  key->priority = 0;
   _fegen_mk_prefix_t *prefix = get_mk_prefix(key);
   check_mk_prefix(prefix);
   prefix->nset = 0;
   for (size_t i = 0; i < prefix->num_fields; i++) prefix->f_info[i].is_set = 0;
   return PI_STATUS_SUCCESS;
+}
+
+void pi_match_key_set_priority(pi_match_key_t *key, uint32_t priority) {
+  key->priority = priority;
+}
+
+uint32_t pi_match_key_get_priority(pi_match_key_t *key) {
+  return key->priority;
 }
 
 static char *dump_fv(char *dst, const pi_netv_t *fv) {

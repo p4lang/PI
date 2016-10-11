@@ -126,6 +126,15 @@ std::vector<BmMatchParam> build_key(pi_p4_id_t table_id,
   return key;
 }
 
+void build_key_and_options(pi_p4_id_t table_id,
+                           const pi_match_key_t *match_key,
+                           const pi_p4info_t *p4info,
+                           BmMatchParams *mkey, BmAddEntryOptions *options) {
+  bool requires_priority = false;
+  *mkey = build_key(table_id, match_key, p4info, &requires_priority);
+  if (requires_priority) options->__set_priority(match_key->priority);
+}
+
 char *dump_action_data(const pi_p4info_t *p4info, char *data,
                        pi_p4_id_t action_id, const BmActionData &params) {
   // unfortunately, I have observed that bmv2 sometimes returns shorter binary
@@ -317,6 +326,33 @@ void set_direct_resources(const pi_p4info_t *p4info, pi_dev_id_t dev_id,
   }
 }
 
+pi_status_t retrieve_entry_wkey(pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                const pi_match_key_t *match_key,
+                                BmMtEntry *entry) {
+  pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_id);
+  assert(d_info->assigned);
+  const pi_p4info_t *p4info = d_info->p4info;
+
+  BmMatchParams mkey;
+  BmAddEntryOptions options;
+  build_key_and_options(table_id, match_key, p4info, &mkey, &options);
+
+  std::string t_name(pi_p4info_table_name_from_id(p4info, table_id));
+
+  auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_id);
+
+  try {
+    client.c->bm_mt_get_entry_from_key(*entry, 0, t_name, mkey, options);
+  } catch (InvalidTableOperation &ito) {
+    const char *what =
+        _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
+    std::cout << "Invalid table (" << t_name << ") operation ("
+              << ito.code << "): " << what << std::endl;
+    return static_cast<pi_status_t>(PI_STATUS_TARGET_ERROR + ito.code);
+  }
+  return PI_STATUS_SUCCESS;
+}
+
 }  // namespace
 
 
@@ -336,21 +372,9 @@ pi_status_t _pi_table_entry_add(pi_session_handle_t session_handle,
   assert(d_info->assigned);
   const pi_p4info_t *p4info = d_info->p4info;
 
-  bool requires_priority = false;
-  std::vector<BmMatchParam> mkey = build_key(table_id, match_key, p4info,
-                                             &requires_priority);
-
+  BmMatchParams mkey;
   BmAddEntryOptions options;
-  if (requires_priority) {
-    int priority = 0;
-    const pi_entry_properties_t *properties = table_entry->entry_properties;
-    if (properties &&
-        pi_entry_properties_is_set(properties, PI_ENTRY_PROPERTY_TYPE_PRIORITY))
-      priority = static_cast<int>(properties->priority);
-    // TODO(antonin): if no priority found we set the value to 0, we should
-    // probably find a better way
-    options.__set_priority(static_cast<int32_t>(priority));
-  }
+  build_key_and_options(table_id, match_key, p4info, &mkey, &options);
 
   std::string t_name(pi_p4info_table_name_from_id(p4info, table_id));
 
@@ -507,6 +531,20 @@ pi_status_t _pi_table_entry_delete(pi_session_handle_t session_handle,
   return PI_STATUS_SUCCESS;
 }
 
+// for the _wkey functions (delete and modify), we first retrieve the handle,
+// then call the "usual" method. We release the Thrift session lock in between
+// the 2, which may not be ideal. This can be improved later if needed.
+
+pi_status_t _pi_table_entry_delete_wkey(pi_session_handle_t session_handle,
+                                        pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                        const pi_match_key_t *match_key) {
+  BmMtEntry entry;
+  pi_status_t status = retrieve_entry_wkey(dev_id, table_id, match_key, &entry);
+  if (status != PI_STATUS_SUCCESS) return status;
+  return _pi_table_entry_delete(session_handle, dev_id, table_id,
+                                entry.entry_handle);
+}
+
 pi_status_t _pi_table_entry_modify(pi_session_handle_t session_handle,
                                    pi_dev_id_t dev_id,
                                    pi_p4_id_t table_id,
@@ -543,6 +581,17 @@ pi_status_t _pi_table_entry_modify(pi_session_handle_t session_handle,
   return PI_STATUS_SUCCESS;
 }
 
+pi_status_t _pi_table_entry_modify_wkey(pi_session_handle_t session_handle,
+                                        pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                        const pi_match_key_t *match_key,
+                                        const pi_table_entry_t *table_entry) {
+  BmMtEntry entry;
+  pi_status_t status = retrieve_entry_wkey(dev_id, table_id, match_key, &entry);
+  if (status != PI_STATUS_SUCCESS) return status;
+  return _pi_table_entry_modify(session_handle, dev_id, table_id,
+                                entry.entry_handle, table_entry);
+}
+
 pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
                                     pi_dev_id_t dev_id,
                                     pi_p4_id_t table_id,
@@ -574,9 +623,8 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
   data_size += entries.size() * sizeof(uint64_t);  // entry handles
   // TODO(antonin): really needed of table type is enough?
   data_size += entries.size() * sizeof(s_pi_action_entry_type_t);
-  // TODO(antonin): make this conditional on the table match type.
-  // allocating too much memory is not an issue though
-  data_size += entries.size() * 2 * sizeof(uint32_t);  // for priority
+  data_size += entries.size() * sizeof(uint32_t);  // for priority
+  data_size += entries.size() * sizeof(uint32_t);  // for properties
 
   res->mkey_nbytes = get_match_key_size(p4info, table_id);
   data_size += entries.size() * res->mkey_nbytes;
@@ -622,8 +670,14 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
   res->entries_size = data_size;
   res->entries = data;
 
-  for (auto &e : entries) {
+  for (const auto &e : entries) {
     data += emit_entry_handle(data, e.entry_handle);
+    const auto &options = e.options;
+    if (options.__isset.priority) {
+      data += emit_uint32(data, options.priority);
+    } else {
+      data += emit_uint32(data, 0);
+    }
     for (auto p : e.match_key) {
       switch (p.type) {
         case BmMatchParamType::type::EXACT:
@@ -654,7 +708,7 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
       }
     }
 
-    const BmActionEntry &action_entry = e.action_entry;
+    const auto &action_entry = e.action_entry;
 
     switch (action_entry.action_type) {
       case BmActionEntryType::NONE:
@@ -663,7 +717,7 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
       case BmActionEntryType::ACTION_DATA:
         {
           data += emit_action_entry_type(data, PI_ACTION_ENTRY_TYPE_DATA);
-          const ADataSize &adata_size = action_map.at(action_entry.action_name);
+          const auto &adata_size = action_map.at(action_entry.action_name);
           data += emit_p4_id(data, adata_size.id);
           data += emit_uint32(data, adata_size.s);
           data = dump_action_data(p4info, data, adata_size.id,
@@ -673,7 +727,7 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
       case BmActionEntryType::MBR_HANDLE:
         {
           data += emit_action_entry_type(data, PI_ACTION_ENTRY_TYPE_INDIRECT);
-          pi_indirect_handle_t indirect_handle =
+          auto indirect_handle =
               static_cast<pi_indirect_handle_t>(action_entry.mbr_handle);
           data += emit_indirect_handle(data, indirect_handle);
         }
@@ -681,7 +735,7 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
       case BmActionEntryType::GRP_HANDLE:
         {
           data += emit_action_entry_type(data, PI_ACTION_ENTRY_TYPE_INDIRECT);
-          pi_indirect_handle_t indirect_handle =
+          auto indirect_handle =
               static_cast<pi_indirect_handle_t>(action_entry.mbr_handle);
           indirect_handle = pibmv2::IndirectHMgr::make_grp_h(indirect_handle);
           data += emit_indirect_handle(data, indirect_handle);
@@ -689,13 +743,7 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
         break;
     }
 
-    const BmAddEntryOptions &options = e.options;
-    if (options.__isset.priority) {
-      data += emit_uint32(data, 1 << PI_ENTRY_PROPERTY_TYPE_PRIORITY);
-      data += emit_uint32(data, options.priority);
-    } else {
-      data += emit_uint32(data, 0);
-    }
+    data += emit_uint32(data, 0);
   }
 
   return PI_STATUS_SUCCESS;

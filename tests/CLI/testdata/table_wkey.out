@@ -1,0 +1,59 @@
+????
+Device assigned successfully.
+Selecting device.
+????
+Entry was successfully added with handle 0.
+????
+Successfully retrieved 1 entrie(s).
+==========
+TABLE ENTRIES
+**********
+Dumping entry 0
+Match key:
+* ipv4.dstAddr        : LPM       0a000001/12
+Action entry: set_nhop - 0a000001, 0013
+==========
+Dumping default entry
+EMPTY
+==========
+????
+Entry was successfully removed.
+????
+Successfully retrieved 0 entrie(s).
+==========
+TABLE ENTRIES
+==========
+Dumping default entry
+EMPTY
+==========
+????
+Entry was successfully added with handle 16777216.
+????
+Successfully retrieved 1 entrie(s).
+==========
+TABLE ENTRIES
+**********
+Dumping entry 16777216
+Match key:
+* ipv4.dstAddr        : LPM       0a000001/12
+Action entry: set_nhop - 0a000001, 0013
+==========
+Dumping default entry
+EMPTY
+==========
+????
+Entry was successfully modified.
+????
+Successfully retrieved 1 entrie(s).
+==========
+TABLE ENTRIES
+**********
+Dumping entry 16777216
+Match key:
+* ipv4.dstAddr        : LPM       0a000001/12
+Action entry: set_nhop - 0a000002, 0099
+==========
+Dumping default entry
+EMPTY
+==========
+????

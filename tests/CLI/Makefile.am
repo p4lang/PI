@@ -6,6 +6,7 @@ TESTS = \
 table_dump.test \
 table_dump_valid.test \
 table_indirect.test \
+table_wkey.test \
 device_commands.test \
 counter.test \
 counter_direct.test \
@@ -31,6 +32,9 @@ table_indirect.test \
 testdata/table_indirect.in \
 testdata/table_indirect.out \
 testdata/ecmp.json \
+table_wkey.test \
+testdata/table_wkey.in \
+testdata/table_wkey.out \
 device_commands.test \
 testdata/device_commands.in \
 testdata/device_commands.out

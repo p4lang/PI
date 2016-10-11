@@ -36,9 +36,6 @@ pi_status_t pi_entry_properties_set(pi_entry_properties_t *properties,
                                     uint32_t property_value) {
   /* const pi_value_t *property_value) { */
   switch (property_type) {
-    case PI_ENTRY_PROPERTY_TYPE_PRIORITY:
-      properties->priority = property_value;
-      break;
     case PI_ENTRY_PROPERTY_TYPE_TTL:
       properties->ttl = property_value;
       break;
@@ -134,6 +131,13 @@ pi_status_t pi_table_entry_delete(pi_session_handle_t session_handle,
   return _pi_table_entry_delete(session_handle, dev_id, table_id, entry_handle);
 }
 
+pi_status_t pi_table_entry_delete_wkey(pi_session_handle_t session_handle,
+                                       pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                       const pi_match_key_t *match_key) {
+  return _pi_table_entry_delete_wkey(session_handle, dev_id, table_id,
+                                     match_key);
+}
+
 pi_status_t pi_table_entry_modify(pi_session_handle_t session_handle,
                                   pi_dev_id_t dev_id, pi_p4_id_t table_id,
                                   pi_entry_handle_t entry_handle,
@@ -145,6 +149,14 @@ pi_status_t pi_table_entry_modify(pi_session_handle_t session_handle,
 
   return _pi_table_entry_modify(session_handle, dev_id, table_id, entry_handle,
                                 table_entry);
+}
+
+pi_status_t pi_table_entry_modify_wkey(pi_session_handle_t session_handle,
+                                       pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                       const pi_match_key_t *match_key,
+                                       const pi_table_entry_t *table_entry) {
+  return _pi_table_entry_modify_wkey(session_handle, dev_id, table_id,
+                                     match_key, table_entry);
 }
 
 pi_status_t pi_table_entries_fetch(pi_session_handle_t session_handle,
@@ -194,6 +206,8 @@ size_t pi_table_entries_next(pi_table_fetch_res_t *res,
   entry->match_key = &res->match_keys[res->idx];
   entry->match_key->p4info = res->p4info;
   entry->match_key->table_id = res->table_id;
+  res->curr +=
+      retrieve_uint32(res->entries + res->curr, &entry->match_key->priority);
   entry->match_key->data_size = res->mkey_nbytes;
   entry->match_key->data = res->entries + res->curr;
   res->curr += res->mkey_nbytes;
@@ -229,10 +243,6 @@ size_t pi_table_entries_next(pi_table_fetch_res_t *res,
   t_entry->entry_properties = properties;
   res->curr +=
       retrieve_uint32(res->entries + res->curr, &properties->valid_properties);
-  if (properties->valid_properties & (1 << PI_ENTRY_PROPERTY_TYPE_PRIORITY)) {
-    res->curr +=
-        retrieve_uint32(res->entries + res->curr, &properties->priority);
-  }
   if (properties->valid_properties & (1 << PI_ENTRY_PROPERTY_TYPE_TTL)) {
     res->curr += retrieve_uint32(res->entries + res->curr, &properties->ttl);
   }
