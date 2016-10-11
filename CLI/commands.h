@@ -31,9 +31,17 @@ extern char table_delete_hs[];
 pi_cli_status_t do_table_delete(char *subcmd);
 char *complete_table_delete(const char *text, int state);
 
+extern char table_delete_wkey_hs[];
+pi_cli_status_t do_table_delete_wkey(char *subcmd);
+char *complete_table_delete_wkey(const char *text, int state);
+
 extern char table_modify_hs[];
 pi_cli_status_t do_table_modify(char *subcmd);
 char *complete_table_modify(const char *text, int state);
+
+extern char table_modify_wkey_hs[];
+pi_cli_status_t do_table_modify_wkey(char *subcmd);
+char *complete_table_modify_wkey(const char *text, int state);
 
 extern char table_set_default_hs[];
 pi_cli_status_t do_table_set_default(char *subcmd);

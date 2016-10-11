@@ -167,8 +167,8 @@ static pi_status_t read_fields(cJSON *root, pi_p4info_t *p4info) {
   }
 
   Word_t Rc_word;
-  // there is code in Judy headers that raises a warning with some compiler
-  // versions
+// there is code in Judy headers that raises a warning with some compiler
+// versions
 #pragma GCC diagnostic push
 #pragma GCC diagnostic warning "-Wsign-compare"
   JSLFA(Rc_word, header_type_map);

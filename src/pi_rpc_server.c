@@ -342,6 +342,20 @@ static void __pi_session_cleanup(char *req) {
   send_status(_pi_session_cleanup(sess));
 }
 
+// src cannot const because we are not copying key data, instead we are pointing
+// directly inside the message buffer
+static size_t retrieve_match_key(char *src, pi_match_key_t *match_key) {
+  size_t s = 0;
+  // p4info and table_id must be filled by callee
+  s += retrieve_uint32(src + s, &match_key->priority);
+  uint32_t mk_size;
+  s += retrieve_uint32(src + s, &mk_size);
+  match_key->data_size = mk_size;
+  match_key->data = src + s;
+  s += mk_size;
+  return s;
+}
+
 static void __pi_table_entry_add(char *req) {
   printf("RPC: _pi_table_entry_add\n");
 
@@ -353,14 +367,10 @@ static void __pi_table_entry_add(char *req) {
   pi_p4_id_t table_id;
   req += retrieve_p4_id(req, &table_id);
 
-  uint32_t mk_size;
-  req += retrieve_uint32(req, &mk_size);
   pi_match_key_t match_key;
   match_key.p4info = NULL;  // TODO(antonin)
   match_key.table_id = table_id;
-  match_key.data_size = mk_size;
-  match_key.data = req;
-  req += mk_size;
+  req += retrieve_match_key(req, &match_key);
 
   pi_table_entry_t table_entry;
   // in case the entry is action data, we allocate a struct on the stack
@@ -471,9 +481,24 @@ static void __pi_table_entry_delete(char *req) {
   send_status(_pi_table_entry_delete(sess, dev_id, table_id, h));
 }
 
-static void __pi_table_entry_modify(char *req) {
-  printf("RPC: _pi_table_entry_modify\n");
+static void __pi_table_entry_delete_wkey(char *req) {
+  printf("RPC: _pi_table_entry_delete_wkey\n");
 
+  pi_session_handle_t sess;
+  req += retrieve_session_handle(req, &sess);
+  pi_dev_id_t dev_id;
+  req += retrieve_dev_id(req, &dev_id);
+  pi_p4_id_t table_id;
+  req += retrieve_p4_id(req, &table_id);
+  pi_match_key_t match_key;
+  match_key.p4info = NULL;  // TODO(antonin)
+  match_key.table_id = table_id;
+  req += retrieve_match_key(req, &match_key);
+
+  send_status(_pi_table_entry_delete_wkey(sess, dev_id, table_id, &match_key));
+}
+
+static void __pi_table_entry_modify_common(char *req, bool wkey) {
   // TODO(antonin): find a way to take care of p4info for mk and ad
   pi_session_handle_t sess;
   req += retrieve_session_handle(req, &sess);
@@ -481,8 +506,16 @@ static void __pi_table_entry_modify(char *req) {
   req += retrieve_dev_id(req, &dev_id);
   pi_p4_id_t table_id;
   req += retrieve_p4_id(req, &table_id);
+
   pi_entry_handle_t h;
-  req += retrieve_entry_handle(req, &h);
+  pi_match_key_t match_key;
+  if (wkey) {
+    match_key.p4info = NULL;  // TODO(antonin)
+    match_key.table_id = table_id;
+    req += retrieve_match_key(req, &match_key);
+  } else {
+    req += retrieve_entry_handle(req, &h);
+  }
 
   pi_table_entry_t table_entry;
   pi_action_data_t action_data;
@@ -492,12 +525,28 @@ static void __pi_table_entry_modify(char *req) {
   req += retrieve_direct_res_config(req, direct_config);
   table_entry.direct_res_config = direct_config;
 
-  pi_status_t status =
-      _pi_table_entry_modify(sess, dev_id, table_id, h, &table_entry);
+  pi_status_t status;
+
+  if (wkey) {
+    status = _pi_table_entry_modify_wkey(sess, dev_id, table_id, &match_key,
+                                         &table_entry);
+  } else {
+    status = _pi_table_entry_modify(sess, dev_id, table_id, h, &table_entry);
+  }
 
   free_direct_res_config(direct_config);
 
   send_status(status);
+}
+
+static void __pi_table_entry_modify(char *req) {
+  printf("RPC: _pi_table_entry_modify\n");
+  __pi_table_entry_modify_common(req, false);
+}
+
+static void __pi_table_entry_modify_wkey(char *req) {
+  printf("RPC: _pi_table_entry_modify_wkey\n");
+  __pi_table_entry_modify_common(req, true);
 }
 
 static void __pi_table_entries_fetch(char *req) {
@@ -970,8 +1019,14 @@ pi_status_t pi_rpc_server_run(const pi_remote_addr_t *remote_addr) {
       case PI_RPC_TABLE_ENTRY_DELETE:
         __pi_table_entry_delete(req_);
         break;
+      case PI_RPC_TABLE_ENTRY_DELETE_WKEY:
+        __pi_table_entry_delete_wkey(req_);
+        break;
       case PI_RPC_TABLE_ENTRY_MODIFY:
         __pi_table_entry_modify(req_);
+        break;
+      case PI_RPC_TABLE_ENTRY_MODIFY_WKEY:
+        __pi_table_entry_modify_wkey(req_);
         break;
       case PI_RPC_TABLE_ENTRIES_FETCH:
         __pi_table_entries_fetch(req_);

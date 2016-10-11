@@ -32,8 +32,6 @@ extern "C" {
 
 //! Possible properties for a table entry
 typedef enum {
-  //! Priority, for TCAM entries
-  PI_ENTRY_PROPERTY_TYPE_PRIORITY = 0,
   //! Entry TTL, for entry ageing
   PI_ENTRY_PROPERTY_TYPE_TTL,
   PI_ENTRY_PROPERTY_TYPE_END
@@ -43,7 +41,6 @@ typedef enum {
 //! List of properties for a new entry, will probably be improved in the future.
 struct pi_entry_properties_s {
   uint32_t valid_properties;
-  uint32_t priority;
   uint32_t ttl;
 };
 
@@ -135,17 +132,31 @@ pi_status_t pi_table_default_action_get(pi_session_handle_t session_handle,
 pi_status_t pi_table_default_action_done(pi_session_handle_t session_handle,
                                          pi_table_entry_t *table_entry);
 
-//! Delete an entry from a table. Should return an error if entry does not
-//! exist.
+//! Delete an entry from a table using the entry handle. Should return an error
+//! if entry does not exist.
 pi_status_t pi_table_entry_delete(pi_session_handle_t session_handle,
                                   pi_dev_id_t dev_id, pi_p4_id_t table_id,
                                   pi_entry_handle_t entry_handle);
 
-//! Modify an existing entry. Should return an error if entry does not exist.
+//! Delete an entry from a table using the match key. Should return an error
+//! if entry does not exist.
+pi_status_t pi_table_entry_delete_wkey(pi_session_handle_t session_handle,
+                                       pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                       const pi_match_key_t *match_key);
+
+//! Modify an existing entry using the entry handle. Should return an error if
+//! entry does not exist.
 pi_status_t pi_table_entry_modify(pi_session_handle_t session_handle,
                                   pi_dev_id_t dev_id, pi_p4_id_t table_id,
                                   pi_entry_handle_t entry_handle,
                                   const pi_table_entry_t *table_entry);
+
+//! Modify an existing entry using the match key. Should return an error if
+//! entry does not exist.
+pi_status_t pi_table_entry_modify_wkey(pi_session_handle_t session_handle,
+                                       pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                       const pi_match_key_t *match_key,
+                                       const pi_table_entry_t *table_entry);
 
 typedef struct pi_table_fetch_res_s pi_table_fetch_res_t;
 

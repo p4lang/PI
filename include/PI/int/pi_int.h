@@ -88,6 +88,7 @@ size_t get_action_data_size(const pi_p4info_t *p4info, pi_p4_id_t action_id);
 struct pi_match_key_s {
   const pi_p4info_t *p4info;
   pi_p4_id_t table_id;
+  uint32_t priority;
   size_t data_size;
   char *data;
 };

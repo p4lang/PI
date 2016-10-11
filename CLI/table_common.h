@@ -29,6 +29,13 @@ extern const pi_p4info_t *p4info_curr;
 extern pi_dev_tgt_t dev_tgt;
 extern pi_session_handle_t sess;
 
+pi_cli_status_t read_match_fields(char *in, pi_p4_id_t t_id,
+                                  pi_match_key_t *mk);
+
+pi_cli_status_t read_match_key_with_priority(char *in, pi_p4_id_t t_id,
+                                             pi_match_key_t *mk,
+                                             const char *end);
+
 pi_cli_status_t read_action_data(char *in, pi_p4_id_t a_id,
                                  pi_action_data_t *adata);
 

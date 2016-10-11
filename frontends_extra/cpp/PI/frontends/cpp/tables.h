@@ -41,6 +41,8 @@ class MatchKey {
 
   void reset();
 
+  void set_priority(int priority);
+
   template <typename T>
   typename std::enable_if<std::is_integral<T>::value, error_code_t>::type
   set_exact(pi_p4_id_t f_id, T key);

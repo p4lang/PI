@@ -38,6 +38,22 @@ static pi_status_t wait_for_handle(uint32_t req_id,
   return status;
 }
 
+static size_t match_key_size(const pi_match_key_t *match_key) {
+  size_t s = 0;
+  s += sizeof(uint32_t);                         // priority
+  s += sizeof(uint32_t) + match_key->data_size;  // match key with size
+  return s;
+}
+
+static size_t emit_match_key(char *dst, const pi_match_key_t *match_key) {
+  size_t s = 0;
+  s += emit_uint32(dst + s, match_key->priority);
+  s += emit_uint32(dst + s, match_key->data_size);
+  memcpy(dst + s, match_key->data, match_key->data_size);
+  s += match_key->data_size;
+  return s;
+}
+
 pi_status_t _pi_table_entry_add(pi_session_handle_t session_handle,
                                 pi_dev_tgt_t dev_tgt, pi_p4_id_t table_id,
                                 const pi_match_key_t *match_key,
@@ -50,8 +66,8 @@ pi_status_t _pi_table_entry_add(pi_session_handle_t session_handle,
   s += sizeof(req_hdr_t);
   s += sizeof(s_pi_session_handle_t);
   s += sizeof(s_pi_dev_tgt_t);
-  s += sizeof(s_pi_p4_id_t);                     // table_id
-  s += sizeof(uint32_t) + match_key->data_size;  // match key with size
+  s += sizeof(s_pi_p4_id_t);  // table_id
+  s += match_key_size(match_key);
   s += table_entry_size(table_entry);
   s += sizeof(uint32_t);  // overwrite
 
@@ -62,9 +78,7 @@ pi_status_t _pi_table_entry_add(pi_session_handle_t session_handle,
   req_ += emit_session_handle(req_, session_handle);
   req_ += emit_dev_tgt(req_, dev_tgt);
   req_ += emit_p4_id(req_, table_id);
-  req_ += emit_uint32(req_, match_key->data_size);
-  memcpy(req_, match_key->data, match_key->data_size);
-  req_ += match_key->data_size;
+  req_ += emit_match_key(req_, match_key);
   req_ += emit_table_entry(req_, table_entry);
   req_ += emit_uint32(req_, overwrite);
 
@@ -187,6 +201,36 @@ pi_status_t _pi_table_entry_delete(pi_session_handle_t session_handle,
   return wait_for_status(req_id);
 }
 
+pi_status_t _pi_table_entry_delete_wkey(pi_session_handle_t session_handle,
+                                        pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                        const pi_match_key_t *match_key) {
+  if (!state.init) return PI_STATUS_RPC_NOT_INIT;
+
+  size_t s = 0;
+  s += sizeof(req_hdr_t);
+  s += sizeof(s_pi_session_handle_t);
+  s += sizeof(s_pi_dev_id_t);
+  s += sizeof(s_pi_p4_id_t);  // table_id
+  s += match_key_size(match_key);
+
+  char *req = nn_allocmsg(s, 0);
+  char *req_ = req;
+  pi_rpc_id_t req_id = state.req_id++;
+  req_ += emit_req_hdr(req_, req_id, PI_RPC_TABLE_ENTRY_DELETE_WKEY);
+  req_ += emit_session_handle(req_, session_handle);
+  req_ += emit_dev_id(req_, dev_id);
+  req_ += emit_p4_id(req_, table_id);
+  req_ += emit_match_key(req_, match_key);
+
+  // make sure I have copied exactly the right amount
+  assert((size_t)(req_ - req) == s);
+
+  int rc = nn_send(state.s, &req, NN_MSG, 0);
+  if ((size_t)rc != s) return PI_STATUS_RPC_TRANSPORT_ERROR;
+
+  return wait_for_status(req_id);
+}
+
 pi_status_t _pi_table_entry_modify(pi_session_handle_t session_handle,
                                    pi_dev_id_t dev_id, pi_p4_id_t table_id,
                                    pi_entry_handle_t entry_handle,
@@ -209,6 +253,39 @@ pi_status_t _pi_table_entry_modify(pi_session_handle_t session_handle,
   req_ += emit_dev_id(req_, dev_id);
   req_ += emit_p4_id(req_, table_id);
   req_ += emit_entry_handle(req_, entry_handle);
+  req_ += emit_table_entry(req_, table_entry);
+
+  // make sure I have copied exactly the right amount
+  assert((size_t)(req_ - req) == s);
+
+  int rc = nn_send(state.s, &req, NN_MSG, 0);
+  if ((size_t)rc != s) return PI_STATUS_RPC_TRANSPORT_ERROR;
+
+  return wait_for_status(req_id);
+}
+
+pi_status_t _pi_table_entry_modify_wkey(pi_session_handle_t session_handle,
+                                        pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                        const pi_match_key_t *match_key,
+                                        const pi_table_entry_t *table_entry) {
+  if (!state.init) return PI_STATUS_RPC_NOT_INIT;
+
+  size_t s = 0;
+  s += sizeof(req_hdr_t);
+  s += sizeof(s_pi_session_handle_t);
+  s += sizeof(s_pi_dev_id_t);  // dev_id
+  s += sizeof(s_pi_p4_id_t);   // table_id
+  s += match_key_size(match_key);
+  s += table_entry_size(table_entry);
+
+  char *req = nn_allocmsg(s, 0);
+  char *req_ = req;
+  pi_rpc_id_t req_id = state.req_id++;
+  req_ += emit_req_hdr(req_, req_id, PI_RPC_TABLE_ENTRY_MODIFY_WKEY);
+  req_ += emit_session_handle(req_, session_handle);
+  req_ += emit_dev_id(req_, dev_id);
+  req_ += emit_p4_id(req_, table_id);
+  req_ += emit_match_key(req_, match_key);
   req_ += emit_table_entry(req_, table_entry);
 
   // make sure I have copied exactly the right amount

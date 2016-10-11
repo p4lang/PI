@@ -50,10 +50,19 @@ pi_status_t _pi_table_entry_delete(pi_session_handle_t session_handle,
                                    pi_dev_id_t dev_id, pi_p4_id_t table_id,
                                    pi_entry_handle_t entry_handle);
 
+pi_status_t _pi_table_entry_delete_wkey(pi_session_handle_t session_handle,
+                                        pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                        const pi_match_key_t *match_key);
+
 pi_status_t _pi_table_entry_modify(pi_session_handle_t session_handle,
                                    pi_dev_id_t dev_id, pi_p4_id_t table_id,
                                    pi_entry_handle_t entry_handle,
                                    const pi_table_entry_t *table_entry);
+
+pi_status_t _pi_table_entry_modify_wkey(pi_session_handle_t session_handle,
+                                        pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                        const pi_match_key_t *match_key,
+                                        const pi_table_entry_t *table_entry);
 
 pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
                                     pi_dev_id_t dev_id, pi_p4_id_t table_id,

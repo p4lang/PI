@@ -148,8 +148,12 @@ static void init_cmd_map() {
                PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
   register_cmd("table_delete", do_table_delete, table_delete_hs,
                complete_table_delete, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
+  register_cmd("table_delete_wkey", do_table_delete_wkey, table_delete_wkey_hs,
+               complete_table_delete_wkey, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
   register_cmd("table_modify", do_table_modify, table_modify_hs,
                complete_table_modify, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
+  register_cmd("table_modify_wkey", do_table_modify_wkey, table_modify_wkey_hs,
+               complete_table_modify_wkey, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
   register_cmd("table_set_default", do_table_set_default, table_set_default_hs,
                complete_table_set_default, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
   register_cmd("table_dump", do_table_dump, table_dump_hs, complete_table_dump,
@@ -178,8 +182,8 @@ static void init_cmd_map() {
 
 static void cleanup() {
   Word_t bytes;
-  // there is code in Judy headers that raises a warning with some compiler
-  // versions
+// there is code in Judy headers that raises a warning with some compiler
+// versions
 #pragma GCC diagnostic push
 #pragma GCC diagnostic warning "-Wsign-compare"
   JSLFA(bytes, J_cmd_name_map);

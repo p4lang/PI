@@ -60,8 +60,8 @@ void p4_config_cleanup() {
     JLN(p4info_ptr, repo, index);
   }
   Word_t cnt;
-  // there is code in Judy headers that raises a warning with some compiler
-  // versions
+// there is code in Judy headers that raises a warning with some compiler
+// versions
 #pragma GCC diagnostic push
 #pragma GCC diagnostic warning "-Wsign-compare"
   JLFA(cnt, repo);

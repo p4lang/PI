@@ -99,6 +99,7 @@ MatchKey::MatchKey(const pi_p4info_t *p4info, pi_p4_id_t table_id)
   match_key = reinterpret_cast<decltype(match_key)>(_data.get());
   match_key->p4info = p4info;
   match_key->table_id = table_id;
+  match_key->priority = 0;
   match_key->data_size = s;
   match_key->data = _data.get() + sizeof(*match_key);
 }
@@ -108,6 +109,12 @@ MatchKey::~MatchKey() { }
 void
 MatchKey::reset() {
   nset = 0;
+  match_key->priority = 0;
+}
+
+void
+MatchKey::set_priority(int priority) {
+  match_key->priority = priority;
 }
 
 template <typename T>

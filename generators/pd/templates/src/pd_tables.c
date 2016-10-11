@@ -198,6 +198,9 @@ ${name}
 //::     if has_match_spec:
   build_key_${t_name}(p4info, mk, match_spec);
 //::     #endif
+//::     if match_type in {MatchType.TERNARY, MatchType.RANGE}:
+  pi_match_key_set_priority(mk, priority);
+//::     #endif
   pi_action_data_t *adata;
   pi_action_data_allocate(p4info, ${a.id_}, &adata);
 //::     if has_action_spec:
@@ -206,10 +209,6 @@ ${name}
 
   pi_entry_properties_t entry_properties;
   pi_entry_properties_clear(&entry_properties);
-//::     if match_type in {MatchType.TERNARY, MatchType.RANGE}:
-  pi_entry_properties_set(&entry_properties, PI_ENTRY_PROPERTY_TYPE_PRIORITY,
-                          priority);
-//::     #endif
 
   pi_table_entry_t t_entry;
   t_entry.entry_type = PI_ACTION_ENTRY_TYPE_DATA;
@@ -275,13 +274,12 @@ ${name}
 //::     if has_match_spec:
   build_key_${t_name}(p4info, mk, match_spec);
 //::     #endif
+//::     if match_type in {MatchType.TERNARY, MatchType.RANGE}:
+  pi_match_key_set_priority(mk, priority);
+//::     #endif
 
   pi_entry_properties_t entry_properties;
   pi_entry_properties_clear(&entry_properties);
-//::     if match_type in {MatchType.TERNARY, MatchType.RANGE}:
-  pi_entry_properties_set(&entry_properties, PI_ENTRY_PROPERTY_TYPE_PRIORITY,
-                          priority);
-//::     #endif
 
   pi_table_entry_t t_entry;
   t_entry.entry_type = PI_ACTION_ENTRY_TYPE_INDIRECT;
@@ -313,13 +311,12 @@ ${name}
 //::     if has_match_spec:
   build_key_${t_name}(p4info, mk, match_spec);
 //::     #endif
+//::     if match_type in {MatchType.TERNARY, MatchType.RANGE}:
+  pi_match_key_set_priority(mk, priority);
+//::     #endif
 
   pi_entry_properties_t entry_properties;
   pi_entry_properties_clear(&entry_properties);
-//::     if match_type in {MatchType.TERNARY, MatchType.RANGE}:
-  pi_entry_properties_set(&entry_properties, PI_ENTRY_PROPERTY_TYPE_PRIORITY,
-                          priority);
-//::     #endif
 
   pi_table_entry_t t_entry;
   t_entry.entry_type = PI_ACTION_ENTRY_TYPE_INDIRECT;
