@@ -42,12 +42,14 @@ int add_route(uint32_t prefix, int pLen, uint32_t nhop, uint16_t port,
   rc |= match_key.set_lpm(PI_P4_FIELD_IPV4_DSTADDR, prefix, pLen);
 
   // action data
-  pi::ActionData action_data(p4info, PI_P4_ACTION_SET_NHOP);
-  rc |= action_data.set_arg(PI_P4_ACTIONP_SET_NHOP_NHOP_IPV4, nhop);
-  rc |= action_data.set_arg(PI_P4_ACTIONP_SET_NHOP_PORT, port);
+  pi::ActionEntry action_entry;
+  action_entry.init_action_data(p4info, PI_P4_ACTION_SET_NHOP);
+  auto action_data = action_entry.mutable_action_data();
+  rc |= action_data->set_arg(PI_P4_ACTIONP_SET_NHOP_NHOP_IPV4, nhop);
+  rc |= action_data->set_arg(PI_P4_ACTIONP_SET_NHOP_PORT, port);
 
   pi::MatchTable mt(sess, dev_tgt, p4info, PI_P4_TABLE_IPV4_LPM);
-  rc |= mt.entry_add(match_key, action_data, true, handle);
+  rc |= mt.entry_add(match_key, action_entry, true, handle);
 
   return rc;
 }
@@ -63,14 +65,16 @@ int add_route_fast(uint32_t prefix, int pLen, uint32_t nhop, uint16_t port,
   rc |= match_key.set_lpm(PI_P4_FIELD_IPV4_DSTADDR, prefix, pLen);
 
   // action data
-  thread_local pi::ActionData action_data(p4info, PI_P4_ACTION_SET_NHOP);
-  action_data.reset();
-  rc |= action_data.set_arg(PI_P4_ACTIONP_SET_NHOP_NHOP_IPV4, nhop);
-  rc |= action_data.set_arg(PI_P4_ACTIONP_SET_NHOP_PORT, port);
+  thread_local pi::ActionEntry action_entry;
+  action_entry.init_action_data(p4info, PI_P4_ACTION_SET_NHOP);
+  auto action_data = action_entry.mutable_action_data();
+  action_data->reset();
+  rc |= action_data->set_arg(PI_P4_ACTIONP_SET_NHOP_NHOP_IPV4, nhop);
+  rc |= action_data->set_arg(PI_P4_ACTIONP_SET_NHOP_PORT, port);
 
   // so far no state in MatchTable and construction is cheap
   pi::MatchTable mt(sess, dev_tgt, p4info, PI_P4_TABLE_IPV4_LPM);
-  rc |= mt.entry_add(match_key, action_data, true, handle);
+  rc |= mt.entry_add(match_key, action_entry, true, handle);
 
   return rc;
 }

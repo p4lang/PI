@@ -94,14 +94,14 @@ MatchKey::MatchKey(const pi_p4info_t *p4info, pi_p4_id_t table_id)
     }
   }
 
-  // using standard new, no alignment issue
-  _data = std::unique_ptr<char[]>(new char[sizeof(*match_key) + s]);
-  match_key = reinterpret_cast<decltype(match_key)>(_data.get());
+  // std::allocator is using standard new, no alignment issue
+  _data.resize(sizeof(*match_key) + s);
+  match_key = reinterpret_cast<decltype(match_key)>(_data.data());
   match_key->p4info = p4info;
   match_key->table_id = table_id;
   match_key->priority = 0;
   match_key->data_size = s;
-  match_key->data = _data.get() + sizeof(*match_key);
+  match_key->data = _data.data() + sizeof(*match_key);
 }
 
 MatchKey::~MatchKey() { }
@@ -274,12 +274,12 @@ ActionData::ActionData(const pi_p4info_t *p4info, pi_p4_id_t action_id)
   }
 
   // using standard new, no alignment issue
-  _data = std::unique_ptr<char[]>(new char[sizeof(*action_data) + s]);
-  action_data = reinterpret_cast<decltype(action_data)>(_data.get());
+  _data.resize(sizeof(*action_data) + s);
+  action_data = reinterpret_cast<decltype(action_data)>(_data.data());
   action_data->p4info = p4info;
   action_data->action_id = action_id;
   action_data->data_size = s;
-  action_data->data = _data.get() + sizeof(*action_data);
+  action_data->data = _data.data() + sizeof(*action_data);
 }
 
 ActionData::~ActionData() { }
@@ -347,15 +347,47 @@ MatchTable::MatchTable(pi_session_handle_t sess, pi_dev_tgt_t dev_tgt,
                        const pi_p4info_t *p4info, pi_p4_id_t table_id)
     : sess(sess), dev_tgt(dev_tgt), p4info(p4info), table_id(table_id) { }
 
+pi_table_entry_t
+MatchTable::build_table_entry(const ActionEntry &action_entry) const {
+  pi_table_entry_t entry;
+  entry.entry_properties = NULL;
+  entry.direct_res_config = NULL;
+
+  switch (action_entry.type()) {
+    case ActionEntry::Tag::NONE:
+      assert(0);
+      break;
+    case ActionEntry::Tag::ACTION_DATA:
+      entry.entry_type = PI_ACTION_ENTRY_TYPE_DATA;
+      entry.entry.action_data = action_entry.action_data().get();
+      break;
+    case ActionEntry::Tag::INDIRECT_HANDLE:
+      entry.entry_type = PI_ACTION_ENTRY_TYPE_INDIRECT;
+      entry.entry.indirect_handle = action_entry.indirect_handle();
+      break;
+  }
+
+  return entry;
+}
+
+pi_status_t
+MatchTable::entry_add(const MatchKey &match_key,
+                      const ActionEntry &action_entry, bool overwrite,
+                      pi_entry_handle_t *entry_handle) {
+  auto entry = build_table_entry(action_entry);
+  return pi_table_entry_add(sess, dev_tgt, table_id, match_key.get(),
+                            &entry, overwrite, entry_handle);
+}
+
 pi_status_t
 MatchTable::entry_add(const MatchKey &match_key,
                       const ActionData &action_data, bool overwrite,
                       pi_entry_handle_t *entry_handle) {
   pi_table_entry_t entry;
-  entry.entry_type = PI_ACTION_ENTRY_TYPE_DATA;
-  entry.entry.action_data = action_data.get();
   entry.entry_properties = NULL;
   entry.direct_res_config = NULL;
+  entry.entry_type = PI_ACTION_ENTRY_TYPE_DATA;
+  entry.entry.action_data = action_data.get();
   return pi_table_entry_add(sess, dev_tgt, table_id, match_key.get(),
                             &entry, overwrite, entry_handle);
 }
@@ -363,6 +395,18 @@ MatchTable::entry_add(const MatchKey &match_key,
 pi_status_t
 MatchTable::entry_delete(pi_entry_handle_t entry_handle) {
   return pi_table_entry_delete(sess, dev_tgt.dev_id, table_id, entry_handle);
+}
+
+pi_status_t
+MatchTable::entry_delete_wkey(const MatchKey &match_key) {
+  return pi_table_entry_delete_wkey(sess, dev_tgt.dev_id, table_id,
+                                    match_key.get());
+}
+
+pi_status_t
+MatchTable::default_entry_set(const ActionEntry &action_entry) {
+  auto entry = build_table_entry(action_entry);
+  return pi_table_default_action_set(sess, dev_tgt, table_id, &entry);
 }
 
 pi_status_t

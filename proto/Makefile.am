@@ -9,7 +9,10 @@ PROTOFLAGS = -I.
 
 protos = \
 $(srcdir)/pi.proto \
-$(srcdir)/google/rpc/status.proto
+$(srcdir)/google/rpc/status.proto \
+$(srcdir)/google/rpc/code.proto \
+$(srcdir)/device.proto \
+$(srcdir)/resource.proto
 
 EXTRA_DIST = $(protos) google
 
@@ -17,13 +20,25 @@ proto_cpp_files = \
 cpp_out/pi.pb.cc \
 cpp_out/pi.pb.h \
 cpp_out/google/rpc/status.pb.cc \
-cpp_out/google/rpc/status.pb.h
+cpp_out/google/rpc/status.pb.h \
+cpp_out/google/rpc/code.pb.cc \
+cpp_out/google/rpc/code.pb.h \
+cpp_out/device.pb.cc \
+cpp_out/device.pb.h \
+cpp_out/resource.pb.cc \
+cpp_out/resource.pb.h
 
 proto_grpc_files = \
 grpc_out/pi.grpc.pb.cc \
 grpc_out/pi.grpc.pb.h \
 grpc_out/google/rpc/status.grpc.pb.cc \
-grpc_out/google/rpc/status.grpc.pb.h
+grpc_out/google/rpc/status.grpc.pb.h \
+grpc_out/google/rpc/code.grpc.pb.cc \
+grpc_out/google/rpc/code.grpc.pb.h \
+grpc_out/device.grpc.pb.cc \
+grpc_out/device.grpc.pb.h \
+grpc_out/resource.grpc.pb.cc \
+grpc_out/resource.grpc.pb.h
 
 AM_CPPFLAGS = -Icpp_out -Igrpc_out
 

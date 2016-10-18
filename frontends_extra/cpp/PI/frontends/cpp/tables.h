@@ -23,7 +23,6 @@
 
 #include <PI/pi.h>
 
-#include <memory>
 #include <vector>
 
 #include <cstdint>
@@ -75,7 +74,7 @@ class MatchKey {
   size_t nset{0};
   std::vector<size_t> offsets{};
   pi_match_key_t *match_key;
-  std::unique_ptr<char[]> _data;
+  std::vector<char> _data{};
 };
 
 class ActionData {
@@ -107,7 +106,69 @@ class ActionData {
   size_t nset{0};
   std::vector<size_t> offsets{};
   pi_action_data_t *action_data;
-  std::unique_ptr<char[]> _data;
+  std::vector<char> _data{};
+};
+
+class ActionEntry {
+ public:
+  friend class MatchTable;
+
+  ActionEntry()
+      : tag(Tag::NONE) { }
+
+  ~ActionEntry() {
+    switch (tag) {
+      case Tag::NONE:
+        break;
+      case Tag::ACTION_DATA:
+        _action_data.~ActionData();
+        break;
+      case Tag::INDIRECT_HANDLE:
+        break;
+    }
+  }
+
+  ActionEntry(const ActionEntry &) = delete;
+  ActionEntry &operator=(const ActionEntry &) = delete;
+  ActionEntry(ActionEntry &&) = delete;
+  ActionEntry &operator=(ActionEntry &&) = delete;
+
+  void init_action_data(const pi_p4info_t *p4info, pi_p4_id_t action_id) {
+    assert(tag == Tag::NONE);
+    new(&_action_data) ActionData(p4info, action_id);
+    tag = Tag::ACTION_DATA;
+  }
+
+  void init_indirect_handle(pi_indirect_handle_t indirect_handle) {
+    assert(tag == Tag::NONE);
+    _indirect_handle = indirect_handle;
+    tag = Tag::INDIRECT_HANDLE;
+  }
+
+  const ActionData &action_data() const {
+    assert(tag == Tag::ACTION_DATA);
+    return _action_data;
+  }
+
+  ActionData *mutable_action_data() {
+    assert(tag == Tag::ACTION_DATA);
+    return &_action_data;
+  }
+
+  pi_indirect_handle_t indirect_handle() const {
+    assert(tag == Tag::INDIRECT_HANDLE);
+    return _indirect_handle;
+  }
+
+ private:
+  enum class Tag { NONE, ACTION_DATA, INDIRECT_HANDLE } tag;
+
+  Tag type() const { return tag; }
+
+  union {
+    ActionData _action_data;
+    pi_indirect_handle_t _indirect_handle;
+  };
 };
 
 // TODO(antonin): handle device id / pipleline mask
@@ -117,16 +178,26 @@ class MatchTable {
              const pi_p4info_t *p4info, pi_p4_id_t table_id);
 
   pi_status_t entry_add(const MatchKey &match_key,
-                        const ActionData &action_data, bool overwrite,
+                        const ActionEntry &action_entry, bool overwrite,
                         pi_entry_handle_t *entry_handle);
 
   pi_status_t entry_delete(pi_entry_handle_t entry_handle);
+  pi_status_t entry_delete_wkey(const MatchKey &match_key);
 
+  pi_status_t default_entry_set(const ActionEntry &action_entry);
+
+  // these overloads are mostly for backward-compatibility, try not to use in
+  // new code
+  pi_status_t entry_add(const MatchKey &match_key,
+                        const ActionData &action_data, bool overwrite,
+                        pi_entry_handle_t *entry_handle);
   pi_status_t default_entry_set(const ActionData &action_data);
 
   // many more APIs
 
  private:
+  pi_table_entry_t build_table_entry(const ActionEntry &action_entry) const;
+
   pi_session_handle_t sess;
   pi_dev_tgt_t dev_tgt;
   const pi_p4info_t *p4info;
