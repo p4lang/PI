@@ -18,25 +18,13 @@
  *
  */
 
-#include <PI/target/pi_learn_imp.h>
+void func_counter_init();
 
-#include <stdio.h>
+void func_counter_increment(const char *func_name);
 
-#include "func_counter.h"
+int func_counter_get(const char *func_name);
 
-pi_status_t _pi_learn_msg_ack(pi_session_handle_t session_handle,
-                              pi_dev_id_t dev_id, pi_p4_id_t learn_id,
-                              pi_learn_msg_id_t msg_id) {
-  (void)session_handle;
-  (void)dev_id;
-  (void)learn_id;
-  (void)msg_id;
-  func_counter_increment(__func__);
-  return PI_STATUS_SUCCESS;
-}
+// returns 0 if success, 1 otherwise
+int func_counter_dump_to_file(const char *path);
 
-pi_status_t _pi_learn_msg_done(pi_learn_msg_t *msg) {
-  (void)msg;
-  func_counter_increment(__func__);
-  return PI_STATUS_SUCCESS;
-}
+void func_counter_destroy();

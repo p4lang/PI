@@ -22,10 +22,18 @@
 #include <PI/target/pi_imp.h>
 
 #include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+#include "func_counter.h"
+
+static char *counter_dump_path = NULL;
 
 pi_status_t _pi_init(void *extra) {
-  (void)extra;
-  printf("%s\n", __func__);
+  if (extra) counter_dump_path = strdup((const char *)extra);
+  else counter_dump_path = strdup("func_counter.txt");
+  func_counter_init();
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
@@ -34,7 +42,7 @@ pi_status_t _pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
   (void)dev_id;
   (void)p4info;
   (void)extra;
-  printf("%s\n", __func__);
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
@@ -46,36 +54,42 @@ pi_status_t _pi_update_device_start(pi_dev_id_t dev_id,
   (void)p4info;
   (void)device_data;
   (void)device_data_size;
-  printf("%s\n", __func__);
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
 pi_status_t _pi_update_device_end(pi_dev_id_t dev_id) {
   (void)dev_id;
-  printf("%s\n", __func__);
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
 pi_status_t _pi_remove_device(pi_dev_id_t dev_id) {
   (void)dev_id;
-  printf("%s\n", __func__);
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
 pi_status_t _pi_destroy() {
-  printf("%s\n", __func__);
+  func_counter_increment(__func__);
+  if (counter_dump_path) {
+    func_counter_dump_to_file(counter_dump_path);
+    free(counter_dump_path);
+    counter_dump_path = NULL;
+  }
+  func_counter_destroy();
   return PI_STATUS_SUCCESS;
 }
 
 pi_status_t _pi_session_init(pi_session_handle_t *session_handle) {
   *session_handle = 0;
-  printf("%s\n", __func__);
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
 pi_status_t _pi_session_cleanup(pi_session_handle_t session_handle) {
   (void)session_handle;
-  printf("%s\n", __func__);
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
@@ -84,6 +98,6 @@ pi_status_t _pi_packetout_send(pi_dev_id_t dev_id, const char *pkt,
   (void)dev_id;
   (void)pkt;
   (void)size;
-  printf("%s\n", __func__);
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }

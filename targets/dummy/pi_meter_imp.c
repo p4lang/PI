@@ -22,6 +22,8 @@
 
 #include <stdio.h>
 
+#include "func_counter.h"
+
 pi_status_t _pi_meter_read(pi_session_handle_t session_handle,
                            pi_dev_tgt_t dev_tgt, pi_p4_id_t meter_id,
                            size_t index, pi_meter_spec_t *meter_spec) {
@@ -30,7 +32,7 @@ pi_status_t _pi_meter_read(pi_session_handle_t session_handle,
   (void)meter_id;
   (void)index;
   (void)meter_spec;
-  printf("%s\n", __func__);
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
@@ -42,7 +44,7 @@ pi_status_t _pi_meter_set(pi_session_handle_t session_handle,
   (void)meter_id;
   (void)index;
   (void)meter_spec;
-  printf("%s\n", __func__);
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
@@ -55,7 +57,7 @@ pi_status_t _pi_meter_read_direct(pi_session_handle_t session_handle,
   (void)meter_id;
   (void)entry_handle;
   (void)meter_spec;
-  printf("%s\n", __func__);
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
@@ -68,6 +70,6 @@ pi_status_t _pi_meter_set_direct(pi_session_handle_t session_handle,
   (void)meter_id;
   (void)entry_handle;
   (void)meter_spec;
-  printf("%s\n", __func__);
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
