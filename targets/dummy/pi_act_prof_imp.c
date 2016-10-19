@@ -22,6 +22,8 @@
 
 #include <stdio.h>
 
+#include "func_counter.h"
+
 pi_status_t _pi_act_prof_mbr_create(pi_session_handle_t session_handle,
                                     pi_dev_tgt_t dev_tgt,
                                     pi_p4_id_t act_prof_id,
@@ -32,7 +34,7 @@ pi_status_t _pi_act_prof_mbr_create(pi_session_handle_t session_handle,
   (void)act_prof_id;
   (void)action_data;
   (void)mbr_handle;
-  printf("%s\n", __func__);
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
@@ -43,7 +45,7 @@ pi_status_t _pi_act_prof_mbr_delete(pi_session_handle_t session_handle,
   (void)dev_id;
   (void)act_prof_id;
   (void)mbr_handle;
-  printf("%s\n", __func__);
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
@@ -56,7 +58,7 @@ pi_status_t _pi_act_prof_mbr_modify(pi_session_handle_t session_handle,
   (void)act_prof_id;
   (void)mbr_handle;
   (void)action_data;
-  printf("%s\n", __func__);
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
@@ -69,7 +71,7 @@ pi_status_t _pi_act_prof_grp_create(pi_session_handle_t session_handle,
   (void)act_prof_id;
   (void)max_size;
   (void)grp_handle;
-  printf("%s\n", __func__);
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
@@ -80,7 +82,7 @@ pi_status_t _pi_act_prof_grp_delete(pi_session_handle_t session_handle,
   (void)dev_id;
   (void)act_prof_id;
   (void)grp_handle;
-  printf("%s\n", __func__);
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
@@ -93,7 +95,7 @@ pi_status_t _pi_act_prof_grp_add_mbr(pi_session_handle_t session_handle,
   (void)act_prof_id;
   (void)grp_handle;
   (void)mbr_handle;
-  printf("%s\n", __func__);
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
@@ -107,6 +109,6 @@ pi_status_t _pi_act_prof_grp_remove_mbr(pi_session_handle_t session_handle,
   (void)act_prof_id;
   (void)grp_handle;
   (void)mbr_handle;
-  printf("%s\n", __func__);
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }

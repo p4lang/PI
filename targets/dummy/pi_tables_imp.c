@@ -22,6 +22,8 @@
 
 #include <stdio.h>
 
+#include "func_counter.h"
+
 pi_status_t _pi_table_entry_add(pi_session_handle_t session_handle,
                                 pi_dev_tgt_t dev_tgt, pi_p4_id_t table_id,
                                 const pi_match_key_t *match_key,
@@ -35,7 +37,7 @@ pi_status_t _pi_table_entry_add(pi_session_handle_t session_handle,
   (void)table_entry;
   (void)overwrite;
   (void)entry_handle;
-  printf("_pi_table_entry_add\n");
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
@@ -47,7 +49,7 @@ pi_status_t _pi_table_default_action_set(pi_session_handle_t session_handle,
   (void)dev_tgt;
   (void)table_id;
   (void)table_entry;
-  printf("_pi_table_default_action_set\n");
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
@@ -59,7 +61,7 @@ pi_status_t _pi_table_default_action_get(pi_session_handle_t session_handle,
   (void)dev_id;
   (void)table_id;
   (void)table_entry;
-  printf("_pi_table_default_action_get\n");
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
@@ -67,7 +69,7 @@ pi_status_t _pi_table_default_action_done(pi_session_handle_t session_handle,
                                           pi_table_entry_t *table_entry) {
   (void)session_handle;
   (void)table_entry;
-  printf("_pi_table_default_action_done\n");
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
@@ -78,7 +80,7 @@ pi_status_t _pi_table_entry_delete(pi_session_handle_t session_handle,
   (void)dev_id;
   (void)table_id;
   (void)entry_handle;
-  printf("_pi_table_entry_delete\n");
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
@@ -89,7 +91,7 @@ pi_status_t _pi_table_entry_delete_wkey(pi_session_handle_t session_handle,
   (void)dev_id;
   (void)table_id;
   (void)match_key;
-  printf("_pi_table_entry_delete_wkey\n");
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
@@ -102,7 +104,7 @@ pi_status_t _pi_table_entry_modify(pi_session_handle_t session_handle,
   (void)table_id;
   (void)entry_handle;
   (void)table_entry;
-  printf("_pi_table_entry_modify\n");
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
@@ -115,7 +117,7 @@ pi_status_t _pi_table_entry_modify_wkey(pi_session_handle_t session_handle,
   (void)table_id;
   (void)match_key;
   (void)table_entry;
-  printf("_pi_table_entry_modify_wkey\n");
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
@@ -126,7 +128,7 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
   (void)dev_id;
   (void)table_id;
   (void)res;
-  printf("_pi_table_fetch\n");
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
@@ -134,6 +136,6 @@ pi_status_t _pi_table_entries_fetch_done(pi_session_handle_t session_handle,
                                          pi_table_fetch_res_t *res) {
   (void)session_handle;
   (void)res;
-  printf("_pi_table_fetch_done\n");
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }

@@ -22,6 +22,8 @@
 
 #include <stdio.h>
 
+#include "func_counter.h"
+
 pi_status_t _pi_counter_read(pi_session_handle_t session_handle,
                              pi_dev_tgt_t dev_tgt, pi_p4_id_t counter_id,
                              size_t index, int flags,
@@ -32,7 +34,7 @@ pi_status_t _pi_counter_read(pi_session_handle_t session_handle,
   (void)index;
   (void)flags;
   (void)counter_data;
-  printf("%s\n", __func__);
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
@@ -45,7 +47,7 @@ pi_status_t _pi_counter_write(pi_session_handle_t session_handle,
   (void)counter_id;
   (void)index;
   (void)counter_data;
-  printf("%s\n", __func__);
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
@@ -59,7 +61,7 @@ pi_status_t _pi_counter_read_direct(pi_session_handle_t session_handle,
   (void)entry_handle;
   (void)flags;
   (void)counter_data;
-  printf("%s\n", __func__);
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
@@ -73,7 +75,7 @@ pi_status_t _pi_counter_write_direct(pi_session_handle_t session_handle,
   (void)counter_id;
   (void)entry_handle;
   (void)counter_data;
-  printf("%s\n", __func__);
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
 
@@ -85,6 +87,6 @@ pi_status_t _pi_counter_hw_sync(pi_session_handle_t session_handle,
   (void)counter_id;
   (void)cb;
   (void)cb_cookie;
-  printf("%s\n", __func__);
+  func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
