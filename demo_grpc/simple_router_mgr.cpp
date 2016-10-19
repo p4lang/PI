@@ -410,36 +410,6 @@ int
 SimpleRouterMgr::set_default_entries() {
   int rc = 0;
 
-  // {
-  //   pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, "ipv4_lpm");
-  //   pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, "_drop");
-  //   p4::Action action;
-  //   action.set_action_id(a_id);
-  //   if (set_one_default_entry(t_id, &action))
-  //     std::cout << "Error when adding default entry to 'ipv4_lpm'\n";
-  // }
-
-  // {
-  //   pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, "forward");
-  //   pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, "do_send_to_cpu");
-  //   p4::Action action;
-  //   action.set_action_id(a_id);
-  //   {
-  //     auto param = action.add_params();
-  //     param->set_param_id(
-  //         pi_p4info_action_param_id_from_name(p4info, a_id, "reason"));
-  //     param->set_value(uint_to_string(static_cast<uint16_t>(NO_ARP_ENTRY)));
-  //   }
-  //   {
-  //     auto param = action.add_params();
-  //     param->set_param_id(
-  //         pi_p4info_action_param_id_from_name(p4info, a_id, "cpu_port"));
-  //     param->set_value(uint_to_string(CPU_PORT));
-  //   }
-  //   if (set_one_default_entry(t_id, &action))
-  //     std::cout << "Error when adding default entry to 'forward'\n";
-  // }
-
   {
     pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, "forward");
     pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, "_drop");
@@ -459,47 +429,6 @@ SimpleRouterMgr::set_default_entries() {
     if (add_one_entry(&match_action_entry))
       std::cout << "Error when adding entry to 'forward'\n";
   }
-
-  // {
-  //   pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, "send_frame");
-  //   pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, "_drop");
-  //   p4::Action action;
-  //   action.set_action_id(a_id);
-  //   if (set_one_default_entry(t_id, &action))
-  //     std::cout << "Error when adding default entry to 'send_frame'\n";
-  // }
-
-  // {
-  //   pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, "decap_cpu_header");
-  //   pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info,
-  //                                                   "do_decap_cpu_header");
-  //   p4::Action action;
-  //   action.set_action_id(a_id);
-  //   if (set_one_default_entry(t_id, &action))
-  //     std::cout << "Error when adding default entry to 'decap_cpu_header'\n";
-  // }
-
-  // {
-  //   pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, "send_arp_to_cpu");
-  //   pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, "do_send_to_cpu");
-
-  //   p4::Action action;
-  //   action.set_action_id(a_id);
-  //   {
-  //     auto param = action.add_params();
-  //     param->set_param_id(
-  //         pi_p4info_action_param_id_from_name(p4info, a_id, "reason"));
-  //     param->set_value(uint_to_string(static_cast<uint16_t>(ARP_MSG)));
-  //   }
-  //   {
-  //     auto param = action.add_params();
-  //     param->set_param_id(
-  //         pi_p4info_action_param_id_from_name(p4info, a_id, "cpu_port"));
-  //     param->set_value(uint_to_string(CPU_PORT));
-  //   }
-  //   if (set_one_default_entry(t_id, &action))
-  //     std::cout << "Error when adding default entry to 'send_arp_to_cpu'\n";
-  // }
 
   return rc;
 }
