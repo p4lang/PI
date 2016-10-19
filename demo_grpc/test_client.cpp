@@ -12,11 +12,14 @@
 #include <grpc++/grpc++.h>
 
 #include "pi.grpc.pb.h"
+#include "device.grpc.pb.h"
 
 using grpc::Channel;
 using grpc::ClientContext;
 using grpc::Status;
 using grpc::CompletionQueue;
+using grpc::ClientAsyncReaderWriter;
+using grpc::ClientReaderWriter;
 
 char *opt_config_path = NULL;
 
@@ -77,109 +80,79 @@ int parse_opts(int argc, char *const argv[]) {
   return 0;
 }
 
-class PIClient {
+class DeviceClient {
  public:
-  PIClient(std::shared_ptr<Channel> channel)
-      : stub_(pirpc::PI::NewStub(channel)) {}
-
-  // Assambles the client's payload, sends it and presents the response back
-  // from the server.
-  int init(size_t num_devices) {
-    // Data we are sending to the server.
-    pirpc::InitRequest request;
-    request.set_num_devices(num_devices);
-
-    // Container for the data we expect from the server.
-    pirpc::Status rep;
-
-    // Context for the client. It could be used to convey extra information to
-    // the server and/or tweak certain RPC behaviors.
-    ClientContext context;
-
-    // The actual RPC.
-    Status status = stub_->Init(&context, request, &rep);
-
-    // Act upon its status.
-    if (status.ok()) {
-      return rep.status();
-    } else {
-      std::cout << status.error_code() << ": " << status.error_message()
-                << std::endl;
-      return -1;
-    }
-  }
+  DeviceClient(std::shared_ptr<Channel> channel)
+      : stub_(p4tmp::Device::NewStub(channel)) {}
 
   int assign_device(const char *path) {
-    pirpc::DeviceAssignRequest request;
+    p4tmp::DeviceAssignRequest request;
     request.set_device_id(0);
     pi_p4info_t *p4info;
     pi_add_config_from_file(path, PI_CONFIG_TYPE_BMV2_JSON, &p4info);
     p4infos[0] = p4info;
     char *p4info_json = pi_serialize_config(p4info, 0);
     request.set_native_p4info_json(std::string(p4info_json));
-    (*request.mutable_extras())["port"] = "9090";
-    (*request.mutable_extras())["notifications"] =
-        "ipc:///tmp/bmv2-0-notifications.ipc";
-    (*request.mutable_extras())["cpu_iface"] = "veth251";
+    auto extras = request.mutable_extras();
+    auto kv = extras->mutable_kv();
+    (*kv)["port"] = "9090";
+    (*kv)["notifications"] = "ipc:///tmp/bmv2-0-notifications.ipc";
+    (*kv)["cpu_iface"] = "veth251";
 
-    pirpc::Status rep;
+    ::google::rpc::Status rep;
     ClientContext context;
     Status status = stub_->DeviceAssign(&context, request, &rep);
     assert(status.ok());
-    return rep.status();
-  }
-
-  int route_add_test() {
-    pirpc::TableAddRequest request;
-    request.set_device_id(0);
-    const pi_p4info_t *p4info = p4infos[0];
-    pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, "ipv4_lpm");
-    pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, "set_nhop");
-    request.set_table_id(t_id);
-    request.set_overwrite(true);
-    auto match_action_entry = request.mutable_entry();
-
-    auto mf = match_action_entry->add_match_key();
-    mf->set_match_type(pirpc::TableMatchEntry_MatchField_MatchType_LPM);
-    mf->set_field_id(pi_p4info_field_id_from_name(p4info, "ipv4.dstAddr"));
-    auto mf_lpm = mf->mutable_lpm();
-    mf_lpm->set_value("\xab\xcd\01\02");
-    mf_lpm->set_prefix_len(12);
-
-    auto entry = match_action_entry->mutable_entry();
-    entry->set_entry_type(pirpc::TableEntry_EntryType_DATA);
-    auto action_entry = entry->mutable_action_data();
-    action_entry->set_action_id(a_id);
-    {
-      auto arg = action_entry->add_args();
-      arg->set_param_id(
-          pi_p4info_action_param_id_from_name(p4info, a_id, "nhop_ipv4"));
-      arg->set_value("\xab\xcd\01\02");
-    }
-    {
-      auto arg = action_entry->add_args();
-      arg->set_param_id(
-          pi_p4info_action_param_id_from_name(p4info, a_id, "port"));
-      arg->set_value(std::string("\x00\x03", 2));
-    }
-
-    pirpc::TableAddResponse rep;
-    ClientContext context;
-    Status status = stub_->TableAdd(&context, request, &rep);
-    assert(status.ok());
-    std::cout << "h : " << rep.entry_handle() << "\n";
-    return rep.status().status();
+    return rep.code();
   }
 
  private:
-  std::unique_ptr<pirpc::PI::Stub> stub_;
+  std::unique_ptr<p4tmp::Device::Stub> stub_;
   std::unordered_map<int, const pi_p4info_t *> p4infos{};
+};
+
+class PacketIOSync {
+ public:
+  PacketIOSync(std::shared_ptr<Channel> channel)
+      : stub_(p4::PI::NewStub(channel)) {
+    stream = stub_->PacketIO(&context);
+  }
+
+  void recv_packet_in() {
+    recv_thread = std::thread([this]() {
+        p4::PacketInUpdate packet_in;
+        while (stream->Read(&packet_in)) {
+          std::cout << "Received packet in bro!\n";
+        }
+    });
+  }
+
+  void send_init(int device_id) {
+    std::cout << "Sending init\n";
+    p4::PacketOutUpdate packet_out_init;
+    packet_out_init.mutable_init()->set_device_id(device_id);
+    stream->Write(packet_out_init);
+  }
+
+  void send_packet_out(std::string bytes) {
+    std::cout << "Sending packet out\n";
+    p4::PacketOutUpdate packet_out;
+    packet_out.mutable_packet()->set_payload(std::move(bytes));
+    stream->Write(packet_out);
+  }
+
+ private:
+  std::unique_ptr<p4::PI::Stub> stub_;
+  std::thread recv_thread;
+  ClientContext context;
+  std::unique_ptr<ClientReaderWriter<p4::PacketOutUpdate, p4::PacketInUpdate> >
+  stream;
 };
 
 class PIAsyncClient {
  public:
   PIAsyncClient(std::shared_ptr<Channel> channel)
-      : stub_(pirpc::PI::NewStub(channel)) {}
+      : stub_(p4::PI::NewStub(channel)) {}
 
   void sub_packet_in() {
     recv_thread = std::thread(&PIAsyncClient::AsyncRecvPacketIn, this);
@@ -189,11 +162,22 @@ class PIAsyncClient {
   // struct for keeping state and data information
   class AsyncRecvPacketInState {
    public:
-    AsyncRecvPacketInState(pirpc::PI::Stub *stub_, CompletionQueue *cq)
+    AsyncRecvPacketInState(p4::PI::Stub *stub_, CompletionQueue *cq)
         : state(State::CREATE) {
-      pirpc::Empty request;
-      response_reader = stub_->AsyncPacketInReceive(
-          &context, request, cq, static_cast<void *>(this));
+      stream = stub_->AsyncPacketIO(&context, cq, static_cast<void *>(this));
+      std::thread t(&AsyncRecvPacketInState::send_init, this);
+      t.detach();
+    }
+
+    void send_init() {
+      while (true) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::cout << "Trying to write\n";
+        p4::PacketOutUpdate packet_out_init;
+        packet_out_init.mutable_init()->set_device_id(0);
+        stream->Write(packet_out_init, (void *)1);
+        // std::this_thread::sleep_for(std::chrono::seconds(1000));
+      }
     }
 
     void proceed(bool ok) {
@@ -205,21 +189,19 @@ class PIAsyncClient {
 
       if (!ok) state = State::FINISH;
 
-      assert(status.ok());
-
       if (state == State::CREATE) {
         std::cout << "First tag\n";
         state = State::PROCESS;
       } else if (state == State::PROCESS) {
         std::cout << "Async Packet in received\n";
-        std::cout << packet_in.device_id() << "\n";
+        // std::cout << packet_in.device_id() << "\n";
       }
 
       if (state == State::PROCESS) {
-        response_reader->Read(&packet_in, static_cast<void *>(this));
+        stream->Read(&packet_in, static_cast<void *>(this));
       } else {
         assert(state == State::FINISH);
-        response_reader->Finish(&status, static_cast<void *>(this));
+        stream->Finish(&status, static_cast<void *>(this));
       }
     }
 
@@ -227,21 +209,20 @@ class PIAsyncClient {
     enum class State {CREATE, PROCESS, FINISH};
     State state;
 
-    // Container for the data we expect from the server.
-    pirpc::PacketIn packet_in;
+    p4::PacketInUpdate packet_in;
+    p4::PacketOutUpdate packet_out;
+
+    Status status;
 
     // Context for the client. It could be used to convey extra information to
     // the server and/or tweak certain RPC behaviors.
     ClientContext context;
 
-    // Storage for the status of the RPC upon completion.
-    Status status;
-
-    std::unique_ptr<grpc::ClientAsyncReader<pirpc::PacketIn> > response_reader;
+    std::unique_ptr<
+      ClientAsyncReaderWriter<p4::PacketOutUpdate, p4::PacketInUpdate> >stream;
   };
 
   void AsyncRecvPacketIn() {
-    pirpc::Empty request;
     new AsyncRecvPacketInState(stub_.get(), &cq_);
 
     void* got_tag;
@@ -249,14 +230,17 @@ class PIAsyncClient {
 
     // Block until the next result is available in the completion queue "cq".
     while (cq_.Next(&got_tag, &ok)) {
+      if (got_tag == (void *) 1) {
+        std::cout << "GOT my 1 back\n";
+        continue;
+      }
       // The tag in this example is the memory location of the call object
-      AsyncRecvPacketInState* call =
-          static_cast<AsyncRecvPacketInState *>(got_tag);
+      auto call = static_cast<AsyncRecvPacketInState *>(got_tag);
       call->proceed(ok);
     }
   }
 
-  std::unique_ptr<pirpc::PI::Stub> stub_;
+  std::unique_ptr<p4::PI::Stub> stub_;
   CompletionQueue cq_;
   std::thread recv_thread;
 };
@@ -266,15 +250,22 @@ int main(int argc, char** argv) {
   int rc;
   auto channel = grpc::CreateChannel(
       "localhost:50051", grpc::InsecureChannelCredentials());
-  PIClient client(channel);
-  rc = client.init(256);
-  std::cout << "1. Status received: " << rc << std::endl;
+  DeviceClient client(channel);
   rc = client.assign_device(opt_config_path);
-  std::cout << "2. Status received: " << rc << std::endl;
-  rc = client.route_add_test();
-  std::cout << "3. Status received: " << rc << std::endl;
-  PIAsyncClient async_client(channel);
-  async_client.sub_packet_in();
+  std::cout << "1. Status received: " << rc << std::endl;
+  // rc = client.route_add_test();
+  // std::cout << "2. Status received: " << rc << std::endl;
+  // PIAsyncClient async_client(channel);
+  // async_client.sub_packet_in();
+  PacketIOSync packet_io_client(channel);
+  packet_io_client.send_init(0);
+  std::thread t([&packet_io_client]() {
+      while (true) {
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+        packet_io_client.send_packet_out(std::string("33333"));
+      }
+  });
+  packet_io_client.recv_packet_in();
 
   while (true) std::this_thread::sleep_for(std::chrono::seconds(100));
 
