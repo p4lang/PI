@@ -13,6 +13,10 @@
  * limitations under the License.
  */
 
+#define CPU_REASON_NO_ARP_ENTRY 0
+#define CPU_REASON_ARP_MSG 1
+#define CPU_PORT 64
+
 header_type ethernet_t {
     fields {
         dstAddr : 48;
@@ -157,6 +161,7 @@ table ipv4_lpm {
         set_nhop;
         _drop;
     }
+    default_action: _drop();
     size: 1024;
 }
 
@@ -180,6 +185,7 @@ table forward {
         do_send_to_cpu;
         _drop;
     }
+    default_action: do_send_to_cpu(CPU_REASON_NO_ARP_ENTRY, CPU_PORT);
     size: 512;
 }
 
@@ -196,6 +202,7 @@ table send_frame {
         rewrite_mac;
         _drop;
     }
+    default_action: _drop();
     size: 256;
 }
 
@@ -214,12 +221,14 @@ table decap_cpu_header {
     actions {
         do_decap_cpu_header;
     }
+    default_action: do_decap_cpu_header();
 }
 
 table send_arp_to_cpu {
     actions {
         do_send_to_cpu;
     }
+    default_action: do_send_to_cpu(CPU_REASON_ARP_MSG, CPU_PORT);
 }
 
 control ingress {

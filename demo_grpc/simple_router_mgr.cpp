@@ -28,6 +28,12 @@
 #include <future>
 #include <limits>
 
+#include "google/rpc/code.pb.h"
+
+using grpc::ClientContext;
+using grpc::Status;
+using grpc::ClientReaderWriter;
+
 #define CPU_PORT static_cast<uint16_t>(64)
 
 namespace {
@@ -129,12 +135,12 @@ struct CounterQueryHandler : public MgrHandler {
   CounterQueryHandler(SimpleRouterMgr *mgr,
                       const std::string &counter_name,
                       size_t index,
-                      std::promise<pirpc::CounterData> &promise)
+                      std::promise<p4tmp::CounterData> &promise)
       : MgrHandler(mgr), counter_name(counter_name), index(index),
         promise(promise) { }
 
   void operator()() {
-    pirpc::CounterData d;
+    p4tmp::CounterData d;
     int rc = simple_router_mgr->query_counter_(counter_name, index, &d);
     if (rc) d.set_packets(std::numeric_limits<decltype(d.packets())>::max());
     promise.set_value(d);
@@ -142,7 +148,7 @@ struct CounterQueryHandler : public MgrHandler {
 
   std::string counter_name;
   size_t index;
-  std::promise<pirpc::CounterData> &promise;
+  std::promise<p4tmp::CounterData> &promise;
 };
 
 struct ConfigUpdateHandler : public MgrHandler {
@@ -160,23 +166,59 @@ struct ConfigUpdateHandler : public MgrHandler {
   std::promise<int> &promise;
 };
 
-void
-SimpleRouterMgr::init(size_t num_devices, std::shared_ptr<Channel> channel) {
-  auto stub = pirpc::PI::NewStub(channel);
-  pirpc::InitRequest request;
-  request.set_num_devices(num_devices);
-  pirpc::Status rep;
+class PacketIOSyncClient {
+ public:
+  PacketIOSyncClient(SimpleRouterMgr *simple_router_mgr,
+                     std::shared_ptr<Channel> channel)
+      : simple_router_mgr(simple_router_mgr), stub_(p4::PI::NewStub(channel)) {
+    stream = stub_->PacketIO(&context);
+  }
+
+  void recv_packet_in() {
+    recv_thread = std::thread([this]() {
+        p4::PacketInUpdate packet_in;
+        while (stream->Read(&packet_in)) {
+          std::cout << "Received packet in bro!\n";
+          const auto &packet = packet_in.packet();
+          SimpleRouterMgr::Packet pkt_copy(packet.payload().begin(),
+                                           packet.payload().end());
+          simple_router_mgr->post_event(
+              PacketHandler(simple_router_mgr, std::move(pkt_copy)));
+        }
+    });
+  }
+
+  void send_init(int device_id) {
+    std::cout << "Sending init\n";
+    p4::PacketOutUpdate packet_out_init;
+    packet_out_init.mutable_init()->set_device_id(device_id);
+    stream->Write(packet_out_init);
+  }
+
+  void send_packet_out(std::string bytes) {
+    std::cout << "Sending packet out\n";
+    p4::PacketOutUpdate packet_out;
+    packet_out.mutable_packet()->set_payload(std::move(bytes));
+    stream->Write(packet_out);
+  }
+
+ private:
+  SimpleRouterMgr *simple_router_mgr{nullptr};
+  std::unique_ptr<p4::PI::Stub> stub_;
+  std::thread recv_thread;
   ClientContext context;
-  Status status = stub->Init(&context, request, &rep);
-  assert(status.ok());
-  assert(!rep.status());
-}
+  std::unique_ptr<ClientReaderWriter<p4::PacketOutUpdate, p4::PacketInUpdate> >
+  stream;
+};
 
 SimpleRouterMgr::SimpleRouterMgr(int dev_id, pi_p4info_t *p4info,
                                  boost::asio::io_service &io_service,
                                  std::shared_ptr<Channel> channel)
     : dev_id(dev_id), p4info(p4info), io_service(io_service),
-      stub_(pirpc::PI::NewStub(channel)), async_client(this, channel) {
+      device_stub_(p4tmp::Device::NewStub(channel)),
+      pi_stub_(p4::PI::NewStub(channel)),
+      res_stub_(p4tmp::Resource::NewStub(channel)),
+      packet_io_client(new PacketIOSyncClient(this, channel)) {
 }
 
 SimpleRouterMgr::~SimpleRouterMgr() {
@@ -185,21 +227,25 @@ SimpleRouterMgr::~SimpleRouterMgr() {
 int
 SimpleRouterMgr::assign() {
   if (assigned) return 0;
-  pirpc::DeviceAssignRequest request;
+  p4tmp::DeviceAssignRequest request;
   request.set_device_id(dev_id);
   char *p4info_json = pi_serialize_config(p4info, 0);
   request.set_native_p4info_json(p4info_json);
-  free(p4info_json);
-  (*request.mutable_extras())["port"] = "9090";
-  (*request.mutable_extras())["notifications"] =
-      "ipc:///tmp/bmv2-0-notifications.ipc";
-  (*request.mutable_extras())["cpu_iface"] = "veth251";
+  auto extras = request.mutable_extras();
+  auto kv = extras->mutable_kv();
+  (*kv)["port"] = "9090";
+  (*kv)["notifications"] = "ipc:///tmp/bmv2-0-notifications.ipc";
+  (*kv)["cpu_iface"] = "veth251";
 
-  pirpc::Status rep;
+  ::google::rpc::Status rep;
   ClientContext context;
-  Status status = stub_->DeviceAssign(&context, request, &rep);
+  Status status = device_stub_->DeviceAssign(&context, request, &rep);
   assert(status.ok());
-  return rep.status();
+
+  packet_io_client->send_init(dev_id);
+  packet_io_client->recv_packet_in();
+
+  return rep.code();
 }
 
 namespace {
@@ -218,65 +264,60 @@ std::string uint_to_string<uint32_t>(uint32_t i) {
   return std::string(reinterpret_cast<char *>(&i), sizeof(i));
 };
 
-}
+}  // namespace
 
 int
-SimpleRouterMgr::add_one_entry(pi_p4_id_t t_id,
-                               pirpc::TableMatchEntry *match_action_entry,
-                               uint64_t *handle) {
-  pirpc::TableAddRequest request;
+SimpleRouterMgr::add_one_entry(p4::TableEntry *match_action_entry) {
+  p4::TableWriteRequest request;
   request.set_device_id(dev_id);
-  request.set_table_id(t_id);
-  request.set_overwrite(true);
-  request.set_allocated_entry(match_action_entry);
+  auto update = request.add_updates();
+  update->set_type(p4::TableUpdate_Type_INSERT);
+  update->set_allocated_table_entry(match_action_entry);
 
-  pirpc::TableAddResponse rep;
+  p4::TableWriteResponse rep;
   ClientContext context;
-  Status status = stub_->TableAdd(&context, request, &rep);
+  Status status = pi_stub_->TableWrite(&context, request, &rep);
   assert(status.ok());
-  *handle = rep.entry_handle();
 
-  request.release_entry();
+  update->release_table_entry();
 
-  return rep.status().status();
+  return rep.errors().size();
 }
 
 int
 SimpleRouterMgr::add_route_(uint32_t prefix, int pLen, uint32_t nhop,
-                            uint16_t port, uint64_t *handle,
-                            UpdateMode update_mode) {
+                            uint16_t port, UpdateMode update_mode) {
   int rc = 0;
   if (update_mode == UpdateMode::DEVICE_STATE) {
     pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, "ipv4_lpm");
     pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, "set_nhop");
 
-    pirpc::TableMatchEntry match_action_entry;
+    p4::TableEntry match_action_entry;
+    match_action_entry.set_table_id(t_id);
 
-    auto mf = match_action_entry.add_match_key();
-    mf->set_match_type(pirpc::TableMatchEntry_MatchField_MatchType_LPM);
+    auto mf = match_action_entry.add_match();
     mf->set_field_id(pi_p4info_field_id_from_name(p4info, "ipv4.dstAddr"));
     auto mf_lpm = mf->mutable_lpm();
     mf_lpm->set_value(uint_to_string(nhop));
     mf_lpm->set_prefix_len(pLen);
 
-    auto entry = match_action_entry.mutable_entry();
-    entry->set_entry_type(pirpc::TableEntry_EntryType_DATA);
-    auto action_entry = entry->mutable_action_data();
-    action_entry->set_action_id(a_id);
+    auto entry = match_action_entry.mutable_action();
+    auto action = entry->mutable_action();
+    action->set_action_id(a_id);
     {
-      auto arg = action_entry->add_args();
-      arg->set_param_id(
+      auto param = action->add_params();
+      param->set_param_id(
           pi_p4info_action_param_id_from_name(p4info, a_id, "nhop_ipv4"));
-      arg->set_value(uint_to_string(nhop));
+      param->set_value(uint_to_string(nhop));
     }
     {
-      auto arg = action_entry->add_args();
-      arg->set_param_id(
+      auto param = action->add_params();
+      param->set_param_id(
           pi_p4info_action_param_id_from_name(p4info, a_id, "port"));
-      arg->set_value(uint_to_string(port));
+      param->set_value(uint_to_string(port));
     }
 
-    rc = add_one_entry(t_id, &match_action_entry, handle);
+    rc = add_one_entry(&match_action_entry);
   }
 
   if (update_mode == UpdateMode::CONTROLLER_STATE) {
@@ -288,202 +329,185 @@ SimpleRouterMgr::add_route_(uint32_t prefix, int pLen, uint32_t nhop,
 
 int
 SimpleRouterMgr::add_route(uint32_t prefix, int pLen, uint32_t nhop,
-                           uint16_t port, uint64_t *handle) {
+                           uint16_t port) {
   int rc = 0;
-  rc |= add_route_(prefix, pLen, nhop, port, handle,
-                   UpdateMode::CONTROLLER_STATE);
-  rc |= add_route_(prefix, pLen, nhop, port, handle, UpdateMode::DEVICE_STATE);
+  rc |= add_route_(prefix, pLen, nhop, port, UpdateMode::CONTROLLER_STATE);
+  rc |= add_route_(prefix, pLen, nhop, port, UpdateMode::DEVICE_STATE);
   return rc;
 }
 
 int
 SimpleRouterMgr::add_arp_entry(uint32_t addr,
-                               const unsigned char (&mac_addr)[6],
-                               uint64_t *handle) {
+                               const unsigned char (&mac_addr)[6]) {
   pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, "forward");
   pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, "set_dmac");
 
-  pirpc::TableMatchEntry match_action_entry;
+  p4::TableEntry match_action_entry;
+  match_action_entry.set_table_id(t_id);
 
-  auto mf = match_action_entry.add_match_key();
-  mf->set_match_type(pirpc::TableMatchEntry_MatchField_MatchType_EXACT);
+  auto mf = match_action_entry.add_match();
   mf->set_field_id(pi_p4info_field_id_from_name(
       p4info, "routing_metadata.nhop_ipv4"));
   auto mf_exact = mf->mutable_exact();
   mf_exact->set_value(uint_to_string(addr));
 
-  auto entry = match_action_entry.mutable_entry();
-  entry->set_entry_type(pirpc::TableEntry_EntryType_DATA);
-  auto action_entry = entry->mutable_action_data();
-  action_entry->set_action_id(a_id);
+  auto entry = match_action_entry.mutable_action();
+  auto action = entry->mutable_action();
+  action->set_action_id(a_id);
   {
-    auto arg = action_entry->add_args();
-    arg->set_param_id(
+    auto param = action->add_params();
+    param->set_param_id(
         pi_p4info_action_param_id_from_name(p4info, a_id, "dmac"));
-    arg->set_value(std::string(reinterpret_cast<const char *>(mac_addr),
-                               sizeof(mac_addr)));
+    param->set_value(std::string(reinterpret_cast<const char *>(mac_addr),
+                                 sizeof(mac_addr)));
   }
 
-  return add_one_entry(t_id, &match_action_entry, handle);
+  return add_one_entry(&match_action_entry);
 }
 
 int
 SimpleRouterMgr::assign_mac_addr(uint16_t port,
-                                 const unsigned char (&mac_addr)[6],
-                                 uint64_t *handle) {
+                                 const unsigned char (&mac_addr)[6]) {
   pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, "send_frame");
   pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, "rewrite_mac");
 
-  pirpc::TableMatchEntry match_action_entry;
+  p4::TableEntry match_action_entry;
+  match_action_entry.set_table_id(t_id);
 
-  auto mf = match_action_entry.add_match_key();
-  mf->set_match_type(pirpc::TableMatchEntry_MatchField_MatchType_EXACT);
+  auto mf = match_action_entry.add_match();
   mf->set_field_id(pi_p4info_field_id_from_name(
       p4info, "standard_metadata.egress_port"));
   auto mf_exact = mf->mutable_exact();
   mf_exact->set_value(uint_to_string(port));
 
-  auto entry = match_action_entry.mutable_entry();
-  entry->set_entry_type(pirpc::TableEntry_EntryType_DATA);
-  auto action_entry = entry->mutable_action_data();
-  action_entry->set_action_id(a_id);
+  auto entry = match_action_entry.mutable_action();
+  auto action = entry->mutable_action();
+  action->set_action_id(a_id);
   {
-    auto arg = action_entry->add_args();
-    arg->set_param_id(
+    auto param = action->add_params();
+    param->set_param_id(
         pi_p4info_action_param_id_from_name(p4info, a_id, "smac"));
-    arg->set_value(std::string(reinterpret_cast<const char *>(mac_addr),
-                               sizeof(mac_addr)));
+    param->set_value(std::string(reinterpret_cast<const char *>(mac_addr),
+                                 sizeof(mac_addr)));
   }
 
-  return add_one_entry(t_id, &match_action_entry, handle);
+  return add_one_entry(&match_action_entry);
 }
 
 int
 SimpleRouterMgr::set_one_default_entry(pi_p4_id_t t_id,
-                                       pirpc::ActionData *action_entry) {
-  pirpc::TableSetDefaultRequest request;
-  request.set_device_id(dev_id);
-  request.set_table_id(t_id);
-  auto entry = request.mutable_entry();
-  entry->set_entry_type(pirpc::TableEntry_EntryType_DATA);
-  entry->set_allocated_action_data(action_entry);
-
-  pirpc::Status rep;
-  ClientContext context;
-  Status status = stub_->TableSetDefault(&context, request, &rep);
-  assert(status.ok());
-
-  entry->release_action_data();
-
-  return rep.status();
+                                       p4::Action *action) {
+  p4::TableEntry match_action_entry;
+  match_action_entry.set_table_id(t_id);
+  auto entry = match_action_entry.mutable_action();
+  entry->set_allocated_action(action);
+  auto rc = add_one_entry(&match_action_entry);
+  entry->release_action();
+  return rc;
 }
 
 int
 SimpleRouterMgr::set_default_entries() {
   int rc = 0;
 
-  {
-    pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, "ipv4_lpm");
-    pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, "_drop");
-    pirpc::ActionData action_entry;
-    action_entry.set_action_id(a_id);
-    if (set_one_default_entry(t_id, &action_entry))
-      std::cout << "Error when adding default entry to 'ipv4_lpm'\n";
-  }
+  // {
+  //   pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, "ipv4_lpm");
+  //   pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, "_drop");
+  //   p4::Action action;
+  //   action.set_action_id(a_id);
+  //   if (set_one_default_entry(t_id, &action))
+  //     std::cout << "Error when adding default entry to 'ipv4_lpm'\n";
+  // }
+
+  // {
+  //   pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, "forward");
+  //   pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, "do_send_to_cpu");
+  //   p4::Action action;
+  //   action.set_action_id(a_id);
+  //   {
+  //     auto param = action.add_params();
+  //     param->set_param_id(
+  //         pi_p4info_action_param_id_from_name(p4info, a_id, "reason"));
+  //     param->set_value(uint_to_string(static_cast<uint16_t>(NO_ARP_ENTRY)));
+  //   }
+  //   {
+  //     auto param = action.add_params();
+  //     param->set_param_id(
+  //         pi_p4info_action_param_id_from_name(p4info, a_id, "cpu_port"));
+  //     param->set_value(uint_to_string(CPU_PORT));
+  //   }
+  //   if (set_one_default_entry(t_id, &action))
+  //     std::cout << "Error when adding default entry to 'forward'\n";
+  // }
 
   {
     pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, "forward");
-    pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, "do_send_to_cpu");
-    pirpc::ActionData action_entry;
-    action_entry.set_action_id(a_id);
-    {
-      auto arg = action_entry.add_args();
-      arg->set_param_id(
-          pi_p4info_action_param_id_from_name(p4info, a_id, "reason"));
-      arg->set_value(uint_to_string(static_cast<uint16_t>(NO_ARP_ENTRY)));
-    }
-    {
-      auto arg = action_entry.add_args();
-      arg->set_param_id(
-          pi_p4info_action_param_id_from_name(p4info, a_id, "cpu_port"));
-      arg->set_value(uint_to_string(CPU_PORT));
-    }
-    if (set_one_default_entry(t_id, &action_entry))
-      std::cout << "Error when adding default entry to 'forward'\n";
-  }
-
-  {
-    pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, "forward");
     pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, "_drop");
-    pirpc::TableMatchEntry match_action_entry;
+    p4::TableEntry match_action_entry;
+    match_action_entry.set_table_id(t_id);
 
-    auto mf = match_action_entry.add_match_key();
-    mf->set_match_type(pirpc::TableMatchEntry_MatchField_MatchType_EXACT);
+    auto mf = match_action_entry.add_match();
     mf->set_field_id(pi_p4info_field_id_from_name(
         p4info, "routing_metadata.nhop_ipv4"));
     auto mf_exact = mf->mutable_exact();
     mf_exact->set_value(uint_to_string(static_cast<uint32_t>(0)));
 
-    auto entry = match_action_entry.mutable_entry();
-    entry->set_entry_type(pirpc::TableEntry_EntryType_DATA);
-    auto action_entry = entry->mutable_action_data();
-    action_entry->set_action_id(a_id);
+    auto entry = match_action_entry.mutable_action();
+    auto action = entry->mutable_action();
+    action->set_action_id(a_id);
 
-    uint64_t h;
-    if (add_one_entry(t_id, &match_action_entry, &h))
+    if (add_one_entry(&match_action_entry))
       std::cout << "Error when adding entry to 'forward'\n";
-    (void) h;
   }
 
-  {
-    pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, "send_frame");
-    pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, "_drop");
-    pirpc::ActionData action_entry;
-    action_entry.set_action_id(a_id);
-    if (set_one_default_entry(t_id, &action_entry))
-      std::cout << "Error when adding default entry to 'send_frame'\n";
-  }
+  // {
+  //   pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, "send_frame");
+  //   pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, "_drop");
+  //   p4::Action action;
+  //   action.set_action_id(a_id);
+  //   if (set_one_default_entry(t_id, &action))
+  //     std::cout << "Error when adding default entry to 'send_frame'\n";
+  // }
 
-  {
-    pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, "decap_cpu_header");
-    pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info,
-                                                    "do_decap_cpu_header");
-    pirpc::ActionData action_entry;
-    action_entry.set_action_id(a_id);
-    if (set_one_default_entry(t_id, &action_entry))
-      std::cout << "Error when adding default entry to 'decap_cpu_header'\n";
-  }
+  // {
+  //   pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, "decap_cpu_header");
+  //   pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info,
+  //                                                   "do_decap_cpu_header");
+  //   p4::Action action;
+  //   action.set_action_id(a_id);
+  //   if (set_one_default_entry(t_id, &action))
+  //     std::cout << "Error when adding default entry to 'decap_cpu_header'\n";
+  // }
 
-  {
-    pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, "send_arp_to_cpu");
-    pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, "do_send_to_cpu");
+  // {
+  //   pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, "send_arp_to_cpu");
+  //   pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, "do_send_to_cpu");
 
-    pirpc::ActionData action_entry;
-    action_entry.set_action_id(a_id);
-    {
-      auto arg = action_entry.add_args();
-      arg->set_param_id(
-          pi_p4info_action_param_id_from_name(p4info, a_id, "reason"));
-      arg->set_value(uint_to_string(static_cast<uint16_t>(ARP_MSG)));
-    }
-    {
-      auto arg = action_entry.add_args();
-      arg->set_param_id(
-          pi_p4info_action_param_id_from_name(p4info, a_id, "cpu_port"));
-      arg->set_value(uint_to_string(CPU_PORT));
-    }
-    if (set_one_default_entry(t_id, &action_entry))
-      std::cout << "Error when adding default entry to 'send_arp_to_cpu'\n";
-  }
+  //   p4::Action action;
+  //   action.set_action_id(a_id);
+  //   {
+  //     auto param = action.add_params();
+  //     param->set_param_id(
+  //         pi_p4info_action_param_id_from_name(p4info, a_id, "reason"));
+  //     param->set_value(uint_to_string(static_cast<uint16_t>(ARP_MSG)));
+  //   }
+  //   {
+  //     auto param = action.add_params();
+  //     param->set_param_id(
+  //         pi_p4info_action_param_id_from_name(p4info, a_id, "cpu_port"));
+  //     param->set_value(uint_to_string(CPU_PORT));
+  //   }
+  //   if (set_one_default_entry(t_id, &action))
+  //     std::cout << "Error when adding default entry to 'send_arp_to_cpu'\n";
+  // }
 
   return rc;
 }
 
 int
 SimpleRouterMgr::static_config_(UpdateMode update_mode) {
-  uint64_t route1_h, route2_h;
-  add_route_(0x0a00000a, 32, 0x0a00000a, 1, &route1_h, update_mode);
-  add_route_(0x0a00010a, 32, 0x0a00010a, 2, &route2_h, update_mode);
+  add_route_(0x0a00000a, 32, 0x0a00000a, 1, update_mode);
+  add_route_(0x0a00010a, 32, 0x0a00010a, 2, update_mode);
   {
     unsigned char hw1[6] = {0x00, 0xaa, 0xbb, 0x00, 0x00, 0x00};
     unsigned char hw2[6] = {0x00, 0xaa, 0xbb, 0x00, 0x00, 0x01};
@@ -503,14 +527,7 @@ SimpleRouterMgr::static_config() {
 
 void
 SimpleRouterMgr::send_packetout(const char *data, size_t size) {
-  pirpc::PacketOut request;
-  request.set_device_id(dev_id);
-  request.set_packet_data(data, size);
-  pirpc::Status rep;
-  ClientContext context;
-  Status status = stub_->PacketOutSend(&context, request, &rep);
-  assert(status.ok());
-  assert(!rep.status());
+  packet_io_client->send_packet_out(std::string(data, size));
 }
 
 void
@@ -546,8 +563,7 @@ SimpleRouterMgr::handle_arp_request(const arp_header_t &arp_header) {
 void
 SimpleRouterMgr::handle_arp_reply(const arp_header_t &arp_header) {
   uint32_t dst_addr = arp_header.proto_src_addr;
-  uint64_t h;
-  add_arp_entry(dst_addr, arp_header.hw_src_addr, &h);
+  add_arp_entry(dst_addr, arp_header.hw_src_addr);
   auto it = packet_queues.find(dst_addr);
   if (it != packet_queues.end()) {
     for (auto &p : it->second) {
@@ -629,8 +645,14 @@ SimpleRouterMgr::add_iface_(uint16_t port_num, uint32_t ip_addr,
                             UpdateMode update_mode) {
   if (update_mode == UpdateMode::CONTROLLER_STATE)
     ifaces.push_back(Iface::make(port_num, ip_addr, mac_addr));
-  if (update_mode == UpdateMode::DEVICE_STATE)
-    assign_mac_addr(port_num, ifaces.back().mac_addr, &ifaces.back().h);
+  if (update_mode == UpdateMode::DEVICE_STATE) {
+    for (const auto &iface : ifaces) {
+      if (iface.port_num == port_num) {
+        assign_mac_addr(port_num, iface.mac_addr);
+        break;
+      }
+    }
+  }
 }
 
 void
@@ -643,12 +665,12 @@ SimpleRouterMgr::add_iface(uint16_t port_num, uint32_t ip_addr,
 int
 SimpleRouterMgr::query_counter(const std::string &counter_name, size_t index,
                                uint64_t *packets, uint64_t *bytes) {
-  std::promise<pirpc::CounterData> promise;
+  std::promise<p4tmp::CounterData> promise;
   auto future = promise.get_future();
   CounterQueryHandler h(this, counter_name, index, promise);
   post_event(std::move(h));
   future.wait();
-  pirpc::CounterData counter_data = future.get();
+  p4tmp::CounterData counter_data = future.get();
   if (counter_data.packets() ==
       std::numeric_limits<decltype(counter_data.packets())>::max()) return 1;
   *packets = counter_data.packets();
@@ -658,7 +680,7 @@ SimpleRouterMgr::query_counter(const std::string &counter_name, size_t index,
 
 int
 SimpleRouterMgr::query_counter_(const std::string &counter_name, size_t index,
-                                pirpc::CounterData *counter_data) {
+                                p4tmp::CounterData *counter_data) {
   pi_p4_id_t counter_id = pi_p4info_counter_id_from_name(p4info,
                                                          counter_name.c_str());
   if (counter_id == PI_INVALID_ID) {
@@ -666,23 +688,23 @@ SimpleRouterMgr::query_counter_(const std::string &counter_name, size_t index,
     return 1;
   }
 
-  pirpc::CounterReadRequest request;
+  p4tmp::CounterReadRequest request;
   request.set_device_id(dev_id);
-  request.set_counter_id(counter_id);
-  request.set_index(index);
-  pirpc::CounterReadResponse rep;
+  request.add_counter_ids(counter_id);
+  p4tmp::CounterReadResponse rep;
   ClientContext context;
-  Status status = stub_->CounterRead(&context, request, &rep);
+  Status status = res_stub_->CounterRead(&context, request, &rep);
   assert(status.ok());
 
-  if (rep.status().status()) {
-    std::cout << "Error when trying to read counter ("
-              << rep.status().status() << ")\n";
-    return 1;
+  for (const auto &entry : rep.entries()) {
+    if (static_cast<decltype(counter_id)>(entry.counter_id()) == counter_id
+        && static_cast<decltype(index)>(entry.index()) == index) {
+      counter_data->CopyFrom(entry.data());
+      return 0;
+    }
   }
-
-  counter_data->CopyFrom(rep.data());
-  return 0;
+  std::cout << "Error when trying to read counter.\n";
+  return 1;
 }
 
 int
@@ -704,19 +726,19 @@ SimpleRouterMgr::update_config_(const std::string &config_buffer) {
   p4info = p4info_new;
   pi_destroy_config(p4info_prev);
 
-  pirpc::Status rep;
+  ::google::rpc::Status rep;
 
   {
     ClientContext context;
-    pirpc::DeviceUpdateStartRequest request;
+    p4tmp::DeviceUpdateStartRequest request;
     request.set_device_id(dev_id);
     char *p4info_json = pi_serialize_config(p4info, 0);
     request.set_native_p4info_json(p4info_json);
     free(p4info_json);
     request.set_device_data(config_buffer);
-    Status status = stub_->DeviceUpdateStart(&context, request, &rep);
+    Status status = device_stub_->DeviceUpdateStart(&context, request, &rep);
     assert(status.ok());
-    if (rep.status()) {
+    if (rep.code() != ::google::rpc::Code::OK) {
       std::cout << "Error when initiating config update\n";
       return 1;
     }
@@ -729,87 +751,15 @@ SimpleRouterMgr::update_config_(const std::string &config_buffer) {
 
   {
     ClientContext context;
-    pirpc::DeviceUpdateEndRequest request;
+    p4tmp::DeviceUpdateEndRequest request;
     request.set_device_id(dev_id);
-    Status status = stub_->DeviceUpdateEnd(&context, request, &rep);
+    Status status = device_stub_->DeviceUpdateEnd(&context, request, &rep);
     assert(status.ok());
-    if (rep.status()) {
+    if (rep.code() != ::google::rpc::Code::OK) {
       std::cout << "Error when initiating config update\n";
       return 1;
     }
   }
 
   return 0;
-}
-
-PIAsyncClient::PIAsyncClient(SimpleRouterMgr *simple_router_mgr,
-                             std::shared_ptr<Channel> channel)
-    : simple_router_mgr(simple_router_mgr),
-      stub_(pirpc::PI::NewStub(channel)) { }
-
-void
-PIAsyncClient::sub_packet_in() {
-  recv_thread = std::thread(&PIAsyncClient::AsyncRecvPacketIn, this);
-}
-
-PIAsyncClient::AsyncRecvPacketInState::AsyncRecvPacketInState(
-    SimpleRouterMgr *simple_router_mgr,
-    pirpc::PI::Stub *stub_, CompletionQueue *cq)
-    : simple_router_mgr(simple_router_mgr), state(State::CREATE) {
-  pirpc::Empty request;
-  response_reader = stub_->AsyncPacketInReceive(
-      &context, request, cq, static_cast<void *>(this));
-}
-
-void
-PIAsyncClient::AsyncRecvPacketInState::proceed(bool ok) {
-  if (state == State::FINISH) {
-    std::cout << "END!!!\n";
-    delete this;
-    return;
-  }
-
-  if (!ok) state = State::FINISH;
-
-  assert(status.ok());
-
-  if (state == State::CREATE) {
-    std::cout << "First tag\n";
-    state = State::PROCESS;
-  } else if (state == State::PROCESS) {
-    std::cout << "Async Packet in received\n";
-    SimpleRouterMgr::Packet pkt_copy(packet_in.packet_data().begin(),
-                                     packet_in.packet_data().end());
-    simple_router_mgr->post_event(
-        PacketHandler(simple_router_mgr, std::move(pkt_copy)));
-  }
-
-  if (state == State::PROCESS) {
-    response_reader->Read(&packet_in, static_cast<void *>(this));
-  } else {
-    assert(state == State::FINISH);
-    response_reader->Finish(&status, static_cast<void *>(this));
-  }
-}
-
-void
-PIAsyncClient::AsyncRecvPacketIn() {
-  pirpc::Empty request;
-  new AsyncRecvPacketInState(simple_router_mgr, stub_.get(), &cq_);
-
-  void* got_tag;
-  bool ok = false;
-
-  // Block until the next result is available in the completion queue "cq".
-  while (cq_.Next(&got_tag, &ok)) {
-    // The tag in this example is the memory location of the call object
-    AsyncRecvPacketInState* call =
-        static_cast<AsyncRecvPacketInState *>(got_tag);
-    call->proceed(ok);
-  }
-}
-
-void
-SimpleRouterMgr::start_processing_packets() {
-  async_client.sub_packet_in();
 }

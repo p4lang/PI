@@ -108,8 +108,6 @@ int main(int argc, char *argv[]) {
   auto channel = grpc::CreateChannel(
       "localhost:50051", grpc::InsecureChannelCredentials());
 
-  SimpleRouterMgr::init(256, channel);
-
   int dev_id = 0;
   SimpleRouterMgr simple_router_mgr(dev_id, p4info, io_service, channel);
   assert(!simple_router_mgr.assign());
@@ -120,8 +118,6 @@ int main(int argc, char *argv[]) {
   WebServer web_server(&simple_router_mgr);
   web_server.set_json_name(std::string(opt_config_path));
   web_server.start();
-
-  simple_router_mgr.start_processing_packets();
 
   io_service.run();
   assert(0);

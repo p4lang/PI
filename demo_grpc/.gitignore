@@ -1,7 +1,7 @@
-app
+controller
 pi_server
+pi_server_dummy
 test_client
-build
-cpp_out
-grpc_out
-!Makefile
+test_perf
+# function calls counters when using pi_server_dummy
+func_counter.txt
