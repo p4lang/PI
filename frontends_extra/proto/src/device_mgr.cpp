@@ -45,14 +45,6 @@ using Code = ::google::rpc::Code;
 // values, so for now we almost always return UNKNOWN. It is likely that we will
 // have our own error namespace (in addition to ::google::rpc::Code) anyway.
 
-class PIInitializer {
- public:
-  PIInitializer() {
-    constexpr size_t num_devices = 256;
-    assert(pi_init(num_devices, NULL) == PI_STATUS_SUCCESS);
-  }
-};
-
 class DeviceMgrImp {
  public:
   DeviceMgrImp(device_id_t device_id)
@@ -60,12 +52,12 @@ class DeviceMgrImp {
         device_tgt({static_cast<pi_dev_id_t>(device_id), 0xff}) { }
 
   ~DeviceMgrImp() {
+    pi_remove_device(device_id);
     destroy_p4info_if_needed();
   }
 
   Status init(const std::string &p4info_json,
               const p4tmp::DeviceAssignRequest_Extras &extras) {
-    static PIInitializer _init;  // temporary hack
     Status status;
     pi_status_t pi_status;
     std::vector<pi_assign_extra_t> assign_options;
@@ -231,6 +223,14 @@ class DeviceMgrImp {
     }
     status.set_code(Code::OK);
     return status;
+  }
+
+  static void init(size_t max_devices) {
+    assert(pi_init(max_devices, NULL) == PI_STATUS_SUCCESS);
+  }
+
+  static void destroy() {
+    pi_destroy();
   }
 
  private:
@@ -460,6 +460,16 @@ Status
 DeviceMgr::counter_read(p4_id_t counter_id,
                         p4tmp::CounterReadResponse *entries) const {
   return pimp->counter_read(counter_id, entries);
+}
+
+void
+DeviceMgr::init(size_t max_devices) {
+  DeviceMgrImp::init(max_devices);
+}
+
+void
+DeviceMgr::destroy() {
+  DeviceMgrImp::destroy();
 }
 
 }  // namespace proto

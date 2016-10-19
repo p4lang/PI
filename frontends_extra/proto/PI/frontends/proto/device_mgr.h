@@ -91,6 +91,10 @@ class DeviceMgr {
   Status counter_read(p4_id_t counter_id,
                       p4tmp::CounterReadResponse *entries) const;
 
+  static void init(size_t max_devices);
+
+  static void destroy();
+
  private:
   // PIMPL design
   std::unique_ptr<DeviceMgrImp> pimp;
