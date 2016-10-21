@@ -66,6 +66,9 @@ int func_counter_dump_to_file(const char *path) {
 
 void func_counter_destroy() {
   Word_t bytes_freed = 0;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic warning "-Wsign-compare"
   JLFA(bytes_freed, func_counter.array);
+#pragma GCC diagnostic pop
   (void)bytes_freed;
 }
