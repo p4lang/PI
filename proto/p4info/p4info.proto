@@ -1,0 +1,134 @@
+// Copyright 2013-present Barefoot Networks, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+import "google/protobuf/any.proto";
+
+// This package and its contents are a work-in-progress.
+
+package p4info;
+
+message P4Info {
+  repeated Field fields = 1;
+  repeated FieldList field_lists = 2;
+  repeated Table tables = 3;
+  repeated Action actions = 4;
+  repeated ActionProfile action_profiles = 5;
+  repeated Counter counters = 6;
+  repeated Meter meters = 7;
+
+  // for extern?
+  repeated google.protobuf.Any externs = 100;
+}
+
+message Common {
+  int32 id = 1;
+  string name = 2;
+  repeated string annotations = 3;
+}
+
+message Field {
+  Common common = 1;
+  int32 bitwidth = 2;
+}
+
+message FieldList {
+  Common common = 1;
+  repeated int32 field_ids = 2;
+}
+
+// TODO(antonin): define inside the Table message?
+message MatchField {
+  int32 id = 1;
+  enum MatchType {
+    UNSPECIFIED = 0;
+    VALID = 1;
+    EXACT = 2;
+    LPM = 3;
+    TERNARY = 4;
+    RANGE = 5;
+  }
+  MatchType match_type = 2;
+}
+
+message Table {
+  Common common = 1;
+  repeated MatchField match_fields = 2;
+  repeated int32 action_ids = 3;
+  // 0 (default value) means that the table does not have a const default action
+  int32 const_default_action_id = 4;
+  // P4 id of the "implementation" for this table (e.g. action profile id); 0
+  // (default value) means that the table is a regular (direct) match table
+  int32 implementation_id = 5;
+  // direct resources (if any) attached to this table
+  repeated int32 direct_resource_ids = 6;
+}
+
+message Action {
+  Common common = 1;
+  message Param {
+    // id is not really needed, as it can be inferred from the action id and the
+    // position of the parameter, but having it could be convenient.
+    int32 id = 1;
+    string name = 2;
+    int32 bitwidth = 3;
+  }
+  repeated Param params = 2;
+}
+
+message ActionProfile {
+  Common common = 1;
+  // the ids of the tables sharing this action profile; note that action profile
+  // sharing is not yet supported by the P4 software switch (bmv2)
+  repeated int32 table_ids = 2;
+  // true iff the action profile used dynamic selection
+  bool with_selector = 3;
+}
+
+message Counter {
+  Common common = 1;
+  // 0 (default value) if the counter is not direct, the id of the table to
+  // which the counter is attached otherwise
+  int32 direct_table_id = 2;
+  enum Unit {
+    UNSPECIFIED = 0;
+    BYTES = 1;
+    PACKETS = 2;
+    BOTH = 3;
+  }
+  Unit unit = 3;
+  // number of entries in the counter array
+  int64 size = 4;
+}
+
+message Meter {
+  Common common = 1;
+  // 0 (default value) if the meter is not direct, the id of the table to which
+  // the meter is attached otherwise
+  int32 direct_table_id = 2;
+  enum Unit {
+    UNSPECIFIED = 0;
+    BYTES = 1;
+    PACKETS = 2;
+  }
+  Unit unit = 3;
+  enum Type {
+    COLOR_UNAWARE = 0;  // default value
+    COLOR_AWARE = 2;
+  }
+  Type type = 4;
+  // number of entries in the meter array
+  int64 size = 5;
+}
