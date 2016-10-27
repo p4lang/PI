@@ -1,0 +1,326 @@
+{
+    "header_types": [
+        {
+            "name": "standard_metadata_t",
+            "id": 0,
+            "fields": [
+                [
+                    "ingress_port",
+                    9
+                ],
+                [
+                    "packet_length",
+                    32
+                ],
+                [
+                    "egress_spec",
+                    9
+                ],
+                [
+                    "egress_port",
+                    9
+                ],
+                [
+                    "egress_instance",
+                    32
+                ],
+                [
+                    "instance_type",
+                    32
+                ],
+                [
+                    "clone_spec",
+                    32
+                ],
+                [
+                    "_padding",
+                    5
+                ]
+            ],
+            "length_exp": null,
+            "max_length": null,
+            "pragmas": []
+        },
+        {
+            "name": "h_t",
+            "id": 1,
+            "fields": [
+                [
+                    "f32",
+                    32
+                ]
+            ],
+            "length_exp": null,
+            "max_length": null,
+            "pragmas": [
+                "my_pragma v1"
+            ]
+        }
+    ],
+    "headers": [
+        {
+            "name": "standard_metadata",
+            "id": 0,
+            "header_type": "standard_metadata_t",
+            "metadata": true,
+            "pragmas": []
+        },
+        {
+            "name": "h",
+            "id": 1,
+            "header_type": "h_t",
+            "metadata": false,
+            "pragmas": [
+                "dont_trim",
+                "my_pragma v1"
+            ]
+        },
+        {
+            "name": "hs[0]",
+            "id": 2,
+            "header_type": "h_t",
+            "metadata": false,
+            "pragmas": [
+                "dont_trim",
+                "my_pragma v1"
+            ]
+        },
+        {
+            "name": "hs[1]",
+            "id": 3,
+            "header_type": "h_t",
+            "metadata": false,
+            "pragmas": [
+                "dont_trim",
+                "my_pragma v1"
+            ]
+        },
+        {
+            "name": "hs[2]",
+            "id": 4,
+            "header_type": "h_t",
+            "metadata": false,
+            "pragmas": [
+                "dont_trim",
+                "my_pragma v1"
+            ]
+        }
+    ],
+    "header_stacks": [
+        {
+            "name": "hs",
+            "id": 0,
+            "size": 3,
+            "header_type": "h_t",
+            "header_ids": [
+                2,
+                3,
+                4
+            ],
+            "pragmas": [
+                "dont_trim",
+                "my_pragma v1"
+            ]
+        }
+    ],
+    "parsers": [
+        {
+            "name": "parser",
+            "id": 0,
+            "init_state": "start",
+            "parse_states": [
+                {
+                    "name": "start",
+                    "id": 0,
+                    "parser_ops": [],
+                    "transition_key": [
+                        {
+                            "type": "field",
+                            "value": [
+                                "standard_metadata",
+                                "ingress_port"
+                            ]
+                        }
+                    ],
+                    "transitions": [
+                        {
+                            "type": "parse_vset",
+                            "value": "pv",
+                            "mask": null,
+                            "next_state": null
+                        },
+                        {
+                            "type": "default",
+                            "value": null,
+                            "mask": null,
+                            "next_state": null
+                        }
+                    ],
+                    "pragmas": [
+                        "my_pragma v1"
+                    ]
+                }
+            ]
+        }
+    ],
+    "parse_vsets": [
+        {
+            "name": "pv",
+            "id": 0,
+            "compressed_bitwidth": 9,
+            "pragmas": [
+                "my_pragma v1"
+            ]
+        }
+    ],
+    "deparsers": [
+        {
+            "name": "deparser",
+            "id": 0,
+            "order": []
+        }
+    ],
+    "meter_arrays": [
+        {
+            "name": "m",
+            "id": 0,
+            "is_direct": false,
+            "size": 16,
+            "rate_count": 2,
+            "type": "packets",
+            "pragmas": [
+                "dont_trim",
+                "my_pragma v1"
+            ]
+        }
+    ],
+    "actions": [
+        {
+            "name": "a",
+            "id": 0,
+            "runtime_data": [],
+            "primitives": [],
+            "pragmas": [
+                "my_pragma v1"
+            ]
+        }
+    ],
+    "pipelines": [
+        {
+            "name": "ingress",
+            "id": 0,
+            "init_table": "t",
+            "tables": [
+                {
+                    "name": "t",
+                    "id": 0,
+                    "match_type": "exact",
+                    "type": "simple",
+                    "max_size": 16384,
+                    "with_counters": false,
+                    "direct_meters": null,
+                    "support_timeout": false,
+                    "key": [],
+                    "actions": [
+                        "a"
+                    ],
+                    "next_tables": {
+                        "a": null
+                    },
+                    "base_default_next": null,
+                    "pragmas": [
+                        "my_pragma v1"
+                    ]
+                }
+            ],
+            "conditionals": []
+        },
+        {
+            "name": "egress",
+            "id": 1,
+            "init_table": null,
+            "tables": [],
+            "conditionals": []
+        }
+    ],
+    "calculations": [
+        {
+            "name": "calc",
+            "id": 0,
+            "input": [
+                {
+                    "type": "field",
+                    "value": [
+                        "h",
+                        "f32"
+                    ]
+                }
+            ],
+            "algo": "csum16",
+            "pragmas": [
+                "dont_trim",
+                "my_pragma v1"
+            ]
+        }
+    ],
+    "checksums": [],
+    "learn_lists": [],
+    "field_lists": [],
+    "counter_arrays": [
+        {
+            "name": "c",
+            "id": 0,
+            "is_direct": false,
+            "size": 16,
+            "pragmas": [
+                "dont_trim"
+            ]
+        }
+    ],
+    "register_arrays": [
+        {
+            "name": "r",
+            "id": 0,
+            "bitwidth": 32,
+            "size": 16,
+            "pragmas": [
+                "dont_trim",
+                "my_pragma v1"
+            ]
+        }
+    ],
+    "force_arith": [
+        [
+            "standard_metadata",
+            "ingress_port"
+        ],
+        [
+            "standard_metadata",
+            "packet_length"
+        ],
+        [
+            "standard_metadata",
+            "egress_spec"
+        ],
+        [
+            "standard_metadata",
+            "egress_port"
+        ],
+        [
+            "standard_metadata",
+            "egress_instance"
+        ],
+        [
+            "standard_metadata",
+            "instance_type"
+        ],
+        [
+            "standard_metadata",
+            "clone_spec"
+        ],
+        [
+            "standard_metadata",
+            "_padding"
+        ]
+    ]
+}

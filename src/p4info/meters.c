@@ -30,6 +30,7 @@
 #include <string.h>
 
 typedef struct _meter_data_s {
+  p4info_common_t common;
   char *name;
   pi_p4_id_t meter_id;
   pi_p4_id_t direct_table;  // PI_INVALID_ID if not direct
@@ -59,6 +60,7 @@ static void free_meter_data(void *data) {
   _meter_data_t *meter = (_meter_data_t *)data;
   if (!meter->name) return;
   free(meter->name);
+  p4info_common_destroy(&meter->common);
 }
 
 void pi_p4info_meter_serialize(cJSON *root, const pi_p4info_t *p4info) {
@@ -74,6 +76,8 @@ void pi_p4info_meter_serialize(cJSON *root, const pi_p4info_t *p4info) {
     cJSON_AddNumberToObject(mObject, "meter_unit", meter->meter_unit);
     cJSON_AddNumberToObject(mObject, "meter_type", meter->meter_type);
     cJSON_AddNumberToObject(mObject, "size", meter->size);
+
+    p4info_common_serialize(mObject, &meter->common);
 
     cJSON_AddItemToArray(mArray, mObject);
   }
@@ -95,6 +99,7 @@ void pi_p4info_meter_add(pi_p4info_t *p4info, pi_p4_id_t meter_id,
   meter->meter_type = meter_type;
   meter->direct_table = PI_INVALID_ID;
   meter->size = size;
+  p4info_common_init(&meter->common);
 
   p4info_name_map_add(&p4info->meters->name_map, meter->name, meter_id);
 }

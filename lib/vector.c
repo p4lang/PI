@@ -29,9 +29,11 @@ struct vector_s {
   size_t size;
   size_t capacity;
   void *data;
+  VectorCleanFn clean_fn;
 };
 
-vector_t *vector_create(size_t e_size, size_t init_capacity) {
+vector_t *vector_create_wclean(size_t e_size, size_t init_capacity,
+                               VectorCleanFn clean_fn) {
   assert(e_size > 0);
   assert(init_capacity > 0);
   vector_t *v = malloc(sizeof(vector_t));
@@ -39,12 +41,12 @@ vector_t *vector_create(size_t e_size, size_t init_capacity) {
   v->size = 0;
   v->capacity = init_capacity;
   v->data = malloc(init_capacity * e_size);
+  v->clean_fn = clean_fn;
   return v;
 }
 
-void vector_destroy(vector_t *v) {
-  free(v->data);
-  free(v);
+vector_t *vector_create(size_t e_size, size_t init_capacity) {
+  return vector_create_wclean(e_size, init_capacity, NULL);
 }
 
 static void vector_expand(vector_t *v) {
@@ -84,4 +86,14 @@ void vector_remove_e(vector_t *v, void *e) {
   assert(e >= v->data);
   size_t index = (char *)e - (char *)v->data;
   vector_remove(v, index);
+}
+
+void vector_destroy(vector_t *v) {
+  if (v->clean_fn) {
+    for (size_t index = 0; index < v->size; index++) {
+      v->clean_fn(access(v, index));
+    }
+  }
+  free(v->data);
+  free(v);
 }

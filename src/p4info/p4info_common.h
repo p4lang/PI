@@ -18,23 +18,22 @@
  *
  */
 
-#ifndef PI_SRC_P4INFO_ACTIONS_INT_H_
-#define PI_SRC_P4INFO_ACTIONS_INT_H_
+#ifndef PI_SRC_P4INFO_P4INFO_COMMON_H_
+#define PI_SRC_P4INFO_P4INFO_COMMON_H_
 
-#include "PI/p4info/actions.h"
+typedef struct p4info_common_s p4info_common_t;
 
-#include "p4info_common.h"
+void p4info_common_push_back_annotation(p4info_common_t *common,
+                                        const char *annotation);
 
-void pi_p4info_action_init(pi_p4info_t *p4info, size_t num_actions);
-
-void pi_p4info_action_add(pi_p4info_t *p4info, pi_p4_id_t action_id,
-                          const char *name, size_t num_params);
-
-void pi_p4info_action_add_param(pi_p4info_t *p4info, pi_p4_id_t action_id,
-                                pi_p4_id_t param_id, const char *name,
-                                size_t bitwidth);
+char const *const *p4info_common_annotations(p4info_common_t *common,
+                                             size_t *num_annotations);
 
 typedef struct cJSON cJSON;
-void pi_p4info_action_serialize(cJSON *root, const pi_p4info_t *p4info);
+void p4info_common_serialize(cJSON *object, const p4info_common_t *common);
 
-#endif  // PI_SRC_P4INFO_ACTIONS_INT_H_
+void p4info_common_init(p4info_common_t *common);
+
+void p4info_common_destroy(p4info_common_t *common);
+
+#endif  // PI_SRC_P4INFO_P4INFO_COMMON_H_

@@ -1,3 +1,4 @@
 test*
 !*.c
 !testdata
+func_counter.txt

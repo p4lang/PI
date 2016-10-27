@@ -32,6 +32,7 @@
 #define INLINE_FIELDS 8
 
 typedef struct _field_list_data_s {
+  p4info_common_t common;
   char *name;
   pi_p4_id_t field_list_id;
   size_t num_fields;
@@ -71,6 +72,7 @@ static void free_field_list_data(void *data) {
     assert(field_list->field_ids.indirect);
     free(field_list->field_ids.indirect);
   }
+  p4info_common_destroy(&field_list->common);
 }
 
 void pi_p4info_field_list_serialize(cJSON *root, const pi_p4info_t *p4info) {
@@ -90,6 +92,8 @@ void pi_p4info_field_list_serialize(cJSON *root, const pi_p4info_t *p4info) {
       cJSON_AddItemToArray(fieldsArray, field);
     }
     cJSON_AddItemToObject(lObject, "fields", fieldsArray);
+
+    p4info_common_serialize(lObject, &field_list->common);
 
     cJSON_AddItemToArray(lArray, lObject);
   }
@@ -111,6 +115,7 @@ void pi_p4info_field_list_add(pi_p4info_t *p4info, pi_p4_id_t field_list_id,
   if (num_fields > INLINE_FIELDS) {
     field_list->field_ids.indirect = calloc(num_fields, sizeof(pi_p4_id_t));
   }
+  p4info_common_init(&field_list->common);
 
   p4info_name_map_add(&p4info->field_lists->name_map, field_list->name,
                       field_list_id);

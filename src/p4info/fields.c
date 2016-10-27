@@ -30,6 +30,7 @@
 #include <string.h>
 
 typedef struct _field_data_s {
+  p4info_common_t common;
   char *name;
   pi_p4_id_t field_id;
   size_t bitwidth;
@@ -55,6 +56,7 @@ static void free_field_data(void *data) {
   _field_data_t *field = (_field_data_t *)data;
   if (!field->name) return;
   free(field->name);
+  p4info_common_destroy(&field->common);
 }
 
 void pi_p4info_field_serialize(cJSON *root, const pi_p4info_t *p4info) {
@@ -67,6 +69,8 @@ void pi_p4info_field_serialize(cJSON *root, const pi_p4info_t *p4info) {
     cJSON_AddStringToObject(fObject, "name", field->name);
     cJSON_AddNumberToObject(fObject, "id", field->field_id);
     cJSON_AddNumberToObject(fObject, "bitwidth", field->bitwidth);
+
+    p4info_common_serialize(fObject, &field->common);
 
     cJSON_AddItemToArray(fArray, fObject);
   }
@@ -91,6 +95,7 @@ void pi_p4info_field_add(pi_p4info_t *p4info, pi_p4_id_t field_id,
   field->field_id = field_id;
   field->bitwidth = bitwidth;
   field->byte0_mask = get_byte0_mask(bitwidth);
+  p4info_common_init(&field->common);
 
   p4info_name_map_add(&p4info->fields->name_map, field->name, field_id);
 }

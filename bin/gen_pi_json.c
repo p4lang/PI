@@ -24,6 +24,7 @@
 #include <PI/p4info.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 
 // TODO(antonin): this is just temporary, to ensure no logs go to stdout
 extern void pi_logs_off();
@@ -45,9 +46,12 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  const char *native_json = pi_serialize_config(p4info, 1);
+  char *native_json = pi_serialize_config(p4info, 1);
 
   printf("%s\n", native_json);
+
+  pi_destroy_config(p4info);
+  free(native_json);
 
   return 0;
 }

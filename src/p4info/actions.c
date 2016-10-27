@@ -39,6 +39,7 @@ typedef struct {
 } _action_param_data_t;
 
 typedef struct _action_data_s {
+  p4info_common_t common;
   char *name;
   pi_p4_id_t action_id;
   size_t num_params;
@@ -125,6 +126,7 @@ static void free_action_data(void *data) {
     free(action->param_ids.indirect);
     free(action->param_data.indirect);
   }
+  p4info_common_destroy(&action->common);
 }
 
 void pi_p4info_action_serialize(cJSON *root, const pi_p4info_t *p4info) {
@@ -147,6 +149,8 @@ void pi_p4info_action_serialize(cJSON *root, const pi_p4info_t *p4info) {
     }
     cJSON_AddItemToObject(aObject, "params", pArray);
 
+    p4info_common_serialize(aObject, &action->common);
+
     cJSON_AddItemToArray(aArray, aObject);
   }
   cJSON_AddItemToObject(root, "actions", aArray);
@@ -168,6 +172,7 @@ void pi_p4info_action_add(pi_p4info_t *p4info, pi_p4_id_t action_id,
     action->param_data.indirect =
         calloc(num_params, sizeof(_action_param_data_t));
   }
+  p4info_common_init(&action->common);
 
   p4info_name_map_add(&p4info->actions->name_map, action->name, action_id);
 }

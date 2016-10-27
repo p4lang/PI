@@ -30,6 +30,7 @@
 #include <string.h>
 
 typedef struct _counter_data_s {
+  p4info_common_t common;
   char *name;
   pi_p4_id_t counter_id;
   pi_p4_id_t direct_table;                // PI_INVALID_ID if not direct
@@ -56,6 +57,7 @@ static void free_counter_data(void *data) {
   _counter_data_t *counter = (_counter_data_t *)data;
   if (!counter->name) return;
   free(counter->name);
+  p4info_common_destroy(&counter->common);
 }
 
 void pi_p4info_counter_serialize(cJSON *root, const pi_p4info_t *p4info) {
@@ -70,6 +72,8 @@ void pi_p4info_counter_serialize(cJSON *root, const pi_p4info_t *p4info) {
     cJSON_AddNumberToObject(cObject, "direct_table", counter->direct_table);
     cJSON_AddNumberToObject(cObject, "counter_unit", counter->counter_unit);
     cJSON_AddNumberToObject(cObject, "size", counter->size);
+
+    p4info_common_serialize(cObject, &counter->common);
 
     cJSON_AddItemToArray(cArray, cObject);
   }
@@ -91,6 +95,7 @@ void pi_p4info_counter_add(pi_p4info_t *p4info, pi_p4_id_t counter_id,
   counter->counter_unit = counter_unit;
   counter->direct_table = PI_INVALID_ID;
   counter->size = size;
+  p4info_common_init(&counter->common);
 
   p4info_name_map_add(&p4info->counters->name_map, counter->name, counter_id);
 }

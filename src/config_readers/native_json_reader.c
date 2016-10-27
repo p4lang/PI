@@ -19,18 +19,23 @@
  */
 
 #include "PI/pi_base.h"
-#include "p4info/actions_int.h"
-#include "p4info/tables_int.h"
-#include "p4info/fields_int.h"
-#include "p4info/act_profs_int.h"
-#include "p4info/counters_int.h"
-#include "p4info/meters_int.h"
-#include "p4info/field_list_int.h"
+#include "p4info_int.h"
 #include "PI/int/pi_int.h"
 
 #include <cJSON/cJSON.h>
 
 #include <assert.h>
+
+static void import_annotations(cJSON *object, pi_p4info_t *p4info,
+                               pi_p4_id_t id) {
+  p4info_common_t *common = pi_p4info_get_common(p4info, id);
+  cJSON *annotations = cJSON_GetObjectItem(object, "annotations");
+  if (!annotations) return;
+  cJSON *annotation;
+  cJSON_ArrayForEach(annotation, annotations) {
+    p4info_common_push_back_annotation(common, annotation->valuestring);
+  }
+}
 
 static pi_status_t read_actions(cJSON *root, pi_p4info_t *p4info) {
   assert(root);
@@ -69,6 +74,8 @@ static pi_status_t read_actions(cJSON *root, pi_p4info_t *p4info) {
                                  pi_make_action_param_id(pi_id, param_id++),
                                  param_name, param_bitwidth);
     }
+
+    import_annotations(action, p4info, pi_id);
   }
 
   return PI_STATUS_SUCCESS;
@@ -95,6 +102,8 @@ static pi_status_t read_fields(cJSON *root, pi_p4info_t *p4info) {
     size_t bitwidth = item->valueint;
 
     pi_p4info_field_add(p4info, pi_id, name, bitwidth);
+
+    import_annotations(field, p4info, pi_id);
   }
 
   return PI_STATUS_SUCCESS;
@@ -124,6 +133,8 @@ static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
     size_t num_actions = cJSON_GetArraySize(actions);
 
     pi_p4info_table_add(p4info, pi_id, name, num_match_fields, num_actions);
+
+    import_annotations(table, p4info, pi_id);
 
     cJSON *match_field;
     cJSON_ArrayForEach(match_field, match_fields) {
@@ -192,6 +203,8 @@ static pi_status_t read_act_profs(cJSON *root, pi_p4info_t *p4info) {
 
     pi_p4info_act_prof_add(p4info, pi_id, name, with_selector);
 
+    import_annotations(act_prof, p4info, pi_id);
+
     item = cJSON_GetObjectItem(act_prof, "tables");
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
     cJSON *table;
@@ -232,6 +245,8 @@ static pi_status_t read_counters(cJSON *root, pi_p4info_t *p4info) {
 
     pi_p4info_counter_add(p4info, pi_id, name, counter_unit, size);
 
+    import_annotations(counter, p4info, pi_id);
+
     if (direct_tid != PI_INVALID_ID)
       pi_p4info_counter_make_direct(p4info, pi_id, direct_tid);
   }
@@ -270,6 +285,8 @@ static pi_status_t read_meters(cJSON *root, pi_p4info_t *p4info) {
 
     pi_p4info_meter_add(p4info, pi_id, name, meter_unit, meter_type, size);
 
+    import_annotations(meter, p4info, pi_id);
+
     if (direct_tid != PI_INVALID_ID)
       pi_p4info_meter_make_direct(p4info, pi_id, direct_tid);
   }
@@ -299,6 +316,9 @@ static pi_status_t read_field_lists(cJSON *root, pi_p4info_t *p4info) {
     size_t num_fields = cJSON_GetArraySize(fields);
 
     pi_p4info_field_list_add(p4info, pi_id, name, num_fields);
+
+    import_annotations(field_list, p4info, pi_id);
+
     cJSON *field;
     cJSON_ArrayForEach(field, fields) {
       pi_p4_id_t id = field->valueint;

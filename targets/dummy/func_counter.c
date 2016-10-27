@@ -24,15 +24,11 @@
 
 #include <stdio.h>
 
-typedef struct {
-  Pvoid_t array;
-} func_counter_t;
+typedef struct { Pvoid_t array; } func_counter_t;
 
 static func_counter_t func_counter;
 
-void func_counter_init() {
-  func_counter.array = (Pvoid_t)NULL;
-}
+void func_counter_init() { func_counter.array = (Pvoid_t)NULL; }
 
 void func_counter_increment(const char *func_name) {
 #ifdef DEBUG
