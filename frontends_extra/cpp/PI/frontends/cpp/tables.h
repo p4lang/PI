@@ -57,7 +57,7 @@ class MatchKey {
   typename std::enable_if<std::is_integral<T>::value, error_code_t>::type
   set_ternary(pi_p4_id_t f_id, T key, T mask);
   error_code_t
-  set_ternary(pi_p4_id_t f_id, const char *key, char *mask, size_t s);
+  set_ternary(pi_p4_id_t f_id, const char *key, const char *mask, size_t s);
 
  private:
   template <typename T>

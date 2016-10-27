@@ -264,6 +264,12 @@ class DeviceMgrImp {
                              mf.lpm().value().size(), mf.lpm().prefix_len());
           break;
         case p4::FieldMatch::kTernary:
+          if (mf.ternary().value().size() != mf.ternary().mask().size())
+            return Code::INVALID_ARGUMENT;
+          match_key->set_ternary(mf.field_id(), mf.ternary().value().data(),
+                                 mf.ternary().mask().data(),
+                                 mf.ternary().value().size());
+          break;
         case p4::FieldMatch::kRange:
         case p4::FieldMatch::kValid:
           return Code::UNIMPLEMENTED;

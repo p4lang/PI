@@ -248,7 +248,8 @@ template error_code_t MatchKey::set_ternary<int64_t>(pi_p4_id_t, int64_t,
                                                      int64_t);
 
 error_code_t
-MatchKey::set_ternary(pi_p4_id_t f_id, const char *key, char *mask, size_t s) {
+MatchKey::set_ternary(pi_p4_id_t f_id, const char *key, const char *mask,
+                      size_t s) {
   size_t f_index = pi_p4info_table_match_field_index(p4info, table_id, f_id);
   size_t offset = offsets.at(f_index);
   size_t written = 0;
