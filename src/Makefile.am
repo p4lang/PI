@@ -28,7 +28,10 @@ p4info/p4info.c \
 p4info/p4info_array.h \
 p4info/p4info_array.c \
 p4info/p4info_name_map.h \
-p4info/p4info_name_map.c
+p4info/p4info_name_map.c \
+p4info/p4info_common.h \
+p4info/p4info_common.c \
+p4info_int.h
 
 libpip4info_la_LIBADD = \
 $(top_builddir)/third_party/cJSON/libpicjson.la \

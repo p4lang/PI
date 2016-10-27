@@ -27,6 +27,11 @@ typedef struct vector_s vector_t;
 
 vector_t *vector_create(size_t e_size, size_t init_capacity);
 
+typedef void (*VectorCleanFn)(void *e);
+
+vector_t *vector_create_wclean(size_t e_size, size_t init_capacity,
+                               VectorCleanFn clean_fn);
+
 void vector_destroy(vector_t *v);
 
 void vector_push_back(vector_t *v, void *e);

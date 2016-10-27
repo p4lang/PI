@@ -42,6 +42,7 @@ typedef struct {
 } _match_field_data_t;
 
 typedef struct _table_data_s {
+  p4info_common_t common;
   char *name;
   pi_p4_id_t table_id;
   size_t num_match_fields;
@@ -129,6 +130,7 @@ static void free_table_data(void *data) {
     assert(table->action_ids.indirect);
     free(table->action_ids.indirect);
   }
+  p4info_common_destroy(&table->common);
 }
 
 void pi_p4info_table_serialize(cJSON *root, const pi_p4info_t *p4info) {
@@ -172,6 +174,8 @@ void pi_p4info_table_serialize(cJSON *root, const pi_p4info_t *p4info) {
     }
     cJSON_AddItemToObject(tObject, "direct_resources", directresArray);
 
+    p4info_common_serialize(tObject, &table->common);
+
     cJSON_AddItemToArray(tArray, tObject);
   }
   cJSON_AddItemToObject(root, "tables", tArray);
@@ -203,6 +207,8 @@ void pi_p4info_table_add(pi_p4info_t *p4info, pi_p4_id_t table_id,
   table->const_default_action_id = PI_INVALID_ID;
   table->implementation = PI_INVALID_ID;
   table->num_direct_resources = 0;
+
+  p4info_common_init(&table->common);
 
   p4info_name_map_add(&p4info->tables->name_map, table->name, table_id);
 }

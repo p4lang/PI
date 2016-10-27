@@ -119,12 +119,19 @@ TEST(ReadAndSerialize, L2Switch) {
                      "l2_switch.json");
 }
 
+TEST(ReadAndSerialize, Pragmas) {
+  read_and_serialize(TESTDATADIR
+                     "/"
+                     "pragmas.json");
+}
+
 TEST_GROUP_RUNNER(ReadAndSerialize) {
   RUN_TEST_CASE(ReadAndSerialize, SimpleRouter);
   RUN_TEST_CASE(ReadAndSerialize, Valid);
   RUN_TEST_CASE(ReadAndSerialize, Ecmp);
   RUN_TEST_CASE(ReadAndSerialize, Stats);
   RUN_TEST_CASE(ReadAndSerialize, L2Switch);
+  RUN_TEST_CASE(ReadAndSerialize, Pragmas);
 }
 
 void test_bmv2_json_reader() {

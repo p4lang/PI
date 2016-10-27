@@ -32,6 +32,7 @@
 #define MAX_TABLES 8
 
 typedef struct _act_prof_data_s {
+  p4info_common_t common;
   char *name;
   pi_p4_id_t act_prof_id;
   size_t num_tables;
@@ -59,6 +60,7 @@ static void free_act_prof_data(void *data) {
   _act_prof_data_t *act_prof = (_act_prof_data_t *)data;
   if (!act_prof->name) return;
   free(act_prof->name);
+  p4info_common_destroy(&act_prof->common);
 }
 
 void pi_p4info_act_prof_serialize(cJSON *root, const pi_p4info_t *p4info) {
@@ -80,6 +82,8 @@ void pi_p4info_act_prof_serialize(cJSON *root, const pi_p4info_t *p4info) {
 
     cJSON_AddBoolToObject(aObject, "with_selector", act_prof->with_selector);
 
+    p4info_common_serialize(aObject, &act_prof->common);
+
     cJSON_AddItemToArray(aArray, aObject);
   }
   cJSON_AddItemToObject(root, "act_profs", aArray);
@@ -98,6 +102,7 @@ void pi_p4info_act_prof_add(pi_p4info_t *p4info, pi_p4_id_t act_prof_id,
   act_prof->act_prof_id = act_prof_id;
   act_prof->num_tables = 0;
   act_prof->with_selector = with_selector;
+  p4info_common_init(&act_prof->common);
 
   p4info_name_map_add(&p4info->act_profs->name_map, act_prof->name,
                       act_prof_id);

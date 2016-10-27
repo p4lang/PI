@@ -19,13 +19,7 @@
  */
 
 #include "PI/pi_base.h"
-#include "p4info/actions_int.h"
-#include "p4info/tables_int.h"
-#include "p4info/fields_int.h"
-#include "p4info/act_profs_int.h"
-#include "p4info/counters_int.h"
-#include "p4info/meters_int.h"
-#include "p4info/field_list_int.h"
+#include "p4info_int.h"
 #include "utils/logging.h"
 #include "PI/int/pi_int.h"
 
@@ -35,6 +29,16 @@
 #include <stdio.h>
 #include <assert.h>
 #include <string.h>
+
+static void import_pragmas(cJSON *object, pi_p4info_t *p4info, pi_p4_id_t id) {
+  p4info_common_t *common = pi_p4info_get_common(p4info, id);
+  cJSON *pragmas = cJSON_GetObjectItem(object, "pragmas");
+  if (!pragmas) return;
+  cJSON *pragma;
+  cJSON_ArrayForEach(pragma, pragmas) {
+    p4info_common_push_back_annotation(common, pragma->valuestring);
+  }
+}
 
 static pi_status_t read_actions(cJSON *root, pi_p4info_t *p4info) {
   assert(root);
@@ -79,6 +83,8 @@ static pi_status_t read_actions(cJSON *root, pi_p4info_t *p4info) {
                                  pi_make_action_param_id(pi_id, param_id++),
                                  param_name, param_bitwidth);
     }
+
+    import_pragmas(action, p4info, pi_id);
   }
 
   return PI_STATUS_SUCCESS;
@@ -153,7 +159,10 @@ static pi_status_t read_fields(cJSON *root, pi_p4info_t *p4info) {
       if (n <= 0 || (size_t)n >= sizeof(fname)) return PI_STATUS_BUFFER_ERROR;
       size_t bitwidth = (size_t)cJSON_GetArrayItem(field, 1)->valueint;
       PI_LOG_DEBUG("Adding field '%s'\n", fname);
-      pi_p4info_field_add(p4info, pi_make_field_id(id++), fname, bitwidth);
+      pi_p4_id_t fid = pi_make_field_id(id++);
+      pi_p4info_field_add(p4info, fid, fname, bitwidth);
+
+      import_pragmas(header, p4info, fid);
     }
     // Adding a field to represent validity, don't know how temporary this is
     {
@@ -257,6 +266,8 @@ static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
       PI_LOG_DEBUG("Adding table '%s'\n", name);
       pi_p4info_table_add(p4info, pi_id, name, num_match_fields, num_actions);
 
+      import_pragmas(table, p4info, pi_id);
+
       cJSON *match_field;
       cJSON_ArrayForEach(match_field, json_match_key) {
         item = cJSON_GetObjectItem(match_field, "match_type");
@@ -359,6 +370,8 @@ static pi_status_t read_counters(cJSON *root, pi_p4info_t *p4info) {
       pi_p4info_counter_make_direct(p4info, pi_id, direct_tid);
       pi_p4info_table_add_direct_resource(p4info, direct_tid, pi_id);
     }
+
+    import_pragmas(counter, p4info, pi_id);
   }
 
   return PI_STATUS_SUCCESS;
@@ -418,6 +431,8 @@ static pi_status_t read_meters(cJSON *root, pi_p4info_t *p4info) {
       pi_p4info_meter_make_direct(p4info, pi_id, direct_tid);
       pi_p4info_table_add_direct_resource(p4info, direct_tid, pi_id);
     }
+
+    import_pragmas(meter, p4info, pi_id);
   }
 
   return PI_STATUS_SUCCESS;
@@ -466,6 +481,8 @@ static pi_status_t read_field_lists(cJSON *root, pi_p4info_t *p4info) {
         pi_p4info_field_list_add_field(p4info, pi_id, f_id);
       }
     }
+
+    import_pragmas(field_list, p4info, pi_id);
   }
 
   return PI_STATUS_SUCCESS;

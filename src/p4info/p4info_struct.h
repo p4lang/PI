@@ -22,6 +22,7 @@
 #define PI_SRC_P4INFO_P4INFO_STRUCT_H_
 
 #include <PI/int/pi_int.h>
+#include "vector.h"
 
 #include <stddef.h>
 
@@ -29,6 +30,7 @@
 
 #include "p4info_array.h"
 #include "p4info_name_map.h"
+#include "p4info_common.h"
 
 typedef struct cJSON cJSON;
 
@@ -36,6 +38,10 @@ typedef void (*P4InfoSerializeFn)(cJSON *root, const pi_p4info_t *p4info);
 
 // best that we can do?
 typedef const char *(*P4InfoRetrieveNameFn)(const void *);
+
+struct p4info_common_s {
+  vector_t *annotations;
+};
 
 typedef struct {
   int is_init;

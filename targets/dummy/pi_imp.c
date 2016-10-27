@@ -30,8 +30,10 @@
 static char *counter_dump_path = NULL;
 
 pi_status_t _pi_init(void *extra) {
-  if (extra) counter_dump_path = strdup((const char *)extra);
-  else counter_dump_path = strdup("func_counter.txt");
+  if (extra)
+    counter_dump_path = strdup((const char *)extra);
+  else
+    counter_dump_path = strdup("func_counter.txt");
   func_counter_init();
   func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;

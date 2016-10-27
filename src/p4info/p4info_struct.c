@@ -31,3 +31,11 @@ void p4info_init_res(pi_p4info_t *p4info, pi_res_type_id_t res_type, size_t num,
   p4info_array_create(&res->arr, e_size, num);
   res->name_map = (p4info_name_map_t)NULL;
 }
+
+// C1x §6.7.2.1.13: "A pointer to a structure object, suitably converted, points
+// to its initial member ... and vice versa. There may be unnamed padding within
+// as structure object, but not at its beginning."
+p4info_common_t *pi_p4info_get_common(pi_p4info_t *p4info, pi_p4_id_t id) {
+  void *e = p4info_get_at(p4info, id);
+  return (p4info_common_t *)e;
+}
