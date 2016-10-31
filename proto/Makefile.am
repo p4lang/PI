@@ -14,7 +14,7 @@ $(srcdir)/google/rpc/code.proto \
 $(srcdir)/device.proto \
 $(srcdir)/resource.proto
 
-EXTRA_DIST = $(protos) google
+EXTRA_DIST = $(protos)
 
 proto_cpp_files = \
 cpp_out/pi.pb.cc \

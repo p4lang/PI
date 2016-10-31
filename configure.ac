@@ -43,6 +43,9 @@ AS_IF([test "$with_proto" = yes && test "$want_fe_cpp" = no], [
 AM_CONDITIONAL([WITH_FE_CPP], [test "$want_fe_cpp" = yes])
 
 AM_CONDITIONAL([WITH_PROTO], [test "$with_proto" = yes])
+# may add other conditions later for GTEST to be compiled if we use GTEST
+# somewhere else
+AM_CONDITIONAL([WITH_GTEST], [test "$with_proto" = yes])
 
 AC_ARG_WITH([internal-rpc],
     AS_HELP_STRING([--with-internal-rpc],
