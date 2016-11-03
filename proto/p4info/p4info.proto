@@ -21,8 +21,8 @@ import "google/protobuf/any.proto";
 package p4info;
 
 message P4Info {
-  repeated Field fields = 1;
-  repeated FieldList field_lists = 2;
+  repeated HeaderField header_fields = 1;
+  repeated HeaderFieldList header_field_lists = 2;
   repeated Table tables = 3;
   repeated Action actions = 4;
   repeated ActionProfile action_profiles = 5;
@@ -34,24 +34,32 @@ message P4Info {
 }
 
 message Common {
+  // ids share the same number-space; e.g. table ids cannot overlap with counter
+  // ids. Even though this is irrelevant to this proto definition, the ids are
+  // allocated in such a way that it is possible based on an id to deduce the
+  // resource type (e.g. table, action, counter, ...). This means that code
+  // using these ids can detect if the wrong resource type is used
+  // somewhere. This also means that ids of different types can be mixed
+  // (e.g. direct resource list for a table) without ambiguity. Note that id 0
+  // is reserved and means "invalid id".
   int32 id = 1;
   string name = 2;
   repeated string annotations = 3;
 }
 
-message Field {
+message HeaderField {
   Common common = 1;
   int32 bitwidth = 2;
 }
 
-message FieldList {
+message HeaderFieldList {
   Common common = 1;
-  repeated int32 field_ids = 2;
+  repeated int32 header_field_ids = 2;
 }
 
 // TODO(antonin): define inside the Table message?
 message MatchField {
-  int32 id = 1;
+  int32 header_field_id = 1;
   enum MatchType {
     UNSPECIFIED = 0;
     VALID = 1;
@@ -102,11 +110,13 @@ message Counter {
   // 0 (default value) if the counter is not direct, the id of the table to
   // which the counter is attached otherwise
   int32 direct_table_id = 2;
+  // in the current P4 spec the attribute is called 'type', I believe 'unit' is
+  // more appropriate for this and I hope to see the spec updated
   enum Unit {
     UNSPECIFIED = 0;
     BYTES = 1;
     PACKETS = 2;
-    BOTH = 3;
+    BOTH = 3;  // not part of the P4 spec yet but will be in the future
   }
   Unit unit = 3;
   // number of entries in the counter array
@@ -118,15 +128,17 @@ message Meter {
   // 0 (default value) if the meter is not direct, the id of the table to which
   // the meter is attached otherwise
   int32 direct_table_id = 2;
+  // in the current P4 spec the attribute is called 'type', I believe 'unit' is
+  // more appropriate for this and I hope to see the spec updated
   enum Unit {
     UNSPECIFIED = 0;
     BYTES = 1;
     PACKETS = 2;
   }
   Unit unit = 3;
-  enum Type {
+  enum Type {  // not part of the P4 spec yet but will be in the future
     COLOR_UNAWARE = 0;  // default value
-    COLOR_AWARE = 2;
+    COLOR_AWARE = 1;
   }
   Type type = 4;
   // number of entries in the meter array
