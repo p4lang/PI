@@ -35,8 +35,30 @@ AS_IF([test "x$GRPC_CPP_PLUGIN" = x], [
     AC_MSG_ERROR([grpc_cpp_plugin not found])
 ])
 
+want_bmv2=no
+AC_ARG_WITH([bmv2],
+    AS_HELP_STRING([--with-bmv2], [Build for bmv2 target]),
+    [want_bmv2=yes], [])
+
+with_proto_demo=no
+AS_IF([test "$want_bmv2" = yes], [
+    with_proto_demo=yes
+    AC_CHECK_LIB([microhttpd], [MHD_start_daemon], [], [
+        AC_MSG_WARN([microhttpd library not found, will not compile demo])
+        with_proto_demo=no
+    ])
+    # TODO(antonin): demo also uses boost_system
+])
+
+AM_CONDITIONAL([WITH_PROTO_DEMO], [test "$with_proto_demo" = yes])
+
 # Generate makefiles
 AC_CONFIG_FILES([Makefile
-                 p4info/Makefile])
+                 p4info/Makefile
+                 demo_grpc/Makefile])
 
 AC_OUTPUT
+
+AS_ECHO("")
+AS_ECHO("Features recap ......................................")
+AS_ECHO("Compile demo_grpc ............................ : $with_proto_demo")
