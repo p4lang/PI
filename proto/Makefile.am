@@ -1,5 +1,7 @@
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 
+SUBDIRS = . p4info
+
 PROTOFLAGS = -I.
 
 # This makefile relies on the symbolic link that we create google ->

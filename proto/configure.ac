@@ -36,6 +36,7 @@ AS_IF([test "x$GRPC_CPP_PLUGIN" = x], [
 ])
 
 # Generate makefiles
-AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([Makefile
+                 p4info/Makefile])
 
 AC_OUTPUT

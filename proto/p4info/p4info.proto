@@ -1,0 +1,157 @@
+// Copyright 2013-present Barefoot Networks, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+import "google/protobuf/any.proto";
+
+// This package and its contents are a work-in-progress.
+
+package p4.config;
+
+message P4Info {
+  repeated HeaderField header_fields = 1;
+  repeated HeaderFieldList header_field_lists = 2;
+  repeated Table tables = 3;
+  repeated Action actions = 4;
+  repeated ActionProfile action_profiles = 5;
+  repeated Counter counters = 6;
+  repeated Meter meters = 7;
+
+  // for extern?
+  repeated google.protobuf.Any externs = 100;
+}
+
+message Preamble {
+  // ids share the same number-space; e.g. table ids cannot overlap with counter
+  // ids. Even though this is irrelevant to this proto definition, the ids are
+  // allocated in such a way that it is possible based on an id to deduce the
+  // resource type (e.g. table, action, counter, ...). This means that code
+  // using these ids can detect if the wrong resource type is used
+  // somewhere. This also means that ids of different types can be mixed
+  // (e.g. direct resource list for a table) without ambiguity. Note that id 0
+  // is reserved and means "invalid id".
+  int32 id = 1;
+  // fully qualified name of the P4 object
+  string name = 2;
+  repeated string annotations = 3;
+}
+
+message HeaderField {
+  Preamble preamble = 1;
+  int32 bitwidth = 2;
+}
+
+message HeaderFieldList {
+  Preamble preamble = 1;
+  repeated int32 header_field_ids = 2;
+}
+
+// TODO(antonin): define inside the Table message?
+message MatchField {
+  int32 header_field_id = 1;
+  enum MatchType {
+    UNSPECIFIED = 0;
+    VALID = 1;
+    EXACT = 2;
+    LPM = 3;
+    TERNARY = 4;
+    RANGE = 5;
+  }
+  MatchType match_type = 2;
+}
+
+message Table {
+  Preamble preamble = 1;
+  repeated MatchField match_fields = 2;
+  // even when the table is indirect (see implementation_id) below, this field
+  // includes all possible actions for the table
+  repeated int32 action_ids = 3;
+  // 0 (default value) means that the table does not have a const default action
+  int32 const_default_action_id = 4;
+  // P4 id of the "implementation" for this table (e.g. action profile id); 0
+  // (default value) means that the table is a regular (direct) match table. As
+  // of today, only action profiles are supported but other table
+  // implementations may be added in the future
+  int32 implementation_id = 5;
+  // ids of the direct resources (if any) attached to this table; for now this
+  // includes only direct counters and direct meters, but other resources may be
+  // added in the future
+  repeated int32 direct_resource_ids = 6;
+  int64 size = 7;  // number of entries in table
+}
+
+message Action {
+  Preamble preamble = 1;
+  message Param {
+    // id is not really needed, as it can be inferred from the action id and the
+    // position of the parameter, but having it could be convenient.
+    int32 id = 1;
+    string name = 2;
+    int32 bitwidth = 3;
+  }
+  repeated Param params = 2;
+}
+
+message ActionProfile {
+  Preamble preamble = 1;
+  // the ids of the tables sharing this action profile; note that action profile
+  // sharing is not yet supported by the P4 software switch (bmv2)
+  repeated int32 table_ids = 2;
+  // true iff the action profile used dynamic selection
+  bool with_selector = 3;
+  int64 size = 4;  // number of entries in action profile
+}
+
+message Counter {
+  Preamble preamble = 1;
+  // 0 (default value) if the counter is not direct, the id of the table to
+  // which the counter is attached otherwise
+  int32 direct_table_id = 2;
+  // in the current P4 spec the attribute is called 'type', I believe 'unit' is
+  // more appropriate for this and I hope to see the spec updated
+  enum Unit {
+    UNSPECIFIED = 0;
+    BYTES = 1;
+    PACKETS = 2;
+    BOTH = 3;  // not part of the P4 spec yet but will be in the future
+  }
+  Unit unit = 3;
+  // number of entries in the counter array, for direct counters this is equal
+  // to the corresponding table's size
+  int64 size = 4;
+}
+
+message Meter {
+  Preamble preamble = 1;
+  // 0 (default value) if the meter is not direct, the id of the table to which
+  // the meter is attached otherwise
+  int32 direct_table_id = 2;
+  // in the current P4 spec the attribute is called 'type', I believe 'unit' is
+  // more appropriate for this and I hope to see the spec updated
+  enum Unit {
+    UNSPECIFIED = 0;
+    BYTES = 1;
+    PACKETS = 2;
+  }
+  Unit unit = 3;
+  enum Type {  // not part of the P4 spec yet but will be in the future
+    COLOR_UNAWARE = 0;  // default value
+    COLOR_AWARE = 1;
+  }
+  Type type = 4;
+  // number of entries in the meter array, for direct meters this is equal to
+  // the corresponding table's size
+  int64 size = 5;
+}
