@@ -89,6 +89,7 @@ message Table {
   // includes only direct counters and direct meters, but other resources may be
   // added in the future
   repeated int32 direct_resource_ids = 6;
+  int64 size = 7;  // number of entries in table
 }
 
 message Action {
@@ -110,6 +111,7 @@ message ActionProfile {
   repeated int32 table_ids = 2;
   // true iff the action profile used dynamic selection
   bool with_selector = 3;
+  int64 size = 4;  // number of entries in action profile
 }
 
 message Counter {
@@ -126,7 +128,8 @@ message Counter {
     BOTH = 3;  // not part of the P4 spec yet but will be in the future
   }
   Unit unit = 3;
-  // number of entries in the counter array
+  // number of entries in the counter array, for direct counters this is equal
+  // to the corresponding table's size
   int64 size = 4;
 }
 
@@ -148,6 +151,7 @@ message Meter {
     COLOR_AWARE = 1;
   }
   Type type = 4;
-  // number of entries in the meter array
+  // number of entries in the meter array, for direct meters this is equal to
+  // the corresponding table's size
   int64 size = 5;
 }
