@@ -1,6 +1,10 @@
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 
-SUBDIRS = . p4info
+if WITH_PROTO_DEMO
+MAYBE_PROTO_DEMO = demo_grpc
+endif
+
+SUBDIRS = . p4info $(MAYBE_PROTO_DEMO)
 
 PROTOFLAGS = -I.
 

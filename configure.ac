@@ -60,18 +60,6 @@ AC_ARG_WITH([cli],
 
 AM_CONDITIONAL([WITH_CLI], [test "$with_cli" = yes])
 
-with_proto_demo=no
-AS_IF([test "$with_proto" = yes && test "$want_bmv2" = yes], [
-    with_proto_demo=yes
-    AC_CHECK_LIB([microhttpd], [MHD_start_daemon], [], [
-        AC_MSG_WARN([microhttpd library not found, will not compile demo])
-        with_proto_demo=no
-    ])
-    # TODO(antonin): demo also uses boost_system
-])
-
-AM_CONDITIONAL([WITH_PROTO_DEMO], [test "$with_proto_demo" = yes])
-
 LT_INIT
 
 AC_CONFIG_MACRO_DIR([m4])
@@ -167,7 +155,6 @@ AC_CONFIG_FILES([Makefile
                  generators/pd/Makefile
                  include/Makefile
                  lib/Makefile
-                 demo_grpc/Makefile
                  src/Makefile
                  targets/Makefile
                  targets/dummy/Makefile
