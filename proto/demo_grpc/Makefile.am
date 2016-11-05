@@ -2,8 +2,7 @@ ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 
 AM_CPPFLAGS = \
 -I$(top_srcdir)/../include \
--I$(top_srcdir)/../frontends_extra/proto \
--I$(top_srcdir)/../frontends_extra/proto \
+-I$(top_srcdir)/frontend \
 -I$(top_builddir)/cpp_out \
 -I$(top_builddir)/grpc_out
 
@@ -27,7 +26,7 @@ web_server.h \
 app.cpp
 
 pi_server_LDADD = \
-$(top_builddir)/../frontends_extra/proto/libpifeproto.la \
+$(top_builddir)/frontend/libpifeproto.la \
 $(top_builddir)/../frontends_extra/cpp/libpi_fecpp.la \
 $(top_builddir)/libpiproto.la \
 $(top_builddir)/../src/libpiall.la \
@@ -36,7 +35,7 @@ $(top_builddir)/../targets/bmv2/libpi_bmv2.la \
 $(PROTOBUF_LIBS) $(GRPC_LIBS)
 
 pi_server_dummy_LDADD = \
-$(top_builddir)/../frontends_extra/proto/libpifeproto.la \
+$(top_builddir)/frontend/libpifeproto.la \
 $(top_builddir)/../frontends_extra/cpp/libpi_fecpp.la \
 $(top_builddir)/libpiproto.la \
 $(top_builddir)/../src/libpiall.la \

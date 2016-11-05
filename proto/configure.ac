@@ -55,6 +55,7 @@ AM_CONDITIONAL([WITH_PROTO_DEMO], [test "$with_proto_demo" = yes])
 # Generate makefiles
 AC_CONFIG_FILES([Makefile
                  p4info/Makefile
+                 frontend/Makefile
                  demo_grpc/Makefile])
 
 AC_OUTPUT
