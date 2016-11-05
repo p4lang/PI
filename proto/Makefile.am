@@ -6,21 +6,29 @@ endif
 
 SUBDIRS = . p4info frontend $(MAYBE_PROTO_DEMO)
 
-PROTOFLAGS = -I.
+PROTOFLAGS = -I$(abs_srcdir)
 
 # This makefile relies on the symbolic link that we create google ->
 # googleapis/google. Without it, we run into some issues with `protoc`. An
 # alternative would be to cd into googleapis when compiling the protos there; we
 # will switch to that alternative if the need arises.
 
+# Absolute paths are needed here for 'make distcheck' to work properly
 protos = \
-$(srcdir)/pi.proto \
-$(srcdir)/google/rpc/status.proto \
-$(srcdir)/google/rpc/code.proto \
-$(srcdir)/device.proto \
-$(srcdir)/resource.proto
+$(abs_srcdir)/pi.proto \
+$(abs_srcdir)/google/rpc/status.proto \
+$(abs_srcdir)/google/rpc/code.proto \
+$(abs_srcdir)/device.proto \
+$(abs_srcdir)/resource.proto
 
-EXTRA_DIST = $(protos)
+# Somehow, using an absolute path above prevents me from using EXTRA_DIST =
+# $(protos)
+EXTRA_DIST = \
+pi.proto \
+google/rpc/status.proto \
+google/rpc/code.proto \
+device.proto \
+resource.proto
 
 proto_cpp_files = \
 cpp_out/pi.pb.cc \
