@@ -1,10 +1,13 @@
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 
-PROTOFLAGS = -I.
+PROTOFLAGS = -I$(abs_srcdir)
 
-proto = p4info.proto
+# Absolute paths are needed here for 'make distcheck' to work properly
+proto = $(abs_srcdir)/p4info.proto
 
-EXTRA_DIST = $(proto)
+# Somehow, using an absolute path above prevents me from using EXTRA_DIST =
+# $(proto)
+EXTRA_DIST = p4info.proto
 
 proto_cpp_files = \
 cpp_out/p4info.pb.cc \
