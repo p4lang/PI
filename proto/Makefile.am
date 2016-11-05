@@ -4,7 +4,7 @@ if WITH_PROTO_DEMO
 MAYBE_PROTO_DEMO = demo_grpc
 endif
 
-SUBDIRS = . p4info $(MAYBE_PROTO_DEMO)
+SUBDIRS = . p4info frontend $(MAYBE_PROTO_DEMO)
 
 PROTOFLAGS = -I.
 
