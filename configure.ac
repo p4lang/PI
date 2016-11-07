@@ -46,6 +46,12 @@ AM_CONDITIONAL([WITH_PROTO], [test "$with_proto" = yes])
 # may add other conditions later for GTEST to be compiled if we use GTEST
 # somewhere else
 AM_CONDITIONAL([WITH_GTEST], [test "$with_proto" = yes])
+AM_COND_IF([WITH_GTEST], [
+    gtest_root=$ac_abs_confdir/third_party/googletest
+    gtest_check_f=$gtest_root/googletest/src/gtest.cc
+    AC_CHECK_FILE([$gtest_check_f], [],
+                  [AC_MSG_ERROR([Did you run 'git submodule update --init'?])])
+])
 
 AC_ARG_WITH([internal-rpc],
     AS_HELP_STRING([--with-internal-rpc],
