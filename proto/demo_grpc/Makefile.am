@@ -27,7 +27,7 @@ app.cpp
 
 pi_server_LDADD = \
 $(top_builddir)/frontend/libpifeproto.la \
-$(top_builddir)/../frontends_extra/cpp/libpi_fecpp.la \
+$(top_builddir)/../frontends_extra/cpp/libpifecpp.la \
 $(top_builddir)/libpiproto.la \
 $(top_builddir)/../src/libpiall.la \
 $(top_builddir)/../targets/bmv2/libpi_bmv2.la \
@@ -36,7 +36,7 @@ $(PROTOBUF_LIBS) $(GRPC_LIBS)
 
 pi_server_dummy_LDADD = \
 $(top_builddir)/frontend/libpifeproto.la \
-$(top_builddir)/../frontends_extra/cpp/libpi_fecpp.la \
+$(top_builddir)/../frontends_extra/cpp/libpifecpp.la \
 $(top_builddir)/libpiproto.la \
 $(top_builddir)/../src/libpiall.la \
 $(top_builddir)/../targets/dummy/libpi_dummy.la \

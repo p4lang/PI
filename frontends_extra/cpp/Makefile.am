@@ -3,7 +3,7 @@ ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 AM_CPPFLAGS = \
 -I$(top_srcdir)/../../include
 
-libpi_fecpp_la_SOURCES = \
+libpifecpp_la_SOURCES = \
 src/tables.cpp
 
 nobase_include_HEADERS = \
@@ -25,18 +25,18 @@ BUILT_SOURCES = $(fe_defines)
 if WITH_BMV2
 example_LDADD = \
 $(top_builddir)/../../src/libpi.la \
-libpi_fecpp.la \
+libpifecpp.la \
 $(top_builddir)/../../targets/bmv2/libpi_bmv2.la \
 $(top_builddir)/../../src/libpip4info.la \
 -lthrift -lruntimestubs -lsimpleswitch_thrift
 else
 example_LDADD = \
 $(top_builddir)/../../src/libpi.la \
-libpi_fecpp.la \
+libpifecpp.la \
 $(top_builddir)/../../src/libpip4info.la \
 $(top_builddir)/../../targets/dummy/libpi_dummy.la
 endif
 
-lib_LTLIBRARIES = libpi_fecpp.la
+lib_LTLIBRARIES = libpifecpp.la
 
 CLEANFILES = $(fe_defines)
