@@ -1,5 +1,5 @@
 controller
-pi_server
+pi_grpc_server
 pi_server_dummy
 test_client
 test_perf

@@ -26,9 +26,9 @@
 
 #include <grpc++/grpc++.h>
 
-#include "pi.grpc.pb.h"
-#include "device.grpc.pb.h"
-#include "resource.grpc.pb.h"
+#include "p4/pi.grpc.pb.h"
+#include "p4/tmp/device.grpc.pb.h"
+#include "p4/tmp/resource.grpc.pb.h"
 
 #include <iostream>
 #include <cstring>
@@ -149,7 +149,7 @@ class SimpleRouterMgr {
   int static_config_(UpdateMode update_mode);
 
   int query_counter_(const std::string &counter_name, size_t index,
-                     p4tmp::CounterData *counter_data);
+                     p4::tmp::CounterData *counter_data);
 
   int update_config_(const std::string &config_buffer);
 
@@ -162,8 +162,8 @@ class SimpleRouterMgr {
   int dev_id;
   pi_p4info_t *p4info{nullptr};
   boost::asio::io_service &io_service;
-  std::unique_ptr<p4tmp::Device::Stub> device_stub_;
+  std::unique_ptr<p4::tmp::Device::Stub> device_stub_;
   std::unique_ptr<p4::PI::Stub> pi_stub_;
-  std::unique_ptr<p4tmp::Resource::Stub> res_stub_;
+  std::unique_ptr<p4::tmp::Resource::Stub> res_stub_;
   std::unique_ptr<PacketIOSyncClient> packet_io_client;
 };

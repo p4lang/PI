@@ -57,7 +57,7 @@ class DeviceMgrImp {
   }
 
   Status init(const std::string &p4info_json,
-              const p4tmp::DeviceAssignRequest_Extras &extras) {
+              const p4::tmp::DeviceAssignRequest_Extras &extras) {
     Status status;
     pi_status_t pi_status;
     std::vector<pi_assign_extra_t> assign_options;
@@ -182,13 +182,13 @@ class DeviceMgrImp {
   }
 
   // TODO(antonin)
-  Status counter_write(const p4tmp::CounterEntry &entry) {
+  Status counter_write(const p4::tmp::CounterEntry &entry) {
     (void) entry;
     return Status();
   }
 
   Status counter_read(p4_id_t counter_id,
-                      p4tmp::CounterReadResponse *rep) const {
+                      p4::tmp::CounterReadResponse *rep) const {
     Status status;
     auto is_direct =
         (pi_p4info_counter_get_direct(p4info, counter_id) != PI_INVALID_ID);
@@ -408,7 +408,7 @@ DeviceMgr::~DeviceMgr() { }
 
 Status
 DeviceMgr::init(const std::string &p4info_json,
-                const p4tmp::DeviceAssignRequest_Extras &extras) {
+                const p4::tmp::DeviceAssignRequest_Extras &extras) {
   return pimp->init(p4info_json, extras);
 }
 
@@ -458,13 +458,13 @@ DeviceMgr::packet_in_register_cb(PacketInCb cb, void *cookie) {
 }
 
 Status
-DeviceMgr::counter_write(const p4tmp::CounterEntry &entry) {
+DeviceMgr::counter_write(const p4::tmp::CounterEntry &entry) {
   return pimp->counter_write(entry);
 }
 
 Status
 DeviceMgr::counter_read(p4_id_t counter_id,
-                        p4tmp::CounterReadResponse *entries) const {
+                        p4::tmp::CounterReadResponse *entries) const {
   return pimp->counter_read(counter_id, entries);
 }
 

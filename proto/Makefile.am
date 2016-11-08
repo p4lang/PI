@@ -15,44 +15,63 @@ PROTOFLAGS = -I$(abs_srcdir)
 
 # Absolute paths are needed here for 'make distcheck' to work properly
 protos = \
-$(abs_srcdir)/pi.proto \
+$(abs_srcdir)/p4/pi.proto \
 $(abs_srcdir)/google/rpc/status.proto \
 $(abs_srcdir)/google/rpc/code.proto \
-$(abs_srcdir)/device.proto \
-$(abs_srcdir)/resource.proto
+$(abs_srcdir)/p4/tmp/device.proto \
+$(abs_srcdir)/p4/tmp/resource.proto
 
 # Somehow, using an absolute path above prevents me from using EXTRA_DIST =
 # $(protos)
 EXTRA_DIST = \
-pi.proto \
+p4/pi.proto \
 google/rpc/status.proto \
 google/rpc/code.proto \
-device.proto \
-resource.proto
+p4/tmp/device.proto \
+p4/tmp/resource.proto
 
 proto_cpp_files = \
-cpp_out/pi.pb.cc \
-cpp_out/pi.pb.h \
+cpp_out/p4/pi.pb.cc \
+cpp_out/p4/pi.pb.h \
 cpp_out/google/rpc/status.pb.cc \
 cpp_out/google/rpc/status.pb.h \
 cpp_out/google/rpc/code.pb.cc \
 cpp_out/google/rpc/code.pb.h \
-cpp_out/device.pb.cc \
-cpp_out/device.pb.h \
-cpp_out/resource.pb.cc \
-cpp_out/resource.pb.h
+cpp_out/p4/tmp/device.pb.cc \
+cpp_out/p4/tmp/device.pb.h \
+cpp_out/p4/tmp/resource.pb.cc \
+cpp_out/p4/tmp/resource.pb.h
 
 proto_grpc_files = \
-grpc_out/pi.grpc.pb.cc \
-grpc_out/pi.grpc.pb.h \
+grpc_out/p4/pi.grpc.pb.cc \
+grpc_out/p4/pi.grpc.pb.h \
 grpc_out/google/rpc/status.grpc.pb.cc \
 grpc_out/google/rpc/status.grpc.pb.h \
 grpc_out/google/rpc/code.grpc.pb.cc \
 grpc_out/google/rpc/code.grpc.pb.h \
-grpc_out/device.grpc.pb.cc \
-grpc_out/device.grpc.pb.h \
-grpc_out/resource.grpc.pb.cc \
-grpc_out/resource.grpc.pb.h
+grpc_out/p4/tmp/device.grpc.pb.cc \
+grpc_out/p4/tmp/device.grpc.pb.h \
+grpc_out/p4/tmp/resource.grpc.pb.cc \
+grpc_out/p4/tmp/resource.grpc.pb.h
+
+includep4dir = $(includedir)/p4/
+nodist_includep4_HEADERS = \
+cpp_out/p4/pi.pb.h \
+grpc_out/p4/pi.grpc.pb.h
+
+includep4tmpdir = $(includedir)/p4/tmp/
+nodist_includep4tmp_HEADERS = \
+cpp_out/p4/tmp/device.pb.h \
+cpp_out/p4/tmp/resource.pb.h \
+grpc_out/p4/tmp/device.grpc.pb.h \
+grpc_out/p4/tmp/resource.grpc.pb.h
+
+includegoogledir = $(includedir)/google/rpc/
+nodist_includegoogle_HEADERS = \
+cpp_out/google/rpc/status.pb.h \
+cpp_out/google/rpc/code.pb.h \
+grpc_out/google/rpc/status.grpc.pb.h \
+grpc_out/google/rpc/code.grpc.pb.h
 
 AM_CPPFLAGS = -Icpp_out -Igrpc_out
 
