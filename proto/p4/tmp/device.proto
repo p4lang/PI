@@ -20,7 +20,7 @@ import "google/rpc/status.proto";
 // P4 configuration to a device, which is needed for testing, while we come up
 // with a permanent solution.
 
-package p4tmp;
+package p4.tmp;
 
 service Device {
   rpc DeviceAssign(DeviceAssignRequest) returns (.google.rpc.Status) {

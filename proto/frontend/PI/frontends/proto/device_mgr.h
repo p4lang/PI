@@ -22,9 +22,9 @@
 #define PI_FRONTENDS_PROTO_DEVICE_MGR_H_
 
 #include "google/rpc/status.pb.h"
-#include "pi.pb.h"
-#include "device.pb.h"
-#include "resource.pb.h"
+#include "p4/pi.pb.h"
+#include "p4/tmp/device.pb.h"
+#include "p4/tmp/resource.pb.h"
 
 #include <functional>
 #include <memory>
@@ -57,7 +57,7 @@ class DeviceMgr {
   // 3 temporary methods to manage a device, will be replaced by permanent
   // solution ASAP
   Status init(const std::string &p4info_json,
-              const p4tmp::DeviceAssignRequest_Extras &extras);
+              const p4::tmp::DeviceAssignRequest_Extras &extras);
 
   Status update_start(const std::string &p4info_json,
                       const std::string &device_data);
@@ -85,11 +85,11 @@ class DeviceMgr {
 
   void packet_in_register_cb(PacketInCb cb, void *cookie);
 
-  Status counter_write(const p4tmp::CounterEntry &entry);
+  Status counter_write(const p4::tmp::CounterEntry &entry);
 
   // this function does not clear the entries, instead it appends to it
   Status counter_read(p4_id_t counter_id,
-                      p4tmp::CounterReadResponse *entries) const;
+                      p4::tmp::CounterReadResponse *entries) const;
 
   static void init(size_t max_devices);
 

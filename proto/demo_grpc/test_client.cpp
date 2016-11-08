@@ -11,8 +11,8 @@
 
 #include <grpc++/grpc++.h>
 
-#include "pi.grpc.pb.h"
-#include "device.grpc.pb.h"
+#include "p4/pi.grpc.pb.h"
+#include "p4/tmp/device.grpc.pb.h"
 
 using grpc::Channel;
 using grpc::ClientContext;
@@ -83,10 +83,10 @@ int parse_opts(int argc, char *const argv[]) {
 class DeviceClient {
  public:
   DeviceClient(std::shared_ptr<Channel> channel)
-      : stub_(p4tmp::Device::NewStub(channel)) {}
+      : stub_(p4::tmp::Device::NewStub(channel)) {}
 
   int assign_device(const char *path) {
-    p4tmp::DeviceAssignRequest request;
+    p4::tmp::DeviceAssignRequest request;
     request.set_device_id(0);
     pi_p4info_t *p4info;
     pi_add_config_from_file(path, PI_CONFIG_TYPE_BMV2_JSON, &p4info);
@@ -107,7 +107,7 @@ class DeviceClient {
   }
 
  private:
-  std::unique_ptr<p4tmp::Device::Stub> stub_;
+  std::unique_ptr<p4::tmp::Device::Stub> stub_;
   std::unordered_map<int, const pi_p4info_t *> p4infos{};
 };
 

@@ -19,7 +19,7 @@ import "google/rpc/status.proto";
 // This package is temporary. The Resource service gives access to P4 counters,
 // while we come up with a definitive interface that will be part of pi.proto.
 
-package p4tmp;
+package p4.tmp;
 
 service Resource {
   rpc CounterRead(CounterReadRequest) returns (CounterReadResponse) {
