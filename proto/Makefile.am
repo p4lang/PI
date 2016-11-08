@@ -16,6 +16,7 @@ PROTOFLAGS = -I$(abs_srcdir)
 # Absolute paths are needed here for 'make distcheck' to work properly
 protos = \
 $(abs_srcdir)/p4/pi.proto \
+$(abs_srcdir)/p4/config/p4info.proto \
 $(abs_srcdir)/google/rpc/status.proto \
 $(abs_srcdir)/google/rpc/code.proto \
 $(abs_srcdir)/p4/tmp/device.proto \
@@ -25,6 +26,7 @@ $(abs_srcdir)/p4/tmp/resource.proto
 # $(protos)
 EXTRA_DIST = \
 p4/pi.proto \
+p4/config/p4info.proto \
 google/rpc/status.proto \
 google/rpc/code.proto \
 p4/tmp/device.proto \
@@ -33,6 +35,8 @@ p4/tmp/resource.proto
 proto_cpp_files = \
 cpp_out/p4/pi.pb.cc \
 cpp_out/p4/pi.pb.h \
+cpp_out/p4/config/p4info.pb.cc \
+cpp_out/p4/config/p4info.pb.h \
 cpp_out/google/rpc/status.pb.cc \
 cpp_out/google/rpc/status.pb.h \
 cpp_out/google/rpc/code.pb.cc \
@@ -45,6 +49,8 @@ cpp_out/p4/tmp/resource.pb.h
 proto_grpc_files = \
 grpc_out/p4/pi.grpc.pb.cc \
 grpc_out/p4/pi.grpc.pb.h \
+grpc_out/p4/config/p4info.grpc.pb.cc \
+grpc_out/p4/config/p4info.grpc.pb.h \
 grpc_out/google/rpc/status.grpc.pb.cc \
 grpc_out/google/rpc/status.grpc.pb.h \
 grpc_out/google/rpc/code.grpc.pb.cc \
@@ -58,6 +64,11 @@ includep4dir = $(includedir)/p4/
 nodist_includep4_HEADERS = \
 cpp_out/p4/pi.pb.h \
 grpc_out/p4/pi.grpc.pb.h
+
+includep4configdir = $(includedir)/p4/config/
+nodist_includep4config_HEADERS = \
+cpp_out/p4/config/p4info.pb.h \
+grpc_out/p4/config/p4info.grpc.pb.h
 
 includep4tmpdir = $(includedir)/p4/tmp/
 nodist_includep4tmp_HEADERS = \
