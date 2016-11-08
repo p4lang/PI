@@ -8,9 +8,10 @@ AM_CPPFLAGS = \
 
 AM_CXXFLAGS = -Wall -Werror
 
-bin_PROGRAMS = pi_server test_client controller pi_server_dummy test_perf
+bin_PROGRAMS = pi_grpc_server
+noinst_PROGRAMS = test_client controller pi_server_dummy test_perf
 
-pi_server_SOURCES = pi_server.cpp
+pi_grpc_server_SOURCES = pi_server.cpp
 
 pi_server_dummy_SOURCES = pi_server.cpp
 
@@ -25,7 +26,7 @@ web_server.cpp \
 web_server.h \
 app.cpp
 
-pi_server_LDADD = \
+pi_grpc_server_LDADD = \
 $(top_builddir)/frontend/libpifeproto.la \
 $(top_builddir)/../frontends_extra/cpp/libpifecpp.la \
 $(top_builddir)/libpiproto.la \

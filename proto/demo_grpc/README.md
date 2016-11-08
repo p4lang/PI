@@ -29,7 +29,7 @@ calls (using the PI C++ frontend).
 
 To run the demo, you will need 3 terminal instances:
 - `sudo python 1sw_demo.py --json simple_router.json --cpu-port veth250`
-- `sudo ./pi_server`
+- `sudo ./pi_grpc_server`
 - `sudo ./controller -c simple_router.json`
 
 Note that the demo assumes that you have a veth250 / veth251 veth pair on your
