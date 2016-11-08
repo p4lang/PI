@@ -89,9 +89,8 @@ $(BUILT_SOURCES): proto_files.ts
 	  fi; \
 	fi
 
-# very likely to change in the future; for now the goal is just to have a
-# skeleton makefile which compiles the generated source files.
-noinst_LTLIBRARIES = libpiproto.la
+# is this the best name for this library, or is this too generic?
+lib_LTLIBRARIES = libpiproto.la
 
 # generated source should not be distributed
 nodist_libpiproto_la_SOURCES = \
