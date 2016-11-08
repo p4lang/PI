@@ -52,6 +52,12 @@ AS_IF([test "$want_bmv2" = yes], [
 
 AM_CONDITIONAL([WITH_PROTO_DEMO], [test "$with_proto_demo" = yes])
 
+dnl cannot use the path below, which would break 'make dist'
+dnl googleapis_check_f=$ac_abs_confdir/googleapis/google/rpc/status.proto
+googleapis_check_f=$ac_abs_confdir/google/rpc/status.proto
+AC_CHECK_FILE([$googleapis_check_f], [],
+              [AC_MSG_ERROR([Did you run 'git submodule update --init'?])])
+
 # Generate makefiles
 AC_CONFIG_FILES([Makefile
                  p4info/Makefile
