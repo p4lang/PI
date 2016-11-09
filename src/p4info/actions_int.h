@@ -25,6 +25,10 @@
 
 #include "p4info_common.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void pi_p4info_action_init(pi_p4info_t *p4info, size_t num_actions);
 
 void pi_p4info_action_add(pi_p4info_t *p4info, pi_p4_id_t action_id,
@@ -36,5 +40,9 @@ void pi_p4info_action_add_param(pi_p4info_t *p4info, pi_p4_id_t action_id,
 
 typedef struct cJSON cJSON;
 void pi_p4info_action_serialize(cJSON *root, const pi_p4info_t *p4info);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // PI_SRC_P4INFO_ACTIONS_INT_H_

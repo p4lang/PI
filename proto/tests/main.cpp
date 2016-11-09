@@ -18,10 +18,9 @@
  *
  */
 
-// Generates a serialized proto representation for p4info according to
-// p4info.proto
+#include <gtest/gtest.h>
 
-// TODO(antonin)
-int main() {
-
+int main(int argc, char* argv[]) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
 }

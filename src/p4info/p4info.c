@@ -32,9 +32,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-pi_status_t pi_add_config(const char *config, pi_config_type_t config_type,
-                          pi_p4info_t **p4info) {
-  pi_status_t status;
+pi_status_t pi_empty_config(pi_p4info_t **p4info) {
   pi_p4info_t *p4info_ = malloc(sizeof(pi_p4info_t));
   memset(p4info_, 0, sizeof(*p4info_));
 
@@ -46,6 +44,15 @@ pi_status_t pi_add_config(const char *config, pi_config_type_t config_type,
   p4info_->act_profs = &p4info_->resources[PI_ACT_PROF_ID];
   p4info_->counters = &p4info_->resources[PI_COUNTER_ID];
   p4info_->meters = &p4info_->resources[PI_METER_ID];
+
+  *p4info = p4info_;
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_add_config(const char *config, pi_config_type_t config_type,
+                          pi_p4info_t **p4info) {
+  pi_status_t status = pi_empty_config(p4info);
+  pi_p4info_t *p4info_ = *p4info;
 
   switch (config_type) {
     case PI_CONFIG_TYPE_NONE:
@@ -65,7 +72,6 @@ pi_status_t pi_add_config(const char *config, pi_config_type_t config_type,
     free(p4info_);
     return status;
   }
-  *p4info = p4info_;
   return PI_STATUS_SUCCESS;
 }
 

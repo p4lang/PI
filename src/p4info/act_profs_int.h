@@ -23,6 +23,10 @@
 
 #include "PI/p4info/act_profs.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void pi_p4info_act_prof_init(pi_p4info_t *p4info, size_t num_act_profs);
 
 void pi_p4info_act_prof_free(pi_p4info_t *p4info);
@@ -34,5 +38,9 @@ void pi_p4info_act_prof_add_table(pi_p4info_t *p4info, pi_p4_id_t act_prof_id,
                                   pi_p4_id_t table_id);
 
 void pi_p4info_act_prof_serialize(cJSON *root, const pi_p4info_t *p4info);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // PI_SRC_P4INFO_ACT_PROFS_INT_H_

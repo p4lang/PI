@@ -29,6 +29,14 @@
 #include "p4info/meters_int.h"
 #include "p4info/field_list_int.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 p4info_common_t *pi_p4info_get_common(pi_p4info_t *p4info, pi_p4_id_t id);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // PI_SRC_P4INFO_INT_H_

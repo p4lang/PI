@@ -23,6 +23,10 @@
 
 #include "PI/p4info/tables.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void pi_p4info_table_init(pi_p4info_t *p4info, size_t num_tables);
 
 void pi_p4info_table_add(pi_p4info_t *p4info, pi_p4_id_t table_id,
@@ -51,5 +55,9 @@ void pi_p4info_table_add_direct_resource(pi_p4info_t *p4info,
 
 typedef struct cJSON cJSON;
 void pi_p4info_table_serialize(cJSON *root, const pi_p4info_t *p4info);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // PI_SRC_P4INFO_TABLES_INT_H_

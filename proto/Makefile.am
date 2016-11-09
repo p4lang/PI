@@ -1,10 +1,13 @@
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 
+# Remove -Werror
+AM_CXXFLAGS =
+
 if WITH_PROTO_DEMO
 MAYBE_PROTO_DEMO = demo_grpc
 endif
 
-SUBDIRS = . p4info frontend $(MAYBE_PROTO_DEMO)
+SUBDIRS = . p4info frontend $(MAYBE_PROTO_DEMO) tests
 
 PROTOFLAGS = -I$(abs_srcdir)
 

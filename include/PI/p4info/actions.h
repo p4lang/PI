@@ -26,6 +26,10 @@
 
 #include "PI/pi_base.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 size_t pi_p4info_action_get_num(const pi_p4info_t *p4info);
 
 pi_p4_id_t pi_p4info_action_id_from_name(const pi_p4info_t *p4info,
@@ -60,5 +64,9 @@ size_t pi_p4info_action_param_offset(const pi_p4info_t *p4info,
 pi_p4_id_t pi_p4info_action_begin(const pi_p4info_t *p4info);
 pi_p4_id_t pi_p4info_action_next(const pi_p4info_t *p4info, pi_p4_id_t id);
 pi_p4_id_t pi_p4info_action_end(const pi_p4info_t *p4info);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // PI_INC_PI_P4INFO_ACTIONS_H_

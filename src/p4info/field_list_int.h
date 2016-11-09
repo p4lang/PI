@@ -23,6 +23,10 @@
 
 #include "PI/p4info/field_list.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void pi_p4info_field_list_init(pi_p4info_t *p4info, size_t num_field_lists);
 
 void pi_p4info_field_list_add(pi_p4info_t *p4info, pi_p4_id_t field_list_id,
@@ -34,5 +38,9 @@ void pi_p4info_field_list_add_field(pi_p4info_t *p4info,
 
 typedef struct cJSON cJSON;
 void pi_p4info_field_list_serialize(cJSON *root, const pi_p4info_t *p4info);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // PI_SRC_P4INFO_FIELD_LIST _INT_H_

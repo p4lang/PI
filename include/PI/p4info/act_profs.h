@@ -26,6 +26,10 @@
 
 #include "PI/pi_base.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 pi_p4_id_t pi_p4info_act_prof_id_from_name(const pi_p4info_t *p4info,
                                            const char *name);
 
@@ -46,5 +50,9 @@ const pi_p4_id_t *pi_p4info_act_prof_get_actions(const pi_p4info_t *p4info,
 pi_p4_id_t pi_p4info_act_prof_begin(const pi_p4info_t *p4info);
 pi_p4_id_t pi_p4info_act_prof_next(const pi_p4info_t *p4info, pi_p4_id_t id);
 pi_p4_id_t pi_p4info_act_prof_end(const pi_p4info_t *p4info);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // PI_INC_PI_P4INFO_ACT_PROFS_H_
