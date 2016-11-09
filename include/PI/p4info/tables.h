@@ -26,6 +26,10 @@
 
 #include "PI/pi_base.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum {
   PI_P4INFO_MATCH_TYPE_VALID = 0,
   PI_P4INFO_MATCH_TYPE_EXACT,
@@ -100,5 +104,9 @@ const pi_p4_id_t *pi_p4info_table_get_direct_resources(
 pi_p4_id_t pi_p4info_table_begin(const pi_p4info_t *p4info);
 pi_p4_id_t pi_p4info_table_next(const pi_p4info_t *p4info, pi_p4_id_t id);
 pi_p4_id_t pi_p4info_table_end(const pi_p4info_t *p4info);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // PI_INC_PI_P4INFO_TABLES_H_

@@ -58,11 +58,14 @@ googleapis_check_f=$ac_abs_confdir/google/rpc/status.proto
 AC_CHECK_FILE([$googleapis_check_f], [],
               [AC_MSG_ERROR([Did you run 'git submodule update --init'?])])
 
+AC_SUBST([AM_CXXFLAGS], ["-Wall -Werror -Wextra"])
+
 # Generate makefiles
 AC_CONFIG_FILES([Makefile
                  p4info/Makefile
                  frontend/Makefile
-                 demo_grpc/Makefile])
+                 demo_grpc/Makefile
+                 tests/Makefile])
 
 AC_OUTPUT
 

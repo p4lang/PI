@@ -18,25 +18,25 @@
  *
  */
 
-#ifndef PI_SRC_P4INFO_FIELDS_INT_H_
-#define PI_SRC_P4INFO_FIELDS_INT_H_
+#ifndef PROTO_P4INFO_P4INFO_TO_AND_FROM_PROTO_H_
+#define PROTO_P4INFO_P4INFO_TO_AND_FROM_PROTO_H_
 
-#include "PI/p4info/fields.h"
+#include "p4/config/p4info.pb.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <PI/p4info.h>
 
-void pi_p4info_field_init(pi_p4info_t *p4info, size_t num_fields);
+namespace pi {
 
-void pi_p4info_field_add(pi_p4info_t *p4info, pi_p4_id_t field_id,
-                         const char *name, size_t bitwidth);
+namespace p4info {
 
-typedef struct cJSON cJSON;
-void pi_p4info_field_serialize(cJSON *root, const pi_p4info_t *p4info);
+p4::config::P4Info p4info_serialize_to_proto(pi_p4info_t *p4info);
 
-#ifdef __cplusplus
-}
-#endif
+// returns true if success, false otherwise
+bool p4info_proto_reader(const p4::config::P4Info &p4info_proto,
+                         pi_p4info_t **p4info);
 
-#endif  // PI_SRC_P4INFO_FIELDS_INT_H_
+}  // namespace p4info
+
+}  // namespace pi
+
+#endif  // PROTO_P4INFO_P4INFO_TO_AND_FROM_PROTO_H_

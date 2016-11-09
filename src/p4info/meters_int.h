@@ -23,6 +23,10 @@
 
 #include "PI/p4info/meters.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void pi_p4info_meter_init(pi_p4info_t *p4info, size_t num_meters);
 
 void pi_p4info_meter_add(pi_p4info_t *p4info, pi_p4_id_t meter_id,
@@ -34,5 +38,9 @@ void pi_p4info_meter_make_direct(pi_p4info_t *p4info, pi_p4_id_t meter_id,
 
 typedef struct cJSON cJSON;
 void pi_p4info_meter_serialize(cJSON *root, const pi_p4info_t *p4info);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // PI_SRC_P4INFO_METERS_INT_H_

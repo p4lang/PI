@@ -23,6 +23,10 @@
 
 #include "PI/p4info/counters.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void pi_p4info_counter_init(pi_p4info_t *p4info, size_t num_counters);
 
 void pi_p4info_counter_add(pi_p4info_t *p4info, pi_p4_id_t counter_id,
@@ -34,5 +38,9 @@ void pi_p4info_counter_make_direct(pi_p4info_t *p4info, pi_p4_id_t counter_id,
 
 typedef struct cJSON cJSON;
 void pi_p4info_counter_serialize(cJSON *root, const pi_p4info_t *p4info);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // PI_SRC_P4INFO_COUNTERS_INT_H_

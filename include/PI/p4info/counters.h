@@ -26,7 +26,11 @@
 
 #include <PI/pi_base.h>
 
-// TODO(antonin): remnant of P4-14, remove?
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// TODO(antonin): remnant of P4_14, remove?
 typedef enum {
   PI_P4INFO_COUNTER_UNIT_BYTES = 0,
   PI_P4INFO_COUNTER_UNIT_PACKETS,
@@ -51,5 +55,9 @@ size_t pi_p4info_counter_get_size(const pi_p4info_t *p4info,
 pi_p4_id_t pi_p4info_counter_begin(const pi_p4info_t *p4info);
 pi_p4_id_t pi_p4info_counter_next(const pi_p4info_t *p4info, pi_p4_id_t id);
 pi_p4_id_t pi_p4info_counter_end(const pi_p4info_t *p4info);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // PI_INC_PI_P4INFO_COUNTERS_H_

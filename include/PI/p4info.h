@@ -38,6 +38,9 @@ extern "C" {
 #include "p4info/meters.h"
 #include "p4info/field_list.h"
 
+// TODO(antonin): hide in an internal header file?
+pi_status_t pi_empty_config(pi_p4info_t **p4info);
+
 //! Adds a config of a given type and initialize the corresponding \p p4info
 //! object.
 pi_status_t pi_add_config(const char *config, pi_config_type_t config_type,

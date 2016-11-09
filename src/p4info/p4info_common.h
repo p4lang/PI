@@ -21,6 +21,10 @@
 #ifndef PI_SRC_P4INFO_P4INFO_COMMON_H_
 #define PI_SRC_P4INFO_P4INFO_COMMON_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct p4info_common_s p4info_common_t;
 
 void p4info_common_push_back_annotation(p4info_common_t *common,
@@ -35,5 +39,9 @@ void p4info_common_serialize(cJSON *object, const p4info_common_t *common);
 void p4info_common_init(p4info_common_t *common);
 
 void p4info_common_destroy(p4info_common_t *common);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // PI_SRC_P4INFO_P4INFO_COMMON_H_

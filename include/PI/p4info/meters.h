@@ -26,6 +26,10 @@
 
 #include <PI/pi_base.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // same as their PI equivalent, without the default option
 typedef enum {
   PI_P4INFO_METER_UNIT_PACKETS = 1,
@@ -57,5 +61,9 @@ size_t pi_p4info_meter_get_size(const pi_p4info_t *p4info, pi_p4_id_t meter_id);
 pi_p4_id_t pi_p4info_meter_begin(const pi_p4info_t *p4info);
 pi_p4_id_t pi_p4info_meter_next(const pi_p4info_t *p4info, pi_p4_id_t id);
 pi_p4_id_t pi_p4info_meter_end(const pi_p4info_t *p4info);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // PI_INC_PI_P4INFO_METERS_H_
