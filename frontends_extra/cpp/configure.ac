@@ -33,6 +33,7 @@ AC_TYPE_SIZE_T
 AC_SUBST([AM_CXXFLAGS], ["-Wall -Werror -Wextra"])
 
 # Generate makefiles
-AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([Makefile
+                 example/Makefile])
 
 AC_OUTPUT
