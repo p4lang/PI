@@ -14,7 +14,6 @@ example_SOURCES = example.cpp
 nodist_example_SOURCES = $(fe_defines)
 # This is a bit risky. See "Recording Dependencies manually" at
 # https://www.gnu.org/software/automake/manual/html_node/Built-Sources-Example.html#Built-Sources-Example
-# note the example-example instead of example, because of the per-binary flags
 example.$(OBJEXT) : $(fe_defines)
 
 if WITH_BMV2
