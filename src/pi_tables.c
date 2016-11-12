@@ -51,7 +51,7 @@ pi_status_t pi_entry_properties_set(pi_entry_properties_t *properties,
 bool pi_entry_properties_is_set(const pi_entry_properties_t *properties,
                                 pi_entry_property_type_t property_type) {
   if (!properties) return false;
-  if (property_type < 0 || property_type >= PI_ENTRY_PROPERTY_TYPE_END)
+  if (property_type >= PI_ENTRY_PROPERTY_TYPE_END)
     return false;
   return properties->valid_properties & (1 << property_type);
 }
