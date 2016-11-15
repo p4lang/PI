@@ -16,6 +16,8 @@ syntax = "proto3";
 
 import "google/rpc/status.proto";
 
+import "p4/config/p4info.proto";
+
 // This package is temporary. The Device service provides the ability to push a
 // P4 configuration to a device, which is needed for testing, while we come up
 // with a permanent solution.
@@ -38,7 +40,7 @@ message DeviceAssignRequest {
     map<string, string> kv = 1;
   }
   int32 device_id = 1;
-  string native_p4info_json = 2;
+  p4.config.P4Info p4info = 2;
   Extras extras = 3;  // or extension for backend specific args?
 }
 
@@ -48,7 +50,7 @@ message DeviceRemoveRequest {
 
 message DeviceUpdateStartRequest {
   int32 device_id = 1;
-  string native_p4info_json = 2;
+  p4.config.P4Info p4info = 2;
   bytes device_data = 3;  // or use extension?
 }
 

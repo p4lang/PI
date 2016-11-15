@@ -25,6 +25,8 @@
 
 #include "google/rpc/code.pb.h"
 
+#include "p4info_to_and_from_proto.h"  // for p4info_proto_reader
+
 #include <memory>
 #include <string>
 #include <vector>
@@ -56,7 +58,7 @@ class DeviceMgrImp {
     destroy_p4info_if_needed();
   }
 
-  Status init(const std::string &p4info_json,
+  Status init(const p4::config::P4Info &p4info_proto,
               const p4::tmp::DeviceAssignRequest_Extras &extras) {
     Status status;
     pi_status_t pi_status;
@@ -69,9 +71,7 @@ class DeviceMgrImp {
       assign_options.push_back(e);
     }
     assign_options.push_back({1, NULL, NULL});
-    pi_status = pi_add_config(p4info_json.c_str(), PI_CONFIG_TYPE_NATIVE_JSON,
-                              &p4info);
-    if (pi_status != PI_STATUS_SUCCESS) {
+    if (!pi::p4info::p4info_proto_reader(p4info_proto, &p4info)) {
       status.set_code(Code::UNKNOWN);
       return status;
     }
@@ -84,14 +84,12 @@ class DeviceMgrImp {
     return status;
   }
 
-  Status update_start(const std::string &p4info_json,
+  Status update_start(const p4::config::P4Info &p4info_proto,
                       const std::string &device_data) {
     Status status;
     pi_status_t pi_status;
     pi_p4info_t *p4info_tmp = nullptr;
-    pi_status = pi_add_config(p4info_json.c_str(), PI_CONFIG_TYPE_NATIVE_JSON,
-                              &p4info_tmp);
-    if (pi_status != PI_STATUS_SUCCESS) {
+    if (!pi::p4info::p4info_proto_reader(p4info_proto, &p4info_tmp)) {
       status.set_code(Code::UNKNOWN);
       return status;
     }
@@ -407,15 +405,15 @@ DeviceMgr::~DeviceMgr() { }
 // PIMPL forwarding
 
 Status
-DeviceMgr::init(const std::string &p4info_json,
+DeviceMgr::init(const p4::config::P4Info &p4info,
                 const p4::tmp::DeviceAssignRequest_Extras &extras) {
-  return pimp->init(p4info_json, extras);
+  return pimp->init(p4info, extras);
 }
 
 Status
-DeviceMgr::update_start(const std::string &p4info_json,
+DeviceMgr::update_start(const p4::config::P4Info &p4info,
                         const std::string &device_data) {
-  return pimp->update_start(p4info_json, device_data);
+  return pimp->update_start(p4info, device_data);
 }
 
 Status

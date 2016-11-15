@@ -258,7 +258,7 @@ namespace {
 
 template <typename T>
 void set_preamble(T *obj, pi_p4_id_t id, const char *name,
-                  pi_p4info_t *p4info) {
+                  const pi_p4info_t *p4info) {
   auto pre = obj->mutable_preamble();
   pre->set_id(id);
   pre->set_name(name);
@@ -269,7 +269,7 @@ void set_preamble(T *obj, pi_p4_id_t id, const char *name,
     pre->add_annotations(annotations[i]);
 }
 
-void p4info_serialize_actions(pi_p4info_t *p4info,
+void p4info_serialize_actions(const pi_p4info_t *p4info,
                               p4::config::P4Info *p4info_proto) {
   for (auto id = pi_p4info_action_begin(p4info);
        id != pi_p4info_action_end(p4info);
@@ -289,7 +289,7 @@ void p4info_serialize_actions(pi_p4info_t *p4info,
   }
 }
 
-void p4info_serialize_fields(pi_p4info_t *p4info,
+void p4info_serialize_fields(const pi_p4info_t *p4info,
                              p4::config::P4Info *p4info_proto) {
   for (auto id = pi_p4info_field_begin(p4info);
        id != pi_p4info_field_end(p4info);
@@ -301,7 +301,7 @@ void p4info_serialize_fields(pi_p4info_t *p4info,
   }
 }
 
-void p4info_serialize_field_lists(pi_p4info_t *p4info,
+void p4info_serialize_field_lists(const pi_p4info_t *p4info,
                                   p4::config::P4Info *p4info_proto) {
   for (auto id = pi_p4info_field_list_begin(p4info);
        id != pi_p4info_field_list_end(p4info);
@@ -316,7 +316,7 @@ void p4info_serialize_field_lists(pi_p4info_t *p4info,
   }
 }
 
-void p4info_serialize_tables(pi_p4info_t *p4info,
+void p4info_serialize_tables(const pi_p4info_t *p4info,
                              p4::config::P4Info *p4info_proto) {
   for (auto id = pi_p4info_table_begin(p4info);
        id != pi_p4info_table_end(p4info);
@@ -372,7 +372,7 @@ void p4info_serialize_tables(pi_p4info_t *p4info,
   }
 }
 
-void p4info_serialize_act_profs(pi_p4info_t *p4info,
+void p4info_serialize_act_profs(const pi_p4info_t *p4info,
                                 p4::config::P4Info *p4info_proto) {
   for (auto id = pi_p4info_act_prof_begin(p4info);
        id != pi_p4info_act_prof_end(p4info);
@@ -389,8 +389,8 @@ void p4info_serialize_act_profs(pi_p4info_t *p4info,
   }
 }
 
-void p4info_serialize_counters(pi_p4info_t *p4info,
-                              p4::config::P4Info *p4info_proto) {
+void p4info_serialize_counters(const pi_p4info_t *p4info,
+                               p4::config::P4Info *p4info_proto) {
   for (auto id = pi_p4info_counter_begin(p4info);
        id != pi_p4info_counter_end(p4info);
        id = pi_p4info_counter_next(p4info, id)) {
@@ -416,7 +416,7 @@ void p4info_serialize_counters(pi_p4info_t *p4info,
   }
 }
 
-void p4info_serialize_meters(pi_p4info_t *p4info,
+void p4info_serialize_meters(const pi_p4info_t *p4info,
                              p4::config::P4Info *p4info_proto) {
   for (auto id = pi_p4info_meter_begin(p4info);
        id != pi_p4info_meter_end(p4info);
@@ -455,7 +455,7 @@ void p4info_serialize_meters(pi_p4info_t *p4info,
 
 }  // namespace
 
-p4::config::P4Info p4info_serialize_to_proto(pi_p4info_t *p4info) {
+p4::config::P4Info p4info_serialize_to_proto(const pi_p4info_t *p4info) {
   p4::config::P4Info p4info_proto;
   p4info_serialize_actions(p4info, &p4info_proto);
   p4info_serialize_fields(p4info, &p4info_proto);
