@@ -11,6 +11,8 @@
 
 #include <grpc++/grpc++.h>
 
+#include "p4info_to_and_from_proto.h"  // for p4info_serialize_to_proto
+
 #include "p4/pi.grpc.pb.h"
 #include "p4/tmp/device.grpc.pb.h"
 
@@ -91,8 +93,8 @@ class DeviceClient {
     pi_p4info_t *p4info;
     pi_add_config_from_file(path, PI_CONFIG_TYPE_BMV2_JSON, &p4info);
     p4infos[0] = p4info;
-    char *p4info_json = pi_serialize_config(p4info, 0);
-    request.set_native_p4info_json(std::string(p4info_json));
+    auto p4info_proto = pi::p4info::p4info_serialize_to_proto(p4info);
+    request.set_allocated_p4info(&p4info_proto);
     auto extras = request.mutable_extras();
     auto kv = extras->mutable_kv();
     (*kv)["port"] = "9090";
@@ -102,6 +104,7 @@ class DeviceClient {
     ::google::rpc::Status rep;
     ClientContext context;
     Status status = stub_->DeviceAssign(&context, request, &rep);
+    request.release_p4info();
     assert(status.ok());
     return rep.code();
   }

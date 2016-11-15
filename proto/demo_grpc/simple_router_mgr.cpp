@@ -28,6 +28,8 @@
 #include <future>
 #include <limits>
 
+#include "p4info_to_and_from_proto.h"  // for p4info_serialize_to_proto
+
 #include "google/rpc/code.pb.h"
 
 using grpc::ClientContext;
@@ -229,8 +231,8 @@ SimpleRouterMgr::assign() {
   if (assigned) return 0;
   p4::tmp::DeviceAssignRequest request;
   request.set_device_id(dev_id);
-  char *p4info_json = pi_serialize_config(p4info, 0);
-  request.set_native_p4info_json(p4info_json);
+  auto p4info_proto = pi::p4info::p4info_serialize_to_proto(p4info);
+  request.set_allocated_p4info(&p4info_proto);
   auto extras = request.mutable_extras();
   auto kv = extras->mutable_kv();
   (*kv)["port"] = "9090";
@@ -240,6 +242,7 @@ SimpleRouterMgr::assign() {
   ::google::rpc::Status rep;
   ClientContext context;
   Status status = device_stub_->DeviceAssign(&context, request, &rep);
+  request.release_p4info();
   assert(status.ok());
 
   packet_io_client->send_init(dev_id);
@@ -661,11 +664,11 @@ SimpleRouterMgr::update_config_(const std::string &config_buffer) {
     ClientContext context;
     p4::tmp::DeviceUpdateStartRequest request;
     request.set_device_id(dev_id);
-    char *p4info_json = pi_serialize_config(p4info, 0);
-    request.set_native_p4info_json(p4info_json);
-    free(p4info_json);
+    auto p4info_proto = pi::p4info::p4info_serialize_to_proto(p4info);
+    request.set_allocated_p4info(&p4info_proto);
     request.set_device_data(config_buffer);
     Status status = device_stub_->DeviceUpdateStart(&context, request, &rep);
+    request.release_p4info();
     assert(status.ok());
     if (rep.code() != ::google::rpc::Code::OK) {
       std::cout << "Error when initiating config update\n";

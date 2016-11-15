@@ -58,7 +58,7 @@ class DeviceService : public p4::tmp::Device::Service {
     SIMPLELOG << "PI DeviceAssign\n";
     SIMPLELOG << request->DebugString();
     device_mgr = new DeviceMgr(request->device_id());
-    *rep = device_mgr->init(request->native_p4info_json(), request->extras());
+    *rep = device_mgr->init(request->p4info(), request->extras());
     device_mgr->packet_in_register_cb(::packet_in_cb,
                                       static_cast<void *>(packet_in_mgr));
     return Status::OK;
@@ -79,8 +79,7 @@ class DeviceService : public p4::tmp::Device::Service {
                            ::google::rpc::Status *rep) override {
     SIMPLELOG << "PI DeviceUpdateStart\n";
     SIMPLELOG << request->DebugString();
-    *rep = device_mgr->update_start(request->native_p4info_json(),
-                                    request->device_data());
+    *rep = device_mgr->update_start(request->p4info(), request->device_data());
     return Status::OK;
   }
 

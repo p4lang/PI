@@ -33,7 +33,7 @@
 extern "C" {
 #endif
 
-p4info_common_t *pi_p4info_get_common(pi_p4info_t *p4info, pi_p4_id_t id);
+p4info_common_t *pi_p4info_get_common(const pi_p4info_t *p4info, pi_p4_id_t id);
 
 #ifdef __cplusplus
 }

@@ -5,7 +5,8 @@ ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 AM_CPPFLAGS = \
 -I$(top_srcdir)/../include \
 -I$(top_builddir)/cpp_out \
--I$(top_srcdir)/../frontends_extra/cpp
+-I$(top_srcdir)/../frontends_extra/cpp \
+-I$(top_srcdir)/p4info
 
 AM_CXXFLAGS = -Wall -Werror
 

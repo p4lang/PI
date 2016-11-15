@@ -15,6 +15,8 @@
 
 #include <grpc++/grpc++.h>
 
+#include "p4info_to_and_from_proto.h"  // for p4info_serialize_to_proto
+
 #include "p4/pi.grpc.pb.h"
 #include "p4/tmp/device.grpc.pb.h"
 
@@ -92,11 +94,12 @@ class DeviceClient {
   int assign_device(int device_id, const pi_p4info_t *p4info) {
     p4::tmp::DeviceAssignRequest request;
     request.set_device_id(device_id);
-    char *p4info_json = pi_serialize_config(p4info, 0);
-    request.set_native_p4info_json(p4info_json);
+    auto p4info_proto = pi::p4info::p4info_serialize_to_proto(p4info);
+    request.set_allocated_p4info(&p4info_proto);
     ::google::rpc::Status rep;
     ClientContext context;
     Status status = stub_->DeviceAssign(&context, request, &rep);
+    request.release_p4info();
     assert(status.ok());
     return rep.code();
   }
