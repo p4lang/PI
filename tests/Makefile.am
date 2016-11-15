@@ -68,7 +68,8 @@ testdata/valid.json \
 testdata/ecmp.json \
 testdata/stats.json \
 testdata/l2_switch.json \
-testdata/pragmas.json
+testdata/pragmas.json \
+testdata/unittest.json
 
 # cleaning up the file created by the dummy target (function call counters)
 clean-local:
