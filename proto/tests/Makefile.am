@@ -3,7 +3,7 @@ ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 AM_CPPFLAGS = \
 -I$(top_srcdir)/../include \
 -I$(top_srcdir)/frontend \
--I$(top_srcdir)/cpp_out \
+-I$(top_builddir)/cpp_out \
 -I$(top_srcdir)/p4info \
 -I$(top_srcdir)/../third_party/googletest/googletest/include \
 -I$(top_srcdir)/../third_party/googletest/googlemock/include \

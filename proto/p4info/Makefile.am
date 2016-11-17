@@ -3,7 +3,7 @@ ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 AM_CPPFLAGS = \
 -I$(top_srcdir)/../include \
 -I$(top_srcdir)/../src \
--I$(top_srcdir)/cpp_out
+-I$(top_builddir)/cpp_out
 
 bin_PROGRAMS = pi_convert_p4info
 
