@@ -189,32 +189,31 @@ message ActionProfileUpdate {
 }
 
 message ActionProfileEntry {
+  uint32 action_profile_id = 1;
   oneof type {
-    ActionProfileMember member = 1;
-    ActionProfileGroup group = 2;
+    ActionProfileMember member = 2;
+    ActionProfileGroup group = 3;
   }
 }
 
 message ActionProfileMember {
   uint32 member_id = 1;
-  uint32 action_profile_id = 2;
-  Action action = 3;
-  uint32 weight = 4;  // For WCMP
-  uint32 watch = 5;   // For fast-failover, this is TBD
+  Action action = 2;
+  uint32 weight = 3;  // For WCMP
+  uint32 watch = 4;   // For fast-failover, this is TBD
 }
 
 message ActionProfileGroup {
   uint32 group_id = 1;
-  uint32 action_profile_id = 2;
   // This will likely go away (become part of the P4 program)
   enum Type {
     UNSPECIFIED = 0;
     SELECT = 1;
     FAST_FAILOVER = 2;
   }
-  Type type = 4;
-  repeated uint32 member_id = 5;
-  uint32 max_size = 6;
+  Type type = 2;
+  repeated uint32 member_id = 3;
+  uint32 max_size = 4;
 }
 
 //------------------------------------------------------------------------------
