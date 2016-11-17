@@ -79,6 +79,7 @@ class MatchKey {
 
 class ActionData {
   friend class MatchTable;
+  friend class ActProf;
  public:
   ActionData(const pi_p4info_t *p4info, pi_p4_id_t action_id);
   ~ActionData();
@@ -200,8 +201,40 @@ class MatchTable {
 
   pi_session_handle_t sess;
   pi_dev_tgt_t dev_tgt;
+  // TODO(antonin): is p4info really needed here?
   const pi_p4info_t *p4info;
   pi_p4_id_t table_id;
+};
+
+// TODO(antonin): move to separate file
+class ActProf {
+ public:
+  ActProf(pi_session_handle_t sess, pi_dev_tgt_t dev_tgt,
+          const pi_p4info_t *p4info, pi_p4_id_t act_prof_id);
+
+  pi_status_t member_create(const ActionData &action_data,
+                            pi_indirect_handle_t *member_handle);
+
+  pi_status_t member_delete(pi_indirect_handle_t member_handle);
+
+  pi_status_t member_modify(pi_indirect_handle_t member_handle,
+                            const ActionData &action_data);
+
+  pi_status_t group_create(size_t max_size, pi_indirect_handle_t *group_handle);
+
+  pi_status_t group_delete(pi_indirect_handle_t group_handle);
+
+  pi_status_t group_add_member(pi_indirect_handle_t group_handle,
+                               pi_indirect_handle_t member_handle);
+
+  pi_status_t group_remove_member(pi_indirect_handle_t group_handle,
+                                  pi_indirect_handle_t member_handle);
+
+ private:
+  pi_session_handle_t sess;
+  pi_dev_tgt_t dev_tgt;
+  const pi_p4info_t *p4info;
+  pi_p4_id_t act_prof_id;
 };
 
 }  // namespace pi

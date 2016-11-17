@@ -420,4 +420,54 @@ MatchTable::default_entry_set(const ActionData &action_data) {
   return pi_table_default_action_set(sess, dev_tgt, table_id, &entry);
 }
 
+ActProf::ActProf(pi_session_handle_t sess, pi_dev_tgt_t dev_tgt,
+                 const pi_p4info_t *p4info, pi_p4_id_t act_prof_id)
+    : sess(sess), dev_tgt(dev_tgt), p4info(p4info), act_prof_id(act_prof_id) { }
+
+pi_status_t
+ActProf::member_create(const ActionData &action_data,
+                       pi_indirect_handle_t *member_handle) {
+  return pi_act_prof_mbr_create(sess, dev_tgt, act_prof_id, action_data.get(),
+                                member_handle);
+}
+
+pi_status_t
+ActProf::member_delete(pi_indirect_handle_t member_handle) {
+  return pi_act_prof_mbr_delete(sess, dev_tgt.dev_id, act_prof_id,
+                                member_handle);
+}
+
+pi_status_t
+ActProf::member_modify(pi_indirect_handle_t member_handle,
+                       const ActionData &action_data) {
+  return pi_act_prof_mbr_modify(sess, dev_tgt.dev_id, act_prof_id,
+                                member_handle, action_data.get());
+}
+
+pi_status_t
+ActProf::group_create(size_t max_size, pi_indirect_handle_t *group_handle) {
+  return pi_act_prof_grp_create(sess, dev_tgt, act_prof_id, max_size,
+                                group_handle);
+}
+
+pi_status_t
+ActProf::group_delete(pi_indirect_handle_t group_handle) {
+  return pi_act_prof_grp_delete(sess, dev_tgt.dev_id, act_prof_id,
+                                group_handle);
+}
+
+pi_status_t
+ActProf::group_add_member(pi_indirect_handle_t group_handle,
+                          pi_indirect_handle_t member_handle) {
+  return pi_act_prof_grp_add_mbr(sess, dev_tgt.dev_id, act_prof_id,
+                                 group_handle, member_handle);
+}
+
+pi_status_t
+ActProf::group_remove_member(pi_indirect_handle_t group_handle,
+                             pi_indirect_handle_t member_handle) {
+  return pi_act_prof_grp_remove_mbr(sess, dev_tgt.dev_id, act_prof_id,
+                                    group_handle, member_handle);
+}
+
 }  // namespace pi
