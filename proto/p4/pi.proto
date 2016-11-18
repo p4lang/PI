@@ -35,6 +35,20 @@ service PI {
       returns (stream ActionProfileReadResponse) {
   }
 
+  rpc CounterWrite(CounterWriteRequest)
+      returns (stream CounterWriteResponse) {
+  }
+  rpc CounterRead(CounterReadRequest)
+      returns (stream CounterReadResponse) {
+  }
+
+  rpc MeterWrite(MeterWriteRequest)
+      returns (stream MeterWriteResponse) {
+  }
+  rpc MeterRead(MeterReadRequest)
+      returns (stream MeterReadResponse) {
+  }
+
   rpc PacketIO(stream PacketOutUpdate) returns (stream PacketInUpdate) {
   }
 }
@@ -201,6 +215,118 @@ message ActionProfileGroup {
   Type type = 4;
   repeated uint32 member_id = 5;
   uint32 max_size = 6;
+}
+
+//------------------------------------------------------------------------------
+message CounterWriteRequest {
+  uint64 device_id = 1;
+  repeated CounterEntry updates = 2;
+}
+
+message CounterWriteResponse {
+  // Corresponds one-to-one to request.updates, and populated only
+  // if one or more updates didn't succeed.
+  repeated .google.rpc.Status errors = 1;
+}
+
+message CounterReadRequest {
+  uint64 device_id = 1;
+  // Read all counters if empty.
+  // Read all cells of counter.counter_id if counter.cells is empty.
+  // 'CounterEntry' is shared between request and response messages. For
+  // the request, counters.cells.data need not be populated, and is ignored.
+  repeated CounterEntry counters = 2;
+}
+
+message CounterEntry {
+  int32 counter_id = 1;
+  repeated CounterCell cells = 2;
+  // TODO timestamp?
+}
+
+message CounterCell {
+  oneof type {
+    // For indirect counter
+    int64 index = 1;
+    // For direct counter, the associated table entry match.
+    // table_entry.action is ignored. Other fields specify the match.
+    TableEntry table_entry = 2;
+  }
+  CounterData data = 3;
+}
+
+message CounterData {
+  int64 byte_count = 1;
+  int64 packet_count = 2;
+}
+
+message CounterReadResponse {
+  CounterEntry counter_entry = 1;
+  // Set to true if no responses will follow this one.
+  bool complete = 2;
+}
+
+//------------------------------------------------------------------------------
+message MeterWriteRequest {
+  uint64 device_id = 1;
+  repeated MeterEntry updates = 2;
+}
+
+message MeterWriteResponse {
+  // Corresponds one-to-one to request.updates, and populated only
+  // if one or more updates didn't succeed.
+  repeated .google.rpc.Status errors = 1;
+}
+
+message MeterReadRequest {
+  uint64 device_id = 1;
+  // Read all meters if empty.
+  // Read all cells of meter.meter_id if meter.cells is empty.
+  // 'MeterEntry' is shared between request and response messages. For
+  // the request, meters.cells.config need not be populated, and is ignored.
+  repeated MeterEntry meters = 2;
+}
+
+message MeterEntry {
+  int32 meter_id = 1;
+  repeated MeterCell cells = 2;
+  // TODO timestamp?
+}
+
+message MeterCell {
+  oneof type {
+    // For indirect meter
+    int64 index = 1;
+    // For direct meter, the associated table entry match.
+    // table_entry.action is ignored. Other fields specify the match.
+    TableEntry table_entry = 2;
+  }
+  MeterConfig config = 3;
+}
+
+// Modeled as RFC 2698: A Two Rate Three Color Marker (trTCM)
+// The trTCM meters a packet stream and marks its packets based on two rates,
+// Peak Information Rate (PIR) and Committed Information Rate (CIR), and their
+// associated burst sizes to be either green, yellow, or red.  A packet is
+// marked red if it exceeds the PIR.  Otherwise it is marked either yellow or
+// green depending on whether it exceeds or doesn't exceed the CIR.
+//
+// TODO: This is not metering protocol-independent!
+message MeterConfig {
+  // Committed information rate (units per sec)
+  int64 cir = 4;
+  // Committed burst size
+  int64 cburst = 5;
+  // Peak information rate (units per sec)
+  int64 pir = 6;
+  // Peak burst size
+  int64 pburst = 7;
+}
+
+message MeterReadResponse {
+  MeterEntry meter_entry = 1;
+  // Set to true if no responses will follow this one.
+  bool complete = 2;
 }
 
 //------------------------------------------------------------------------------
