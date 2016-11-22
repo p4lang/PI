@@ -26,6 +26,8 @@
 #include "google/rpc/code.pb.h"
 
 #include "p4info_to_and_from_proto.h"  // for p4info_proto_reader
+#include "action_prof_mgr.h"
+#include "common.h"
 
 #include <memory>
 #include <string>
@@ -42,10 +44,21 @@ using p4_id_t = DeviceMgr::p4_id_t;
 using Status = DeviceMgr::Status;
 using PacketInCb = DeviceMgr::PacketInCb;
 using Code = ::google::rpc::Code;
+using common::SessionTemp;
 
 // We don't yet have a mapping from PI error codes to ::google::rpc::Code
 // values, so for now we almost always return UNKNOWN. It is likely that we will
 // have our own error namespace (in addition to ::google::rpc::Code) anyway.
+
+namespace {
+
+// wraps the p4info pointer provided by the PI library into a unique_ptr
+auto p4info_deleter = [](pi_p4info_t *p4info) {
+  pi_destroy_config(p4info);
+};
+using P4InfoWrapper = std::unique_ptr<pi_p4info_t, decltype(p4info_deleter)>;
+
+}  // namespace
 
 class DeviceMgrImp {
  public:
@@ -55,7 +68,24 @@ class DeviceMgrImp {
 
   ~DeviceMgrImp() {
     pi_remove_device(device_id);
-    destroy_p4info_if_needed();
+  }
+
+  // we assume that the DeviceMgr client is smart enough here: for p4info
+  // updates we do not do any locking; we assume that the client will not issue
+  // table commands... while updating p4info
+  void p4_change(pi_p4info_t *p4info_new) {
+    action_profs.clear();
+    for (auto act_prof_id = pi_p4info_act_prof_begin(p4info_new);
+         act_prof_id != pi_p4info_act_prof_end(p4info_new);
+         act_prof_id = pi_p4info_act_prof_next(p4info_new, act_prof_id)) {
+      std::unique_ptr<ActionProfMgr> mgr(
+          new ActionProfMgr(device_tgt, act_prof_id, p4info_new));
+      action_profs.emplace(act_prof_id, std::move(mgr));
+    }
+
+    // we do this last, so that the ActProfMgr instances never point to an
+    // invalid p4info, even though this is not strictly required here
+    p4info.reset(p4info_new);
   }
 
   Status init(const p4::config::P4Info &p4info_proto,
@@ -71,11 +101,14 @@ class DeviceMgrImp {
       assign_options.push_back(e);
     }
     assign_options.push_back({1, NULL, NULL});
-    if (!pi::p4info::p4info_proto_reader(p4info_proto, &p4info)) {
+    pi_p4info_t *p4info_tmp = nullptr;
+    if (!pi::p4info::p4info_proto_reader(p4info_proto, &p4info_tmp)) {
       status.set_code(Code::UNKNOWN);
       return status;
     }
-    pi_status = pi_assign_device(device_id, p4info, assign_options.data());
+    p4_change(p4info_tmp);
+    pi_status = pi_assign_device(device_id, p4info.get(),
+                                 assign_options.data());
     if (pi_status != PI_STATUS_SUCCESS) {
       status.set_code(Code::UNKNOWN);
       return status;
@@ -100,8 +133,7 @@ class DeviceMgrImp {
       pi_destroy_config(p4info_tmp);
       return status;
     }
-    destroy_p4info_if_needed();
-    p4info = p4info_tmp;
+    p4_change(p4info_tmp);
     status.set_code(Code::OK);
     return status;
   }
@@ -148,9 +180,20 @@ class DeviceMgrImp {
   // TODO(antonin)
   Status action_profile_write(
       const p4::ActionProfileUpdate &action_profile_update) {
-    (void) action_profile_update;
     Status status;
-    status.set_code(Code::UNIMPLEMENTED);
+    const auto &entry = action_profile_update.action_profile_entry();
+    auto update_type = action_profile_update.type();
+    switch (update_type) {
+      case p4::ActionProfileUpdate_Type_CREATE:
+        return action_profile_create(entry);
+      case p4::ActionProfileUpdate_Type_MODIFY:
+        return action_profile_modify(entry);
+      case p4::ActionProfileUpdate_Type_DELETE:
+        return action_profile_delete(entry);
+      default:
+        status.set_code(Code::INVALID_ARGUMENT);
+        break;
+    }
     return status;
   }
 
@@ -188,13 +231,13 @@ class DeviceMgrImp {
   Status counter_read(p4_id_t counter_id,
                       p4::tmp::CounterReadResponse *rep) const {
     Status status;
-    auto is_direct =
-        (pi_p4info_counter_get_direct(p4info, counter_id) != PI_INVALID_ID);
+    auto is_direct = (pi_p4info_counter_get_direct(p4info.get(), counter_id)
+                      != PI_INVALID_ID);
     if (is_direct) {
       status.set_code(Code::UNIMPLEMENTED);
       return status;
     }
-    auto counter_size = pi_p4info_counter_get_size(p4info, counter_id);
+    auto counter_size = pi_p4info_counter_get_size(p4info.get(), counter_id);
     SessionTemp session;
     pi_status_t pi_status;
     int flags = PI_COUNTER_FLAGS_NONE;
@@ -232,23 +275,6 @@ class DeviceMgrImp {
   }
 
  private:
-  struct SessionTemp {
-    SessionTemp() { pi_session_init(&sess); }
-
-    ~SessionTemp() { pi_session_cleanup(sess); }
-
-    pi_session_handle_t get() { return sess; }
-
-    pi_session_handle_t sess;
-  };
-
-  void destroy_p4info_if_needed() {
-    if (p4info != nullptr) {
-      pi_destroy_config(p4info);
-      p4info = nullptr;
-    }
-  }
-
   Code construct_match_key(const p4::TableEntry &entry,
                            pi::MatchKey *match_key) const {
     for (const auto &mf : entry.match()) {
@@ -280,7 +306,7 @@ class DeviceMgrImp {
 
   Code construct_action_data(const p4::Action &action,
                              pi::ActionEntry *action_entry) {
-    action_entry->init_action_data(p4info, action.action_id());
+    action_entry->init_action_data(p4info.get(), action.action_id());
     auto action_data = action_entry->mutable_action_data();
     for (const auto &p : action.params()) {
       action_data->set_arg(p.param_id(), p.value().data(), p.value().size());
@@ -288,15 +314,46 @@ class DeviceMgrImp {
     return Code::OK;
   }
 
-  Code construct_action_entry(const p4::TableAction &table_action,
+  Code construct_action_entry_indirect(uint32_t table_id,
+                                       const p4::TableAction &table_action,
+                                       pi::ActionEntry *action_entry) {
+    auto action_prof_id = pi_p4info_table_get_implementation(p4info.get(),
+                                                             table_id);
+    // check that table is indirect
+    if (action_prof_id == PI_INVALID_ID) return Code::INVALID_ARGUMENT;
+    auto action_prof_mgr = get_action_prof_mgr(action_prof_id);
+    // cannot assert because the action prof id is provided by the PI
+    assert(action_prof_mgr);
+    const pi_indirect_handle_t *indirect_h = nullptr;
+    switch (table_action.type_case()) {
+      case p4::TableAction::kActionProfileMemberId:
+        indirect_h = action_prof_mgr->retrieve_member_handle(
+            table_action.action_profile_member_id());
+        break;
+      case p4::TableAction::kActionProfileGroupId:
+        indirect_h = action_prof_mgr->retrieve_group_handle(
+            table_action.action_profile_group_id());
+        break;
+      default:
+        assert(0);
+    }
+    // invalid member/group id
+    if (indirect_h == nullptr) return Code::INVALID_ARGUMENT;
+    action_entry->init_indirect_handle(*indirect_h);
+    return Code::OK;
+  }
+
+  // the table_id is needed for indirect entries
+  Code construct_action_entry(uint32_t table_id,
+                              const p4::TableAction &table_action,
                               pi::ActionEntry *action_entry) {
     switch (table_action.type_case()) {
       case p4::TableAction::kAction:
         return construct_action_data(table_action.action(), action_entry);
       case p4::TableAction::kActionProfileMemberId:
-        return Code::OK;
       case p4::TableAction::kActionProfileGroupId:
-        return Code::OK;
+        return construct_action_entry_indirect(table_id, table_action,
+                                               action_entry);
       default:
         return Code::INVALID_ARGUMENT;
     }
@@ -306,7 +363,7 @@ class DeviceMgrImp {
     Status status;
     Code code;
     const auto table_id = table_entry.table_id();
-    pi::MatchKey match_key(p4info, table_id);
+    pi::MatchKey match_key(p4info.get(), table_id);
     code = construct_match_key(table_entry, &match_key);
     if (code != Code::OK) {
       status.set_code(code);
@@ -314,14 +371,15 @@ class DeviceMgrImp {
     }
 
     pi::ActionEntry action_entry;
-    code = construct_action_entry(table_entry.action(), &action_entry);
+    code = construct_action_entry(
+        table_id, table_entry.action(), &action_entry);
     if (code != Code::OK) {
       status.set_code(code);
       return status;
     }
 
     SessionTemp session;
-    pi::MatchTable mt(session.get(), device_tgt, p4info, table_id);
+    pi::MatchTable mt(session.get(), device_tgt, p4info.get(), table_id);
     pi_status_t pi_status;
     // an empty match means default entry
     if (table_entry.match().empty()) {
@@ -352,7 +410,7 @@ class DeviceMgrImp {
     Status status;
     Code code;
     const auto table_id = table_entry.table_id();
-    pi::MatchKey match_key(p4info, table_id);
+    pi::MatchKey match_key(p4info.get(), table_id);
     code = construct_match_key(table_entry, &match_key);
     if (code != Code::OK) {
       status.set_code(code);
@@ -360,7 +418,7 @@ class DeviceMgrImp {
     }
 
     SessionTemp session;
-    pi::MatchTable mt(session.get(), device_tgt, p4info, table_id);
+    pi::MatchTable mt(session.get(), device_tgt, p4info.get(), table_id);
     pi_status_t pi_status;
     // an empty match means default entry
     if (table_entry.match().empty()) {
@@ -380,6 +438,59 @@ class DeviceMgrImp {
     return status;
   }
 
+  ActionProfMgr *get_action_prof_mgr(uint32_t id) {
+    auto it = action_profs.find(id);
+    return (it == action_profs.end()) ? nullptr : it->second.get();
+  }
+
+  ActionProfMgr *get_action_prof_mgr(const p4::ActionProfileEntry &entry) {
+    switch (entry.type_case()) {
+      case p4::ActionProfileEntry::kMember:
+        return get_action_prof_mgr(entry.member().action_profile_id());
+      case p4::ActionProfileEntry::kGroup:
+        return get_action_prof_mgr(entry.group().action_profile_id());
+      default:
+        return nullptr;
+    }
+  }
+
+  // this function to avoid code duplication
+  // we can probably simplify this code if the action_profile_id is moved up in
+  // pi.proto
+  template <typename FMember, typename FGroup>
+  Status action_profile_common(const p4::ActionProfileEntry &entry,
+                               FMember fmember, FGroup fgroup) {
+    Status status;
+    auto action_prof_mgr = get_action_prof_mgr(entry);
+    if (action_prof_mgr == nullptr) {
+      status.set_code(Code::INVALID_ARGUMENT);
+      return status;
+    }
+    switch (entry.type_case()) {
+      case p4::ActionProfileEntry::kMember:
+        return (action_prof_mgr->*fmember)(entry.member());
+      case p4::ActionProfileEntry::kGroup:
+        return (action_prof_mgr->*fgroup)(entry.group());
+      default:  // cannot happen (caught by get_action_prof_mgr)
+        assert(0);
+    }
+  }
+
+  Status action_profile_create(const p4::ActionProfileEntry &entry) {
+    return action_profile_common(
+        entry, &ActionProfMgr::member_create, &ActionProfMgr::group_create);
+  }
+
+  Status action_profile_modify(const p4::ActionProfileEntry &entry) {
+    return action_profile_common(
+        entry, &ActionProfMgr::member_modify, &ActionProfMgr::group_modify);
+  }
+
+  Status action_profile_delete(const p4::ActionProfileEntry &entry) {
+    return action_profile_common(
+        entry, &ActionProfMgr::member_delete, &ActionProfMgr::group_delete);
+  }
+
   static void packet_in_cb(pi_dev_id_t dev_id, const char *pkt, size_t size,
                            void *cookie) {
     auto mgr = static_cast<DeviceMgrImp *>(cookie);
@@ -391,9 +502,14 @@ class DeviceMgrImp {
   // for now, we assume all possible pipes of device are programmed in the same
   // way
   pi_dev_tgt_t device_tgt;
-  pi_p4info_t *p4info{nullptr};
+  P4InfoWrapper p4info{nullptr, p4info_deleter};
+
   PacketInCb cb_;
   void *cookie_;
+
+  // ActionProfMgr is not movable because of mutex
+  std::unordered_map<pi_p4_id_t, std::unique_ptr<ActionProfMgr> >
+  action_profs{};
 };
 
 DeviceMgr::DeviceMgr(device_id_t device_id) {

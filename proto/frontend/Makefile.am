@@ -11,7 +11,10 @@ AM_CPPFLAGS = \
 AM_CXXFLAGS = -Wall -Werror
 
 libpifeproto_la_SOURCES = \
-src/device_mgr.cpp
+src/device_mgr.cpp \
+src/action_prof_mgr.h \
+src/action_prof_mgr.cpp \
+src/common.h
 
 nobase_include_HEADERS = \
 PI/frontends/proto/device_mgr.h
