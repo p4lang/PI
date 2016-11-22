@@ -1,23 +1,44 @@
-#include "PI/pi.h"
-#include "PI/int/pi_int.h"
-#include "PI/frontends/proto/device_mgr.h"
+/* Copyright 2013-present Barefoot Networks, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Antonin Bas (antonin@barefootnetworks.com)
+ *
+ */
 
 #include <boost/functional/hash.hpp>
+
+#include <gmock/gmock.h>
 
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 #include <mutex>
+#include <string>
 #include <fstream>  // std::ifstream
 #include <cstring>  // std::memcmp
 #include <iterator>  // std::distance
 
+#include "PI/pi.h"
+#include "PI/int/pi_int.h"
+#include "PI/frontends/proto/device_mgr.h"
+
 #include "p4info_to_and_from_proto.h"
 
 #include "google/rpc/code.pb.h"
-
-#include <gmock/gmock.h>
 
 namespace pi {
 namespace proto {
@@ -31,7 +52,7 @@ using Code = ::google::rpc::Code;
 class DummyMatchKey {
   friend struct DummyMatchKeyHash;
  public:
-  DummyMatchKey(const pi_match_key_t *match_key)
+  explicit DummyMatchKey(const pi_match_key_t *match_key)
       : priority(match_key->priority),
         mk(&match_key->data[0], &match_key->data[match_key->data_size]) { }
 
@@ -60,7 +81,7 @@ struct DummyMatchKeyHash {
 struct ActionData {
   // define default constuctor for DummyTableEntry below
   ActionData() { }
-  ActionData(const pi_action_data_t *action_data)
+  explicit ActionData(const pi_action_data_t *action_data)
       : data(&action_data->data[0],
              &action_data->data[action_data->data_size]) { }
   std::vector<char> data;
@@ -69,7 +90,7 @@ struct ActionData {
 // TODO(antonin): support resources...
 class DummyTableEntry {
  public:
-  DummyTableEntry(const pi_table_entry_t *table_entry)
+  explicit DummyTableEntry(const pi_table_entry_t *table_entry)
       : type(table_entry->entry_type) {
     switch (table_entry->entry_type) {
       case PI_ACTION_ENTRY_TYPE_DATA:
@@ -164,7 +185,7 @@ class DummyActionProf {
 
 class DummySwitch {
  public:
-  DummySwitch(device_id_t device_id)
+  explicit DummySwitch(device_id_t device_id)
       : device_id(device_id) { }
 
   pi_status_t table_entry_add(pi_p4_id_t table_id,
@@ -231,32 +252,31 @@ using ::testing::AtLeast;
 
 class DummySwitchMock : public DummySwitch {
  public:
-  DummySwitchMock(device_id_t device_id)
+  explicit DummySwitchMock(device_id_t device_id)
       : DummySwitch(device_id), sw(device_id) {
     // delegate calls to real object
-
-    ON_CALL(*this, table_entry_add(_,_,_))
+    ON_CALL(*this, table_entry_add(_, _, _))
         .WillByDefault(Invoke(&sw, &DummySwitch::table_entry_add));
 
     // cannot use DoAll to combine 2 actions here (call to real object + handle
     // capture), because the handle needs to be captured after the delegated
     // call, but the delegated call is the one which needs to return the status
-    ON_CALL(*this, action_prof_member_create(_,_,_))
+    ON_CALL(*this, action_prof_member_create(_, _, _))
         .WillByDefault(
             Invoke(this, &DummySwitchMock::_action_prof_member_create));
-    ON_CALL(*this, action_prof_member_modify(_,_,_))
+    ON_CALL(*this, action_prof_member_modify(_, _, _))
         .WillByDefault(Invoke(&sw, &DummySwitch::action_prof_member_modify));
-    ON_CALL(*this, action_prof_member_delete(_,_))
+    ON_CALL(*this, action_prof_member_delete(_, _))
         .WillByDefault(Invoke(&sw, &DummySwitch::action_prof_member_delete));
     // same comment as for action_prof_member_create above
-    ON_CALL(*this, action_prof_group_create(_,_,_))
+    ON_CALL(*this, action_prof_group_create(_, _, _))
         .WillByDefault(
             Invoke(this, &DummySwitchMock::_action_prof_group_create));
-    ON_CALL(*this, action_prof_group_delete(_,_))
+    ON_CALL(*this, action_prof_group_delete(_, _))
         .WillByDefault(Invoke(&sw, &DummySwitch::action_prof_group_delete));
-    ON_CALL(*this, action_prof_group_add_member(_,_,_))
+    ON_CALL(*this, action_prof_group_add_member(_, _, _))
         .WillByDefault(Invoke(&sw, &DummySwitch::action_prof_group_add_member));
-    ON_CALL(*this, action_prof_group_remove_member(_,_,_))
+    ON_CALL(*this, action_prof_group_remove_member(_, _, _))
         .WillByDefault(
             Invoke(&sw, &DummySwitch::action_prof_group_remove_member));
   }
@@ -634,7 +654,7 @@ struct TableEntryMatcher_Direct {
 
 struct TableEntryMatcher_Indirect {
  public:
-  TableEntryMatcher_Indirect(pi_indirect_handle_t h)
+  explicit TableEntryMatcher_Indirect(pi_indirect_handle_t h)
       : h(h) { }
 
   bool operator()(const pi_table_entry_t *t_entry) const {
@@ -866,7 +886,7 @@ TEST_F(ActionProfTest, Group) {
 
   // add the same member, expect no call but valid operation
   update.set_type(p4::ActionProfileUpdate_Type_MODIFY);
-  EXPECT_CALL(*mock, action_prof_group_add_member(_,_,_)).Times(0);
+  EXPECT_CALL(*mock, action_prof_group_add_member(_, _, _)).Times(0);
   status = mgr.action_profile_write(update);
   ASSERT_EQ(status.code(), Code::OK);
 
@@ -889,7 +909,7 @@ TEST_F(ActionProfTest, Group) {
   EXPECT_CALL(*mock, action_prof_group_delete(act_prof_id, grp_h));
   // we do not expect a call to remove_member, the target is supposed to be able
   // to handle removing non-empty groups
-  EXPECT_CALL(*mock, action_prof_group_remove_member(_,_,_)).Times(0);
+  EXPECT_CALL(*mock, action_prof_group_remove_member(_, _, _)).Times(0);
   status = mgr.action_profile_write(update);
   ASSERT_EQ(status.code(), Code::OK);
 }
@@ -930,8 +950,8 @@ TEST_F(ActionProfTest, AddBadMemberIdToGroup) {
   auto entry = update.mutable_action_profile_entry();
   auto group = entry->mutable_group();
   group->add_member_id(bad_member_id);
-  EXPECT_CALL(*mock, action_prof_group_create(_,_,_));
-  EXPECT_CALL(*mock, action_prof_group_add_member(_,_,_)).Times(0);
+  EXPECT_CALL(*mock, action_prof_group_create(_, _, _));
+  EXPECT_CALL(*mock, action_prof_group_add_member(_, _, _)).Times(0);
   status = mgr.action_profile_write(update);
   ASSERT_NE(status.code(), Code::OK);
 }
@@ -1006,8 +1026,10 @@ class MatchTableIndirectTest : public DeviceMgrTest {
     auto mf_exact = mf->mutable_exact();
     mf_exact->set_value(mf_v);
     auto entry = table_entry->mutable_action();
-    if (is_group) entry->set_action_profile_group_id(indirect_id);
-    else entry->set_action_profile_member_id(indirect_id);
+    if (is_group)
+      entry->set_action_profile_group_id(indirect_id);
+    else
+      entry->set_action_profile_member_id(indirect_id);
     return mgr.table_write(update);
   }
 };

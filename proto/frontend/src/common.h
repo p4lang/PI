@@ -18,9 +18,10 @@
  *
  */
 
-#include <PI/pi.h>
+#ifndef SRC_COMMON_H_
+#define SRC_COMMON_H_
 
-#pragma once
+#include <PI/pi.h>
 
 namespace pi {
 
@@ -47,3 +48,5 @@ struct SessionTemp {
 }  // namespace fe
 
 }  // namespace pi
+
+#endif  // SRC_COMMON_H_

@@ -36,6 +36,8 @@ run_clang_format $ROOT_DIR/lib Google
 run_cpplint $ROOT_DIR/targets/bmv2
 run_cpplint $ROOT_DIR/frontends_extra/cpp frontends_extra/cpp
 run_cpplint $ROOT_DIR/proto/p4info
+run_cpplint $ROOT_DIR/proto/frontend proto/frontend
+run_cpplint $ROOT_DIR/proto/tests
 
 echo "********************************"
 if [ $return_status -eq 0 ]; then

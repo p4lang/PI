@@ -18,16 +18,16 @@
  *
  */
 
+#include <google/protobuf/util/message_differencer.h>
+#include <gtest/gtest.h>
+
 #include <iostream>
 #include <sstream>  // std::stringstream
 
-#include <PI/p4info.h>
+#include "PI/p4info.h"
 
 #include "p4info_to_and_from_proto.h"
 #include "p4/config/p4info.pb.h"
-
-#include <google/protobuf/util/message_differencer.h>
-#include <gtest/gtest.h>
 
 namespace pi {
 namespace proto {

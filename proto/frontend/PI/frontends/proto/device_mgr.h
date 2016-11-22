@@ -21,16 +21,16 @@
 #ifndef PI_FRONTENDS_PROTO_DEVICE_MGR_H_
 #define PI_FRONTENDS_PROTO_DEVICE_MGR_H_
 
+#include <functional>
+#include <memory>
+#include <string>
+#include <vector>
+
 #include "google/rpc/status.pb.h"
 #include "p4/pi.pb.h"
 #include "p4/config/p4info.pb.h"
 #include "p4/tmp/device.pb.h"
 #include "p4/tmp/resource.pb.h"
-
-#include <functional>
-#include <memory>
-#include <string>
-#include <vector>
 
 namespace pi {
 
@@ -51,7 +51,7 @@ class DeviceMgr {
   using PacketInCb =
       std::function<void(device_id_t, std::string packet, void *cookie)>;
 
-  DeviceMgr(device_id_t device_id);
+  explicit DeviceMgr(device_id_t device_id);
 
   ~DeviceMgr();
 
