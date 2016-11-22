@@ -93,11 +93,45 @@ table MixMany {
     size: 512;
 }
 
+table IndirectWS {
+    reads {
+        header_test.field32 : exact;
+    }
+    action_profile: ActProfWS;
+    size: 512;
+}
+
+action_profile ActProfWS {
+    actions {
+        actionA;
+        actionB;
+    }
+    size : 128;
+    dynamic_action_selection : Selector;
+}
+
+action_selector Selector {
+    selection_key : SelectorHash;
+}
+
+field_list HashFields {
+    header_test.field24;
+    header_test.field48;
+    header_test.field64;
+}
+
+field_list_calculation SelectorHash {
+    input { HashFields; }
+    algorithm : crc16;
+    output_width : 16;
+}
+
 control ingress {
     apply(ExactOne);
     apply(LpmOne);
     apply(TernaryOne);
     apply(MixMany);
+    apply(IndirectWS);
 }
 
 control egress { }

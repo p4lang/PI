@@ -29,6 +29,11 @@
 #include <google/protobuf/util/message_differencer.h>
 #include <gtest/gtest.h>
 
+namespace pi {
+namespace proto {
+namespace testing {
+namespace {
+
 class P4InfoProtoConvertTest : public ::testing::TestWithParam<const char*> { };
 
 TEST_P(P4InfoProtoConvertTest, Convert) {
@@ -76,3 +81,8 @@ const char *input_jsons[] = {
 INSTANTIATE_TEST_CASE_P(P4Iterate,
                         P4InfoProtoConvertTest,
                         ::testing::ValuesIn(input_jsons));
+
+}  // namespace
+}  // namespace testing
+}  // namespace proto
+}  // namespace pi

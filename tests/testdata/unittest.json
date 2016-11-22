@@ -144,36 +144,8 @@
     ],
     "actions": [
         {
-            "name": "actionA",
-            "id": 0,
-            "runtime_data": [
-                {
-                    "name": "param",
-                    "bitwidth": 48
-                }
-            ],
-            "primitives": [
-                {
-                    "op": "modify_field",
-                    "parameters": [
-                        {
-                            "type": "field",
-                            "value": [
-                                "header_test",
-                                "field48"
-                            ]
-                        },
-                        {
-                            "type": "runtime_data",
-                            "value": 0
-                        }
-                    ]
-                }
-            ]
-        },
-        {
             "name": "actionB",
-            "id": 1,
+            "id": 0,
             "runtime_data": [
                 {
                     "name": "param",
@@ -189,6 +161,34 @@
                             "value": [
                                 "header_test",
                                 "field8"
+                            ]
+                        },
+                        {
+                            "type": "runtime_data",
+                            "value": 0
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "actionA",
+            "id": 1,
+            "runtime_data": [
+                {
+                    "name": "param",
+                    "bitwidth": 48
+                }
+            ],
+            "primitives": [
+                {
+                    "op": "modify_field",
+                    "parameters": [
+                        {
+                            "type": "field",
+                            "value": [
+                                "header_test",
+                                "field48"
                             ]
                         },
                         {
@@ -333,7 +333,63 @@
                         "actionA"
                     ],
                     "next_tables": {
-                        "actionA": null
+                        "actionA": "IndirectWS"
+                    },
+                    "base_default_next": "IndirectWS"
+                },
+                {
+                    "name": "IndirectWS",
+                    "id": 4,
+                    "match_type": "exact",
+                    "type": "indirect_ws",
+                    "act_prof_name": "ActProfWS",
+                    "selector": {
+                        "algo": "crc16",
+                        "input": [
+                            {
+                                "type": "field",
+                                "value": [
+                                    "header_test",
+                                    "field24"
+                                ]
+                            },
+                            {
+                                "type": "field",
+                                "value": [
+                                    "header_test",
+                                    "field48"
+                                ]
+                            },
+                            {
+                                "type": "field",
+                                "value": [
+                                    "header_test",
+                                    "field64"
+                                ]
+                            }
+                        ]
+                    },
+                    "max_size": 512,
+                    "with_counters": false,
+                    "direct_meters": null,
+                    "support_timeout": false,
+                    "key": [
+                        {
+                            "match_type": "exact",
+                            "target": [
+                                "header_test",
+                                "field32"
+                            ],
+                            "mask": null
+                        }
+                    ],
+                    "actions": [
+                        "actionA",
+                        "actionB"
+                    ],
+                    "next_tables": {
+                        "actionA": null,
+                        "actionB": null
                     },
                     "base_default_next": null
                 }
@@ -348,7 +404,36 @@
             "conditionals": []
         }
     ],
-    "calculations": [],
+    "calculations": [
+        {
+            "name": "SelectorHash",
+            "id": 0,
+            "input": [
+                {
+                    "type": "field",
+                    "value": [
+                        "header_test",
+                        "field24"
+                    ]
+                },
+                {
+                    "type": "field",
+                    "value": [
+                        "header_test",
+                        "field48"
+                    ]
+                },
+                {
+                    "type": "field",
+                    "value": [
+                        "header_test",
+                        "field64"
+                    ]
+                }
+            ],
+            "algo": "crc16"
+        }
+    ],
     "checksums": [],
     "learn_lists": [],
     "field_lists": [],
