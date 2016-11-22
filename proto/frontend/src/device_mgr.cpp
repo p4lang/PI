@@ -18,20 +18,19 @@
  *
  */
 
-#include <PI/frontends/proto/device_mgr.h>
-
 #include <PI/pi.h>
 #include <PI/frontends/cpp/tables.h>
+#include <PI/frontends/proto/device_mgr.h>
+
+#include <memory>
+#include <string>
+#include <vector>
 
 #include "google/rpc/code.pb.h"
 
 #include "p4info_to_and_from_proto.h"  // for p4info_proto_reader
 #include "action_prof_mgr.h"
 #include "common.h"
-
-#include <memory>
-#include <string>
-#include <vector>
 
 namespace pi {
 
@@ -62,7 +61,7 @@ using P4InfoWrapper = std::unique_ptr<pi_p4info_t, decltype(p4info_deleter)>;
 
 class DeviceMgrImp {
  public:
-  DeviceMgrImp(device_id_t device_id)
+  explicit DeviceMgrImp(device_id_t device_id)
       : device_id(device_id),
         device_tgt({static_cast<pi_dev_id_t>(device_id), 0xff}) { }
 
@@ -210,8 +209,10 @@ class DeviceMgrImp {
   Status packet_out_send(const std::string &packet) const {
     Status status;
     auto pi_status = pi_packetout_send(device_id, packet.data(), packet.size());
-    if (pi_status != PI_STATUS_SUCCESS) status.set_code(Code::UNKNOWN);
-    else status.set_code(Code::OK);
+    if (pi_status != PI_STATUS_SUCCESS)
+      status.set_code(Code::UNKNOWN);
+    else
+      status.set_code(Code::OK);
     return status;
   }
 

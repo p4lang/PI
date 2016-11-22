@@ -18,14 +18,11 @@
  *
  */
 
-#include "google/rpc/code.pb.h"
-#include "google/rpc/status.pb.h"
-#include "p4/pi.pb.h"
+#ifndef SRC_ACTION_PROF_MGR_H_
+#define SRC_ACTION_PROF_MGR_H_
 
 #include <PI/pi.h>
 #include <PI/frontends/cpp/tables.h>
-
-#include "common.h"
 
 #include <unordered_map>
 #include <map>
@@ -33,7 +30,11 @@
 #include <set>
 #include <vector>
 
-#pragma once
+#include "google/rpc/code.pb.h"
+#include "google/rpc/status.pb.h"
+#include "p4/pi.pb.h"
+
+#include "common.h"
 
 namespace pi {
 
@@ -143,10 +144,11 @@ class ActionProfMgr {
 
   // using RepeatedMembers = decltype(
   //     static_cast<p4::ActionProfileGroup *>(nullptr)->member_id());
-  Code group_update_members(pi::ActProf &ap,
+  Code group_update_members(pi::ActProf &ap,  // NOLINT(runtime/references)
                             const p4::ActionProfileGroup &group);
 
   template <typename It>
+  // NOLINTNEXTLINE(runtime/references)
   Code group_add_members(pi::ActProf &ap, const Id &group_id,
                          It first, It last) {
     for (auto it = first; it != last; ++it) {
@@ -155,10 +157,12 @@ class ActionProfMgr {
     }
     return Code::OK;
   }
+  // NOLINTNEXTLINE(runtime/references)
   Code group_add_member(pi::ActProf &ap, const Id &group_id,
                         const Id &member_id);
 
   template <typename It>
+  // NOLINTNEXTLINE(runtime/references)
   Code group_remove_members(pi::ActProf &ap, const Id &group_id,
                             It first, It last) {
     for (auto it = first; it != last; ++it) {
@@ -167,6 +171,7 @@ class ActionProfMgr {
     }
     return Code::OK;
   }
+  // NOLINTNEXTLINE(runtime/references)
   Code group_remove_member(pi::ActProf &ap, const Id &group_id,
                            const Id &member_id);
 
@@ -189,3 +194,5 @@ class ActionProfMgr {
 }  // namespace fe
 
 }  // namespace pi
+
+#endif  // SRC_ACTION_PROF_MGR_H_
