@@ -4,6 +4,7 @@ check_PROGRAMS = example
 testdata_dirpath = $(top_srcdir)/../../examples/testdata
 p4_name = p4
 AM_CPPFLAGS = \
+-I$(top_srcdir) \
 -I$(top_srcdir)/../../include \
 -DTESTDATADIR=\"$(testdata_dirpath)\"
 fe_defines = pi_fe_defines_$(p4_name).h
