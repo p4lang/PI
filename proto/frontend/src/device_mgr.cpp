@@ -445,14 +445,7 @@ class DeviceMgrImp {
   }
 
   ActionProfMgr *get_action_prof_mgr(const p4::ActionProfileEntry &entry) {
-    switch (entry.type_case()) {
-      case p4::ActionProfileEntry::kMember:
-        return get_action_prof_mgr(entry.member().action_profile_id());
-      case p4::ActionProfileEntry::kGroup:
-        return get_action_prof_mgr(entry.group().action_profile_id());
-      default:
-        return nullptr;
-    }
+    return get_action_prof_mgr(entry.action_profile_id());
   }
 
   // this function to avoid code duplication

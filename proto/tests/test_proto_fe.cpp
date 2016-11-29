@@ -746,9 +746,9 @@ class ActionProfTest : public DeviceMgrTest {
     update.set_type(p4::ActionProfileUpdate_Type_CREATE);
     auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
     auto entry = update.mutable_action_profile_entry();
+    entry->set_action_profile_id(act_prof_id);
     auto member = entry->mutable_member();
     member->set_member_id(member_id);
-    member->set_action_profile_id(act_prof_id);
     set_action(member->mutable_action(), param_v);
     return update;
   }
@@ -765,9 +765,9 @@ class ActionProfTest : public DeviceMgrTest {
     update.set_type(p4::ActionProfileUpdate_Type_CREATE);
     auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
     auto entry = update.mutable_action_profile_entry();
+    entry->set_action_profile_id(act_prof_id);
     auto group = entry->mutable_group();
     group->set_group_id(group_id);
-    group->set_action_profile_id(act_prof_id);
     return update;
   }
 };
@@ -786,9 +786,9 @@ TEST_F(ActionProfTest, Member) {
   p4::ActionProfileUpdate update;
   update.set_type(p4::ActionProfileUpdate_Type_CREATE);
   auto entry = update.mutable_action_profile_entry();
+  entry->set_action_profile_id(act_prof_id);
   auto member = entry->mutable_member();
   member->set_member_id(member_id_1);
-  member->set_action_profile_id(act_prof_id);
   set_action(member->mutable_action(), adata_1);
   EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, ad_matcher_1, _));
   status = mgr.action_profile_write(update);
@@ -874,9 +874,9 @@ TEST_F(ActionProfTest, Group) {
   p4::ActionProfileUpdate update;
   update.set_type(p4::ActionProfileUpdate_Type_CREATE);
   auto entry = update.mutable_action_profile_entry();
+  entry->set_action_profile_id(act_prof_id);
   auto group = entry->mutable_group();
   group->set_group_id(group_id);
-  group->set_action_profile_id(act_prof_id);
   group->add_member_id(member_id_1);
   EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, _, _));
   EXPECT_CALL(*mock, action_prof_group_add_member(act_prof_id, _, mbr_h_1));
@@ -965,9 +965,9 @@ class MatchTableIndirectTest : public DeviceMgrTest {
     auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
     auto a_id = pi_p4info_action_id_from_name(p4info, "actionA");
     auto entry = update.mutable_action_profile_entry();
+    entry->set_action_profile_id(act_prof_id);
     auto member = entry->mutable_member();
     member->set_member_id(member_id);
-    member->set_action_profile_id(act_prof_id);
     auto action = member->mutable_action();
     action->set_action_id(a_id);
     auto param = action->add_params();
@@ -986,9 +986,9 @@ class MatchTableIndirectTest : public DeviceMgrTest {
     update.set_type(p4::ActionProfileUpdate_Type_CREATE);
     auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
     auto entry = update.mutable_action_profile_entry();
+    entry->set_action_profile_id(act_prof_id);
     auto group = entry->mutable_group();
     group->set_group_id(group_id);
-    group->set_action_profile_id(act_prof_id);
     for (auto it = first; it != last; ++it) group->add_member_id(*it);
     EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, _, _));
     EXPECT_CALL(*mock, action_prof_group_add_member(act_prof_id, _, _))
