@@ -36,7 +36,7 @@ struct SessionTemp {
 
   ~SessionTemp() { pi_session_cleanup(sess); }
 
-  pi_session_handle_t get() { return sess; }
+  pi_session_handle_t get() const { return sess; }
 
   pi_session_handle_t sess;
 };

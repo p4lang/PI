@@ -22,8 +22,7 @@ $(abs_srcdir)/p4/pi.proto \
 $(abs_srcdir)/p4/config/p4info.proto \
 $(abs_srcdir)/google/rpc/status.proto \
 $(abs_srcdir)/google/rpc/code.proto \
-$(abs_srcdir)/p4/tmp/device.proto \
-$(abs_srcdir)/p4/tmp/resource.proto
+$(abs_srcdir)/p4/tmp/device.proto
 
 # Somehow, using an absolute path above prevents me from using EXTRA_DIST =
 # $(protos)
@@ -32,8 +31,7 @@ p4/pi.proto \
 p4/config/p4info.proto \
 google/rpc/status.proto \
 google/rpc/code.proto \
-p4/tmp/device.proto \
-p4/tmp/resource.proto
+p4/tmp/device.proto
 
 proto_cpp_files = \
 cpp_out/p4/pi.pb.cc \
@@ -45,9 +43,7 @@ cpp_out/google/rpc/status.pb.h \
 cpp_out/google/rpc/code.pb.cc \
 cpp_out/google/rpc/code.pb.h \
 cpp_out/p4/tmp/device.pb.cc \
-cpp_out/p4/tmp/device.pb.h \
-cpp_out/p4/tmp/resource.pb.cc \
-cpp_out/p4/tmp/resource.pb.h
+cpp_out/p4/tmp/device.pb.h
 
 proto_grpc_files = \
 grpc_out/p4/pi.grpc.pb.cc \
@@ -59,9 +55,7 @@ grpc_out/google/rpc/status.grpc.pb.h \
 grpc_out/google/rpc/code.grpc.pb.cc \
 grpc_out/google/rpc/code.grpc.pb.h \
 grpc_out/p4/tmp/device.grpc.pb.cc \
-grpc_out/p4/tmp/device.grpc.pb.h \
-grpc_out/p4/tmp/resource.grpc.pb.cc \
-grpc_out/p4/tmp/resource.grpc.pb.h
+grpc_out/p4/tmp/device.grpc.pb.h
 
 includep4dir = $(includedir)/p4/
 nodist_includep4_HEADERS = \
@@ -76,9 +70,7 @@ grpc_out/p4/config/p4info.grpc.pb.h
 includep4tmpdir = $(includedir)/p4/tmp/
 nodist_includep4tmp_HEADERS = \
 cpp_out/p4/tmp/device.pb.h \
-cpp_out/p4/tmp/resource.pb.h \
-grpc_out/p4/tmp/device.grpc.pb.h \
-grpc_out/p4/tmp/resource.grpc.pb.h
+grpc_out/p4/tmp/device.grpc.pb.h
 
 includegoogledir = $(includedir)/google/rpc/
 nodist_includegoogle_HEADERS = \
