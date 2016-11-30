@@ -12,7 +12,6 @@
 
 #include "p4/pi.grpc.pb.h"
 #include "p4/tmp/device.grpc.pb.h"
-#include "p4/tmp/resource.grpc.pb.h"
 #include "google/rpc/code.pb.h"
 
 using grpc::Server;
@@ -93,35 +92,6 @@ class DeviceService : public p4::tmp::Device::Service {
   }
 };
 
-class ResourceService : public p4::tmp::Resource::Service {
- private:
-  Status CounterRead(ServerContext *context,
-                     const p4::tmp::CounterReadRequest *request,
-                     p4::tmp::CounterReadResponse *rep) override {
-    SIMPLELOG << "PI CounterRead\n";
-    SIMPLELOG << request->DebugString();
-    for (const auto counter_id : request->counter_ids()) {
-      device_mgr->counter_read(counter_id, rep);
-    }
-    return Status::OK;
-  }
-
-  Status CounterWrite(ServerContext *context,
-                      const p4::tmp::CounterWriteRequest *request,
-                      p4::tmp::CounterWriteResponse *rep) override {
-    SIMPLELOG << "PI CounterWrite\n";
-    SIMPLELOG << request->DebugString();
-    bool has_error = false;
-    for (const auto &entry : request->entries()) {
-      auto status = device_mgr->counter_write(entry);
-      *rep->add_errors() = status;
-      if (status.code() != ::google::rpc::Code::OK) has_error = true;
-    }
-    if (!has_error) rep->clear_errors();
-    return Status::OK;
-  }
-};
-
 class PIServiceImpl : public p4::PI::Service {
  private:
   Status TableWrite(ServerContext *context,
@@ -164,8 +134,49 @@ class PIServiceImpl : public p4::PI::Service {
       ServerContext* context,
       const p4::ActionProfileReadRequest* request,
       ServerWriter<p4::ActionProfileReadResponse> *writer) override {
-    SIMPLELOG << "PI ActionProfileReadd\n";
+    SIMPLELOG << "PI ActionProfileRead\n";
     SIMPLELOG << request->DebugString();
+    (void) context; (void) request; (void) writer;
+    return Status::CANCELLED;
+  }
+
+  Status CounterRead(ServerContext *context,
+                     const p4::CounterReadRequest *request,
+                     ServerWriter<p4::CounterReadResponse> *writer) override {
+    SIMPLELOG << "PI CounterRead\n";
+    SIMPLELOG << request->DebugString();
+    if (request->counters().empty()) {
+      // read all counters
+      for (auto it = device_mgr->counter_read_begin();
+           it != device_mgr->counter_read_end();
+           it++) {
+        p4::CounterReadResponse response;
+        response.set_complete(it == device_mgr->counter_read_end());
+        auto entry = &(*it);
+        response.set_allocated_counter_entry(entry);
+        writer->Write(response);
+        response.release_counter_entry();
+      }
+    } else {
+      const auto &counters = request->counters();
+      for (auto it = counters.begin(); it != counters.end(); it++) {
+        p4::CounterReadResponse response;
+        response.set_complete(it == counters.end());
+        auto entry = response.mutable_counter_entry();
+        entry->CopyFrom(*it);  // copy CounterEntry from request
+        device_mgr->counter_read(entry);
+        writer->Write(response);
+      }
+    }
+    return Status::OK;
+  }
+
+  // TODO(antonin)
+  Status CounterWrite(ServerContext *context,
+                      const p4::CounterWriteRequest *request,
+                      ServerWriter<p4::CounterWriteResponse> *writer) override {
+    SIMPLELOG << "PI CounterWrite\n";
+    // SIMPLELOG << request->DebugString();
     (void) context; (void) request; (void) writer;
     return Status::CANCELLED;
   }
@@ -381,14 +392,12 @@ void RunServer() {
   std::string server_address("0.0.0.0:50051");
   DeviceService device_service;
   PIHybridService pi_service;
-  ResourceService res_service;
 
   ServerBuilder builder;
   // Listen on the given address without any authentication mechanism.
   builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
   builder.RegisterService(&device_service);
   builder.RegisterService(&pi_service);
-  builder.RegisterService(&res_service);
   auto cq_ = builder.AddCompletionQueue();
 
   // Finally assemble the server.

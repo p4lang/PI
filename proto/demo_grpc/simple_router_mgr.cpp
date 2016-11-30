@@ -137,20 +137,23 @@ struct CounterQueryHandler : public MgrHandler {
   CounterQueryHandler(SimpleRouterMgr *mgr,
                       const std::string &counter_name,
                       size_t index,
-                      std::promise<p4::tmp::CounterData> &promise)
+                      std::promise<p4::CounterData> &promise)
       : MgrHandler(mgr), counter_name(counter_name), index(index),
         promise(promise) { }
 
   void operator()() {
-    p4::tmp::CounterData d;
+    p4::CounterData d;
     int rc = simple_router_mgr->query_counter_(counter_name, index, &d);
-    if (rc) d.set_packets(std::numeric_limits<decltype(d.packets())>::max());
+    if (rc) {
+      d.set_packet_count(
+          std::numeric_limits<decltype(d.packet_count())>::max());
+    }
     promise.set_value(d);
   }
 
   std::string counter_name;
   size_t index;
-  std::promise<p4::tmp::CounterData> &promise;
+  std::promise<p4::CounterData> &promise;
 };
 
 struct ConfigUpdateHandler : public MgrHandler {
@@ -219,7 +222,6 @@ SimpleRouterMgr::SimpleRouterMgr(int dev_id, pi_p4info_t *p4info,
     : dev_id(dev_id), p4info(p4info), io_service(io_service),
       device_stub_(p4::tmp::Device::NewStub(channel)),
       pi_stub_(p4::PI::NewStub(channel)),
-      res_stub_(p4::tmp::Resource::NewStub(channel)),
       packet_io_client(new PacketIOSyncClient(this, channel)) {
 }
 
@@ -597,22 +599,24 @@ SimpleRouterMgr::add_iface(uint16_t port_num, uint32_t ip_addr,
 int
 SimpleRouterMgr::query_counter(const std::string &counter_name, size_t index,
                                uint64_t *packets, uint64_t *bytes) {
-  std::promise<p4::tmp::CounterData> promise;
+  std::promise<p4::CounterData> promise;
   auto future = promise.get_future();
   CounterQueryHandler h(this, counter_name, index, promise);
   post_event(std::move(h));
   future.wait();
-  p4::tmp::CounterData counter_data = future.get();
-  if (counter_data.packets() ==
-      std::numeric_limits<decltype(counter_data.packets())>::max()) return 1;
-  *packets = counter_data.packets();
-  *bytes = counter_data.bytes();
+  p4::CounterData counter_data = future.get();
+  if (counter_data.packet_count() ==
+      std::numeric_limits<decltype(counter_data.packet_count())>::max()) {
+    return 1;
+  }
+  *packets = counter_data.packet_count();
+  *bytes = counter_data.byte_count();
   return 0;
 }
 
 int
 SimpleRouterMgr::query_counter_(const std::string &counter_name, size_t index,
-                                p4::tmp::CounterData *counter_data) {
+                                p4::CounterData *counter_data) {
   pi_p4_id_t counter_id = pi_p4info_counter_id_from_name(p4info,
                                                          counter_name.c_str());
   if (counter_id == PI_INVALID_ID) {
@@ -620,19 +624,24 @@ SimpleRouterMgr::query_counter_(const std::string &counter_name, size_t index,
     return 1;
   }
 
-  p4::tmp::CounterReadRequest request;
+  p4::CounterReadRequest request;
   request.set_device_id(dev_id);
-  request.add_counter_ids(counter_id);
-  p4::tmp::CounterReadResponse rep;
+  auto entry = request.add_counters();
+  entry->set_counter_id(counter_id);
+  auto cell = entry->add_cells();
+  cell->set_index(index);
+  p4::CounterReadResponse rep;
   ClientContext context;
-  Status status = res_stub_->CounterRead(&context, request, &rep);
-  assert(status.ok());
-
-  for (const auto &entry : rep.entries()) {
-    if (static_cast<decltype(counter_id)>(entry.counter_id()) == counter_id
-        && static_cast<decltype(index)>(entry.index()) == index) {
-      counter_data->CopyFrom(entry.data());
-      return 0;
+  auto reader = pi_stub_->CounterRead(&context, request);
+  while (reader->Read(&rep)) {
+    const auto &rep_entry = rep.counter_entry();
+    if (rep_entry.counter_id() == entry->counter_id()) {
+      for (const auto &rep_cell : rep_entry.cells()) {
+        if (rep_cell.index() == cell->index()) {
+          counter_data->CopyFrom(rep_cell.data());
+          return 0;
+        }
+      }
     }
   }
   std::cout << "Error when trying to read counter.\n";
