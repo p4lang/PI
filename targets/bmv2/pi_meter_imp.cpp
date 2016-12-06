@@ -22,6 +22,7 @@
 #include <PI/p4info.h>
 #include <PI/target/pi_meter_imp.h>
 
+#include <iostream>
 #include <string>
 #include <vector>
 

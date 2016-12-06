@@ -21,6 +21,7 @@
 #include <PI/pi.h>
 #include <PI/target/pi_imp.h>
 
+#include <iostream>
 #include <string>
 #include <cstring>  // for memset
 
