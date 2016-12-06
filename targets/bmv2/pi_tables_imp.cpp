@@ -23,6 +23,7 @@
 #include <PI/int/pi_int.h>
 #include <PI/int/serialize.h>
 
+#include <iostream>
 #include <string>
 #include <vector>
 #include <unordered_map>

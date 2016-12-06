@@ -22,6 +22,7 @@
 #include <PI/p4info.h>
 #include <PI/int/pi_int.h>
 
+#include <iostream>
 #include <string>
 #include <vector>
 
