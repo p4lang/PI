@@ -18,17 +18,17 @@
  *
  */
 
-#include "utils.h"
 #include "error_codes.h"
 #include "table_common.h"
+#include "utils.h"
 
-#include "PI/pi.h"
 #include "PI/frontends/generic/pi.h"
+#include "PI/pi.h"
 
-#include <string.h>
-#include <stdlib.h>
 #include <inttypes.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 static pi_cli_status_t get_entry_with_res(
     pi_p4_id_t t_id, pi_table_entry_t *t_entry,

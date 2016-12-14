@@ -29,14 +29,14 @@
 extern "C" {
 #endif
 
-#include "pi_base.h"
-#include "p4info/actions.h"
-#include "p4info/fields.h"
-#include "p4info/tables.h"
 #include "p4info/act_profs.h"
+#include "p4info/actions.h"
 #include "p4info/counters.h"
-#include "p4info/meters.h"
 #include "p4info/field_list.h"
+#include "p4info/fields.h"
+#include "p4info/meters.h"
+#include "p4info/tables.h"
+#include "pi_base.h"
 
 // TODO(antonin): hide in an internal header file?
 pi_status_t pi_empty_config(pi_p4info_t **p4info);
@@ -62,7 +62,7 @@ char *pi_serialize_config(const pi_p4info_t *p4info, int fmt);
 // progress
 pi_p4_id_t pi_p4info_any_begin(const pi_p4info_t *p4info,
                                pi_res_type_id_t type);
-pi_p4_id_t pi_p4info_any_next(pi_p4_id_t id);
+pi_p4_id_t pi_p4info_any_next(const pi_p4info_t *p4info, pi_p4_id_t id);
 pi_p4_id_t pi_p4info_any_end(const pi_p4info_t *p4info, pi_res_type_id_t type);
 
 size_t pi_p4info_any_num(const pi_p4info_t *p4info, pi_res_type_id_t type);

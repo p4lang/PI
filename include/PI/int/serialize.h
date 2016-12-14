@@ -22,10 +22,10 @@
 #define PI_INT_SERIALIZE_H_
 
 #include <PI/pi_base.h>
-#include <PI/pi_tables.h>
 #include <PI/pi_counter.h>
-#include <PI/pi_meter.h>
 #include <PI/pi_learn.h>
+#include <PI/pi_meter.h>
+#include <PI/pi_tables.h>
 
 #include <stddef.h>
 #include <stdint.h>

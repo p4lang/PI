@@ -18,9 +18,9 @@
  *
  */
 
+#include "PI/int/pi_int.h"
 #include "PI/pi_base.h"
 #include "p4info_int.h"
-#include "PI/int/pi_int.h"
 
 #include <cJSON/cJSON.h>
 

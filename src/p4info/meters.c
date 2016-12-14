@@ -19,9 +19,9 @@
  */
 
 #include "PI/p4info/meters.h"
-#include "p4info/p4info_struct.h"
 #include "PI/int/pi_int.h"
 #include "meters_int.h"
+#include "p4info/p4info_struct.h"
 
 #include <cJSON/cJSON.h>
 
@@ -47,10 +47,6 @@ static _meter_data_t *get_meter(const pi_p4info_t *p4info,
   return p4info_get_at(p4info, meter_id);
 }
 
-static size_t num_meters(const pi_p4info_t *p4info) {
-  return p4info->meters->arr.size;
-}
-
 static const char *retrieve_name(const void *data) {
   const _meter_data_t *meter = (const _meter_data_t *)data;
   return meter->name;
@@ -65,9 +61,9 @@ static void free_meter_data(void *data) {
 
 void pi_p4info_meter_serialize(cJSON *root, const pi_p4info_t *p4info) {
   cJSON *mArray = cJSON_CreateArray();
-  const p4info_array_t *meters = &p4info->meters->arr;
-  for (size_t i = 0; i < meters->size; i++) {
-    _meter_data_t *meter = p4info_array_at(meters, i);
+  const vector_t *meters = p4info->meters->vec;
+  for (size_t i = 0; i < vector_size(meters); i++) {
+    _meter_data_t *meter = vector_at(meters, i);
     cJSON *mObject = cJSON_CreateObject();
 
     cJSON_AddStringToObject(mObject, "name", meter->name);
@@ -92,16 +88,13 @@ void pi_p4info_meter_init(pi_p4info_t *p4info, size_t num_meters) {
 void pi_p4info_meter_add(pi_p4info_t *p4info, pi_p4_id_t meter_id,
                          const char *name, pi_p4info_meter_unit_t meter_unit,
                          pi_p4info_meter_type_t meter_type, size_t size) {
-  _meter_data_t *meter = get_meter(p4info, meter_id);
+  _meter_data_t *meter = p4info_add_res(p4info, meter_id, name);
   meter->name = strdup(name);
   meter->meter_id = meter_id;
   meter->meter_unit = meter_unit;
   meter->meter_type = meter_type;
   meter->direct_table = PI_INVALID_ID;
   meter->size = size;
-  p4info_common_init(&meter->common);
-
-  p4info_name_map_add(&p4info->meters->name_map, meter->name, meter_id);
 }
 
 void pi_p4info_meter_make_direct(pi_p4info_t *p4info, pi_p4_id_t meter_id,
@@ -147,20 +140,14 @@ size_t pi_p4info_meter_get_size(const pi_p4info_t *p4info,
   return meter->size;
 }
 
-#define PI_P4INFO_M_ITERATOR_FIRST (PI_METER_ID << 24)
-#define PI_P4INFO_M_ITERATOR_END ((PI_METER_ID << 24) | 0xffffff)
-
 pi_p4_id_t pi_p4info_meter_begin(const pi_p4info_t *p4info) {
-  return (num_meters(p4info) == 0) ? PI_P4INFO_M_ITERATOR_END
-                                   : PI_P4INFO_M_ITERATOR_FIRST;
+  return pi_p4info_any_begin(p4info, PI_METER_ID);
 }
 
 pi_p4_id_t pi_p4info_meter_next(const pi_p4info_t *p4info, pi_p4_id_t id) {
-  return ((id & 0xffffff) == num_meters(p4info) - 1) ? PI_P4INFO_M_ITERATOR_END
-                                                     : (id + 1);
+  return pi_p4info_any_next(p4info, id);
 }
 
 pi_p4_id_t pi_p4info_meter_end(const pi_p4info_t *p4info) {
-  (void)p4info;
-  return PI_P4INFO_M_ITERATOR_END;
+  return pi_p4info_any_end(p4info, PI_METER_ID);
 }

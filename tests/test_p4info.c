@@ -19,9 +19,9 @@
  */
 
 #include "PI/p4info.h"
-#include "p4info/p4info_struct.h"
-#include "p4info/fields_int.h"
 #include "p4info/actions_int.h"
+#include "p4info/fields_int.h"
+#include "p4info/p4info_struct.h"
 #include "p4info/tables_int.h"
 #include "read_file.h"
 
@@ -29,8 +29,8 @@
 
 #include "unity/unity_fixture.h"
 
-#include <string.h>
 #include <Judy.h>
+#include <string.h>
 
 static pi_p4info_t *p4info;
 

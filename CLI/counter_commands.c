@@ -18,17 +18,17 @@
  *
  */
 
-#include "utils.h"
 #include "error_codes.h"
 #include "table_common.h"  // for holding direct resources
+#include "utils.h"
 
 #include <PI/pi.h>
 #include <PI/pi_counter.h>
 
-#include <string.h>
-#include <stdlib.h>
 #include <inttypes.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern const pi_p4info_t *p4info_curr;
 extern pi_dev_tgt_t dev_tgt;

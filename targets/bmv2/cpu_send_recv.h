@@ -20,9 +20,9 @@
 
 #include <PI/pi.h>
 
-#include <thread>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 typedef struct pcap pcap_t;

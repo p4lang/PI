@@ -20,11 +20,11 @@
 
 #include "utils.h"
 
-#include "PI/pi.h"
 #include "PI/p4info.h"
+#include "PI/pi.h"
 
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <readline/readline.h>
 

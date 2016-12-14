@@ -21,6 +21,8 @@
 #ifndef PI_INT_RPC_COMMON_H_
 #define PI_INT_RPC_COMMON_H_
 
+#include "serialize.h"
+
 typedef enum {
   PI_RPC_INIT = 0,
   PI_RPC_ASSIGN_DEVICE,

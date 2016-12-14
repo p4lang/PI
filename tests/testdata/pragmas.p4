@@ -3,10 +3,12 @@ header_type h_t { fields { f32 : 32; } }
 
 @pragma dont_trim
 @pragma my_pragma v1
+@pragma id 1
 header h_t h;
 
 @pragma dont_trim
 @pragma my_pragma v1
+@pragma id 2 3 4
 header h_t hs[3];
 
 @pragma my_pragma v1
@@ -22,12 +24,14 @@ parser start {
 
 @pragma dont_trim
 @pragma my_pragma v1
+@pragma id 5
 meter m {
     type : packets;
     instance_count : 16;
 }
 
 @pragma dont_trim
+@pragma id 6
 counter c {
     type : packets;
     instance_count : 16;
@@ -41,6 +45,7 @@ register r {
 }
 
 @pragma my_pragma v1
+@pragma id 7
 field_list flist { h.f32; }
 
 @pragma dont_trim
@@ -52,9 +57,13 @@ field_list_calculation calc {
 }
 
 @pragma my_pragma v1
-action a() { }
+@pragma id 8
+action a(ap) {
+    modify_field(h.f32, ap);
+}
 
 @pragma my_pragma v1
+@pragma id 9
 table t { actions { a; } }
 
 @pragma my_pragma v1

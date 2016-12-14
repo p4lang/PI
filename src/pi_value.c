@@ -19,12 +19,12 @@
  */
 
 #include "PI/pi_value.h"
-#include "utils/utils.h"
 #include "PI/int/pi_int.h"
+#include "utils/utils.h"
 
+#include <arpa/inet.h>
 #include <assert.h>
 #include <string.h>
-#include <arpa/inet.h>
 
 static inline pi_status_t get_bitwidth_and_mask(const pi_p4info_t *p4info,
                                                 pi_p4_id_t obj_id,

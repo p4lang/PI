@@ -19,13 +19,13 @@
  */
 
 #include "PI/pi_base.h"
-#include "p4info_struct.h"
-#include "config_readers/readers.h"
-#include "actions_int.h"
-#include "tables_int.h"
-#include "fields_int.h"
 #include "act_profs_int.h"
+#include "actions_int.h"
+#include "config_readers/readers.h"
+#include "fields_int.h"
+#include "p4info_struct.h"
 #include "read_file.h"
+#include "tables_int.h"
 
 #include <cJSON/cJSON.h>
 
@@ -85,15 +85,7 @@ pi_status_t pi_add_config_from_file(const char *config_path,
 }
 
 pi_status_t pi_destroy_config(pi_p4info_t *p4info) {
-  for (size_t i = 0;
-       i < sizeof(p4info->resources) / sizeof(p4info->resources[0]); i++) {
-    pi_p4info_res_t *res = &p4info->resources[i];
-    if (!res->is_init) continue;
-    assert(res->free_fn);
-    p4info_array_destroy(&res->arr, res->free_fn);
-    p4info_name_map_destroy(&res->name_map);
-  }
-
+  p4info_struct_destroy(p4info);
   free(p4info);
   return PI_STATUS_SUCCESS;
 }
@@ -113,21 +105,6 @@ char *pi_serialize_config(const pi_p4info_t *p4info, int fmt) {
   char *str = (fmt) ? cJSON_Print(root) : cJSON_PrintUnformatted(root);
   cJSON_Delete(root);
   return str;
-}
-
-pi_p4_id_t pi_p4info_any_begin(const pi_p4info_t *p4info,
-                               pi_res_type_id_t type) {
-  (void)p4info;
-  pi_p4_id_t it_first = (type << 24);
-  return it_first;
-}
-
-pi_p4_id_t pi_p4info_any_next(pi_p4_id_t id) { return id + 1; }
-
-pi_p4_id_t pi_p4info_any_end(const pi_p4info_t *p4info, pi_res_type_id_t type) {
-  size_t num = num_res(p4info, type);
-  pi_p4_id_t it_end = (type << 24) | num;
-  return it_end;
 }
 
 size_t pi_p4info_any_num(const pi_p4info_t *p4info, pi_res_type_id_t type) {

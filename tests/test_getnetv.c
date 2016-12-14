@@ -19,14 +19,15 @@
  */
 
 #include "PI/pi_value.h"
-#include "p4info/p4info_struct.h"
 #include "p4info/fields_int.h"
+#include "p4info/p4info_struct.h"
 #include "utils/utils.h"
 
 #include "unity/unity_fixture.h"
 
-#include <string.h>
 #include <arpa/inet.h>
+#include <stdlib.h>
+#include <string.h>
 
 static pi_p4info_t *p4info;
 

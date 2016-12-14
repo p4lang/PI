@@ -18,17 +18,200 @@
  *
  */
 
+#include "PI/int/pi_int.h"
 #include "PI/pi_base.h"
 #include "p4info_int.h"
 #include "utils/logging.h"
-#include "PI/int/pi_int.h"
 
-#include <cJSON/cJSON.h>
 #include <Judy.h>
+#include <cJSON/cJSON.h>
 
-#include <stdio.h>
 #include <assert.h>
+#include <stdio.h>
 #include <string.h>
+
+#define MAX_IDS_IN_ANNOTATION 16
+
+typedef struct {
+  // Judy1 array to keep track of which ids have already been allocated
+  Pvoid_t allocated_ids;
+  // Judy1 array to keep track of which ids have already been reserved
+  Pvoid_t reserved_ids;
+} reader_state_t;
+
+static void init_reader_state(reader_state_t *state) {
+  state->allocated_ids = (Pvoid_t)NULL;
+  state->reserved_ids = (Pvoid_t)NULL;
+}
+
+static void destroy_reader_state(reader_state_t *state) {
+  Word_t Rc_word;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic warning "-Wsign-compare"
+  J1FA(Rc_word, state->allocated_ids);
+  J1FA(Rc_word, state->reserved_ids);
+#pragma GCC diagnostic pop
+  (void)Rc_word;
+}
+
+static void parse_ids(const char *str, const char *name, pi_p4_id_t *ids,
+                      size_t *num_ids) {
+  char *str_copy = strdup(str);
+  char *str_pos = str_copy;
+  char *saveptr;
+  const char *delim = " \t";
+  char *token = NULL;
+  *num_ids = 0;
+  while ((token = strtok_r(str_pos, delim, &saveptr))) {
+    if (*num_ids > MAX_IDS_IN_ANNOTATION) {
+      PI_LOG_ERROR("Too many ids for object '%s'\n", name);
+      exit(1);
+    }
+    char *endptr = NULL;
+    ids[*num_ids] = strtol(token, &endptr, 0);
+    (*num_ids)++;
+    if (*endptr != '\0') {
+      PI_LOG_ERROR("Invalid 'id' annotation for object '%s'\n", name);
+      exit(1);
+    }
+    str_pos = NULL;
+  }
+  free(str_copy);
+}
+
+// iterates over annotations looking for the right one ("pi"); if does not
+// exist, return PI_INVALID_ID
+static void find_annotation_id(cJSON *object, pi_p4_id_t *ids,
+                               size_t *num_ids) {
+  *num_ids = 0;
+  cJSON *pragmas = cJSON_GetObjectItem(object, "pragmas");
+  if (!pragmas) return;
+  const cJSON *item = cJSON_GetObjectItem(object, "name");
+  const char *name = item->valuestring;
+  cJSON *pragma;
+  cJSON_ArrayForEach(pragma, pragmas) {
+    if (!strncmp(pragma->valuestring, "id ", 3)) {
+      const char *id_str = strchr(pragma->valuestring, ' ');
+      parse_ids(id_str, name, ids, num_ids);
+      return;
+    }
+  }
+}
+
+static bool is_id_reserved(reader_state_t *state, pi_p4_id_t id) {
+  int Rc_int;
+  J1T(Rc_int, state->reserved_ids, (Word_t)id);
+  return (Rc_int == 1);
+}
+
+static void reserve_id(reader_state_t *state, pi_p4_id_t id) {
+  int Rc_int;
+  J1S(Rc_int, state->reserved_ids, (Word_t)id);
+  assert(Rc_int == 1);
+}
+
+static bool is_id_allocated(reader_state_t *state, pi_p4_id_t id) {
+  int Rc_int;
+  J1T(Rc_int, state->allocated_ids, (Word_t)id);
+  return (Rc_int == 1);
+}
+
+static void allocate_id(reader_state_t *state, pi_p4_id_t id) {
+  int Rc_int;
+  J1S(Rc_int, state->allocated_ids, (Word_t)id);
+  assert(Rc_int == 1);
+}
+
+static void pre_reserve_ids(reader_state_t *state, pi_res_type_id_t type_id,
+                            cJSON *objects) {
+  pi_p4_id_t ids[MAX_IDS_IN_ANNOTATION];
+  size_t num_ids = 0;
+  bool found_id = false;
+  cJSON *object;
+  cJSON_ArrayForEach(object, objects) {
+    find_annotation_id(object, ids, &num_ids);
+    if (num_ids == 0) continue;
+    const cJSON *item = cJSON_GetObjectItem(object, "name");
+    const char *name = item->valuestring;
+    for (size_t i = 0; i < num_ids; i++) {
+      pi_p4_id_t id = ids[i];
+      pi_p4_id_t full_id = (type_id << 24) | id;
+      if (id > 0xffff) {
+        PI_LOG_ERROR("User specified ids cannot exceed 0xffff.\n");
+        exit(1);
+      }
+      if (!is_id_reserved(state, full_id)) {
+        reserve_id(state, full_id);
+        found_id = true;
+        break;
+      }
+    }
+    if (!found_id) {
+      PI_LOG_ERROR("All the ids provided for object '%s' or already taken\n",
+                   name);
+      exit(1);
+    }
+  }
+}
+
+// taken from https://en.wikipedia.org/wiki/Jenkins_hash_function
+static uint32_t jenkins_one_at_a_time_hash(const uint8_t *key, size_t length) {
+  size_t i = 0;
+  uint32_t hash = 0;
+  while (i != length) {
+    hash += key[i++];
+    hash += hash << 10;
+    hash ^= hash >> 6;
+  }
+  hash += hash << 3;
+  hash ^= hash >> 11;
+  hash += hash << 15;
+  return hash;
+}
+
+static pi_p4_id_t generate_id_from_name(reader_state_t *state, cJSON *object,
+                                        pi_res_type_id_t type_id) {
+  const cJSON *item = cJSON_GetObjectItem(object, "name");
+  const char *name = item->valuestring;
+  pi_p4_id_t hash =
+      jenkins_one_at_a_time_hash((const uint8_t *)name, strlen(name));
+  pi_p4_id_t id = (type_id << 24) | (hash & 0xffff);
+  while (is_id_reserved(state, id)) id++;
+  reserve_id(state, id);
+  allocate_id(state, id);
+  return id;
+}
+
+static pi_p4_id_t request_id(reader_state_t *state, cJSON *object,
+                             pi_res_type_id_t type_id) {
+  // cannot be called for these resource types, for which the id is deduced from
+  // the parent's id (resp. action / header instance)
+  assert(type_id != PI_ACTION_PARAM_ID);
+  pi_p4_id_t ids[MAX_IDS_IN_ANNOTATION];
+  size_t num_ids = 0;
+  find_annotation_id(object, ids, &num_ids);
+  pi_p4_id_t id;
+  if (num_ids != 0) {
+    for (size_t i = 0; i < num_ids; i++) {
+      id = (type_id << 24) | ids[i];
+      assert(is_id_reserved(state, id));
+      if (!is_id_allocated(state, id)) break;
+    }
+    allocate_id(state, id);
+    return id;
+  }
+  return generate_id_from_name(state, object, type_id);
+}
+
+static pi_p4_id_t make_action_param_id(pi_p4_id_t action_id, int param_index) {
+  uint16_t action_base_id = action_id & 0xffff;
+  return (PI_ACTION_PARAM_ID << 24) | (action_base_id << 8) | param_index;
+}
+
+static pi_p4_id_t make_header_field_id(pi_p4_id_t header_id, int field_index) {
+  uint16_t header_base_id = header_id & 0xffff;
+  return (PI_FIELD_ID << 24) | (header_base_id << 8) | field_index;
+}
 
 static void import_pragmas(cJSON *object, pi_p4info_t *p4info, pi_p4_id_t id) {
   p4info_common_t *common = pi_p4info_get_common(p4info, id);
@@ -40,26 +223,22 @@ static void import_pragmas(cJSON *object, pi_p4info_t *p4info, pi_p4_id_t id) {
   }
 }
 
-static pi_status_t read_actions(cJSON *root, pi_p4info_t *p4info) {
+static pi_status_t read_actions(reader_state_t *state, cJSON *root,
+                                pi_p4info_t *p4info) {
   assert(root);
   cJSON *actions = cJSON_GetObjectItem(root, "actions");
   if (!actions) return PI_STATUS_CONFIG_READER_ERROR;
+  pre_reserve_ids(state, PI_ACTION_ID, actions);
   size_t num_actions = cJSON_GetArraySize(actions);
   pi_p4info_action_init(p4info, num_actions);
 
   cJSON *action;
-  int id = 0;
   cJSON_ArrayForEach(action, actions) {
     const cJSON *item;
     item = cJSON_GetObjectItem(action, "name");
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
     const char *name = item->valuestring;
-
-    // ignore the JSON id
-    /* item = cJSON_GetObjectItem(action, "id"); */
-    /* if (!item) return PI_STATUS_CONFIG_READER_ERROR; */
-    /* pi_p4_id_t pi_id = item->valueint; */
-    pi_p4_id_t pi_id = pi_make_action_id(id++);
+    pi_p4_id_t pi_id = request_id(state, action, PI_ACTION_ID);
 
     cJSON *params = cJSON_GetObjectItem(action, "runtime_data");
     if (!params) return PI_STATUS_CONFIG_READER_ERROR;
@@ -80,7 +259,7 @@ static pi_status_t read_actions(cJSON *root, pi_p4info_t *p4info) {
       int param_bitwidth = item->valueint;
 
       pi_p4info_action_add_param(p4info, pi_id,
-                                 pi_make_action_param_id(pi_id, param_id++),
+                                 make_action_param_id(pi_id, param_id++),
                                  param_name, param_bitwidth);
     }
 
@@ -90,10 +269,12 @@ static pi_status_t read_actions(cJSON *root, pi_p4info_t *p4info) {
   return PI_STATUS_SUCCESS;
 }
 
-static pi_status_t read_fields(cJSON *root, pi_p4info_t *p4info) {
+static pi_status_t read_fields(reader_state_t *state, cJSON *root,
+                               pi_p4info_t *p4info) {
   assert(root);
   cJSON *headers = cJSON_GetObjectItem(root, "headers");
   if (!headers) return PI_STATUS_CONFIG_READER_ERROR;
+  pre_reserve_ids(state, PI_FIELD_ID, headers);
 
   cJSON *header_types = cJSON_GetObjectItem(root, "header_types");
   if (!header_types) return PI_STATUS_CONFIG_READER_ERROR;
@@ -131,12 +312,11 @@ static pi_status_t read_fields(cJSON *root, pi_p4info_t *p4info) {
   PI_LOG_DEBUG("Number of fields found: %zu\n", num_fields);
   pi_p4info_field_init(p4info, num_fields);
 
-  int id = 0;
-
   cJSON_ArrayForEach(header, headers) {
     item = cJSON_GetObjectItem(header, "name");
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
     const char *header_name = item->valuestring;
+    pi_p4_id_t pi_id = request_id(state, header, PI_FIELD_ID);
     item = cJSON_GetObjectItem(header, "header_type");
     const char *header_type_name = item->valuestring;
     Word_t *header_type_json = NULL;
@@ -145,6 +325,7 @@ static pi_status_t read_fields(cJSON *root, pi_p4info_t *p4info) {
     item = (cJSON *)*header_type_json;
     item = cJSON_GetObjectItem(item, "fields");
     cJSON *field;
+    int index = 0;
     cJSON_ArrayForEach(field, item) {
       const char *suffix = cJSON_GetArrayItem(field, 0)->valuestring;
 
@@ -159,7 +340,7 @@ static pi_status_t read_fields(cJSON *root, pi_p4info_t *p4info) {
       if (n <= 0 || (size_t)n >= sizeof(fname)) return PI_STATUS_BUFFER_ERROR;
       size_t bitwidth = (size_t)cJSON_GetArrayItem(field, 1)->valueint;
       PI_LOG_DEBUG("Adding field '%s'\n", fname);
-      pi_p4_id_t fid = pi_make_field_id(id++);
+      pi_p4_id_t fid = make_header_field_id(pi_id, index++);
       pi_p4info_field_add(p4info, fid, fname, bitwidth);
 
       import_pragmas(header, p4info, fid);
@@ -171,7 +352,8 @@ static pi_status_t read_fields(cJSON *root, pi_p4info_t *p4info) {
       if (n <= 0 || (size_t)n >= sizeof(fname)) return PI_STATUS_BUFFER_ERROR;
       PI_LOG_DEBUG("Adding validity field '%s'\n", fname);
       // 1 bit field
-      pi_p4info_field_add(p4info, pi_make_field_id(id++), fname, 1);
+      pi_p4_id_t fid = make_header_field_id(pi_id, index++);
+      pi_p4info_field_add(p4info, fid, fname, 1);
     }
   }
 
@@ -219,7 +401,8 @@ static size_t get_num_act_profs_in_pipe(cJSON *pipe) {
   return num_act_profs;
 }
 
-static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
+static pi_status_t read_tables(reader_state_t *state, cJSON *root,
+                               pi_p4info_t *p4info) {
   assert(root);
   cJSON *pipelines = cJSON_GetObjectItem(root, "pipelines");
   if (!pipelines) return PI_STATUS_CONFIG_READER_ERROR;
@@ -239,21 +422,15 @@ static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
   pi_p4info_act_prof_init(p4info, num_act_profs);
 
   cJSON *table;
-  int id = 0;
-  int act_prof_id = 0;
   cJSON_ArrayForEach(pipe, pipelines) {
     cJSON *tables = cJSON_GetObjectItem(pipe, "tables");
+    pre_reserve_ids(state, PI_TABLE_ID, tables);
     cJSON_ArrayForEach(table, tables) {
       const cJSON *item;
       item = cJSON_GetObjectItem(table, "name");
       if (!item) return PI_STATUS_CONFIG_READER_ERROR;
       const char *name = item->valuestring;
-
-      // ignore the JSON id
-      /* item = cJSON_GetObjectItem(table, "id"); */
-      /* if (!item) return PI_STATUS_CONFIG_READER_ERROR; */
-      /* pi_p4_id_t pi_id = item->valueint; */
-      pi_p4_id_t pi_id = pi_make_table_id(id++);
+      pi_p4_id_t pi_id = request_id(state, table, PI_TABLE_ID);
 
       cJSON *json_match_key = cJSON_GetObjectItem(table, "key");
       if (!json_match_key) return PI_STATUS_CONFIG_READER_ERROR;
@@ -318,7 +495,7 @@ static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
         with_selector = true;
       }
       if (act_prof_name) {
-        pi_p4_id_t pi_act_prof_id = pi_make_act_prof_id(act_prof_id++);
+        pi_p4_id_t pi_act_prof_id = request_id(state, table, PI_ACT_PROF_ID);
         PI_LOG_DEBUG("Adding action profile '%s'\n", act_prof_name);
         pi_p4info_act_prof_add(p4info, pi_act_prof_id, act_prof_name,
                                with_selector);
@@ -331,22 +508,22 @@ static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
   return PI_STATUS_SUCCESS;
 }
 
-static pi_status_t read_counters(cJSON *root, pi_p4info_t *p4info) {
+static pi_status_t read_counters(reader_state_t *state, cJSON *root,
+                                 pi_p4info_t *p4info) {
   assert(root);
   cJSON *counters = cJSON_GetObjectItem(root, "counter_arrays");
   if (!counters) return PI_STATUS_CONFIG_READER_ERROR;
+  pre_reserve_ids(state, PI_COUNTER_ID, counters);
   size_t num_counters = cJSON_GetArraySize(counters);
   pi_p4info_counter_init(p4info, num_counters);
 
   cJSON *counter;
-  int id = 0;
   cJSON_ArrayForEach(counter, counters) {
     const cJSON *item;
     item = cJSON_GetObjectItem(counter, "name");
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
     const char *name = item->valuestring;
-
-    pi_p4_id_t pi_id = pi_make_counter_id(id++);
+    pi_p4_id_t pi_id = request_id(state, counter, PI_COUNTER_ID);
 
     item = cJSON_GetObjectItem(counter, "is_direct");
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
@@ -386,22 +563,22 @@ static pi_p4info_meter_unit_t meter_unit_from_str(const char *unit) {
   return PI_P4INFO_METER_UNIT_PACKETS;
 }
 
-static pi_status_t read_meters(cJSON *root, pi_p4info_t *p4info) {
+static pi_status_t read_meters(reader_state_t *state, cJSON *root,
+                               pi_p4info_t *p4info) {
   assert(root);
   cJSON *meters = cJSON_GetObjectItem(root, "meter_arrays");
   if (!meters) return PI_STATUS_CONFIG_READER_ERROR;
+  pre_reserve_ids(state, PI_METER_ID, meters);
   size_t num_meters = cJSON_GetArraySize(meters);
   pi_p4info_meter_init(p4info, num_meters);
 
   cJSON *meter;
-  int id = 0;
   cJSON_ArrayForEach(meter, meters) {
     const cJSON *item;
     item = cJSON_GetObjectItem(meter, "name");
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
     const char *name = item->valuestring;
-
-    pi_p4_id_t pi_id = pi_make_meter_id(id++);
+    pi_p4_id_t pi_id = request_id(state, meter, PI_METER_ID);
 
     item = cJSON_GetObjectItem(meter, "is_direct");
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
@@ -438,22 +615,22 @@ static pi_status_t read_meters(cJSON *root, pi_p4info_t *p4info) {
   return PI_STATUS_SUCCESS;
 }
 
-static pi_status_t read_field_lists(cJSON *root, pi_p4info_t *p4info) {
+static pi_status_t read_field_lists(reader_state_t *state, cJSON *root,
+                                    pi_p4info_t *p4info) {
   assert(root);
   cJSON *field_lists = cJSON_GetObjectItem(root, "learn_lists");
   if (!field_lists) return PI_STATUS_CONFIG_READER_ERROR;
+  pre_reserve_ids(state, PI_FIELD_LIST_ID, field_lists);
   size_t num_field_lists = cJSON_GetArraySize(field_lists);
   pi_p4info_field_list_init(p4info, num_field_lists);
 
   cJSON *field_list;
-  int id = 0;
   cJSON_ArrayForEach(field_list, field_lists) {
     const cJSON *item;
     item = cJSON_GetObjectItem(field_list, "name");
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
     const char *name = item->valuestring;
-
-    pi_p4_id_t pi_id = pi_make_field_list_id(id++);
+    pi_p4_id_t pi_id = request_id(state, field_list, PI_FIELD_LIST_ID);
 
     cJSON *elements = cJSON_GetObjectItem(field_list, "elements");
     if (!elements) return PI_STATUS_CONFIG_READER_ERROR;
@@ -494,31 +671,36 @@ pi_status_t pi_bmv2_json_reader(const char *config, pi_p4info_t *p4info) {
 
   pi_status_t status;
 
-  if ((status = read_actions(root, p4info)) != PI_STATUS_SUCCESS) {
+  reader_state_t state;
+  init_reader_state(&state);
+
+  if ((status = read_actions(&state, root, p4info)) != PI_STATUS_SUCCESS) {
     return status;
   }
 
-  if ((status = read_fields(root, p4info)) != PI_STATUS_SUCCESS) {
+  if ((status = read_fields(&state, root, p4info)) != PI_STATUS_SUCCESS) {
     return status;
   }
 
-  if ((status = read_tables(root, p4info)) != PI_STATUS_SUCCESS) {
+  if ((status = read_tables(&state, root, p4info)) != PI_STATUS_SUCCESS) {
     return status;
   }
 
-  if ((status = read_counters(root, p4info)) != PI_STATUS_SUCCESS) {
+  if ((status = read_counters(&state, root, p4info)) != PI_STATUS_SUCCESS) {
     return status;
   }
 
-  if ((status = read_meters(root, p4info)) != PI_STATUS_SUCCESS) {
+  if ((status = read_meters(&state, root, p4info)) != PI_STATUS_SUCCESS) {
     return status;
   }
 
-  if ((status = read_field_lists(root, p4info)) != PI_STATUS_SUCCESS) {
+  if ((status = read_field_lists(&state, root, p4info)) != PI_STATUS_SUCCESS) {
     return status;
   }
 
   cJSON_Delete(root);
+
+  destroy_reader_state(&state);
 
   return PI_STATUS_SUCCESS;
 }

@@ -20,9 +20,9 @@
 
 #include "PI/pi.h"
 
-#include <string.h>
-#include <stdlib.h>
 #include <readline/readline.h>
+#include <stdlib.h>
+#include <string.h>
 
 int count_tokens(const char *str) {
   int count = 0;
@@ -219,7 +219,7 @@ char *complete_p4_res(const char *text, int len, int state,
   if (!state) id = pi_p4info_any_begin(p4info_curr, res_type);
   while (id != pi_p4info_any_end(p4info_curr, res_type)) {
     const char *name = pi_p4info_any_name_from_id(p4info_curr, res_type, id);
-    id = pi_p4info_any_next(id);
+    id = pi_p4info_any_next(p4info_curr, id);
     if (!strncmp(name, text, len)) return strdup(name);
   }
   return NULL;

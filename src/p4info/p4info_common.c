@@ -25,6 +25,7 @@
 
 #include <cJSON/cJSON.h>
 
+#include <stdlib.h>
 #include <string.h>
 
 void p4info_common_push_back_annotation(p4info_common_t *common,

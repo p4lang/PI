@@ -72,6 +72,7 @@
             "metadata": false,
             "pragmas": [
                 "dont_trim",
+                "id 1",
                 "my_pragma v1"
             ]
         },
@@ -82,6 +83,7 @@
             "metadata": false,
             "pragmas": [
                 "dont_trim",
+                "id 2 3 4",
                 "my_pragma v1"
             ]
         },
@@ -92,6 +94,7 @@
             "metadata": false,
             "pragmas": [
                 "dont_trim",
+                "id 2 3 4",
                 "my_pragma v1"
             ]
         },
@@ -102,6 +105,7 @@
             "metadata": false,
             "pragmas": [
                 "dont_trim",
+                "id 2 3 4",
                 "my_pragma v1"
             ]
         }
@@ -119,6 +123,7 @@
             ],
             "pragmas": [
                 "dont_trim",
+                "id 2 3 4",
                 "my_pragma v1"
             ]
         }
@@ -190,7 +195,8 @@
             "type": "packets",
             "pragmas": [
                 "dont_trim",
-                "my_pragma v1"
+                "my_pragma v1",
+                "id 5"
             ]
         }
     ],
@@ -198,9 +204,32 @@
         {
             "name": "a",
             "id": 0,
-            "runtime_data": [],
-            "primitives": [],
+            "runtime_data": [
+                {
+                    "name": "ap",
+                    "bitwidth": 32
+                }
+            ],
+            "primitives": [
+                {
+                    "op": "modify_field",
+                    "parameters": [
+                        {
+                            "type": "field",
+                            "value": [
+                                "h",
+                                "f32"
+                            ]
+                        },
+                        {
+                            "type": "runtime_data",
+                            "value": 0
+                        }
+                    ]
+                }
+            ],
             "pragmas": [
+                "id 8",
                 "my_pragma v1"
             ]
         }
@@ -229,6 +258,7 @@
                     },
                     "base_default_next": null,
                     "pragmas": [
+                        "id 9",
                         "my_pragma v1"
                     ]
                 }
@@ -273,7 +303,8 @@
             "is_direct": false,
             "size": 16,
             "pragmas": [
-                "dont_trim"
+                "dont_trim",
+                "id 6"
             ]
         }
     ],

@@ -18,14 +18,14 @@
  *
  */
 
-#include "utils.h"
 #include "error_codes.h"
 #include "p4_config_repo.h"
+#include "utils.h"
 
 #include <PI/pi.h>
 
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <readline/readline.h>
 

@@ -21,10 +21,10 @@
 #ifndef PI_RPC_PI_RPC_H_
 #define PI_RPC_PI_RPC_H_
 
-#include <PI/pi.h>
 #include <PI/int/pi_int.h>
-#include <PI/int/serialize.h>
 #include <PI/int/rpc_common.h>
+#include <PI/int/serialize.h>
+#include <PI/pi.h>
 
 #include <nanomsg/nn.h>
 #include <nanomsg/reqrep.h>

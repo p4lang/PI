@@ -20,8 +20,8 @@
 
 #include "pi_rpc.h"
 
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 
 static pi_status_t wait_for_handle(uint32_t req_id,
                                    pi_entry_handle_t *entry_handle) {

@@ -23,11 +23,11 @@
 #ifndef PI_INC_PI_PI_H_
 #define PI_INC_PI_PI_H_
 
-#include "pi_base.h"
-#include "pi_tables.h"
 #include "pi_act_prof.h"
+#include "pi_base.h"
 #include "pi_counter.h"
 #include "pi_meter.h"
+#include "pi_tables.h"
 
 #ifdef __cplusplus
 extern "C" {

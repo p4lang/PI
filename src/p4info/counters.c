@@ -19,9 +19,9 @@
  */
 
 #include "PI/p4info/counters.h"
-#include "p4info/p4info_struct.h"
 #include "PI/int/pi_int.h"
 #include "counters_int.h"
+#include "p4info/p4info_struct.h"
 
 #include <cJSON/cJSON.h>
 
@@ -44,10 +44,6 @@ static _counter_data_t *get_counter(const pi_p4info_t *p4info,
   return p4info_get_at(p4info, counter_id);
 }
 
-static size_t num_counters(const pi_p4info_t *p4info) {
-  return p4info->counters->arr.size;
-}
-
 static const char *retrieve_name(const void *data) {
   const _counter_data_t *counter = (const _counter_data_t *)data;
   return counter->name;
@@ -62,9 +58,9 @@ static void free_counter_data(void *data) {
 
 void pi_p4info_counter_serialize(cJSON *root, const pi_p4info_t *p4info) {
   cJSON *cArray = cJSON_CreateArray();
-  const p4info_array_t *counters = &p4info->counters->arr;
-  for (size_t i = 0; i < counters->size; i++) {
-    _counter_data_t *counter = p4info_array_at(counters, i);
+  const vector_t *counters = p4info->counters->vec;
+  for (size_t i = 0; i < vector_size(counters); i++) {
+    _counter_data_t *counter = vector_at(counters, i);
     cJSON *cObject = cJSON_CreateObject();
 
     cJSON_AddStringToObject(cObject, "name", counter->name);
@@ -89,15 +85,12 @@ void pi_p4info_counter_init(pi_p4info_t *p4info, size_t num_counters) {
 void pi_p4info_counter_add(pi_p4info_t *p4info, pi_p4_id_t counter_id,
                            const char *name,
                            pi_p4info_counter_unit_t counter_unit, size_t size) {
-  _counter_data_t *counter = get_counter(p4info, counter_id);
+  _counter_data_t *counter = p4info_add_res(p4info, counter_id, name);
   counter->name = strdup(name);
   counter->counter_id = counter_id;
   counter->counter_unit = counter_unit;
   counter->direct_table = PI_INVALID_ID;
   counter->size = size;
-  p4info_common_init(&counter->common);
-
-  p4info_name_map_add(&p4info->counters->name_map, counter->name, counter_id);
 }
 
 void pi_p4info_counter_make_direct(pi_p4info_t *p4info, pi_p4_id_t counter_id,
@@ -137,21 +130,14 @@ size_t pi_p4info_counter_get_size(const pi_p4info_t *p4info,
   return counter->size;
 }
 
-#define PI_P4INFO_C_ITERATOR_FIRST (PI_COUNTER_ID << 24)
-#define PI_P4INFO_C_ITERATOR_END ((PI_COUNTER_ID << 24) | 0xffffff)
-
 pi_p4_id_t pi_p4info_counter_begin(const pi_p4info_t *p4info) {
-  return (num_counters(p4info) == 0) ? PI_P4INFO_C_ITERATOR_END
-                                     : PI_P4INFO_C_ITERATOR_FIRST;
+  return pi_p4info_any_begin(p4info, PI_COUNTER_ID);
 }
 
 pi_p4_id_t pi_p4info_counter_next(const pi_p4info_t *p4info, pi_p4_id_t id) {
-  return ((id & 0xffffff) == num_counters(p4info) - 1)
-             ? PI_P4INFO_C_ITERATOR_END
-             : (id + 1);
+  return pi_p4info_any_next(p4info, id);
 }
 
 pi_p4_id_t pi_p4info_counter_end(const pi_p4info_t *p4info) {
-  (void)p4info;
-  return PI_P4INFO_C_ITERATOR_END;
+  return pi_p4info_any_end(p4info, PI_COUNTER_ID);
 }

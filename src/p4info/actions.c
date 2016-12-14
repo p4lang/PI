@@ -19,9 +19,9 @@
  */
 
 #include "PI/p4info/actions.h"
-#include "p4info/p4info_struct.h"
 #include "PI/int/pi_int.h"
 #include "actions_int.h"
+#include "p4info/p4info_struct.h"
 
 #include <cJSON/cJSON.h>
 
@@ -53,18 +53,13 @@ typedef struct _action_data_s {
   } param_data;
 } _action_data_t;
 
-static size_t get_action_idx(pi_p4_id_t action_id) {
-  assert(PI_GET_TYPE_ID(action_id) == PI_ACTION_ID);
-  return action_id & 0xFFFF;
-}
-
 static size_t get_param_idx(pi_p4_id_t param_id) {
   assert(PI_GET_TYPE_ID(param_id) == PI_ACTION_PARAM_ID);
   return param_id & 0xFF;
 }
 
-static size_t get_action_idx_from_param_id(pi_p4_id_t param_id) {
-  return ((param_id & 0xffff00) >> 8);
+static size_t get_action_id_from_param_id(pi_p4_id_t param_id) {
+  return (PI_ACTION_ID << 24) | ((param_id & 0xffff00) >> 8);
 }
 
 static _action_data_t *get_action(const pi_p4info_t *p4info,
@@ -102,7 +97,7 @@ static pi_p4_id_t get_param_id(_action_data_t *action, const char *name) {
 }
 
 static size_t num_actions(const pi_p4info_t *p4info) {
-  return p4info->actions->arr.size;
+  return num_res(p4info, PI_ACTION_ID);
 }
 
 static const char *retrieve_name(const void *data) {
@@ -131,9 +126,9 @@ static void free_action_data(void *data) {
 
 void pi_p4info_action_serialize(cJSON *root, const pi_p4info_t *p4info) {
   cJSON *aArray = cJSON_CreateArray();
-  const p4info_array_t *actions = &p4info->actions->arr;
-  for (size_t i = 0; i < actions->size; i++) {
-    _action_data_t *action = p4info_array_at(actions, i);
+  const vector_t *actions = p4info->actions->vec;
+  for (size_t i = 0; i < vector_size(actions); i++) {
+    _action_data_t *action = vector_at(actions, i);
     cJSON *aObject = cJSON_CreateObject();
 
     cJSON_AddStringToObject(aObject, "name", action->name);
@@ -163,7 +158,7 @@ void pi_p4info_action_init(pi_p4info_t *p4info, size_t num_actions) {
 
 void pi_p4info_action_add(pi_p4info_t *p4info, pi_p4_id_t action_id,
                           const char *name, size_t num_params) {
-  _action_data_t *action = get_action(p4info, action_id);
+  _action_data_t *action = p4info_add_res(p4info, action_id, name);
   action->name = strdup(name);
   action->action_id = action_id;
   action->num_params = num_params;
@@ -172,9 +167,6 @@ void pi_p4info_action_add(pi_p4info_t *p4info, pi_p4_id_t action_id,
     action->param_data.indirect =
         calloc(num_params, sizeof(_action_param_data_t));
   }
-  p4info_common_init(&action->common);
-
-  p4info_name_map_add(&p4info->actions->name_map, action->name, action_id);
 }
 
 static char get_byte0_mask(size_t bitwidth) {
@@ -184,7 +176,7 @@ static char get_byte0_mask(size_t bitwidth) {
 }
 
 static bool param_matches_action(pi_p4_id_t action_id, pi_p4_id_t param_id) {
-  return get_action_idx(action_id) == get_action_idx_from_param_id(param_id);
+  return action_id == get_action_id_from_param_id(param_id);
 }
 
 void pi_p4info_action_add_param(pi_p4info_t *p4info, pi_p4_id_t action_id,
@@ -247,8 +239,8 @@ pi_p4_id_t pi_p4info_action_param_id_from_name(const pi_p4info_t *p4info,
 
 static _action_data_t *get_action_from_param_id(const pi_p4info_t *p4info,
                                                 pi_p4_id_t param_id) {
-  size_t idx = get_action_idx_from_param_id(param_id);
-  return p4info_array_at(&p4info->actions->arr, idx);
+  size_t idx = get_action_id_from_param_id(param_id);
+  return p4info_get_at(p4info, idx);
 }
 
 const char *pi_p4info_action_param_name_from_id(const pi_p4info_t *p4info,
@@ -275,20 +267,14 @@ size_t pi_p4info_action_param_offset(const pi_p4info_t *p4info,
   return get_param_data_at(action, param_id)->offset;
 }
 
-#define PI_P4INFO_A_ITERATOR_FIRST (PI_ACTION_ID << 24)
-#define PI_P4INFO_A_ITERATOR_END ((PI_ACTION_ID << 24) | 0xffffff)
-
 pi_p4_id_t pi_p4info_action_begin(const pi_p4info_t *p4info) {
-  return (num_actions(p4info) == 0) ? PI_P4INFO_A_ITERATOR_END
-                                    : PI_P4INFO_A_ITERATOR_FIRST;
+  return pi_p4info_any_begin(p4info, PI_ACTION_ID);
 }
 
 pi_p4_id_t pi_p4info_action_next(const pi_p4info_t *p4info, pi_p4_id_t id) {
-  return ((id & 0xffffff) == num_actions(p4info) - 1) ? PI_P4INFO_A_ITERATOR_END
-                                                      : (id + 1);
+  return pi_p4info_any_next(p4info, id);
 }
 
 pi_p4_id_t pi_p4info_action_end(const pi_p4info_t *p4info) {
-  (void)p4info;
-  return PI_P4INFO_A_ITERATOR_END;
+  return pi_p4info_any_end(p4info, PI_ACTION_ID);
 }

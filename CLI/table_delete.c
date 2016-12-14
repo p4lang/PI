@@ -18,16 +18,16 @@
  *
  */
 
-#include "utils.h"
 #include "error_codes.h"
 #include "table_common.h"
+#include "utils.h"
 
-#include "PI/pi.h"
 #include "PI/frontends/generic/pi.h"
+#include "PI/pi.h"
 
-#include <string.h>
-#include <stdlib.h>
 #include <inttypes.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include <readline/readline.h>
 

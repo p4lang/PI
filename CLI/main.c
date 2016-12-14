@@ -24,14 +24,14 @@
 
 #include "PI/pi.h"
 
-#include <stdio.h>
-#include <string.h>
 #include <assert.h>
 #include <ctype.h>
+#include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 
-#include <readline/readline.h>
 #include <readline/history.h>
+#include <readline/readline.h>
 
 #include <Judy.h>
 
