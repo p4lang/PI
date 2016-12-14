@@ -23,9 +23,9 @@
 #ifndef PI_INC_PI_PI_BASE_H_
 #define PI_INC_PI_PI_BASE_H_
 
-#include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {

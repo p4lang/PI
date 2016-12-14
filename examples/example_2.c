@@ -22,8 +22,8 @@
 #define TESTDATADIR "testdata"
 #endif
 
-#include "PI/pi.h"
 #include "PI/frontends/generic/pi.h"
+#include "PI/pi.h"
 // auto-generated #define's
 #include "pi_fe_defines_router.h"
 

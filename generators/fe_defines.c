@@ -18,17 +18,17 @@
  *
  */
 
-#include "read_file.h"
 #include "PI/p4info.h"
+#include "read_file.h"
 
+#include <assert.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
 #include <sys/stat.h>
-#include <assert.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 static void print_help() {
   fprintf(stderr,

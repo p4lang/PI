@@ -20,11 +20,11 @@
 
 #include <PI/pi.h>
 
-#include <stdio.h>
 #include <ctype.h>
-#include <unistd.h>
 #include <signal.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 extern pi_status_t pi_rpc_server_run(const pi_remote_addr_t *remote_addr);
 

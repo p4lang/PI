@@ -19,9 +19,9 @@
  */
 
 #include "PI/pi.h"
-#include "PI/target/pi_imp.h"
 #include "PI/int/pi_int.h"
 #include "PI/int/serialize.h"
+#include "PI/target/pi_imp.h"
 #include "utils/logging.h"
 
 #include <stdlib.h>

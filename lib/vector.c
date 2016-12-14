@@ -20,9 +20,11 @@
 
 #include "vector.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
+
+#define DEFAULT_INIT_CAPACITY 16
 
 struct vector_s {
   size_t e_size;
@@ -35,7 +37,7 @@ struct vector_s {
 vector_t *vector_create_wclean(size_t e_size, size_t init_capacity,
                                VectorCleanFn clean_fn) {
   assert(e_size > 0);
-  assert(init_capacity > 0);
+  if (init_capacity == 0) init_capacity = DEFAULT_INIT_CAPACITY;
   vector_t *v = malloc(sizeof(vector_t));
   v->e_size = e_size;
   v->size = 0;
@@ -58,6 +60,13 @@ static void *access(const vector_t *v, size_t index) {
   return (char *)v->data + (index * v->e_size);
 }
 
+void vector_push_back_empty(vector_t *v) {
+  assert(v->size <= v->capacity);
+  if (v->size == v->capacity) vector_expand(v);
+  memset(access(v, v->size), 0, v->e_size);
+  v->size++;
+}
+
 void vector_push_back(vector_t *v, void *e) {
   assert(v->size <= v->capacity);
   if (v->size == v->capacity) vector_expand(v);
@@ -72,7 +81,7 @@ void *vector_at(const vector_t *v, size_t index) {
 
 void *vector_data(const vector_t *v) { return v->data; }
 
-size_t vector_size(vector_t *v) { return v->size; }
+size_t vector_size(const vector_t *v) { return v->size; }
 
 void vector_remove(vector_t *v, size_t index) {
   assert(index < v->size);
@@ -96,4 +105,9 @@ void vector_destroy(vector_t *v) {
   }
   free(v->data);
   free(v);
+}
+
+void *vector_back(vector_t *v) {
+  if (v->size == 0) return NULL;
+  return access(v, v->size - 1);
 }

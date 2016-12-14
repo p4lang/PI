@@ -19,8 +19,8 @@
  */
 
 #include "PI/p4info/tables.h"
-#include "p4info/p4info_struct.h"
 #include "PI/int/pi_int.h"
+#include "p4info/p4info_struct.h"
 #include "tables_int.h"
 
 #include <cJSON/cJSON.h>
@@ -101,10 +101,6 @@ static pi_p4_id_t *get_direct_resources(_table_data_t *table) {
              : table->direct_resources.indirect;
 }
 
-static size_t num_tables(const pi_p4info_t *p4info) {
-  return p4info->tables->arr.size;
-}
-
 static const char *retrieve_name(const void *data) {
   const _table_data_t *table = (const _table_data_t *)data;
   return table->name;
@@ -135,9 +131,9 @@ static void free_table_data(void *data) {
 
 void pi_p4info_table_serialize(cJSON *root, const pi_p4info_t *p4info) {
   cJSON *tArray = cJSON_CreateArray();
-  const p4info_array_t *tables = &p4info->tables->arr;
-  for (size_t i = 0; i < tables->size; i++) {
-    _table_data_t *table = p4info_array_at(tables, i);
+  const vector_t *tables = p4info->tables->vec;
+  for (size_t i = 0; i < vector_size(tables); i++) {
+    _table_data_t *table = vector_at(tables, i);
     cJSON *tObject = cJSON_CreateObject();
 
     cJSON_AddStringToObject(tObject, "name", table->name);
@@ -189,7 +185,7 @@ void pi_p4info_table_init(pi_p4info_t *p4info, size_t num_tables) {
 void pi_p4info_table_add(pi_p4info_t *p4info, pi_p4_id_t table_id,
                          const char *name, size_t num_match_fields,
                          size_t num_actions) {
-  _table_data_t *table = get_table(p4info, table_id);
+  _table_data_t *table = p4info_add_res(p4info, table_id, name);
   table->name = strdup(name);
   table->table_id = table_id;
   table->num_match_fields = num_match_fields;
@@ -207,10 +203,7 @@ void pi_p4info_table_add(pi_p4info_t *p4info, pi_p4_id_t table_id,
   table->const_default_action_id = PI_INVALID_ID;
   table->implementation = PI_INVALID_ID;
   table->num_direct_resources = 0;
-
-  p4info_common_init(&table->common);
-
-  p4info_name_map_add(&p4info->tables->name_map, table->name, table_id);
+  table->match_fields_added = 0;
 }
 
 void pi_p4info_table_add_match_field(pi_p4info_t *p4info, pi_p4_id_t table_id,
@@ -396,20 +389,14 @@ const pi_p4_id_t *pi_p4info_table_get_direct_resources(
   return get_direct_resources(table);
 }
 
-#define PI_P4INFO_T_ITERATOR_FIRST (PI_TABLE_ID << 24)
-#define PI_P4INFO_T_ITERATOR_END ((PI_TABLE_ID << 24) | 0xffffff)
-
 pi_p4_id_t pi_p4info_table_begin(const pi_p4info_t *p4info) {
-  return (num_tables(p4info) == 0) ? PI_P4INFO_T_ITERATOR_END
-                                   : PI_P4INFO_T_ITERATOR_FIRST;
+  return pi_p4info_any_begin(p4info, PI_TABLE_ID);
 }
 
 pi_p4_id_t pi_p4info_table_next(const pi_p4info_t *p4info, pi_p4_id_t id) {
-  return ((id & 0xffffff) == num_tables(p4info) - 1) ? PI_P4INFO_T_ITERATOR_END
-                                                     : (id + 1);
+  return pi_p4info_any_next(p4info, id);
 }
 
 pi_p4_id_t pi_p4info_table_end(const pi_p4info_t *p4info) {
-  (void)p4info;
-  return PI_P4INFO_T_ITERATOR_END;
+  return pi_p4info_any_end(p4info, PI_TABLE_ID);
 }

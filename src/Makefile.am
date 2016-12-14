@@ -25,8 +25,6 @@ config_readers/bmv2_json_reader.c \
 config_readers/native_json_reader.c \
 config_readers/readers.h \
 p4info/p4info.c \
-p4info/p4info_array.h \
-p4info/p4info_array.c \
 p4info/p4info_name_map.h \
 p4info/p4info_name_map.c \
 p4info/p4info_common.h \

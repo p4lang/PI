@@ -23,8 +23,8 @@
 
 #include <PI/pi.h>
 
-#include <vector>
 #include <string>
+#include <vector>
 
 namespace pibmv2 {
 

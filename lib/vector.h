@@ -36,15 +36,20 @@ void vector_destroy(vector_t *v);
 
 void vector_push_back(vector_t *v, void *e);
 
+// add an element at the end, with memory initialized to 0
+void vector_push_back_empty(vector_t *v);
+
 void *vector_at(const vector_t *v, size_t index);
 
 void *vector_data(const vector_t *v);
 
-size_t vector_size(vector_t *v);
+size_t vector_size(const vector_t *v);
 
 void vector_remove(vector_t *v, size_t index);
 
 void vector_remove_e(vector_t *v, void *e);
+
+void *vector_back(vector_t *v);
 
 /* typedef int (*VectorCmpFn)(const void *e1, const void *e2); */
 /* void *vector_search(vector_t *v, VectorCmpFn cmp_fn, size_t start_index); */

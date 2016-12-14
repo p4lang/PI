@@ -20,8 +20,8 @@
 
 // Generates the PI JSON from the Bmv2 JSON
 
-#include <PI/pi.h>
 #include <PI/p4info.h>
+#include <PI/pi.h>
 
 #include <stdio.h>
 #include <stdlib.h>

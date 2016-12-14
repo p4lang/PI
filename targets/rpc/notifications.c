@@ -18,8 +18,8 @@
  *
  */
 
-#include <PI/int/serialize.h>
 #include <PI/int/rpc_common.h>
+#include <PI/int/serialize.h>
 #include <PI/target/pi_imp.h>
 #include <PI/target/pi_learn_imp.h>
 
@@ -28,9 +28,9 @@
 #include <nanomsg/nn.h>
 #include <nanomsg/pubsub.h>
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
 #include "pi_rpc.h"
 

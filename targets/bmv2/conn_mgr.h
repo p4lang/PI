@@ -21,9 +21,9 @@
 #ifndef PI_BMV2_CONN_MGR_H_
 #define PI_BMV2_CONN_MGR_H_
 
-#include <bm/Standard.h>
 #include <bm/SimplePreLAG.h>
 #include <bm/SimpleSwitch.h>
+#include <bm/Standard.h>
 
 #include <mutex>
 

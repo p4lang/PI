@@ -18,10 +18,10 @@
  *
  */
 
-#include "PI/p4info/tables.h"
-#include "p4info/p4info_struct.h"
 #include "PI/int/pi_int.h"
+#include "PI/p4info/tables.h"
 #include "act_profs_int.h"
+#include "p4info/p4info_struct.h"
 
 #include <cJSON/cJSON.h>
 
@@ -47,10 +47,6 @@ static _act_prof_data_t *get_act_prof(const pi_p4info_t *p4info,
   return p4info_get_at(p4info, act_prof_id);
 }
 
-static size_t num_act_profs(const pi_p4info_t *p4info) {
-  return p4info->act_profs->arr.size;
-}
-
 static const char *retrieve_name(const void *data) {
   const _act_prof_data_t *act_prof = (const _act_prof_data_t *)data;
   return act_prof->name;
@@ -65,9 +61,9 @@ static void free_act_prof_data(void *data) {
 
 void pi_p4info_act_prof_serialize(cJSON *root, const pi_p4info_t *p4info) {
   cJSON *aArray = cJSON_CreateArray();
-  const p4info_array_t *act_profs = &p4info->act_profs->arr;
-  for (size_t i = 0; i < act_profs->size; i++) {
-    _act_prof_data_t *act_prof = p4info_array_at(act_profs, i);
+  const vector_t *act_profs = p4info->act_profs->vec;
+  for (size_t i = 0; i < vector_size(act_profs); i++) {
+    _act_prof_data_t *act_prof = vector_at(act_profs, i);
     cJSON *aObject = cJSON_CreateObject();
 
     cJSON_AddStringToObject(aObject, "name", act_prof->name);
@@ -97,15 +93,11 @@ void pi_p4info_act_prof_init(pi_p4info_t *p4info, size_t num_act_profs) {
 
 void pi_p4info_act_prof_add(pi_p4info_t *p4info, pi_p4_id_t act_prof_id,
                             const char *name, bool with_selector) {
-  _act_prof_data_t *act_prof = get_act_prof(p4info, act_prof_id);
+  _act_prof_data_t *act_prof = p4info_add_res(p4info, act_prof_id, name);
   act_prof->name = strdup(name);
   act_prof->act_prof_id = act_prof_id;
   act_prof->num_tables = 0;
   act_prof->with_selector = with_selector;
-  p4info_common_init(&act_prof->common);
-
-  p4info_name_map_add(&p4info->act_profs->name_map, act_prof->name,
-                      act_prof_id);
 }
 
 void pi_p4info_act_prof_add_table(pi_p4info_t *p4info, pi_p4_id_t act_prof_id,
@@ -153,21 +145,14 @@ const pi_p4_id_t *pi_p4info_act_prof_get_actions(const pi_p4info_t *p4info,
   return pi_p4info_table_get_actions(p4info, one_t_id, num_actions);
 }
 
-#define PI_P4INFO_A_ITERATOR_FIRST (PI_ACT_PROF_ID << 24)
-#define PI_P4INFO_A_ITERATOR_END ((PI_ACT_PROF_ID << 24) | 0xffffff)
-
 pi_p4_id_t pi_p4info_act_prof_begin(const pi_p4info_t *p4info) {
-  return (num_act_profs(p4info) == 0) ? PI_P4INFO_A_ITERATOR_END
-                                      : PI_P4INFO_A_ITERATOR_FIRST;
+  return pi_p4info_any_begin(p4info, PI_ACT_PROF_ID);
 }
 
 pi_p4_id_t pi_p4info_act_prof_next(const pi_p4info_t *p4info, pi_p4_id_t id) {
-  return ((id & 0xffffff) == num_act_profs(p4info) - 1)
-             ? PI_P4INFO_A_ITERATOR_END
-             : (id + 1);
+  return pi_p4info_any_next(p4info, id);
 }
 
 pi_p4_id_t pi_p4info_act_prof_end(const pi_p4info_t *p4info) {
-  (void)p4info;
-  return PI_P4INFO_A_ITERATOR_END;
+  return pi_p4info_any_end(p4info, PI_ACT_PROF_ID);
 }

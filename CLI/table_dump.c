@@ -18,17 +18,17 @@
  *
  */
 
-#include "utils.h"
 #include "error_codes.h"
 #include "table_common.h"
+#include "utils.h"
 
-#include "PI/pi.h"
 #include "PI/frontends/generic/pi.h"
+#include "PI/pi.h"
 
-#include <string.h>
-#include <stdlib.h>
 #include <inttypes.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 char table_dump_hs[] =
     "Dump all entries in a match table: table_dump <table name>";
@@ -78,15 +78,13 @@ static void print_match_param_v(pi_p4_id_t f_id, pi_p4info_match_type_t mt,
       pi_match_key_exact_get(match_key, f_id, &fv);
       print_hexstr(fv.v.ptr, fv.size);
       break;
-    case PI_P4INFO_MATCH_TYPE_LPM:
-      ;
+    case PI_P4INFO_MATCH_TYPE_LPM:;
       pi_prefix_length_t pLen;
       pi_match_key_lpm_get(match_key, f_id, &fv, &pLen);
       print_hexstr(fv.v.ptr, fv.size);
       printf("/%u", pLen);
       break;
-    case PI_P4INFO_MATCH_TYPE_TERNARY:
-      ;
+    case PI_P4INFO_MATCH_TYPE_TERNARY:;
       pi_netv_t fv_mask;
       pi_match_key_ternary_get(match_key, f_id, &fv, &fv_mask);
       print_hexstr(fv.v.ptr, fv.size);

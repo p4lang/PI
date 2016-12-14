@@ -18,8 +18,8 @@
  *
  */
 
-#include <stdlib.h>  // needed by cJSON (for size_t)
 #include <cJSON/cJSON.h>
+#include <stdlib.h>  // needed by cJSON (for size_t)
 
 #include <string.h>
 

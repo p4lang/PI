@@ -20,8 +20,8 @@
 
 #include <PI/target/pi_learn_imp.h>
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "pi_rpc.h"
 

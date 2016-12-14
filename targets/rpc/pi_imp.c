@@ -31,8 +31,8 @@
 
 #include "pi_rpc.h"
 
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 
 static void process_state_sync(const char *rep) {
   uint32_t num;

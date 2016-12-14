@@ -18,8 +18,8 @@
  *
  */
 
-#include <PI/int/serialize.h>
 #include <PI/int/rpc_common.h>
+#include <PI/int/serialize.h>
 
 #include <nanomsg/nn.h>
 #include <nanomsg/pubsub.h>

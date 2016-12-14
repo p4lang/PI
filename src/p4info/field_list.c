@@ -19,9 +19,9 @@
  */
 
 #include "PI/p4info/field_list.h"
-#include "p4info/p4info_struct.h"
 #include "PI/int/pi_int.h"
 #include "field_list_int.h"
+#include "p4info/p4info_struct.h"
 
 #include <cJSON/cJSON.h>
 
@@ -55,10 +55,6 @@ static pi_p4_id_t *get_field_ids(_field_list_data_t *field_list) {
              : field_list->field_ids.indirect;
 }
 
-static size_t num_field_lists(const pi_p4info_t *p4info) {
-  return p4info->field_lists->arr.size;
-}
-
 static const char *retrieve_name(const void *data) {
   const _field_list_data_t *field_list = (const _field_list_data_t *)data;
   return field_list->name;
@@ -77,9 +73,9 @@ static void free_field_list_data(void *data) {
 
 void pi_p4info_field_list_serialize(cJSON *root, const pi_p4info_t *p4info) {
   cJSON *lArray = cJSON_CreateArray();
-  const p4info_array_t *field_lists = &p4info->field_lists->arr;
-  for (size_t i = 0; i < field_lists->size; i++) {
-    _field_list_data_t *field_list = p4info_array_at(field_lists, i);
+  const vector_t *field_lists = p4info->field_lists->vec;
+  for (size_t i = 0; i < vector_size(field_lists); i++) {
+    _field_list_data_t *field_list = vector_at(field_lists, i);
     cJSON *lObject = cJSON_CreateObject();
 
     cJSON_AddStringToObject(lObject, "name", field_list->name);
@@ -108,17 +104,13 @@ void pi_p4info_field_list_init(pi_p4info_t *p4info, size_t num_field_lists) {
 
 void pi_p4info_field_list_add(pi_p4info_t *p4info, pi_p4_id_t field_list_id,
                               const char *name, size_t num_fields) {
-  _field_list_data_t *field_list = get_field_list(p4info, field_list_id);
+  _field_list_data_t *field_list = p4info_add_res(p4info, field_list_id, name);
   field_list->name = strdup(name);
   field_list->field_list_id = field_list_id;
   field_list->num_fields = num_fields;
   if (num_fields > INLINE_FIELDS) {
     field_list->field_ids.indirect = calloc(num_fields, sizeof(pi_p4_id_t));
   }
-  p4info_common_init(&field_list->common);
-
-  p4info_name_map_add(&p4info->field_lists->name_map, field_list->name,
-                      field_list_id);
 }
 
 void pi_p4info_field_list_add_field(pi_p4info_t *p4info,
@@ -128,10 +120,6 @@ void pi_p4info_field_list_add_field(pi_p4info_t *p4info,
   assert(field_list->fields_added < field_list->num_fields);
   get_field_ids(field_list)[field_list->fields_added] = field_id;
   field_list->fields_added++;
-}
-
-size_t pi_p4info_field_list_get_num(const pi_p4info_t *p4info) {
-  return num_field_lists(p4info);
 }
 
 pi_p4_id_t pi_p4info_field_list_id_from_name(const pi_p4info_t *p4info,
@@ -159,21 +147,14 @@ const pi_p4_id_t *pi_p4info_field_list_get_fields(const pi_p4info_t *p4info,
   return get_field_ids(field_list);
 }
 
-#define PI_P4INFO_FL_ITERATOR_FIRST (PI_FIELD_LIST_ID << 24)
-#define PI_P4INFO_FL_ITERATOR_END ((PI_FIELD_LIST_ID << 24) | 0xffffff)
-
 pi_p4_id_t pi_p4info_field_list_begin(const pi_p4info_t *p4info) {
-  return (num_field_lists(p4info) == 0) ? PI_P4INFO_FL_ITERATOR_END
-                                        : PI_P4INFO_FL_ITERATOR_FIRST;
+  return pi_p4info_any_begin(p4info, PI_FIELD_LIST_ID);
 }
 
 pi_p4_id_t pi_p4info_field_list_next(const pi_p4info_t *p4info, pi_p4_id_t id) {
-  return ((id & 0xffffff) == num_field_lists(p4info) - 1)
-             ? PI_P4INFO_FL_ITERATOR_END
-             : (id + 1);
+  return pi_p4info_any_next(p4info, id);
 }
 
 pi_p4_id_t pi_p4info_field_list_end(const pi_p4info_t *p4info) {
-  (void)p4info;
-  return PI_P4INFO_FL_ITERATOR_END;
+  return pi_p4info_any_end(p4info, PI_FIELD_LIST_ID);
 }
