@@ -18,9 +18,9 @@
  *
  */
 
-#include <PI/proto/util.h>
-
 #include <PI/pi_base.h>
+
+#include <PI/proto/util.h>
 
 namespace pi {
 

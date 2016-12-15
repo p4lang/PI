@@ -38,6 +38,8 @@ run_cpplint $ROOT_DIR/frontends_extra/cpp frontends_extra/cpp
 run_cpplint $ROOT_DIR/proto/p4info
 run_cpplint $ROOT_DIR/proto/frontend proto/frontend
 run_cpplint $ROOT_DIR/proto/tests
+run_cpplint $ROOT_DIR/proto/src
+run_cpplint $ROOT_DIR/proto/PI proto
 
 echo "********************************"
 if [ $return_status -eq 0 ]; then

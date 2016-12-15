@@ -18,6 +18,9 @@
  *
  */
 
+#ifndef PI_PROTO_UTIL_H_
+#define PI_PROTO_UTIL_H_
+
 #include <cstdint>
 
 namespace pi {
@@ -28,7 +31,7 @@ namespace util {
 
 using p4_id_t = uint32_t;
 
-// we use the same integral value as the PI internally, but this not a
+// we use the same integral value as the PI internally, but this is not a
 // requirement
 enum class P4ResourceType {
   INVALID = 0x00,
@@ -54,3 +57,5 @@ P4ResourceType resource_type_from_id(p4_id_t p4_id);
 }  // namespace proto
 
 }  // namespace pi
+
+#endif  // PI_PROTO_UTIL_H_
