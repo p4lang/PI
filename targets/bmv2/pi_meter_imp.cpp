@@ -18,16 +18,16 @@
  *
  */
 
-#include <PI/pi.h>
 #include <PI/p4info.h>
+#include <PI/pi.h>
 #include <PI/target/pi_meter_imp.h>
 
 #include <iostream>
 #include <string>
 #include <vector>
 
-#include "conn_mgr.h"
 #include "common.h"
+#include "conn_mgr.h"
 #include "direct_res_spec.h"
 
 namespace pibmv2 {

@@ -18,22 +18,22 @@
  *
  */
 
-#include <PI/pi.h>
-#include <PI/p4info.h>
 #include <PI/int/pi_int.h>
 #include <PI/int/serialize.h>
+#include <PI/p4info.h>
+#include <PI/pi.h>
 
+#include <algorithm>
 #include <iostream>
 #include <string>
-#include <vector>
 #include <unordered_map>
-#include <algorithm>
+#include <vector>
 
 #include <cstring>
 
-#include "conn_mgr.h"
-#include "common.h"
 #include "action_helpers.h"
+#include "common.h"
+#include "conn_mgr.h"
 #include "direct_res_spec.h"
 
 namespace pibmv2 {

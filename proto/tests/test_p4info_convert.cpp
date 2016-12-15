@@ -26,8 +26,9 @@
 
 #include "PI/p4info.h"
 
-#include "p4info_to_and_from_proto.h"
 #include "p4/config/p4info.pb.h"
+
+#include "p4info_to_and_from_proto.h"
 
 namespace pi {
 namespace proto {

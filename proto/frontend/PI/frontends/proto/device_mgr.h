@@ -27,8 +27,8 @@
 #include <vector>
 
 #include "google/rpc/status.pb.h"
-#include "p4/pi.pb.h"
 #include "p4/config/p4info.pb.h"
+#include "p4/pi.pb.h"
 #include "p4/tmp/device.pb.h"
 
 namespace pi {

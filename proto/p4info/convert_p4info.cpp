@@ -22,8 +22,8 @@
 
 #include <unistd.h>
 
-#include <iostream>
 #include <fstream>  // std::ifstream, std::ofstream
+#include <iostream>
 #include <string>
 
 #include "p4info_to_and_from_proto.h"

@@ -20,11 +20,11 @@
 
 #include "action_helpers.h"
 
-#include <PI/p4info.h>
 #include <PI/int/pi_int.h>
+#include <PI/p4info.h>
 
-#include <vector>
 #include <string>
+#include <vector>
 
 namespace pibmv2 {
 
