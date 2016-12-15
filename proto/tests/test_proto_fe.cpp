@@ -22,19 +22,20 @@
 
 #include <gmock/gmock.h>
 
+#include <fstream>  // std::ifstream
+#include <iterator>  // std::distance
 #include <memory>
+#include <mutex>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <mutex>
-#include <string>
-#include <fstream>  // std::ifstream
-#include <cstring>  // std::memcmp
-#include <iterator>  // std::distance
 
-#include "PI/pi.h"
-#include "PI/int/pi_int.h"
+#include <cstring>  // std::memcmp
+
 #include "PI/frontends/proto/device_mgr.h"
+#include "PI/int/pi_int.h"
+#include "PI/pi.h"
 #include "PI/proto/util.h"
 
 #include "p4info_to_and_from_proto.h"

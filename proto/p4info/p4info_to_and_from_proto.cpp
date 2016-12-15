@@ -20,10 +20,10 @@
 
 #include <PI/p4info.h>
 
-#include <iostream>
 #include <exception>
-#include <unordered_map>
+#include <iostream>
 #include <string>
+#include <unordered_map>
 
 #include "p4info_int.h"
 

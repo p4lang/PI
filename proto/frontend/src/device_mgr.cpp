@@ -18,9 +18,9 @@
  *
  */
 
-#include <PI/pi.h>
 #include <PI/frontends/cpp/tables.h>
 #include <PI/frontends/proto/device_mgr.h>
+#include <PI/pi.h>
 
 #include <memory>
 #include <string>
@@ -28,9 +28,9 @@
 
 #include "google/rpc/code.pb.h"
 
-#include "p4info_to_and_from_proto.h"  // for p4info_proto_reader
 #include "action_prof_mgr.h"
 #include "common.h"
+#include "p4info_to_and_from_proto.h"  // for p4info_proto_reader
 
 namespace pi {
 

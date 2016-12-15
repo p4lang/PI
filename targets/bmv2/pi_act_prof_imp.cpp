@@ -18,17 +18,17 @@
  *
  */
 
-#include <PI/pi.h>
-#include <PI/p4info.h>
 #include <PI/int/pi_int.h>
+#include <PI/p4info.h>
+#include <PI/pi.h>
 
 #include <iostream>
 #include <string>
 #include <vector>
 
-#include "conn_mgr.h"
-#include "common.h"
 #include "action_helpers.h"
+#include "common.h"
+#include "conn_mgr.h"
 
 namespace pibmv2 {
 

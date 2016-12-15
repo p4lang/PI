@@ -25,9 +25,9 @@
 
 #include <pcap/pcap.h>
 
-#include <thread>
 #include <mutex>
 #include <string>
+#include <thread>
 
 #include <cassert>
 

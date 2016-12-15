@@ -18,15 +18,14 @@
  *
  */
 
-#include <PI/pi.h>
-#include <PI/p4info.h>
-#include <PI/target/pi_learn_imp.h>
-
 #include <bm/bm_apps/learn.h>
 
-#include <string>
+#include <PI/p4info.h>
+#include <PI/pi.h>
+#include <PI/target/pi_learn_imp.h>
 
 #include <cstdio>
+#include <string>
 
 #include "common.h"
 

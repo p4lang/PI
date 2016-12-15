@@ -18,14 +18,14 @@
  *
  */
 
+#include "conn_mgr.h"
+
 #include <thrift/protocol/TBinaryProtocol.h>
+#include <thrift/protocol/TMultiplexedProtocol.h>
 #include <thrift/transport/TSocket.h>
 #include <thrift/transport/TTransportUtils.h>
-#include <thrift/protocol/TMultiplexedProtocol.h>
 
 #include <iostream>
-
-#include "conn_mgr.h"
 
 namespace pibmv2 {
 

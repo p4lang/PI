@@ -23,10 +23,11 @@
 
 #include <iostream>
 #include <string>
+
 #include <cstring>  // for memset
 
-#include "conn_mgr.h"
 #include "common.h"
+#include "conn_mgr.h"
 #include "cpu_send_recv.h"
 
 #define NUM_DEVICES 256
