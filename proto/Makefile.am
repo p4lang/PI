@@ -79,7 +79,8 @@ cpp_out/google/rpc/code.pb.h \
 grpc_out/google/rpc/status.grpc.pb.h \
 grpc_out/google/rpc/code.grpc.pb.h
 
-AM_CPPFLAGS = -Icpp_out -Igrpc_out
+AM_CPPFLAGS = -Icpp_out -Igrpc_out \
+-I$(top_srcdir)/../include
 
 BUILT_SOURCES = $(proto_cpp_files) $(proto_grpc_files)
 
@@ -120,6 +121,12 @@ lib_LTLIBRARIES = libpiproto.la
 # generated source should not be distributed
 nodist_libpiproto_la_SOURCES = \
 $(proto_cpp_files) $(proto_grpc_files)
+
+libpiproto_la_SOURCES = \
+src/util.cpp
+
+nobase_include_HEADERS = \
+PI/proto/util.h
 
 libpiproto_la_LIBADD = $(PROTOBUF_LIBS) $(GRPC_LIBS)
 
