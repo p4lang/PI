@@ -37,6 +37,23 @@ namespace fe {
 
 namespace proto {
 
+// we use the same integral value as the PI internally, but this not a
+// requirement
+enum class P4ResourceType {
+  INVALID = 0x00,
+
+  ACTION = 0x01,
+  TABLE = 0x02,
+  ACTION_PARAM = 0x03,
+  FIELD = 0x04,
+  FIELD_LIST = 0x05,
+  ACTION_PROFILE = 0x11,
+  COUNTER = 0x12,
+  METER = 0x13,
+
+  INVALID_MAX = 0x100,
+};
+
 // forward declaration for PIMPL class
 class DeviceMgrImp;
 
@@ -49,6 +66,8 @@ class DeviceMgr {
   using Status = ::google::rpc::Status;
   using PacketInCb =
       std::function<void(device_id_t, std::string packet, void *cookie)>;
+
+  static constexpr p4_id_t INVALID_ID = 0;
 
   explicit DeviceMgr(device_id_t device_id);
 
@@ -96,6 +115,8 @@ class DeviceMgr {
   static void init(size_t max_devices);
 
   static void destroy();
+
+  static P4ResourceType resource_type_from_id(p4_id_t p4_id);
 
  private:
   // PIMPL design
