@@ -35,6 +35,7 @@
 #include "PI/pi.h"
 #include "PI/int/pi_int.h"
 #include "PI/frontends/proto/device_mgr.h"
+#include "PI/proto/util.h"
 
 #include "p4info_to_and_from_proto.h"
 
@@ -533,25 +534,25 @@ pi_p4info_t *DeviceMgrTest::p4info = nullptr;
 p4::config::P4Info DeviceMgrTest::p4info_proto;
 
 TEST_F(DeviceMgrTest, ResourceTypeFromId) {
-  using Type = pi::fe::proto::P4ResourceType;
+  using Type = pi::proto::util::P4ResourceType;
+  using pi::proto::util::resource_type_from_id;
   auto a_id = pi_p4info_action_id_from_name(p4info, "actionA");
-  ASSERT_EQ(Type::ACTION, DeviceMgr::resource_type_from_id(a_id));
+  ASSERT_EQ(Type::ACTION, resource_type_from_id(a_id));
   auto ap_id = pi_p4info_action_param_id_from_name(p4info, a_id, "param");
-  ASSERT_EQ(Type::ACTION_PARAM, DeviceMgr::resource_type_from_id(ap_id));
+  ASSERT_EQ(Type::ACTION_PARAM, resource_type_from_id(ap_id));
   auto t_id = pi_p4info_table_id_from_name(p4info, "ExactOne");
-  ASSERT_EQ(Type::TABLE, DeviceMgr::resource_type_from_id(t_id));
+  ASSERT_EQ(Type::TABLE, resource_type_from_id(t_id));
   auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
-  ASSERT_EQ(Type::ACTION_PROFILE,
-            DeviceMgr::resource_type_from_id(act_prof_id));
+  ASSERT_EQ(Type::ACTION_PROFILE, resource_type_from_id(act_prof_id));
   auto f_id = pi_p4info_field_id_from_name(p4info, "header_test.field32");
-  ASSERT_EQ(Type::FIELD, DeviceMgr::resource_type_from_id(f_id));
+  ASSERT_EQ(Type::FIELD, resource_type_from_id(f_id));
   // TODO(antonin): add one for field list
   auto c_id = pi_p4info_counter_id_from_name(p4info, "ExactOne_counter");
-  ASSERT_EQ(Type::COUNTER, DeviceMgr::resource_type_from_id(c_id));
+  ASSERT_EQ(Type::COUNTER, resource_type_from_id(c_id));
   auto m_id = pi_p4info_meter_id_from_name(p4info, "ExactOne_meter");
-  ASSERT_EQ(Type::METER, DeviceMgr::resource_type_from_id(m_id));
+  ASSERT_EQ(Type::METER, resource_type_from_id(m_id));
   ASSERT_EQ(Type::INVALID,
-            DeviceMgr::resource_type_from_id(DeviceMgr::INVALID_ID));
+            resource_type_from_id(pi::proto::util::invalid_id()));
 }
 
 class MatchTableTest : public DeviceMgrTest {

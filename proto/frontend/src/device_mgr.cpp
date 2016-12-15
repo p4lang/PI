@@ -599,33 +599,6 @@ DeviceMgr::destroy() {
   DeviceMgrImp::destroy();
 }
 
-// no need to use PIMP for this static method
-P4ResourceType
-DeviceMgr::resource_type_from_id(p4_id_t p4_id) {
-  switch (p4_id >> 24) {
-    case PI_ACTION_ID:
-      return P4ResourceType::ACTION;
-    case PI_TABLE_ID:
-      return P4ResourceType::TABLE;
-    case PI_ACTION_PARAM_ID:
-      return P4ResourceType::ACTION_PARAM;
-    case PI_FIELD_ID:
-      return P4ResourceType::FIELD;
-    case PI_FIELD_LIST_ID:
-      return P4ResourceType::FIELD_LIST;
-    case PI_ACT_PROF_ID:
-      return P4ResourceType::ACTION_PROFILE;
-    case PI_COUNTER_ID:
-      return P4ResourceType::COUNTER;
-    case PI_METER_ID:
-      return P4ResourceType::METER;
-    default:
-      return P4ResourceType::INVALID;
-  }
-}
-
-constexpr DeviceMgr::p4_id_t DeviceMgr::INVALID_ID;
-
 DeviceMgr::counter_iterator
 DeviceMgr::counter_read_begin() const {
   return counter_iterator(pimp.get(), counter_iterator::InitState::BEGIN);
