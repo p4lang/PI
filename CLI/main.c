@@ -291,10 +291,10 @@ char **CLI_completion(const char *text, int start, int end) {
   return matches;
 }
 
-char *dummy_completion(const char *text, int state) {
+int dummy_completion(const char *text, int state) {
   (void)text;
   (void)state;
-  return NULL;
+  return 0;
 }
 
 static void print_help(const char *name) {
