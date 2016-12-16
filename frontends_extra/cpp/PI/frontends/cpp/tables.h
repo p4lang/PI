@@ -103,7 +103,7 @@ class ActionData {
   }
 
   const pi_p4info_t *p4info;
-  pi_p4_id_t action_id;
+  __attribute__((unused)) pi_p4_id_t action_id;
   size_t nset{0};
   std::vector<size_t> offsets{};
   pi_action_data_t *action_data;
@@ -202,7 +202,7 @@ class MatchTable {
   pi_session_handle_t sess;
   pi_dev_tgt_t dev_tgt;
   // TODO(antonin): is p4info really needed here?
-  const pi_p4info_t *p4info;
+  __attribute__((unused)) const pi_p4info_t *p4info;
   pi_p4_id_t table_id;
 };
 
@@ -233,7 +233,7 @@ class ActProf {
  private:
   pi_session_handle_t sess;
   pi_dev_tgt_t dev_tgt;
-  const pi_p4info_t *p4info;
+  __attribute__((unused)) const pi_p4info_t *p4info;
   pi_p4_id_t act_prof_id;
 };
 
