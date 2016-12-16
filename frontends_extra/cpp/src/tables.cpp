@@ -41,8 +41,18 @@ uint8_t endianness(uint8_t v) {
 }
 
 template <>
+int8_t endianness(int8_t v) {
+  return v;
+}
+
+template <>
 uint16_t endianness(uint16_t v) {
   return htons(v);
+}
+
+template <>
+int16_t endianness(int16_t v) {
+  return static_cast<int16_t>(endianness(static_cast<uint16_t>(v)));
 }
 
 template <>
@@ -50,7 +60,13 @@ uint32_t endianness(uint32_t v) {
   return htonl(v);
 }
 
+template <>
+int32_t endianness(int32_t v) {
+  return static_cast<int32_t>(endianness(static_cast<uint32_t>(v)));
+}
+
 // TODO(antonin): portability
+#ifndef htonll
 uint64_t htonll(uint64_t n) {
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
   return n;
@@ -58,10 +74,16 @@ uint64_t htonll(uint64_t n) {
   return (((uint64_t)htonl(n)) << 32) + htonl(n >> 32);
 #endif
 }
+#endif  // htonll
 
 template <>
 uint64_t endianness(uint64_t v) {
   return htonll(v);
+}
+
+template <>
+int64_t endianness(int64_t v) {
+  return static_cast<int64_t>(endianness(static_cast<uint64_t>(v)));
 }
 
 }  // namespace

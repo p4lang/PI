@@ -83,8 +83,8 @@ static int parse_meter_spec(pi_p4_id_t m_id, pi_meter_spec_t *meter_spec) {
   // direct meters.
   /* meter_spec->meter_unit = PI_METER_UNIT_DEFAULT; */
   /* meter_spec->meter_type = PI_METER_TYPE_DEFAULT; */
-  meter_spec->meter_unit = pi_p4info_meter_get_unit(p4info_curr, m_id);
-  meter_spec->meter_type = pi_p4info_meter_get_type(p4info_curr, m_id);
+  meter_spec->meter_unit = (pi_meter_unit_t) pi_p4info_meter_get_unit(p4info_curr, m_id);
+  meter_spec->meter_type = (pi_meter_type_t) pi_p4info_meter_get_type(p4info_curr, m_id);
   typedef struct {
     uint64_t r;
     uint32_t b;

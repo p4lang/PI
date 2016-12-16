@@ -132,6 +132,19 @@ AC_PREPROC_IFELSE(
 # Check for libjudy
 AC_CHECK_LIB([Judy], [Judy1Next], [], [AC_MSG_ERROR([Missing libJudy])])
 
+# Determine the right way to ignore unresolved symbols in shared libraries.
+# Unfortunately this varies by platform. Right now we assume that on non-Darwin
+# operating systems, GNU ld is in use.
+AC_CANONICAL_HOST
+case "${host_os}" in
+    darwin*)
+        AC_SUBST([LD_IGNORE_UNRESOLVED_SYMBOLS], ["-Wl,-undefined,dynamic_lookup"])
+        ;;
+    *)
+        AC_SUBST([LD_IGNORE_UNRESOLVED_SYMBOLS], ["-Wl,--unresolved-symbols=ignore-in-shared-libs"])
+        ;;
+esac
+
 AM_COND_IF([WITH_CLI], [
   AC_CHECK_LIB([readline], [readline], [],
                [AC_MSG_ERROR([Missing readline lib])])
@@ -148,8 +161,12 @@ AC_TYPE_UINT64_T
 AC_TYPE_SIZE_T
 
 AC_SUBST([AM_CPPFLAGS], ["-DPI_LOG_ON -I$INCLUDE_DIR"])
-AC_SUBST([AM_LDFLAGS], ["-L$LIB_DIR"])
-AC_SUBST([AM_CFLAGS], ["-Wall -Werror -Wextra"])
+AC_SUBST([AM_LDFLAGS], ["-Qunused-arguments -L$LIB_DIR"])
+
+# Enable all warnings. -Wno-tautological-constant-out-of-range-compare is
+# necessary because clang is excessively aggressive with this warning and
+# complains about some reasonable assertions.
+AC_SUBST([AM_CFLAGS], ["-Wall -Werror -Wextra -Wno-tautological-constant-out-of-range-compare"])
 
 # Generate makefiles
 AC_CONFIG_FILES([Makefile

@@ -18,6 +18,7 @@
 
 #include <arpa/inet.h>
 
+#ifndef htonll
 static inline uint64_t htonll(uint64_t n) {
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
   return n;
@@ -25,7 +26,9 @@ static inline uint64_t htonll(uint64_t n) {
   return (((uint64_t)htonl(n)) << 32) + htonl(n >> 32);
 #endif
 }
+#endif  // htonll
 
+#ifndef ntohll
 static inline uint64_t ntohll(uint64_t n) {
 #if __BYTE_ORDER__ == __BIG_ENDIAN__
   return n;
@@ -33,5 +36,6 @@ static inline uint64_t ntohll(uint64_t n) {
   return (((uint64_t)ntohl(n)) << 32) + ntohl(n >> 32);
 #endif
 }
+#endif  // ntohll
 
 #endif  // PI_SRC_UTILS_UTILS_H_
