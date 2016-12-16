@@ -34,7 +34,7 @@ test_proto_fe_SOURCES = $(common_source) test_proto_fe.cpp
 # thanks to this, I do not need to implement all of the _pi_* functions, only
 # the one I actually need for the tests. To me this is acceptable as I only use
 # this for unit tests
-test_proto_fe_LDFLAGS = -Wl,--unresolved-symbols=ignore-in-shared-libs
+test_proto_fe_LDFLAGS = $(LD_IGNORE_UNRESOLVED_SYMBOLS)
 test_proto_fe_LDADD = \
 $(top_builddir)/p4info/libpiconvertproto.la \
 $(top_builddir)/frontend/libpifeproto.la \
