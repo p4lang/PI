@@ -51,6 +51,7 @@ uint32_t endianness(uint32_t v) {
 }
 
 // TODO(antonin): portability
+#ifndef htonll
 uint64_t htonll(uint64_t n) {
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
   return n;
@@ -58,6 +59,7 @@ uint64_t htonll(uint64_t n) {
   return (((uint64_t)htonl(n)) << 32) + htonl(n >> 32);
 #endif
 }
+#endif  // htonll
 
 template <>
 uint64_t endianness(uint64_t v) {
