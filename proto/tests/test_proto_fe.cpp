@@ -242,7 +242,10 @@ class DummySwitch {
  private:
   std::unordered_map<pi_p4_id_t, DummyTable> tables{};
   std::unordered_map<pi_p4_id_t, DummyActionProf> action_profs{};
-  __attribute__((unused)) device_id_t device_id;
+#ifdef __clang__
+  __attribute__((unused))
+#endif
+  device_id_t device_id;
 };
 
 using ::testing::_;
