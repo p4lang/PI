@@ -160,13 +160,28 @@ AC_TYPE_UINT32_T
 AC_TYPE_UINT64_T
 AC_TYPE_SIZE_T
 
+AC_MSG_CHECKING([if compiling with clang])
+
+AC_COMPILE_IFELSE(
+[AC_LANG_PROGRAM([], [[
+#ifndef __clang__
+       not clang
+#endif
+]])],
+[CLANG=yes], [CLANG=no])
+AC_MSG_RESULT([$CLANG])
+
+EXTRA_CFLAGS=""
+AS_IF([test "x$CLANG" = "xyes"],
+      [EXTRA_CFLAGS="$EXTRA_CFLAGS -Wno-tautological-constant-out-of-range-compare"])
+
 AC_SUBST([AM_CPPFLAGS], ["-DPI_LOG_ON -I$INCLUDE_DIR"])
 AC_SUBST([AM_LDFLAGS], ["-L$LIB_DIR"])
 
 # Enable all warnings. -Wno-tautological-constant-out-of-range-compare is
 # necessary because clang is excessively aggressive with this warning and
 # complains about some reasonable assertions.
-AC_SUBST([AM_CFLAGS], ["-Wall -Werror -Wextra -Wno-tautological-constant-out-of-range-compare"])
+AC_SUBST([AM_CFLAGS], ["-Wall -Werror -Wextra $EXTRA_CFLAGS"])
 
 # Generate makefiles
 AC_CONFIG_FILES([Makefile
