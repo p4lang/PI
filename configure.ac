@@ -132,19 +132,6 @@ AC_PREPROC_IFELSE(
 # Check for libjudy
 AC_CHECK_LIB([Judy], [Judy1Next], [], [AC_MSG_ERROR([Missing libJudy])])
 
-# Determine the right way to ignore unresolved symbols in shared libraries.
-# Unfortunately this varies by platform. Right now we assume that on non-Darwin
-# operating systems, GNU ld is in use.
-AC_CANONICAL_HOST
-case "${host_os}" in
-    darwin*)
-        AC_SUBST([LD_IGNORE_UNRESOLVED_SYMBOLS], ["-Wl,-undefined,dynamic_lookup"])
-        ;;
-    *)
-        AC_SUBST([LD_IGNORE_UNRESOLVED_SYMBOLS], ["-Wl,--unresolved-symbols=ignore-in-shared-libs"])
-        ;;
-esac
-
 AM_COND_IF([WITH_CLI], [
   AC_CHECK_LIB([readline], [readline], [],
                [AC_MSG_ERROR([Missing readline lib])])
