@@ -161,7 +161,7 @@ AC_TYPE_UINT64_T
 AC_TYPE_SIZE_T
 
 AC_SUBST([AM_CPPFLAGS], ["-DPI_LOG_ON -I$INCLUDE_DIR"])
-AC_SUBST([AM_LDFLAGS], ["-Qunused-arguments -L$LIB_DIR"])
+AC_SUBST([AM_LDFLAGS], ["-L$LIB_DIR"])
 
 # Enable all warnings. -Wno-tautological-constant-out-of-range-compare is
 # necessary because clang is excessively aggressive with this warning and

@@ -46,7 +46,8 @@ AC_TYPE_SIZE_T
 
 AC_SUBST([AM_CPPFLAGS], ["-I$INCLUDE_DIR"])
 AC_SUBST([AM_LDFLAGS], ["-L$LIB_DIR"])
-AC_SUBST([AM_CXXFLAGS], ["-Wall -Werror -Wextra"])
+AC_SUBST([AM_CXXFLAGS], ["$PTHREAD_CFLAGS -Wall -Werror -Wextra"])
+AC_SUBST([AM_CFLAGS], ["$PTHREAD_CFLAGS"])
 
 # Generate makefiles
 AC_CONFIG_FILES([Makefile])

@@ -25,7 +25,6 @@ cpu_send_recv.cpp
 
 libpi_bmv2_la_LIBADD = \
 $(top_builddir)/../../src/libpip4info.la \
--lbmp4apps \
-$(PTHREAD_CFLAGS)
+-lbmp4apps
 
 lib_LTLIBRARIES = libpi_bmv2.la
