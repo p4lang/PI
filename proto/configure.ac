@@ -58,7 +58,10 @@ googleapis_check_f=$ac_abs_confdir/google/rpc/status.proto
 AC_CHECK_FILE([$googleapis_check_f], [],
               [AC_MSG_ERROR([Did you run 'git submodule update --init'?])])
 
-AC_SUBST([AM_CXXFLAGS], ["-Wall -Werror -Wextra"])
+# check for pthreads
+AX_PTHREAD([], [AC_MSG_ERROR([Missing pthread library])])
+
+AC_SUBST([AM_CXXFLAGS], ["$PTHREAD_CFLAGS -Wall -Werror -Wextra"])
 
 # Determine the right way to ignore unresolved symbols in shared libraries.
 # Unfortunately this varies by platform. Right now we assume that on non-Darwin
