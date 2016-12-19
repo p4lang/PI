@@ -74,7 +74,7 @@ AC_CONFIG_MACRO_DIR([m4])
 AC_LANG_PUSH(C)
 
 # check for pthreads
-AX_PTHREAD()
+AX_PTHREAD([], [AC_MSG_ERROR([Missing pthread library])])
 
 # To simplify usage, we will update PATH, CPPFLAGS,.. to include the 'prefix'
 # ones
@@ -168,7 +168,7 @@ AC_SUBST([AM_LDFLAGS], ["-L$LIB_DIR"])
 # Enable all warnings. -Wno-tautological-constant-out-of-range-compare is
 # necessary because clang is excessively aggressive with this warning and
 # complains about some reasonable assertions.
-AC_SUBST([AM_CFLAGS], ["-Wall -Werror -Wextra $EXTRA_CFLAGS"])
+AC_SUBST([AM_CFLAGS], ["$PTHREAD_CFLAGS -Wall -Werror -Wextra $EXTRA_CFLAGS"])
 
 # Generate makefiles
 AC_CONFIG_FILES([Makefile

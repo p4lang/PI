@@ -2,8 +2,6 @@
 AM_CPPFLAGS += \
 -I$(top_srcdir)/include
 
-AM_CFLAGS += $(PTHREAD_CFLAGS)
-
 libpi_rpc_la_SOURCES = \
 pi_rpc.h \
 pi_rpc.c \

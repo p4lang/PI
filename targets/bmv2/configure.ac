@@ -16,7 +16,7 @@ AC_LANG_PUSH(C)
 AC_LANG_PUSH(C++)
 
 # check for pthreads
-AX_PTHREAD()
+AX_PTHREAD([], [AC_MSG_ERROR([Missing pthread library])])
 
 AX_CXX_COMPILE_STDCXX_11([noext],[mandatory])
 
