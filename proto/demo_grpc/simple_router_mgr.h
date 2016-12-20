@@ -72,9 +72,9 @@ class PacketIOSyncClient;
 
 class SimpleRouterMgr {
  public:
-  friend class PacketHandler;
-  friend class CounterQueryHandler;
-  friend class ConfigUpdateHandler;
+  friend struct PacketHandler;
+  friend struct CounterQueryHandler;
+  friend struct ConfigUpdateHandler;
 
   typedef std::vector<char> Packet;
 

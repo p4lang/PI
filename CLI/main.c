@@ -291,11 +291,26 @@ char **CLI_completion(const char *text, int start, int end) {
   return matches;
 }
 
+// We assign this function to rl_completion_entry_function. According to the
+// readline documentation
+// (http://www.delorie.com/gnu/docs/readline/rlman_47.html), this variable is a
+// function pointer of type rl_compentry_func_t. Again according to the
+// documentation (http://www.delorie.com/gnu/docs/readline/rlman_26.html), the
+// return type should be char *. However, it seems that for macos, the expected
+// return type is int.
+#ifdef __APPLE__
 int dummy_completion(const char *text, int state) {
   (void)text;
   (void)state;
   return 0;
 }
+#else
+char *dummy_completion(const char *text, int state) {
+  (void)text;
+  (void)state;
+  return NULL;
+}
+#endif
 
 static void print_help(const char *name) {
   fprintf(stderr,

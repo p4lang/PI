@@ -30,7 +30,10 @@ AC_TYPE_UINT32_T
 AC_TYPE_UINT64_T
 AC_TYPE_SIZE_T
 
-AC_SUBST([AM_CXXFLAGS], ["-Wall -Werror -Wextra"])
+# check for pthreads
+AX_PTHREAD([], [AC_MSG_ERROR([Missing pthread library])])
+
+AC_SUBST([AM_CXXFLAGS], ["$PTHREAD_CFLAGS -Wall -Werror -Wextra"])
 
 # Generate makefiles
 AC_CONFIG_FILES([Makefile

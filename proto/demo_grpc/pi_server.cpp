@@ -335,6 +335,9 @@ class PacketIOClientMgr {
   }
 
   mutable std::mutex mgr_m_;
+#ifdef __clang__
+  __attribute__((unused))
+#endif
   PIHybridService *service_;
   ServerCompletionQueue* cq_;
   std::vector<PacketIOWriter *> clients;

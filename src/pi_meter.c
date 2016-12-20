@@ -43,9 +43,11 @@ pi_status_t pi_meter_set(pi_session_handle_t session_handle,
   if (is_direct_meter(p4info, meter_id)) return PI_STATUS_METER_IS_DIRECT;
   pi_meter_spec_t new_spec = *meter_spec;
   if (meter_spec->meter_unit == PI_METER_UNIT_DEFAULT)
-    new_spec.meter_unit = (pi_meter_unit_t) pi_p4info_meter_get_unit(p4info, meter_id);
+    new_spec.meter_unit =
+        (pi_meter_unit_t)pi_p4info_meter_get_unit(p4info, meter_id);
   if (meter_spec->meter_type == PI_METER_TYPE_DEFAULT)
-    new_spec.meter_type = (pi_meter_type_t) pi_p4info_meter_get_type(p4info, meter_id);
+    new_spec.meter_type =
+        (pi_meter_type_t)pi_p4info_meter_get_type(p4info, meter_id);
   return _pi_meter_set(session_handle, dev_tgt, meter_id, index, &new_spec);
 }
 
@@ -69,9 +71,11 @@ pi_status_t pi_meter_set_direct(pi_session_handle_t session_handle,
   if (!is_direct_meter(p4info, meter_id)) return PI_STATUS_METER_IS_NOT_DIRECT;
   pi_meter_spec_t new_spec = *meter_spec;
   if (meter_spec->meter_unit == PI_METER_UNIT_DEFAULT)
-    new_spec.meter_unit = (pi_meter_unit_t) pi_p4info_meter_get_unit(p4info, meter_id);
+    new_spec.meter_unit =
+        (pi_meter_unit_t)pi_p4info_meter_get_unit(p4info, meter_id);
   if (meter_spec->meter_type == PI_METER_TYPE_DEFAULT)
-    new_spec.meter_type = (pi_meter_type_t) pi_p4info_meter_get_type(p4info, meter_id);
+    new_spec.meter_type =
+        (pi_meter_type_t)pi_p4info_meter_get_type(p4info, meter_id);
   return _pi_meter_set_direct(session_handle, dev_tgt, meter_id, entry_handle,
                               &new_spec);
 }

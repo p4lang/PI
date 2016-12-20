@@ -14,7 +14,6 @@ pi_learn_imp.c \
 notifications.c
 
 libpi_rpc_la_LIBADD = \
-$(top_builddir)/src/libpip4info.la \
-$(PTHREAD_CFLAGS)
+$(top_builddir)/src/libpip4info.la
 
 lib_LTLIBRARIES = libpi_rpc.la
