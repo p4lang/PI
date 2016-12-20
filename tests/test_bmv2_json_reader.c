@@ -186,6 +186,7 @@ TEST(IdAssignment, Pragmas) {
   TEST_ASSERT_EQUAL_UINT((PI_TABLE_ID << 24) | 9,
                          pi_p4info_table_id_from_name(p4info, "t"));
 
+  TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS, pi_destroy_config(p4info));
   free(config);
 }
 

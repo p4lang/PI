@@ -22,6 +22,7 @@
 #include "PI/pi_base.h"
 #include "p4info_int.h"
 #include "utils/logging.h"
+#include "vector.h"
 
 #include <Judy.h>
 #include <cJSON/cJSON.h>
@@ -223,6 +224,37 @@ static void import_pragmas(cJSON *object, pi_p4info_t *p4info, pi_p4_id_t id) {
   }
 }
 
+// a simple bubble sort to sort objects in a list based on alphabetical order of
+// their name attribute
+static void sort_json_array(cJSON *array) {
+  assert(array->type == cJSON_Array);
+  int size = cJSON_GetArraySize(array);
+  const cJSON *item = NULL;
+  for (int i = size - 1; i > 0; i--) {
+    cJSON *object = array->child;
+    cJSON *next_object = NULL;
+    cJSON **prev_ptr = &(array->child);
+    while (object->next) {
+      next_object = object->next;
+      item = cJSON_GetObjectItem(object, "name");
+      const char *name = item->valuestring;
+      item = cJSON_GetObjectItem(next_object, "name");
+      const char *next_name = item->valuestring;
+
+      if (strcmp(name, next_name) > 0) {  // do swap
+        *prev_ptr = next_object;
+        next_object->prev = *prev_ptr;
+        object->prev = next_object;
+        object->next = next_object->next;
+        next_object->next = object;
+      }
+      prev_ptr = &(object->next);
+      object = next_object;
+    }
+    array->child->prev = NULL;
+  }
+}
+
 static pi_status_t read_actions(reader_state_t *state, cJSON *root,
                                 pi_p4info_t *p4info) {
   assert(root);
@@ -233,6 +265,7 @@ static pi_status_t read_actions(reader_state_t *state, cJSON *root,
   pi_p4info_action_init(p4info, num_actions);
 
   cJSON *action;
+  sort_json_array(actions);
   cJSON_ArrayForEach(action, actions) {
     const cJSON *item;
     item = cJSON_GetObjectItem(action, "name");
@@ -312,6 +345,7 @@ static pi_status_t read_fields(reader_state_t *state, cJSON *root,
   PI_LOG_DEBUG("Number of fields found: %zu\n", num_fields);
   pi_p4info_field_init(p4info, num_fields);
 
+  sort_json_array(headers);
   cJSON_ArrayForEach(header, headers) {
     item = cJSON_GetObjectItem(header, "name");
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
@@ -401,6 +435,15 @@ static size_t get_num_act_profs_in_pipe(cJSON *pipe) {
   return num_act_profs;
 }
 
+static int cmp_json_object_generic(const void *e1, const void *e2) {
+  cJSON *object_1 = *(cJSON * const *)e1;
+  cJSON *object_2 = *(cJSON * const *)e2;
+  const cJSON *item_1, *item_2;
+  item_1 = cJSON_GetObjectItem(object_1, "name");
+  item_2 = cJSON_GetObjectItem(object_2, "name");
+  return strcmp(item_1->valuestring, item_2->valuestring);
+}
+
 static pi_status_t read_tables(reader_state_t *state, cJSON *root,
                                pi_p4info_t *p4info) {
   assert(root);
@@ -421,89 +464,105 @@ static pi_status_t read_tables(reader_state_t *state, cJSON *root,
   pi_p4info_table_init(p4info, num_tables);
   pi_p4info_act_prof_init(p4info, num_act_profs);
 
+  // cannot sue sort_json_array for tables as we have to sort them across
+  // multiple pipelines so instead we create a temporary vector which we sort
+  // with qsort
+  vector_t *tables_vec = vector_create(sizeof(cJSON *), num_tables);
   cJSON *table;
   cJSON_ArrayForEach(pipe, pipelines) {
     cJSON *tables = cJSON_GetObjectItem(pipe, "tables");
     pre_reserve_ids(state, PI_TABLE_ID, tables);
     cJSON_ArrayForEach(table, tables) {
-      const cJSON *item;
-      item = cJSON_GetObjectItem(table, "name");
-      if (!item) return PI_STATUS_CONFIG_READER_ERROR;
-      const char *name = item->valuestring;
-      pi_p4_id_t pi_id = request_id(state, table, PI_TABLE_ID);
-
-      cJSON *json_match_key = cJSON_GetObjectItem(table, "key");
-      if (!json_match_key) return PI_STATUS_CONFIG_READER_ERROR;
-      size_t num_match_fields = cJSON_GetArraySize(json_match_key);
-
-      cJSON *json_actions = cJSON_GetObjectItem(table, "actions");
-      if (!json_actions) return PI_STATUS_CONFIG_READER_ERROR;
-      size_t num_actions = cJSON_GetArraySize(json_actions);
-
-      PI_LOG_DEBUG("Adding table '%s'\n", name);
-      pi_p4info_table_add(p4info, pi_id, name, num_match_fields, num_actions);
-
-      import_pragmas(table, p4info, pi_id);
-
-      cJSON *match_field;
-      cJSON_ArrayForEach(match_field, json_match_key) {
-        item = cJSON_GetObjectItem(match_field, "match_type");
-        if (!item) return PI_STATUS_CONFIG_READER_ERROR;
-        pi_p4info_match_type_t match_type =
-            match_type_from_str(item->valuestring);
-
-        cJSON *target = cJSON_GetObjectItem(match_field, "target");
-        if (!target) return PI_STATUS_CONFIG_READER_ERROR;
-        char fname[256];
-        const char *header_name;
-        const char *suffix;
-        if (match_type == PI_P4INFO_MATCH_TYPE_VALID) {
-          header_name = target->valuestring;
-          suffix = "_valid";
-        } else {
-          header_name = cJSON_GetArrayItem(target, 0)->valuestring;
-          suffix = cJSON_GetArrayItem(target, 1)->valuestring;
-        }
-        int n = snprintf(fname, sizeof(fname), "%s.%s", header_name, suffix);
-        if (n <= 0 || (size_t)n >= sizeof(fname)) return PI_STATUS_BUFFER_ERROR;
-        pi_p4_id_t fid = pi_p4info_field_id_from_name(p4info, fname);
-        size_t bitwidth = pi_p4info_field_bitwidth(p4info, fid);
-        pi_p4info_table_add_match_field(p4info, pi_id, fid, fname, match_type,
-                                        bitwidth);
-      }
-
-      cJSON *action;
-      cJSON_ArrayForEach(action, json_actions) {
-        const char *aname = action->valuestring;
-        pi_p4_id_t aid = pi_p4info_action_id_from_name(p4info, aname);
-        pi_p4info_table_add_action(p4info, pi_id, aid);
-      }
-
-      // action profile support
-      item = cJSON_GetObjectItem(table, "type");
-      if (!item) return PI_STATUS_CONFIG_READER_ERROR;
-      const char *table_type = item->valuestring;
-      const char *act_prof_name = NULL;
-      bool with_selector = false;
-      // true for both 'indirect' and 'indirect_ws'
-      if (!strncmp("indirect", table_type, sizeof "indirect" - 1)) {
-        item = cJSON_GetObjectItem(table, "act_prof_name");
-        if (!item) return PI_STATUS_CONFIG_READER_ERROR;
-        act_prof_name = item->valuestring;
-      }
-      if (!strncmp("indirect_ws", table_type, sizeof "indirect_ws")) {
-        with_selector = true;
-      }
-      if (act_prof_name) {
-        pi_p4_id_t pi_act_prof_id = request_id(state, table, PI_ACT_PROF_ID);
-        PI_LOG_DEBUG("Adding action profile '%s'\n", act_prof_name);
-        pi_p4info_act_prof_add(p4info, pi_act_prof_id, act_prof_name,
-                               with_selector);
-        pi_p4info_act_prof_add_table(p4info, pi_act_prof_id, pi_id);
-        pi_p4info_table_set_implementation(p4info, pi_id, pi_act_prof_id);
-      }
+      vector_push_back(tables_vec, (void *)&table);
     }
   }
+  assert(vector_size(tables_vec) == num_tables);
+  qsort(vector_data(tables_vec), num_tables, sizeof(cJSON *),
+        cmp_json_object_generic);
+
+  for (size_t i = 0; i < num_tables; i++) {
+    cJSON *table = *(cJSON **)vector_at(tables_vec, i);
+    const cJSON *item;
+    item = cJSON_GetObjectItem(table, "name");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    const char *name = item->valuestring;
+    pi_p4_id_t pi_id = request_id(state, table, PI_TABLE_ID);
+
+    cJSON *json_match_key = cJSON_GetObjectItem(table, "key");
+    if (!json_match_key) return PI_STATUS_CONFIG_READER_ERROR;
+    size_t num_match_fields = cJSON_GetArraySize(json_match_key);
+
+    cJSON *json_actions = cJSON_GetObjectItem(table, "actions");
+    if (!json_actions) return PI_STATUS_CONFIG_READER_ERROR;
+    size_t num_actions = cJSON_GetArraySize(json_actions);
+
+    PI_LOG_DEBUG("Adding table '%s'\n", name);
+    pi_p4info_table_add(p4info, pi_id, name, num_match_fields, num_actions);
+
+    import_pragmas(table, p4info, pi_id);
+
+    cJSON *match_field;
+    cJSON_ArrayForEach(match_field, json_match_key) {
+      item = cJSON_GetObjectItem(match_field, "match_type");
+      if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+      pi_p4info_match_type_t match_type =
+          match_type_from_str(item->valuestring);
+
+      cJSON *target = cJSON_GetObjectItem(match_field, "target");
+      if (!target) return PI_STATUS_CONFIG_READER_ERROR;
+      char fname[256];
+      const char *header_name;
+      const char *suffix;
+      if (match_type == PI_P4INFO_MATCH_TYPE_VALID) {
+        header_name = target->valuestring;
+        suffix = "_valid";
+      } else {
+        header_name = cJSON_GetArrayItem(target, 0)->valuestring;
+        suffix = cJSON_GetArrayItem(target, 1)->valuestring;
+      }
+      int n = snprintf(fname, sizeof(fname), "%s.%s", header_name, suffix);
+      if (n <= 0 || (size_t)n >= sizeof(fname)) return PI_STATUS_BUFFER_ERROR;
+      pi_p4_id_t fid = pi_p4info_field_id_from_name(p4info, fname);
+      size_t bitwidth = pi_p4info_field_bitwidth(p4info, fid);
+      pi_p4info_table_add_match_field(p4info, pi_id, fid, fname, match_type,
+                                      bitwidth);
+    }
+
+    cJSON *action;
+    cJSON_ArrayForEach(action, json_actions) {
+      const char *aname = action->valuestring;
+      pi_p4_id_t aid = pi_p4info_action_id_from_name(p4info, aname);
+      pi_p4info_table_add_action(p4info, pi_id, aid);
+    }
+
+    // TODO(antonin): fix ID allocation for action profile when bmv2 JSON has
+    // been updated to support action profile sharing across tables
+    // action profile support
+    item = cJSON_GetObjectItem(table, "type");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    const char *table_type = item->valuestring;
+    const char *act_prof_name = NULL;
+    bool with_selector = false;
+    // true for both 'indirect' and 'indirect_ws'
+    if (!strncmp("indirect", table_type, sizeof "indirect" - 1)) {
+      item = cJSON_GetObjectItem(table, "act_prof_name");
+      if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+      act_prof_name = item->valuestring;
+    }
+    if (!strncmp("indirect_ws", table_type, sizeof "indirect_ws")) {
+      with_selector = true;
+    }
+    if (act_prof_name) {
+      pi_p4_id_t pi_act_prof_id = request_id(state, table, PI_ACT_PROF_ID);
+      PI_LOG_DEBUG("Adding action profile '%s'\n", act_prof_name);
+      pi_p4info_act_prof_add(p4info, pi_act_prof_id, act_prof_name,
+                             with_selector);
+      pi_p4info_act_prof_add_table(p4info, pi_act_prof_id, pi_id);
+      pi_p4info_table_set_implementation(p4info, pi_id, pi_act_prof_id);
+    }
+  }
+
+  vector_destroy(tables_vec);
 
   return PI_STATUS_SUCCESS;
 }
@@ -518,6 +577,7 @@ static pi_status_t read_counters(reader_state_t *state, cJSON *root,
   pi_p4info_counter_init(p4info, num_counters);
 
   cJSON *counter;
+  sort_json_array(counters);
   cJSON_ArrayForEach(counter, counters) {
     const cJSON *item;
     item = cJSON_GetObjectItem(counter, "name");
@@ -573,6 +633,7 @@ static pi_status_t read_meters(reader_state_t *state, cJSON *root,
   pi_p4info_meter_init(p4info, num_meters);
 
   cJSON *meter;
+  sort_json_array(meters);
   cJSON_ArrayForEach(meter, meters) {
     const cJSON *item;
     item = cJSON_GetObjectItem(meter, "name");
@@ -625,6 +686,7 @@ static pi_status_t read_field_lists(reader_state_t *state, cJSON *root,
   pi_p4info_field_list_init(p4info, num_field_lists);
 
   cJSON *field_list;
+  sort_json_array(field_lists);
   cJSON_ArrayForEach(field_list, field_lists) {
     const cJSON *item;
     item = cJSON_GetObjectItem(field_list, "name");

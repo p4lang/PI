@@ -113,6 +113,7 @@ AC_CHECK_FUNCS([stat toupper])
 AC_CHECK_FUNCS([strtok strtok_r strchr strstr strtol strtoll])
 AC_CHECK_FUNCS([inet_pton])
 AC_CHECK_FUNCS([strncasecmp])
+AC_CHECK_FUNCS([qsort])
 # TODO: make this portable
 AC_CHECK_FUNC([strnlen], [], [AC_MSG_ERROR([No strnlen implementation found])])
 
