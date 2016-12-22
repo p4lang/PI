@@ -108,12 +108,57 @@
                 "id 2 3 4",
                 "my_pragma v1"
             ]
+        },
+        {
+            "name": "hs2[0]",
+            "id": 5,
+            "header_type": "h_t",
+            "metadata": false,
+            "pragmas": [
+                "id 22",
+                "dont_trim"
+            ]
+        },
+        {
+            "name": "hs2[1]",
+            "id": 6,
+            "header_type": "h_t",
+            "metadata": false,
+            "pragmas": [
+                "id 22",
+                "dont_trim"
+            ]
+        },
+        {
+            "name": "hs2[2]",
+            "id": 7,
+            "header_type": "h_t",
+            "metadata": false,
+            "pragmas": [
+                "id 22",
+                "dont_trim"
+            ]
         }
     ],
     "header_stacks": [
         {
-            "name": "hs",
+            "name": "hs2",
             "id": 0,
+            "size": 3,
+            "header_type": "h_t",
+            "header_ids": [
+                5,
+                6,
+                7
+            ],
+            "pragmas": [
+                "id 22",
+                "dont_trim"
+            ]
+        },
+        {
+            "name": "hs",
+            "id": 1,
             "size": 3,
             "header_type": "h_t",
             "header_ids": [

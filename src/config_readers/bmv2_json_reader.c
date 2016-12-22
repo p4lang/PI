@@ -196,10 +196,11 @@ static pi_p4_id_t request_id(reader_state_t *state, cJSON *object,
     for (size_t i = 0; i < num_ids; i++) {
       id = (type_id << 24) | ids[i];
       assert(is_id_reserved(state, id));
-      if (!is_id_allocated(state, id)) break;
+      if (!is_id_allocated(state, id)) {
+        allocate_id(state, id);
+        return id;
+      }
     }
-    allocate_id(state, id);
-    return id;
   }
   return generate_id_from_name(state, object, type_id);
 }
