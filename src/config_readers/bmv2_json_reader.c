@@ -303,6 +303,24 @@ static pi_status_t read_actions(reader_state_t *state, cJSON *root,
   return PI_STATUS_SUCCESS;
 }
 
+// rules to exclude fields
+static bool exclude_field(const char *suffix) {
+  // exclude "padding" fields, i.e. fields which start with "_padding"
+  if (!strncmp(suffix, "_padding", sizeof "_padding" - 1)) return true;
+  return false;
+}
+
+static size_t header_count_fields(cJSON *header_type) {
+  size_t num_fields = 0;
+  cJSON *fields = cJSON_GetObjectItem(header_type, "fields");
+  cJSON *field;
+  cJSON_ArrayForEach(field, fields) {
+    const char *suffix = cJSON_GetArrayItem(field, 0)->valuestring;
+    if (!exclude_field(suffix)) num_fields++;
+  }
+  return num_fields;
+}
+
 static pi_status_t read_fields(reader_state_t *state, cJSON *root,
                                pi_p4info_t *p4info) {
   assert(root);
@@ -337,9 +355,7 @@ static pi_status_t read_fields(reader_state_t *state, cJSON *root,
     Word_t *header_type_json = NULL;
     JSLG(header_type_json, header_type_map, (const uint8_t *)header_type_name);
     if (!header_type_json) return PI_STATUS_CONFIG_READER_ERROR;
-    item = (cJSON *)*header_type_json;
-    item = cJSON_GetObjectItem(item, "fields");
-    num_fields += cJSON_GetArraySize(item);
+    num_fields += header_count_fields((cJSON *)*header_type_json);
     num_fields++;  // for valid field (see below)
   }
 
@@ -363,6 +379,7 @@ static pi_status_t read_fields(reader_state_t *state, cJSON *root,
     int index = 0;
     cJSON_ArrayForEach(field, item) {
       const char *suffix = cJSON_GetArrayItem(field, 0)->valuestring;
+      if (exclude_field(suffix)) continue;
 
       //  just a safeguard, given how we handle validity
       if (!strncmp("_valid", suffix, sizeof "_valid")) {
