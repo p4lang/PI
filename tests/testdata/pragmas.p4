@@ -11,6 +11,11 @@ header h_t h;
 @pragma id 2 3 4
 header h_t hs[3];
 
+// header stack for which we don't provide an id for all instances
+@pragma dont_trim
+@pragma id 22
+header h_t hs2[3];
+
 @pragma my_pragma v1
 parser_value_set pv;
 
