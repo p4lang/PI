@@ -34,10 +34,17 @@
             "pi_omit": true
         },
         {
-            "name": "reg",
+            "name": "reg1",
             "id": 1,
             "header_type": "reg_t",
             "metadata": true
+        },
+        {
+            "name": "reg2",
+            "id": 2,
+            "header_type": "reg_t",
+            "metadata": true,
+            "pi_omit": false
         }
     ],
     "meter_arrays": [],

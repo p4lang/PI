@@ -315,7 +315,7 @@ static bool exclude_header(cJSON *header) {
   const cJSON *item = cJSON_GetObjectItem(header, "pi_omit");
   if (!item) return false;
   if (item->valueint) return true;
-  return true;
+  return false;
 }
 
 static size_t header_count_fields(cJSON *header_type) {

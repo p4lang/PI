@@ -204,7 +204,9 @@ TEST(IdAssignment, PiOmit) {
   TEST_ASSERT_EQUAL_UINT(PI_INVALID_ID,
                          pi_p4info_field_id_from_name(p4info, "scalars.f1"));
   TEST_ASSERT_NOT_EQUAL(PI_INVALID_ID,
-                        pi_p4info_field_id_from_name(p4info, "reg.f1"));
+                        pi_p4info_field_id_from_name(p4info, "reg1.f1"));
+  TEST_ASSERT_NOT_EQUAL(PI_INVALID_ID,
+                        pi_p4info_field_id_from_name(p4info, "reg2.f1"));
   TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS, pi_destroy_config(p4info));
   free(config);
 }
