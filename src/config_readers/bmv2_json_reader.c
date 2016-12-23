@@ -310,6 +310,14 @@ static bool exclude_field(const char *suffix) {
   return false;
 }
 
+// rules to exclude header instances
+static bool exclude_header(cJSON *header) {
+  const cJSON *item = cJSON_GetObjectItem(header, "pi_omit");
+  if (!item) return false;
+  if (item->valueint) return true;
+  return true;
+}
+
 static size_t header_count_fields(cJSON *header_type) {
   size_t num_fields = 0;
   cJSON *fields = cJSON_GetObjectItem(header_type, "fields");
@@ -349,6 +357,7 @@ static pi_status_t read_fields(reader_state_t *state, cJSON *root,
   size_t num_fields = 0u;
   cJSON *header;
   cJSON_ArrayForEach(header, headers) {
+    if (exclude_header(header)) continue;
     item = cJSON_GetObjectItem(header, "header_type");
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
     const char *header_type_name = item->valuestring;
@@ -364,6 +373,7 @@ static pi_status_t read_fields(reader_state_t *state, cJSON *root,
 
   sort_json_array(headers);
   cJSON_ArrayForEach(header, headers) {
+    if (exclude_header(header)) continue;
     item = cJSON_GetObjectItem(header, "name");
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
     const char *header_name = item->valuestring;

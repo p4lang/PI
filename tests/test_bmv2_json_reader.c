@@ -194,7 +194,25 @@ TEST(IdAssignment, Pragmas) {
   free(config);
 }
 
-TEST_GROUP_RUNNER(IdAssignment) { RUN_TEST_CASE(IdAssignment, Pragmas); }
+TEST(IdAssignment, PiOmit) {
+  pi_p4info_t *p4info;
+  char *config = read_json(TESTDATADIR
+                           "/"
+                           "pi_omit.json");
+  TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS,
+                    pi_add_config(config, PI_CONFIG_TYPE_BMV2_JSON, &p4info));
+  TEST_ASSERT_EQUAL_UINT(PI_INVALID_ID,
+                         pi_p4info_field_id_from_name(p4info, "scalars.f1"));
+  TEST_ASSERT_NOT_EQUAL(PI_INVALID_ID,
+                        pi_p4info_field_id_from_name(p4info, "reg.f1"));
+  TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS, pi_destroy_config(p4info));
+  free(config);
+}
+
+TEST_GROUP_RUNNER(IdAssignment) {
+  RUN_TEST_CASE(IdAssignment, PiOmit);
+  RUN_TEST_CASE(IdAssignment, Pragmas);
+}
 
 void test_bmv2_json_reader() {
   RUN_TEST_GROUP(SimpleRouter);
