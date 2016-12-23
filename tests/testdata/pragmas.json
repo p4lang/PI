@@ -299,12 +299,34 @@
                         "a"
                     ],
                     "next_tables": {
+                        "a": "t2"
+                    },
+                    "base_default_next": "t2",
+                    "pragmas": [
+                        "id 9",
+                        "my_pragma v1"
+                    ]
+                },
+                {
+                    "name": "t2",
+                    "id": 1,
+                    "match_type": "exact",
+                    "type": "indirect",
+                    "act_prof_name": "ap",
+                    "max_size": 16384,
+                    "with_counters": false,
+                    "direct_meters": null,
+                    "support_timeout": false,
+                    "key": [],
+                    "actions": [
+                        "a"
+                    ],
+                    "next_tables": {
                         "a": null
                     },
                     "base_default_next": null,
                     "pragmas": [
-                        "id 9",
-                        "my_pragma v1"
+                        "id 10"
                     ]
                 }
             ],
