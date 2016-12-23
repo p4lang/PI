@@ -71,5 +71,15 @@ action a(ap) {
 @pragma id 9
 table t { actions { a; } }
 
+@pragma id 10
+table t2 { action_profile: ap; }
+
+// no support for action profile pragmas yet, so the table (t2) one will be used
+@pragma id 11
+action_profile ap {
+    actions { a; }
+    size : 128;
+}
+
 @pragma my_pragma v1
-control ingress { apply(t); }
+control ingress { apply(t); apply(t2); }

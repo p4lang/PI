@@ -571,7 +571,10 @@ static pi_status_t read_tables(reader_state_t *state, cJSON *root,
       with_selector = true;
     }
     if (act_prof_name) {
-      pi_p4_id_t pi_act_prof_id = request_id(state, table, PI_ACT_PROF_ID);
+      // action profiles are not first class citizens in the bmv2 JSON yet, so
+      // we use the same PI id as the table for now
+      // pi_p4_id_t pi_act_prof_id = request_id(state, table, PI_ACT_PROF_ID);
+      pi_p4_id_t pi_act_prof_id = (PI_ACT_PROF_ID << 24) | (pi_id & 0xffffff);
       PI_LOG_DEBUG("Adding action profile '%s'\n", act_prof_name);
       pi_p4info_act_prof_add(p4info, pi_act_prof_id, act_prof_name,
                              with_selector);
