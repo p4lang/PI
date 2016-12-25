@@ -36,18 +36,6 @@ extern conn_mgr_t *conn_mgr_state;
 
 }  // namespace pibmv2
 
-namespace {
-
-std::string get_table_name(const pi_p4info_t *p4info, pi_p4_id_t act_prof_id) {
-  size_t num_tables = 0;
-  const pi_p4_id_t *table_ids = pi_p4info_act_prof_get_tables(
-      p4info, act_prof_id, &num_tables);
-  assert(num_tables == 1);
-  return std::string(pi_p4info_table_name_from_id(p4info, *table_ids));
-}
-
-}  // namespace
-
 extern "C" {
 
 pi_status_t _pi_act_prof_mbr_create(pi_session_handle_t session_handle,
@@ -61,18 +49,19 @@ pi_status_t _pi_act_prof_mbr_create(pi_session_handle_t session_handle,
   assert(d_info->assigned);
   const pi_p4info_t *p4info = d_info->p4info;
   auto adata = pibmv2::build_action_data(action_data, p4info);
+  std::string ap_name(pi_p4info_act_prof_name_from_id(p4info, act_prof_id));
   std::string a_name(pi_p4info_action_name_from_id(p4info,
                                                    action_data->action_id));
-  std::string t_name = get_table_name(p4info, act_prof_id);
 
   auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_tgt.dev_id);
 
   try {
-    *mbr_handle = client.c->bm_mt_indirect_add_member(0, t_name, a_name, adata);
+    *mbr_handle = client.c->bm_mt_act_prof_add_member(
+        0, ap_name, a_name, adata);
   } catch (InvalidTableOperation &ito) {
     const char *what =
         _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
-    std::cout << "Invalid table (" << t_name << ") operation ("
+    std::cout << "Invalid action profile (" << ap_name << ") operation ("
               << ito.code << "): " << what << std::endl;
     return static_cast<pi_status_t>(PI_STATUS_TARGET_ERROR + ito.code);
   }
@@ -89,16 +78,16 @@ pi_status_t _pi_act_prof_mbr_delete(pi_session_handle_t session_handle,
   pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_id);
   assert(d_info->assigned);
   const pi_p4info_t *p4info = d_info->p4info;
-  std::string t_name = get_table_name(p4info, act_prof_id);
+  std::string ap_name(pi_p4info_act_prof_name_from_id(p4info, act_prof_id));
 
   auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_id);
 
   try {
-    client.c->bm_mt_indirect_delete_member(0, t_name, mbr_handle);
+    client.c->bm_mt_act_prof_delete_member(0, ap_name, mbr_handle);
   } catch (InvalidTableOperation &ito) {
     const char *what =
         _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
-    std::cout << "Invalid table (" << t_name << ") operation ("
+    std::cout << "Invalid action profile (" << ap_name << ") operation ("
               << ito.code << "): " << what << std::endl;
     return static_cast<pi_status_t>(PI_STATUS_TARGET_ERROR + ito.code);
   }
@@ -118,19 +107,19 @@ pi_status_t _pi_act_prof_mbr_modify(pi_session_handle_t session_handle,
   const pi_p4info_t *p4info = d_info->p4info;
 
   auto adata = pibmv2::build_action_data(action_data, p4info);
+  std::string ap_name(pi_p4info_act_prof_name_from_id(p4info, act_prof_id));
   std::string a_name(pi_p4info_action_name_from_id(p4info,
                                                    action_data->action_id));
-  std::string t_name = get_table_name(p4info, act_prof_id);
 
   auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_id);
 
   try {
-    client.c->bm_mt_indirect_modify_member(
-        0, t_name, mbr_handle, a_name, adata);
+    client.c->bm_mt_act_prof_modify_member(
+        0, ap_name, mbr_handle, a_name, adata);
   } catch (InvalidTableOperation &ito) {
     const char *what =
         _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
-    std::cout << "Invalid table (" << t_name << ") operation ("
+    std::cout << "Invalid action profile (" << ap_name << ") operation ("
               << ito.code << "): " << what << std::endl;
     return static_cast<pi_status_t>(PI_STATUS_TARGET_ERROR + ito.code);
   }
@@ -149,16 +138,16 @@ pi_status_t _pi_act_prof_grp_create(pi_session_handle_t session_handle,
   pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_tgt.dev_id);
   assert(d_info->assigned);
   const pi_p4info_t *p4info = d_info->p4info;
-  std::string t_name = get_table_name(p4info, act_prof_id);
+  std::string ap_name(pi_p4info_act_prof_name_from_id(p4info, act_prof_id));
 
   auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_tgt.dev_id);
 
   try {
-    *grp_handle = client.c->bm_mt_indirect_ws_create_group(0, t_name);
+    *grp_handle = client.c->bm_mt_act_prof_create_group(0, ap_name);
   } catch (InvalidTableOperation &ito) {
     const char *what =
         _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
-    std::cout << "Invalid table (" << t_name << ") operation ("
+    std::cout << "Invalid action profile (" << ap_name << ") operation ("
               << ito.code << "): " << what << std::endl;
     return static_cast<pi_status_t>(PI_STATUS_TARGET_ERROR + ito.code);
   }
@@ -177,16 +166,16 @@ pi_status_t _pi_act_prof_grp_delete(pi_session_handle_t session_handle,
   pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_id);
   assert(d_info->assigned);
   const pi_p4info_t *p4info = d_info->p4info;
-  std::string t_name = get_table_name(p4info, act_prof_id);
+  std::string ap_name(pi_p4info_act_prof_name_from_id(p4info, act_prof_id));
 
   auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_id);
 
   try {
-    client.c->bm_mt_indirect_ws_delete_group(0, t_name, grp_handle);
+    client.c->bm_mt_act_prof_delete_group(0, ap_name, grp_handle);
   } catch (InvalidTableOperation &ito) {
     const char *what =
         _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
-    std::cout << "Invalid table (" << t_name << ") operation ("
+    std::cout << "Invalid action profile (" << ap_name << ") operation ("
               << ito.code << "): " << what << std::endl;
     return static_cast<pi_status_t>(PI_STATUS_TARGET_ERROR + ito.code);
   }
@@ -204,17 +193,17 @@ pi_status_t _pi_act_prof_grp_add_mbr(pi_session_handle_t session_handle,
   pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_id);
   assert(d_info->assigned);
   const pi_p4info_t *p4info = d_info->p4info;
-  std::string t_name = get_table_name(p4info, act_prof_id);
+  std::string ap_name(pi_p4info_act_prof_name_from_id(p4info, act_prof_id));
 
   auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_id);
 
   try {
-    client.c->bm_mt_indirect_ws_add_member_to_group(
-        0, t_name, mbr_handle, grp_handle);
+    client.c->bm_mt_act_prof_add_member_to_group(
+        0, ap_name, mbr_handle, grp_handle);
   } catch (InvalidTableOperation &ito) {
     const char *what =
         _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
-    std::cout << "Invalid table (" << t_name << ") operation ("
+    std::cout << "Invalid action profile (" << ap_name << ") operation ("
               << ito.code << "): " << what << std::endl;
     return static_cast<pi_status_t>(PI_STATUS_TARGET_ERROR + ito.code);
   }
@@ -232,17 +221,17 @@ pi_status_t _pi_act_prof_grp_remove_mbr(pi_session_handle_t session_handle,
   pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_id);
   assert(d_info->assigned);
   const pi_p4info_t *p4info = d_info->p4info;
-  std::string t_name = get_table_name(p4info, act_prof_id);
+  std::string ap_name(pi_p4info_act_prof_name_from_id(p4info, act_prof_id));
 
   auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_id);
 
   try {
-    client.c->bm_mt_indirect_ws_remove_member_from_group(
-        0, t_name, mbr_handle, grp_handle);
+    client.c->bm_mt_act_prof_remove_member_from_group(
+        0, ap_name, mbr_handle, grp_handle);
   } catch (InvalidTableOperation &ito) {
     const char *what =
         _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
-    std::cout << "Invalid table (" << t_name << ") operation ("
+    std::cout << "Invalid action profile (" << ap_name << ") operation ("
               << ito.code << "): " << what << std::endl;
     return static_cast<pi_status_t>(PI_STATUS_TARGET_ERROR + ito.code);
   }
