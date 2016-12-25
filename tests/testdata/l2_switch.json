@@ -1,4 +1,10 @@
 {
+    "__meta__": {
+        "version": [
+            2,
+            0
+        ]
+    },
     "header_types": [
         {
             "name": "standard_metadata_t",
@@ -38,7 +44,8 @@
                 ]
             ],
             "length_exp": null,
-            "max_length": null
+            "max_length": null,
+            "pragmas": []
         },
         {
             "name": "ethernet_t",
@@ -58,7 +65,8 @@
                 ]
             ],
             "length_exp": null,
-            "max_length": null
+            "max_length": null,
+            "pragmas": []
         },
         {
             "name": "intrinsic_metadata_t",
@@ -94,7 +102,8 @@
                 ]
             ],
             "length_exp": null,
-            "max_length": null
+            "max_length": null,
+            "pragmas": []
         }
     ],
     "headers": [
@@ -102,19 +111,22 @@
             "name": "standard_metadata",
             "id": 0,
             "header_type": "standard_metadata_t",
-            "metadata": true
+            "metadata": true,
+            "pragmas": []
         },
         {
             "name": "ethernet",
             "id": 1,
             "header_type": "ethernet_t",
-            "metadata": false
+            "metadata": false,
+            "pragmas": []
         },
         {
             "name": "intrinsic_metadata",
             "id": 2,
             "header_type": "intrinsic_metadata_t",
-            "metadata": true
+            "metadata": true,
+            "pragmas": []
         }
     ],
     "header_stacks": [],
@@ -131,11 +143,13 @@
                     "transition_key": [],
                     "transitions": [
                         {
-                            "value": "default",
+                            "type": "default",
+                            "value": null,
                             "mask": null,
                             "next_state": "parse_ethernet"
                         }
-                    ]
+                    ],
+                    "pragmas": []
                 },
                 {
                     "name": "parse_ethernet",
@@ -154,15 +168,18 @@
                     "transition_key": [],
                     "transitions": [
                         {
-                            "value": "default",
+                            "type": "default",
+                            "value": null,
                             "mask": null,
                             "next_state": null
                         }
-                    ]
+                    ],
+                    "pragmas": []
                 }
             ]
         }
     ],
+    "parse_vsets": [],
     "deparsers": [
         {
             "name": "deparser",
@@ -175,8 +192,29 @@
     "meter_arrays": [],
     "actions": [
         {
-            "name": "forward",
+            "name": "mac_learn",
             "id": 0,
+            "runtime_data": [],
+            "primitives": [
+                {
+                    "op": "generate_digest",
+                    "parameters": [
+                        {
+                            "type": "hexstr",
+                            "value": "0x1"
+                        },
+                        {
+                            "type": "hexstr",
+                            "value": "0x1"
+                        }
+                    ]
+                }
+            ],
+            "pragmas": []
+        },
+        {
+            "name": "forward",
+            "id": 1,
             "runtime_data": [
                 {
                     "name": "port",
@@ -216,11 +254,12 @@
                         }
                     ]
                 }
-            ]
+            ],
+            "pragmas": []
         },
         {
             "name": "broadcast",
-            "id": 1,
+            "id": 2,
             "runtime_data": [],
             "primitives": [
                 {
@@ -239,33 +278,15 @@
                         }
                     ]
                 }
-            ]
-        },
-        {
-            "name": "mac_learn",
-            "id": 2,
-            "runtime_data": [],
-            "primitives": [
-                {
-                    "op": "generate_digest",
-                    "parameters": [
-                        {
-                            "type": "hexstr",
-                            "value": "0x1"
-                        },
-                        {
-                            "type": "hexstr",
-                            "value": "0x1"
-                        }
-                    ]
-                }
-            ]
+            ],
+            "pragmas": []
         },
         {
             "name": "_nop",
             "id": 3,
             "runtime_data": [],
-            "primitives": []
+            "primitives": [],
+            "pragmas": []
         }
     ],
     "pipelines": [
@@ -301,7 +322,8 @@
                         "mac_learn": "dmac",
                         "_nop": "dmac"
                     },
-                    "base_default_next": "dmac"
+                    "base_default_next": "dmac",
+                    "pragmas": []
                 },
                 {
                     "name": "dmac",
@@ -330,9 +352,11 @@
                         "forward": null,
                         "broadcast": null
                     },
-                    "base_default_next": null
+                    "base_default_next": null,
+                    "pragmas": []
                 }
             ],
+            "action_profiles": [],
             "conditionals": []
         },
         {
@@ -340,6 +364,7 @@
             "id": 1,
             "init_table": null,
             "tables": [],
+            "action_profiles": [],
             "conditionals": []
         }
     ],

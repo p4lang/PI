@@ -1,4 +1,10 @@
 {
+    "__meta__": {
+        "version": [
+            2,
+            0
+        ]
+    },
     "header_types": [
         {
             "name": "standard_metadata_t",
@@ -38,7 +44,8 @@
                 ]
             ],
             "length_exp": null,
-            "max_length": null
+            "max_length": null,
+            "pragmas": []
         },
         {
             "name": "header_test_t",
@@ -78,7 +85,8 @@
                 ]
             ],
             "length_exp": null,
-            "max_length": null
+            "max_length": null,
+            "pragmas": []
         }
     ],
     "headers": [
@@ -86,13 +94,15 @@
             "name": "standard_metadata",
             "id": 0,
             "header_type": "standard_metadata_t",
-            "metadata": true
+            "metadata": true,
+            "pragmas": []
         },
         {
             "name": "header_test",
             "id": 1,
             "header_type": "header_test_t",
-            "metadata": false
+            "metadata": false,
+            "pragmas": []
         }
     ],
     "header_stacks": [],
@@ -109,15 +119,18 @@
                     "transition_key": [],
                     "transitions": [
                         {
-                            "value": "default",
+                            "type": "default",
+                            "value": null,
                             "mask": null,
                             "next_state": null
                         }
-                    ]
+                    ],
+                    "pragmas": []
                 }
             ]
         }
     ],
+    "parse_vsets": [],
     "deparsers": [
         {
             "name": "deparser",
@@ -128,36 +141,8 @@
     "meter_arrays": [],
     "actions": [
         {
-            "name": "actionB",
-            "id": 0,
-            "runtime_data": [
-                {
-                    "name": "param",
-                    "bitwidth": 8
-                }
-            ],
-            "primitives": [
-                {
-                    "op": "modify_field",
-                    "parameters": [
-                        {
-                            "type": "field",
-                            "value": [
-                                "header_test",
-                                "field8"
-                            ]
-                        },
-                        {
-                            "type": "runtime_data",
-                            "value": 0
-                        }
-                    ]
-                }
-            ]
-        },
-        {
             "name": "actionA",
-            "id": 1,
+            "id": 0,
             "runtime_data": [
                 {
                     "name": "param",
@@ -181,7 +166,37 @@
                         }
                     ]
                 }
-            ]
+            ],
+            "pragmas": []
+        },
+        {
+            "name": "actionB",
+            "id": 1,
+            "runtime_data": [
+                {
+                    "name": "param",
+                    "bitwidth": 8
+                }
+            ],
+            "primitives": [
+                {
+                    "op": "modify_field",
+                    "parameters": [
+                        {
+                            "type": "field",
+                            "value": [
+                                "header_test",
+                                "field8"
+                            ]
+                        },
+                        {
+                            "type": "runtime_data",
+                            "value": 0
+                        }
+                    ]
+                }
+            ],
+            "pragmas": []
         }
     ],
     "pipelines": [
@@ -217,9 +232,11 @@
                         "actionA": null,
                         "actionB": null
                     },
-                    "base_default_next": null
+                    "base_default_next": null,
+                    "pragmas": []
                 }
             ],
+            "action_profiles": [],
             "conditionals": []
         },
         {
@@ -227,6 +244,7 @@
             "id": 1,
             "init_table": null,
             "tables": [],
+            "action_profiles": [],
             "conditionals": []
         }
     ],

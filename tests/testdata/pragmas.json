@@ -1,4 +1,10 @@
 {
+    "__meta__": {
+        "version": [
+            2,
+            0
+        ]
+    },
     "header_types": [
         {
             "name": "standard_metadata_t",
@@ -312,7 +318,7 @@
                     "id": 1,
                     "match_type": "exact",
                     "type": "indirect",
-                    "act_prof_name": "ap",
+                    "action_profile": "ap",
                     "max_size": 16384,
                     "with_counters": false,
                     "direct_meters": null,
@@ -330,6 +336,13 @@
                     ]
                 }
             ],
+            "action_profiles": [
+                {
+                    "name": "ap",
+                    "id": 0,
+                    "max_size": 128
+                }
+            ],
             "conditionals": []
         },
         {
@@ -337,6 +350,7 @@
             "id": 1,
             "init_table": null,
             "tables": [],
+            "action_profiles": [],
             "conditionals": []
         }
     ],

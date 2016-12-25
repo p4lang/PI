@@ -1,4 +1,10 @@
 {
+    "__meta__": {
+        "version": [
+            2,
+            0
+        ]
+    },
     "header_types": [
         {
             "name": "standard_metadata_t",
@@ -38,7 +44,8 @@
                 ]
             ],
             "length_exp": null,
-            "max_length": null
+            "max_length": null,
+            "pragmas": []
         },
         {
             "name": "header_test_t",
@@ -78,7 +85,8 @@
                 ]
             ],
             "length_exp": null,
-            "max_length": null
+            "max_length": null,
+            "pragmas": []
         }
     ],
     "headers": [
@@ -86,13 +94,15 @@
             "name": "standard_metadata",
             "id": 0,
             "header_type": "standard_metadata_t",
-            "metadata": true
+            "metadata": true,
+            "pragmas": []
         },
         {
             "name": "header_test",
             "id": 1,
             "header_type": "header_test_t",
-            "metadata": false
+            "metadata": false,
+            "pragmas": []
         }
     ],
     "header_stacks": [],
@@ -109,15 +119,18 @@
                     "transition_key": [],
                     "transitions": [
                         {
-                            "value": "default",
+                            "type": "default",
+                            "value": null,
                             "mask": null,
                             "next_state": null
                         }
-                    ]
+                    ],
+                    "pragmas": []
                 }
             ]
         }
     ],
+    "parse_vsets": [],
     "deparsers": [
         {
             "name": "deparser",
@@ -137,7 +150,8 @@
                 "field16"
             ],
             "rate_count": 2,
-            "type": "bytes"
+            "type": "bytes",
+            "pragmas": []
         },
         {
             "name": "MeterA",
@@ -145,7 +159,8 @@
             "is_direct": false,
             "size": 1024,
             "rate_count": 2,
-            "type": "bytes"
+            "type": "bytes",
+            "pragmas": []
         }
     ],
     "actions": [
@@ -175,7 +190,8 @@
                         }
                     ]
                 }
-            ]
+            ],
+            "pragmas": []
         },
         {
             "name": "_CounterAAction",
@@ -195,35 +211,12 @@
                         }
                     ]
                 }
-            ]
-        },
-        {
-            "name": "_RegisterAAction",
-            "id": 2,
-            "runtime_data": [],
-            "primitives": [
-                {
-                    "op": "register_write",
-                    "parameters": [
-                        {
-                            "type": "register_array",
-                            "value": "RegisterA"
-                        },
-                        {
-                            "type": "hexstr",
-                            "value": "0xa"
-                        },
-                        {
-                            "type": "hexstr",
-                            "value": "0x4d"
-                        }
-                    ]
-                }
-            ]
+            ],
+            "pragmas": []
         },
         {
             "name": "actionB",
-            "id": 3,
+            "id": 2,
             "runtime_data": [
                 {
                     "name": "param",
@@ -247,7 +240,33 @@
                         }
                     ]
                 }
-            ]
+            ],
+            "pragmas": []
+        },
+        {
+            "name": "_RegisterAAction",
+            "id": 3,
+            "runtime_data": [],
+            "primitives": [
+                {
+                    "op": "register_write",
+                    "parameters": [
+                        {
+                            "type": "register_array",
+                            "value": "RegisterA"
+                        },
+                        {
+                            "type": "hexstr",
+                            "value": "0xa"
+                        },
+                        {
+                            "type": "hexstr",
+                            "value": "0x4d"
+                        }
+                    ]
+                }
+            ],
+            "pragmas": []
         },
         {
             "name": "_MeterAAction",
@@ -274,7 +293,8 @@
                         }
                     ]
                 }
-            ]
+            ],
+            "pragmas": []
         }
     ],
     "pipelines": [
@@ -310,7 +330,8 @@
                         "actionA": "_MeterATable",
                         "actionB": "_MeterATable"
                     },
-                    "base_default_next": "_MeterATable"
+                    "base_default_next": "_MeterATable",
+                    "pragmas": []
                 },
                 {
                     "name": "_MeterATable",
@@ -337,7 +358,8 @@
                     "next_tables": {
                         "_MeterAAction": "_CounterATable"
                     },
-                    "base_default_next": "_CounterATable"
+                    "base_default_next": "_CounterATable",
+                    "pragmas": []
                 },
                 {
                     "name": "_CounterATable",
@@ -364,7 +386,8 @@
                     "next_tables": {
                         "_CounterAAction": "_RegisterATable"
                     },
-                    "base_default_next": "_RegisterATable"
+                    "base_default_next": "_RegisterATable",
+                    "pragmas": []
                 },
                 {
                     "name": "_RegisterATable",
@@ -391,9 +414,11 @@
                     "next_tables": {
                         "_RegisterAAction": null
                     },
-                    "base_default_next": null
+                    "base_default_next": null,
+                    "pragmas": []
                 }
             ],
+            "action_profiles": [],
             "conditionals": []
         },
         {
@@ -401,6 +426,7 @@
             "id": 1,
             "init_table": null,
             "tables": [],
+            "action_profiles": [],
             "conditionals": []
         }
     ],
@@ -414,13 +440,15 @@
             "id": 0,
             "is_direct": true,
             "binding": "ExactOne",
-            "size": 512
+            "size": 512,
+            "pragmas": []
         },
         {
             "name": "CounterA",
             "id": 1,
             "is_direct": false,
-            "size": 1024
+            "size": 1024,
+            "pragmas": []
         }
     ],
     "register_arrays": [
@@ -428,7 +456,8 @@
             "name": "RegisterA",
             "id": 0,
             "bitwidth": 32,
-            "size": 1024
+            "size": 1024,
+            "pragmas": []
         }
     ],
     "force_arith": [
