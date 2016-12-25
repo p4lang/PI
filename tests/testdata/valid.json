@@ -1,4 +1,10 @@
 {
+    "__meta__": {
+        "version": [
+            2,
+            0
+        ]
+    },
     "header_types": [
         {
             "name": "standard_metadata_t",
@@ -38,7 +44,8 @@
                 ]
             ],
             "length_exp": null,
-            "max_length": null
+            "max_length": null,
+            "pragmas": []
         },
         {
             "name": "ethernet_t",
@@ -58,7 +65,8 @@
                 ]
             ],
             "length_exp": null,
-            "max_length": null
+            "max_length": null,
+            "pragmas": []
         },
         {
             "name": "h1_t",
@@ -70,7 +78,8 @@
                 ]
             ],
             "length_exp": null,
-            "max_length": null
+            "max_length": null,
+            "pragmas": []
         }
     ],
     "headers": [
@@ -78,19 +87,22 @@
             "name": "standard_metadata",
             "id": 0,
             "header_type": "standard_metadata_t",
-            "metadata": true
+            "metadata": true,
+            "pragmas": []
         },
         {
             "name": "ethernet",
             "id": 1,
             "header_type": "ethernet_t",
-            "metadata": false
+            "metadata": false,
+            "pragmas": []
         },
         {
             "name": "h1",
             "id": 2,
             "header_type": "h1_t",
-            "metadata": false
+            "metadata": false,
+            "pragmas": []
         }
     ],
     "header_stacks": [],
@@ -126,15 +138,18 @@
                     "transition_key": [],
                     "transitions": [
                         {
-                            "value": "default",
+                            "type": "default",
+                            "value": null,
                             "mask": null,
                             "next_state": null
                         }
-                    ]
+                    ],
+                    "pragmas": []
                 }
             ]
         }
     ],
+    "parse_vsets": [],
     "deparsers": [
         {
             "name": "deparser",
@@ -151,7 +166,8 @@
             "name": "noop",
             "id": 0,
             "runtime_data": [],
-            "primitives": []
+            "primitives": [],
+            "pragmas": []
         }
     ],
     "pipelines": [
@@ -187,9 +203,11 @@
                     "next_tables": {
                         "noop": null
                     },
-                    "base_default_next": null
+                    "base_default_next": null,
+                    "pragmas": []
                 }
             ],
+            "action_profiles": [],
             "conditionals": []
         },
         {
@@ -197,6 +215,7 @@
             "id": 1,
             "init_table": null,
             "tables": [],
+            "action_profiles": [],
             "conditionals": []
         }
     ],

@@ -1,4 +1,10 @@
 {
+    "__meta__": {
+        "version": [
+            2,
+            0
+        ]
+    },
     "header_types": [
         {
             "name": "standard_metadata_t",
@@ -38,7 +44,8 @@
                 ]
             ],
             "length_exp": null,
-            "max_length": null
+            "max_length": null,
+            "pragmas": []
         },
         {
             "name": "ethernet_t",
@@ -58,7 +65,8 @@
                 ]
             ],
             "length_exp": null,
-            "max_length": null
+            "max_length": null,
+            "pragmas": []
         },
         {
             "name": "ipv4_t",
@@ -114,7 +122,8 @@
                 ]
             ],
             "length_exp": null,
-            "max_length": null
+            "max_length": null,
+            "pragmas": []
         },
         {
             "name": "arp_t",
@@ -158,7 +167,8 @@
                 ]
             ],
             "length_exp": null,
-            "max_length": null
+            "max_length": null,
+            "pragmas": []
         },
         {
             "name": "cpu_header_t",
@@ -178,7 +188,8 @@
                 ]
             ],
             "length_exp": null,
-            "max_length": null
+            "max_length": null,
+            "pragmas": []
         },
         {
             "name": "routing_metadata_t",
@@ -190,7 +201,8 @@
                 ]
             ],
             "length_exp": null,
-            "max_length": null
+            "max_length": null,
+            "pragmas": []
         }
     ],
     "headers": [
@@ -198,37 +210,43 @@
             "name": "standard_metadata",
             "id": 0,
             "header_type": "standard_metadata_t",
-            "metadata": true
+            "metadata": true,
+            "pragmas": []
         },
         {
             "name": "ethernet",
             "id": 1,
             "header_type": "ethernet_t",
-            "metadata": false
+            "metadata": false,
+            "pragmas": []
         },
         {
             "name": "ipv4",
             "id": 2,
             "header_type": "ipv4_t",
-            "metadata": false
+            "metadata": false,
+            "pragmas": []
         },
         {
             "name": "arp",
             "id": 3,
             "header_type": "arp_t",
-            "metadata": false
+            "metadata": false,
+            "pragmas": []
         },
         {
             "name": "cpu_header",
             "id": 4,
             "header_type": "cpu_header_t",
-            "metadata": false
+            "metadata": false,
+            "pragmas": []
         },
         {
             "name": "routing_metadata",
             "id": 5,
             "header_type": "routing_metadata_t",
-            "metadata": true
+            "metadata": true,
+            "pragmas": []
         }
     ],
     "header_stacks": [],
@@ -239,60 +257,8 @@
             "init_state": "start",
             "parse_states": [
                 {
-                    "name": "parse_arp",
-                    "id": 0,
-                    "parser_ops": [
-                        {
-                            "op": "extract",
-                            "parameters": [
-                                {
-                                    "type": "regular",
-                                    "value": "arp"
-                                }
-                            ]
-                        }
-                    ],
-                    "transition_key": [],
-                    "transitions": [
-                        {
-                            "type": "default",
-                            "value": null,
-                            "mask": null,
-                            "next_state": null
-                        }
-                    ]
-                },
-                {
-                    "name": "start",
-                    "id": 1,
-                    "parser_ops": [],
-                    "transition_key": [
-                        {
-                            "type": "lookahead",
-                            "value": [
-                                0,
-                                64
-                            ]
-                        }
-                    ],
-                    "transitions": [
-                        {
-                            "type": "hexstr",
-                            "value": "0x0000000000000000",
-                            "mask": null,
-                            "next_state": "parse_cpu_header"
-                        },
-                        {
-                            "type": "default",
-                            "value": null,
-                            "mask": null,
-                            "next_state": "parse_ethernet"
-                        }
-                    ]
-                },
-                {
                     "name": "parse_ipv4",
-                    "id": 2,
+                    "id": 0,
                     "parser_ops": [
                         {
                             "op": "extract",
@@ -312,35 +278,12 @@
                             "mask": null,
                             "next_state": null
                         }
-                    ]
-                },
-                {
-                    "name": "parse_cpu_header",
-                    "id": 3,
-                    "parser_ops": [
-                        {
-                            "op": "extract",
-                            "parameters": [
-                                {
-                                    "type": "regular",
-                                    "value": "cpu_header"
-                                }
-                            ]
-                        }
                     ],
-                    "transition_key": [],
-                    "transitions": [
-                        {
-                            "type": "default",
-                            "value": null,
-                            "mask": null,
-                            "next_state": "parse_ethernet"
-                        }
-                    ]
+                    "pragmas": []
                 },
                 {
                     "name": "parse_ethernet",
-                    "id": 4,
+                    "id": 1,
                     "parser_ops": [
                         {
                             "op": "extract",
@@ -380,7 +323,87 @@
                             "mask": null,
                             "next_state": null
                         }
-                    ]
+                    ],
+                    "pragmas": []
+                },
+                {
+                    "name": "start",
+                    "id": 2,
+                    "parser_ops": [],
+                    "transition_key": [
+                        {
+                            "type": "lookahead",
+                            "value": [
+                                0,
+                                64
+                            ]
+                        }
+                    ],
+                    "transitions": [
+                        {
+                            "type": "hexstr",
+                            "value": "0x0000000000000000",
+                            "mask": null,
+                            "next_state": "parse_cpu_header"
+                        },
+                        {
+                            "type": "default",
+                            "value": null,
+                            "mask": null,
+                            "next_state": "parse_ethernet"
+                        }
+                    ],
+                    "pragmas": []
+                },
+                {
+                    "name": "parse_arp",
+                    "id": 3,
+                    "parser_ops": [
+                        {
+                            "op": "extract",
+                            "parameters": [
+                                {
+                                    "type": "regular",
+                                    "value": "arp"
+                                }
+                            ]
+                        }
+                    ],
+                    "transition_key": [],
+                    "transitions": [
+                        {
+                            "type": "default",
+                            "value": null,
+                            "mask": null,
+                            "next_state": null
+                        }
+                    ],
+                    "pragmas": []
+                },
+                {
+                    "name": "parse_cpu_header",
+                    "id": 4,
+                    "parser_ops": [
+                        {
+                            "op": "extract",
+                            "parameters": [
+                                {
+                                    "type": "regular",
+                                    "value": "cpu_header"
+                                }
+                            ]
+                        }
+                    ],
+                    "transition_key": [],
+                    "transitions": [
+                        {
+                            "type": "default",
+                            "value": null,
+                            "mask": null,
+                            "next_state": "parse_ethernet"
+                        }
+                    ],
+                    "pragmas": []
                 }
             ]
         }
@@ -401,174 +424,8 @@
     "meter_arrays": [],
     "actions": [
         {
-            "name": "_drop",
-            "id": 0,
-            "runtime_data": [],
-            "primitives": [
-                {
-                    "op": "drop",
-                    "parameters": []
-                }
-            ]
-        },
-        {
-            "name": "rewrite_mac",
-            "id": 1,
-            "runtime_data": [
-                {
-                    "name": "smac",
-                    "bitwidth": 48
-                }
-            ],
-            "primitives": [
-                {
-                    "op": "modify_field",
-                    "parameters": [
-                        {
-                            "type": "field",
-                            "value": [
-                                "ethernet",
-                                "srcAddr"
-                            ]
-                        },
-                        {
-                            "type": "runtime_data",
-                            "value": 0
-                        }
-                    ]
-                }
-            ]
-        },
-        {
-            "name": "set_nhop",
-            "id": 2,
-            "runtime_data": [
-                {
-                    "name": "nhop_ipv4",
-                    "bitwidth": 32
-                },
-                {
-                    "name": "port",
-                    "bitwidth": 9
-                }
-            ],
-            "primitives": [
-                {
-                    "op": "modify_field",
-                    "parameters": [
-                        {
-                            "type": "field",
-                            "value": [
-                                "routing_metadata",
-                                "nhop_ipv4"
-                            ]
-                        },
-                        {
-                            "type": "runtime_data",
-                            "value": 0
-                        }
-                    ]
-                },
-                {
-                    "op": "modify_field",
-                    "parameters": [
-                        {
-                            "type": "field",
-                            "value": [
-                                "standard_metadata",
-                                "egress_spec"
-                            ]
-                        },
-                        {
-                            "type": "runtime_data",
-                            "value": 1
-                        }
-                    ]
-                },
-                {
-                    "op": "add_to_field",
-                    "parameters": [
-                        {
-                            "type": "field",
-                            "value": [
-                                "ipv4",
-                                "ttl"
-                            ]
-                        },
-                        {
-                            "type": "hexstr",
-                            "value": "-0x1"
-                        }
-                    ]
-                }
-            ]
-        },
-        {
-            "name": "do_decap_cpu_header",
-            "id": 3,
-            "runtime_data": [],
-            "primitives": [
-                {
-                    "op": "modify_field",
-                    "parameters": [
-                        {
-                            "type": "field",
-                            "value": [
-                                "standard_metadata",
-                                "egress_spec"
-                            ]
-                        },
-                        {
-                            "type": "field",
-                            "value": [
-                                "cpu_header",
-                                "port"
-                            ]
-                        }
-                    ]
-                },
-                {
-                    "op": "remove_header",
-                    "parameters": [
-                        {
-                            "type": "header",
-                            "value": "cpu_header"
-                        }
-                    ]
-                }
-            ]
-        },
-        {
-            "name": "set_dmac",
-            "id": 4,
-            "runtime_data": [
-                {
-                    "name": "dmac",
-                    "bitwidth": 48
-                }
-            ],
-            "primitives": [
-                {
-                    "op": "modify_field",
-                    "parameters": [
-                        {
-                            "type": "field",
-                            "value": [
-                                "ethernet",
-                                "dstAddr"
-                            ]
-                        },
-                        {
-                            "type": "runtime_data",
-                            "value": 0
-                        }
-                    ]
-                }
-            ]
-        },
-        {
             "name": "do_send_to_cpu",
-            "id": 5,
+            "id": 0,
             "runtime_data": [
                 {
                     "name": "reason",
@@ -640,7 +497,179 @@
                         }
                     ]
                 }
-            ]
+            ],
+            "pragmas": []
+        },
+        {
+            "name": "_drop",
+            "id": 1,
+            "runtime_data": [],
+            "primitives": [
+                {
+                    "op": "drop",
+                    "parameters": []
+                }
+            ],
+            "pragmas": []
+        },
+        {
+            "name": "rewrite_mac",
+            "id": 2,
+            "runtime_data": [
+                {
+                    "name": "smac",
+                    "bitwidth": 48
+                }
+            ],
+            "primitives": [
+                {
+                    "op": "modify_field",
+                    "parameters": [
+                        {
+                            "type": "field",
+                            "value": [
+                                "ethernet",
+                                "srcAddr"
+                            ]
+                        },
+                        {
+                            "type": "runtime_data",
+                            "value": 0
+                        }
+                    ]
+                }
+            ],
+            "pragmas": []
+        },
+        {
+            "name": "set_nhop",
+            "id": 3,
+            "runtime_data": [
+                {
+                    "name": "nhop_ipv4",
+                    "bitwidth": 32
+                },
+                {
+                    "name": "port",
+                    "bitwidth": 9
+                }
+            ],
+            "primitives": [
+                {
+                    "op": "modify_field",
+                    "parameters": [
+                        {
+                            "type": "field",
+                            "value": [
+                                "routing_metadata",
+                                "nhop_ipv4"
+                            ]
+                        },
+                        {
+                            "type": "runtime_data",
+                            "value": 0
+                        }
+                    ]
+                },
+                {
+                    "op": "modify_field",
+                    "parameters": [
+                        {
+                            "type": "field",
+                            "value": [
+                                "standard_metadata",
+                                "egress_spec"
+                            ]
+                        },
+                        {
+                            "type": "runtime_data",
+                            "value": 1
+                        }
+                    ]
+                },
+                {
+                    "op": "add_to_field",
+                    "parameters": [
+                        {
+                            "type": "field",
+                            "value": [
+                                "ipv4",
+                                "ttl"
+                            ]
+                        },
+                        {
+                            "type": "hexstr",
+                            "value": "-0x1"
+                        }
+                    ]
+                }
+            ],
+            "pragmas": []
+        },
+        {
+            "name": "do_decap_cpu_header",
+            "id": 4,
+            "runtime_data": [],
+            "primitives": [
+                {
+                    "op": "modify_field",
+                    "parameters": [
+                        {
+                            "type": "field",
+                            "value": [
+                                "standard_metadata",
+                                "egress_spec"
+                            ]
+                        },
+                        {
+                            "type": "field",
+                            "value": [
+                                "cpu_header",
+                                "port"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "op": "remove_header",
+                    "parameters": [
+                        {
+                            "type": "header",
+                            "value": "cpu_header"
+                        }
+                    ]
+                }
+            ],
+            "pragmas": []
+        },
+        {
+            "name": "set_dmac",
+            "id": 5,
+            "runtime_data": [
+                {
+                    "name": "dmac",
+                    "bitwidth": 48
+                }
+            ],
+            "primitives": [
+                {
+                    "op": "modify_field",
+                    "parameters": [
+                        {
+                            "type": "field",
+                            "value": [
+                                "ethernet",
+                                "dstAddr"
+                            ]
+                        },
+                        {
+                            "type": "runtime_data",
+                            "value": 0
+                        }
+                    ]
+                }
+            ],
+            "pragmas": []
         }
     ],
     "pipelines": [
@@ -677,12 +706,13 @@
                         "_drop": "forward"
                     },
                     "default_entry": {
-                        "action_id": 0,
+                        "action_id": 1,
                         "action_const": true,
                         "action_data": [],
                         "action_entry_const": false
                     },
-                    "base_default_next": "forward"
+                    "base_default_next": "forward",
+                    "pragmas": []
                 },
                 {
                     "name": "forward",
@@ -714,7 +744,7 @@
                         "_drop": null
                     },
                     "default_entry": {
-                        "action_id": 5,
+                        "action_id": 0,
                         "action_const": true,
                         "action_data": [
                             "0x0",
@@ -722,7 +752,8 @@
                         ],
                         "action_entry_const": false
                     },
-                    "base_default_next": null
+                    "base_default_next": null,
+                    "pragmas": []
                 },
                 {
                     "name": "decap_cpu_header",
@@ -741,12 +772,13 @@
                         "do_decap_cpu_header": null
                     },
                     "default_entry": {
-                        "action_id": 3,
+                        "action_id": 4,
                         "action_const": true,
                         "action_data": [],
                         "action_entry_const": false
                     },
-                    "base_default_next": null
+                    "base_default_next": null,
+                    "pragmas": []
                 },
                 {
                     "name": "send_arp_to_cpu",
@@ -765,7 +797,7 @@
                         "do_send_to_cpu": null
                     },
                     "default_entry": {
-                        "action_id": 5,
+                        "action_id": 0,
                         "action_const": true,
                         "action_data": [
                             "0x1",
@@ -773,9 +805,11 @@
                         ],
                         "action_entry_const": false
                     },
-                    "base_default_next": "_condition_2"
+                    "base_default_next": "_condition_2",
+                    "pragmas": []
                 }
             ],
+            "action_profiles": [],
             "conditionals": [
                 {
                     "name": "_condition_0",
@@ -792,7 +826,8 @@
                         }
                     },
                     "true_next": "decap_cpu_header",
-                    "false_next": "_condition_1"
+                    "false_next": "_condition_1",
+                    "pragmas": []
                 },
                 {
                     "name": "_condition_1",
@@ -809,7 +844,8 @@
                         }
                     },
                     "true_next": "send_arp_to_cpu",
-                    "false_next": "_condition_2"
+                    "false_next": "_condition_2",
+                    "pragmas": []
                 },
                 {
                     "name": "_condition_2",
@@ -849,7 +885,8 @@
                         }
                     },
                     "true_next": "ipv4_lpm",
-                    "false_next": null
+                    "false_next": null,
+                    "pragmas": []
                 }
             ]
         },
@@ -886,14 +923,16 @@
                         "_drop": null
                     },
                     "default_entry": {
-                        "action_id": 0,
+                        "action_id": 1,
                         "action_const": true,
                         "action_data": [],
                         "action_entry_const": false
                     },
-                    "base_default_next": null
+                    "base_default_next": null,
+                    "pragmas": []
                 }
             ],
+            "action_profiles": [],
             "conditionals": [
                 {
                     "name": "_condition_3",
@@ -917,7 +956,8 @@
                         }
                     },
                     "true_next": "send_frame",
-                    "false_next": null
+                    "false_next": null,
+                    "pragmas": []
                 }
             ]
         }
@@ -1005,7 +1045,8 @@
                     ]
                 }
             ],
-            "algo": "csum16"
+            "algo": "csum16",
+            "pragmas": []
         }
     ],
     "checksums": [

@@ -573,8 +573,11 @@ static pi_status_t read_tables(reader_state_t *state, cJSON *root,
     bool with_selector = false;
     // true for both 'indirect' and 'indirect_ws'
     if (!strncmp("indirect", table_type, sizeof "indirect" - 1)) {
-      item = cJSON_GetObjectItem(table, "act_prof_name");
-      if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+      item = cJSON_GetObjectItem(table, "action_profile");
+      if (!item) {  // backward compatibility
+        item = cJSON_GetObjectItem(table, "act_prof_name");
+        if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+      }
       act_prof_name = item->valuestring;
     }
     if (!strncmp("indirect_ws", table_type, sizeof "indirect_ws")) {
