@@ -211,9 +211,47 @@ TEST(IdAssignment, PiOmit) {
   free(config);
 }
 
+TEST(IdAssignment, IdCollision) {
+  // When we generate 32-bit ids for most resources, the least significant 16
+  // bits are determined by hashing the name of the resource. This test verifies
+  // that when there's a hash collision, the collision is resolved, and that
+  // this is done in such a way that the most significant 16 bits of the id
+  // aren't affected.
+  pi_p4info_t *p4info;
+  char *config = read_json(TESTDATADIR
+                           "/"
+                           "id_collision.json");
+  TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS,
+                    pi_add_config(config, PI_CONFIG_TYPE_BMV2_JSON, &p4info));
+
+  // The checks below rely on the fact that `id_collision.json` contains two
+  // actions with names that hash to 0xffff. Note that this means that this test
+  // is sensitive to the particular hash function used in
+  // generate_id_from_name(). A general test could be implemented using the
+  // pigeonhole principle, but it would run so slowly that it's not worth it.
+  pi_p4_id_t last_id = PI_INVALID_ID;
+  for (pi_p4_id_t id = pi_p4info_action_begin(p4info);
+       id != pi_p4info_action_end(p4info);
+       id = pi_p4info_action_next(p4info, id)) {
+    // The two ids should be different - i.e., the collision should be resolved.
+    TEST_ASSERT_NOT_EQUAL(last_id, id);
+    last_id = id;
+
+    // The first byte should continue to correctly identify the resource type.
+    TEST_ASSERT_TRUE(pi_is_action_id(id));
+
+    // The second byte should be zero.
+    TEST_ASSERT_EQUAL(0, (id >> 16) & 0xff);
+  }
+
+  TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS, pi_destroy_config(p4info));
+  free(config);
+}
+
 TEST_GROUP_RUNNER(IdAssignment) {
   RUN_TEST_CASE(IdAssignment, PiOmit);
   RUN_TEST_CASE(IdAssignment, Pragmas);
+  RUN_TEST_CASE(IdAssignment, IdCollision);
 }
 
 void test_bmv2_json_reader() {
