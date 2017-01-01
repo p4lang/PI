@@ -170,14 +170,18 @@ static uint32_t jenkins_one_at_a_time_hash(const uint8_t *key, size_t length) {
   return hash;
 }
 
+static uint32_t hash_to_id(uint32_t hash, pi_res_type_id_t type_id) {
+  return (type_id << 24) | (hash & 0xffff);
+}
+
 static pi_p4_id_t generate_id_from_name(reader_state_t *state, cJSON *object,
                                         pi_res_type_id_t type_id) {
   const cJSON *item = cJSON_GetObjectItem(object, "name");
   const char *name = item->valuestring;
   pi_p4_id_t hash =
       jenkins_one_at_a_time_hash((const uint8_t *)name, strlen(name));
-  pi_p4_id_t id = (type_id << 24) | (hash & 0xffff);
-  while (is_id_reserved(state, id)) id++;
+  while (is_id_reserved(state, hash_to_id(hash, type_id))) hash++;
+  pi_p4_id_t id = hash_to_id(hash, type_id);
   reserve_id(state, id);
   allocate_id(state, id);
   return id;
