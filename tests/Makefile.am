@@ -70,7 +70,8 @@ testdata/stats.json \
 testdata/l2_switch.json \
 testdata/pragmas.json \
 testdata/unittest.json \
-testdata/pi_omit.json
+testdata/pi_omit.json \
+testdata/id_collision.json
 
 # cleaning up the file created by the dummy target (function call counters)
 clean-local:
