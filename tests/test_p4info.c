@@ -32,6 +32,8 @@
 #include <Judy.h>
 #include <string.h>
 
+#define DEFAULT_TABLE_SIZE 1024
+
 static pi_p4info_t *p4info;
 
 TEST_GROUP(P4Info);
@@ -390,7 +392,8 @@ TEST(P4Info, TablesStress) {
     tdata[i].num_match_fields = rand() % (max_match_fields + 1);
     tdata[i].num_actions = rand() % (max_actions + 1);
     pi_p4info_table_add(p4info, tdata[i].id, tdata[i].name,
-                        tdata[i].num_match_fields, tdata[i].num_actions);
+                        tdata[i].num_match_fields, tdata[i].num_actions,
+                        DEFAULT_TABLE_SIZE);
     gen_rand_ids(tdata[i].match_fields, num_fields, tdata[i].num_match_fields);
     for (size_t j = 0; j < tdata[i].num_match_fields; j++) {
       pi_p4_id_t id = tdata[i].match_fields[j];
@@ -503,7 +506,8 @@ TEST(P4Info, TablesIterator) {
   char name[16];
   for (size_t i = 0; i < num_tables; i++) {
     snprintf(name, sizeof(name), "a%zu", i);
-    pi_p4info_table_add(p4info, pi_make_table_id(i), name, 0, 1);
+    pi_p4info_table_add(p4info, pi_make_table_id(i), name, 0, 1,
+                        DEFAULT_TABLE_SIZE);
   }
 
   size_t cnt = 0;

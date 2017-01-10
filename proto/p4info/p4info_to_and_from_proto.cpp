@@ -104,7 +104,8 @@ void read_tables(const p4::config::P4Info &p4info_proto, pi_p4info_t *p4info) {
   for (const auto &table : tables) {
     const auto &pre = table.preamble();
     pi_p4info_table_add(p4info, pre.id(), pre.name().c_str(),
-                        table.match_fields().size(), table.action_ids().size());
+                        table.match_fields().size(), table.action_ids().size(),
+                        table.size());
 
     for (const auto &mf : table.match_fields()) {
       auto match_type_convert = [&mf]() {
@@ -146,8 +147,6 @@ void read_tables(const p4::config::P4Info &p4info_proto, pi_p4info_t *p4info) {
     for (const auto &direct_res_id : table.direct_resource_ids())
       pi_p4info_table_add_direct_resource(p4info, pre.id(), direct_res_id);
 
-    // TODO(antonin): size support
-
     import_annotations(pre, p4info);
   }
 }
@@ -159,11 +158,9 @@ void read_act_profs(const p4::config::P4Info &p4info_proto,
   for (const auto &act_prof : action_profiles) {
     const auto &pre = act_prof.preamble();
     pi_p4info_act_prof_add(p4info, pre.id(), pre.name().c_str(),
-                           act_prof.with_selector());
+                           act_prof.with_selector(), act_prof.size());
     for (const auto table_id : act_prof.table_ids())
       pi_p4info_act_prof_add_table(p4info, pre.id(), table_id);
-
-    // TODO(antonin): size support
 
     import_annotations(pre, p4info);
   }
@@ -368,7 +365,7 @@ void p4info_serialize_tables(const pi_p4info_t *p4info,
     for (size_t i = 0; i < num_direct_resources; i++)
       table->add_direct_resource_ids(direct_res_ids[i]);
 
-    // TODO(antonin): support size
+    table->set_size(pi_p4info_table_max_size(p4info, id));
   }
 }
 
@@ -385,7 +382,7 @@ void p4info_serialize_act_profs(const pi_p4info_t *p4info,
     for (size_t i = 0; i < num_tables; i++)
       act_prof->add_table_ids(table_ids[i]);
     act_prof->set_with_selector(pi_p4info_act_prof_has_selector(p4info, id));
-    // TODO(antonin): support size
+    act_prof->set_size(pi_p4info_act_prof_max_size(p4info, id));
   }
 }
 

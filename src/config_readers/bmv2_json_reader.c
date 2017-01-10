@@ -504,9 +504,11 @@ static pi_status_t read_act_profs(reader_state_t *state, cJSON *root,
     const char *name = item->valuestring;
     pi_p4_id_t pi_id = request_id(state, act_prof, PI_ACT_PROF_ID);
     bool with_selector = cJSON_HasObjectItem(act_prof, "selector");
+    item = cJSON_GetObjectItem(act_prof, "max_size");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    size_t max_size = item->valueint;
     PI_LOG_DEBUG("Adding action profile '%s'\n", name);
-    // TODO(antonin): store size as well
-    pi_p4info_act_prof_add(p4info, pi_id, name, with_selector);
+    pi_p4info_act_prof_add(p4info, pi_id, name, with_selector, max_size);
   }
 
   vector_destroy(act_profs_vec);
@@ -539,8 +541,13 @@ static pi_status_t read_tables(reader_state_t *state, cJSON *root,
     if (!json_actions) return PI_STATUS_CONFIG_READER_ERROR;
     size_t num_actions = cJSON_GetArraySize(json_actions);
 
+    item = cJSON_GetObjectItem(table, "max_size");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    size_t max_size = item->valueint;
+
     PI_LOG_DEBUG("Adding table '%s'\n", name);
-    pi_p4info_table_add(p4info, pi_id, name, num_match_fields, num_actions);
+    pi_p4info_table_add(p4info, pi_id, name, num_match_fields, num_actions,
+                        max_size);
 
     import_pragmas(table, p4info, pi_id);
 
