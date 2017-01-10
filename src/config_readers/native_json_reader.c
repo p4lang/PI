@@ -131,8 +131,12 @@ static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
     cJSON *actions = cJSON_GetObjectItem(table, "actions");
     if (!actions) return PI_STATUS_CONFIG_READER_ERROR;
     size_t num_actions = cJSON_GetArraySize(actions);
+    item = cJSON_GetObjectItem(table, "max_size");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    size_t max_size = item->valueint;
 
-    pi_p4info_table_add(p4info, pi_id, name, num_match_fields, num_actions);
+    pi_p4info_table_add(p4info, pi_id, name, num_match_fields, num_actions,
+                        max_size);
 
     import_annotations(table, p4info, pi_id);
 
@@ -200,8 +204,11 @@ static pi_status_t read_act_profs(cJSON *root, pi_p4info_t *p4info) {
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
     assert(item->type == cJSON_True || item->type == cJSON_False);
     bool with_selector = (item->type == cJSON_True);
+    item = cJSON_GetObjectItem(act_prof, "max_size");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    size_t max_size = item->valueint;
 
-    pi_p4info_act_prof_add(p4info, pi_id, name, with_selector);
+    pi_p4info_act_prof_add(p4info, pi_id, name, with_selector, max_size);
 
     import_annotations(act_prof, p4info, pi_id);
 

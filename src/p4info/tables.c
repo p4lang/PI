@@ -70,6 +70,7 @@ typedef struct _table_data_s {
     pi_p4_id_t direct[INLINE_DIRECT_RES];
     pi_p4_id_t *indirect;
   } direct_resources;
+  size_t max_size;
 } _table_data_t;
 
 static _table_data_t *get_table(const pi_p4info_t *p4info,
@@ -170,6 +171,8 @@ void pi_p4info_table_serialize(cJSON *root, const pi_p4info_t *p4info) {
     }
     cJSON_AddItemToObject(tObject, "direct_resources", directresArray);
 
+    cJSON_AddNumberToObject(tObject, "max_size", table->max_size);
+
     p4info_common_serialize(tObject, &table->common);
 
     cJSON_AddItemToArray(tArray, tObject);
@@ -184,7 +187,7 @@ void pi_p4info_table_init(pi_p4info_t *p4info, size_t num_tables) {
 
 void pi_p4info_table_add(pi_p4info_t *p4info, pi_p4_id_t table_id,
                          const char *name, size_t num_match_fields,
-                         size_t num_actions) {
+                         size_t num_actions, size_t max_size) {
   _table_data_t *table = p4info_add_res(p4info, table_id, name);
   table->name = strdup(name);
   table->table_id = table_id;
@@ -204,6 +207,7 @@ void pi_p4info_table_add(pi_p4info_t *p4info, pi_p4_id_t table_id,
   table->implementation = PI_INVALID_ID;
   table->num_direct_resources = 0;
   table->match_fields_added = 0;
+  table->max_size = max_size;
 }
 
 void pi_p4info_table_add_match_field(pi_p4info_t *p4info, pi_p4_id_t table_id,
@@ -387,6 +391,12 @@ const pi_p4_id_t *pi_p4info_table_get_direct_resources(
   _table_data_t *table = get_table(p4info, table_id);
   *num_direct_resources = table->num_direct_resources;
   return get_direct_resources(table);
+}
+
+size_t pi_p4info_table_max_size(const pi_p4info_t *p4info,
+                                pi_p4_id_t table_id) {
+  _table_data_t *table = get_table(p4info, table_id);
+  return table->max_size;
 }
 
 pi_p4_id_t pi_p4info_table_begin(const pi_p4info_t *p4info) {

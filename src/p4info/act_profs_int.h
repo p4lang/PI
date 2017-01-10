@@ -32,7 +32,8 @@ void pi_p4info_act_prof_init(pi_p4info_t *p4info, size_t num_act_profs);
 void pi_p4info_act_prof_free(pi_p4info_t *p4info);
 
 void pi_p4info_act_prof_add(pi_p4info_t *p4info, pi_p4_id_t act_prof_id,
-                            const char *name, bool with_selector);
+                            const char *name, bool with_selector,
+                            size_t max_size);
 
 void pi_p4info_act_prof_add_table(pi_p4info_t *p4info, pi_p4_id_t act_prof_id,
                                   pi_p4_id_t table_id);

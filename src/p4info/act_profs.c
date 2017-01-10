@@ -39,6 +39,7 @@ typedef struct _act_prof_data_s {
   // TODO(antonin): remove restriction on amount of table references?
   pi_p4_id_t table_ids[MAX_TABLES];
   bool with_selector;
+  size_t max_size;
 } _act_prof_data_t;
 
 static _act_prof_data_t *get_act_prof(const pi_p4info_t *p4info,
@@ -78,6 +79,8 @@ void pi_p4info_act_prof_serialize(cJSON *root, const pi_p4info_t *p4info) {
 
     cJSON_AddBoolToObject(aObject, "with_selector", act_prof->with_selector);
 
+    cJSON_AddNumberToObject(aObject, "max_size", act_prof->max_size);
+
     p4info_common_serialize(aObject, &act_prof->common);
 
     cJSON_AddItemToArray(aArray, aObject);
@@ -92,12 +95,14 @@ void pi_p4info_act_prof_init(pi_p4info_t *p4info, size_t num_act_profs) {
 }
 
 void pi_p4info_act_prof_add(pi_p4info_t *p4info, pi_p4_id_t act_prof_id,
-                            const char *name, bool with_selector) {
+                            const char *name, bool with_selector,
+                            size_t max_size) {
   _act_prof_data_t *act_prof = p4info_add_res(p4info, act_prof_id, name);
   act_prof->name = strdup(name);
   act_prof->act_prof_id = act_prof_id;
   act_prof->num_tables = 0;
   act_prof->with_selector = with_selector;
+  act_prof->max_size = max_size;
 }
 
 void pi_p4info_act_prof_add_table(pi_p4info_t *p4info, pi_p4_id_t act_prof_id,
@@ -143,6 +148,12 @@ const pi_p4_id_t *pi_p4info_act_prof_get_actions(const pi_p4info_t *p4info,
   if (act_prof->num_tables == 0) return NULL;
   pi_p4_id_t one_t_id = act_prof->table_ids[0];
   return pi_p4info_table_get_actions(p4info, one_t_id, num_actions);
+}
+
+size_t pi_p4info_act_prof_max_size(const pi_p4info_t *p4info,
+                                   pi_p4_id_t act_prof_id) {
+  _act_prof_data_t *act_prof = get_act_prof(p4info, act_prof_id);
+  return act_prof->max_size;
 }
 
 pi_p4_id_t pi_p4info_act_prof_begin(const pi_p4info_t *p4info) {
