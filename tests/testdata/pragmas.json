@@ -340,7 +340,10 @@
                 {
                     "name": "ap",
                     "id": 0,
-                    "max_size": 128
+                    "max_size": 128,
+                    "pragmas": [
+                        "id 11"
+                    ]
                 }
             ],
             "conditionals": []

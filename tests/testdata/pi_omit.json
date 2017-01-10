@@ -1,4 +1,10 @@
 {
+    "__meta__": {
+        "version": [
+            2,
+            0
+        ]
+    },
     "header_types": [
         {
             "name": "scalars_t",

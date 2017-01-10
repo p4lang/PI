@@ -77,7 +77,8 @@ const char *input_jsons[] = {
   "ecmp.json",
   "pragmas.json",
   "stats.json",
-  "valid.json"
+  "valid.json",
+  "act_prof.json"
 };
 INSTANTIATE_TEST_CASE_P(P4Iterate,
                         P4InfoProtoConvertTest,
