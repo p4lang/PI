@@ -125,6 +125,12 @@ TEST(ReadAndSerialize, Pragmas) {
                      "pragmas.json");
 }
 
+TEST(ReadAndSerialize, ActProf) {
+  read_and_serialize(TESTDATADIR
+                     "/"
+                     "act_prof.json");
+}
+
 TEST_GROUP_RUNNER(ReadAndSerialize) {
   RUN_TEST_CASE(ReadAndSerialize, SimpleRouter);
   RUN_TEST_CASE(ReadAndSerialize, Valid);
@@ -132,6 +138,7 @@ TEST_GROUP_RUNNER(ReadAndSerialize) {
   RUN_TEST_CASE(ReadAndSerialize, Stats);
   RUN_TEST_CASE(ReadAndSerialize, L2Switch);
   RUN_TEST_CASE(ReadAndSerialize, Pragmas);
+  RUN_TEST_CASE(ReadAndSerialize, ActProf);
 }
 
 TEST_GROUP(IdAssignment);
@@ -187,7 +194,7 @@ TEST(IdAssignment, Pragmas) {
                          pi_p4info_table_id_from_name(p4info, "t"));
   TEST_ASSERT_EQUAL_UINT((PI_TABLE_ID << 24) | 10,
                          pi_p4info_table_id_from_name(p4info, "t2"));
-  TEST_ASSERT_EQUAL_UINT((PI_ACT_PROF_ID << 24) | 10,
+  TEST_ASSERT_EQUAL_UINT((PI_ACT_PROF_ID << 24) | 11,
                          pi_p4info_act_prof_id_from_name(p4info, "ap"));
 
   TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS, pi_destroy_config(p4info));

@@ -33,6 +33,9 @@
 
 #define MAX_IDS_IN_ANNOTATION 16
 
+static const int required_major_version = 2;
+static const int min_minor_version = 0;
+
 typedef struct {
   // Judy1 array to keep track of which ids have already been allocated
   Pvoid_t allocated_ids;
@@ -448,25 +451,6 @@ static pi_p4info_match_type_t match_type_from_str(const char *type) {
   return PI_P4INFO_MATCH_TYPE_END;
 }
 
-static size_t get_num_act_profs_in_pipe(cJSON *pipe) {
-  cJSON *tables = cJSON_GetObjectItem(pipe, "tables");
-  if (!tables) return PI_STATUS_CONFIG_READER_ERROR;
-  cJSON *table;
-  size_t num_act_profs = 0;
-  cJSON_ArrayForEach(table, tables) {
-    const cJSON *item = cJSON_GetObjectItem(table, "type");
-    // error if this happens, but the error will be caught later
-    if (item) {
-      const char *table_type = item->valuestring;
-      // true for both 'indirect' and 'indirect_ws'
-      if (!strncmp("indirect", table_type, sizeof "indirect" - 1)) {
-        num_act_profs++;
-      }
-    }
-  }
-  return num_act_profs;
-}
-
 static int cmp_json_object_generic(const void *e1, const void *e2) {
   cJSON *object_1 = *(cJSON * const *)e1;
   cJSON *object_2 = *(cJSON * const *)e2;
@@ -476,41 +460,68 @@ static int cmp_json_object_generic(const void *e1, const void *e2) {
   return strcmp(item_1->valuestring, item_2->valuestring);
 }
 
+// common code for action profiles and tables, returns NULL in case of incorrect
+// JSON input
+static vector_t *extract_from_pipelines(reader_state_t *state, cJSON *root,
+                                        const char *res_name,
+                                        pi_res_type_id_t res_type) {
+  cJSON *pipelines = cJSON_GetObjectItem(root, "pipelines");
+  if (!pipelines) return NULL;
+
+  // cannot use sort_json_array as we have to sort them across multiple
+  // pipelines so instead we create a temporary vector which we sort with qsort
+  const size_t init_capacity = 16;
+  vector_t *res_vec = vector_create(sizeof(cJSON *), init_capacity);
+  cJSON *entry;
+  cJSON *pipe;
+  cJSON_ArrayForEach(pipe, pipelines) {
+    cJSON *entries = cJSON_GetObjectItem(pipe, res_name);
+    if (!entries) return NULL;
+    pre_reserve_ids(state, res_type, entries);
+    cJSON_ArrayForEach(entry, entries) {
+      vector_push_back(res_vec, (void *)&entry);
+    }
+  }
+  qsort(vector_data(res_vec), vector_size(res_vec), sizeof(cJSON *),
+        cmp_json_object_generic);
+  return res_vec;
+}
+
+static pi_status_t read_act_profs(reader_state_t *state, cJSON *root,
+                                  pi_p4info_t *p4info) {
+  assert(root);
+  vector_t *act_profs_vec =
+      extract_from_pipelines(state, root, "action_profiles", PI_ACT_PROF_ID);
+  if (!act_profs_vec) return PI_STATUS_CONFIG_READER_ERROR;
+  size_t num_act_profs = vector_size(act_profs_vec);
+  pi_p4info_act_prof_init(p4info, num_act_profs);
+
+  for (size_t i = 0; i < num_act_profs; i++) {
+    cJSON *act_prof = *(cJSON **)vector_at(act_profs_vec, i);
+    const cJSON *item;
+    item = cJSON_GetObjectItem(act_prof, "name");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    const char *name = item->valuestring;
+    pi_p4_id_t pi_id = request_id(state, act_prof, PI_ACT_PROF_ID);
+    bool with_selector = cJSON_HasObjectItem(act_prof, "selector");
+    PI_LOG_DEBUG("Adding action profile '%s'\n", name);
+    // TODO(antonin): store size as well
+    pi_p4info_act_prof_add(p4info, pi_id, name, with_selector);
+  }
+
+  vector_destroy(act_profs_vec);
+
+  return PI_STATUS_SUCCESS;
+}
+
 static pi_status_t read_tables(reader_state_t *state, cJSON *root,
                                pi_p4info_t *p4info) {
   assert(root);
-  cJSON *pipelines = cJSON_GetObjectItem(root, "pipelines");
-  if (!pipelines) return PI_STATUS_CONFIG_READER_ERROR;
-
-  size_t num_tables = 0u;
-  size_t num_act_profs = 0u;
-
-  cJSON *pipe;
-  cJSON_ArrayForEach(pipe, pipelines) {
-    cJSON *tables = cJSON_GetObjectItem(pipe, "tables");
-    if (!tables) return PI_STATUS_CONFIG_READER_ERROR;
-    num_tables += cJSON_GetArraySize(tables);
-    num_act_profs += get_num_act_profs_in_pipe(pipe);
-  }
-
+  vector_t *tables_vec =
+      extract_from_pipelines(state, root, "tables", PI_TABLE_ID);
+  if (!tables_vec) return PI_STATUS_CONFIG_READER_ERROR;
+  size_t num_tables = vector_size(tables_vec);
   pi_p4info_table_init(p4info, num_tables);
-  pi_p4info_act_prof_init(p4info, num_act_profs);
-
-  // cannot sue sort_json_array for tables as we have to sort them across
-  // multiple pipelines so instead we create a temporary vector which we sort
-  // with qsort
-  vector_t *tables_vec = vector_create(sizeof(cJSON *), num_tables);
-  cJSON *table;
-  cJSON_ArrayForEach(pipe, pipelines) {
-    cJSON *tables = cJSON_GetObjectItem(pipe, "tables");
-    pre_reserve_ids(state, PI_TABLE_ID, tables);
-    cJSON_ArrayForEach(table, tables) {
-      vector_push_back(tables_vec, (void *)&table);
-    }
-  }
-  assert(vector_size(tables_vec) == num_tables);
-  qsort(vector_data(tables_vec), num_tables, sizeof(cJSON *),
-        cmp_json_object_generic);
 
   for (size_t i = 0; i < num_tables; i++) {
     cJSON *table = *(cJSON **)vector_at(tables_vec, i);
@@ -567,34 +578,20 @@ static pi_status_t read_tables(reader_state_t *state, cJSON *root,
       pi_p4info_table_add_action(p4info, pi_id, aid);
     }
 
-    // TODO(antonin): fix ID allocation for action profile when bmv2 JSON has
-    // been updated to support action profile sharing across tables
-    // action profile support
     item = cJSON_GetObjectItem(table, "type");
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
     const char *table_type = item->valuestring;
     const char *act_prof_name = NULL;
-    bool with_selector = false;
     // true for both 'indirect' and 'indirect_ws'
     if (!strncmp("indirect", table_type, sizeof "indirect" - 1)) {
       item = cJSON_GetObjectItem(table, "action_profile");
-      if (!item) {  // backward compatibility
-        item = cJSON_GetObjectItem(table, "act_prof_name");
-        if (!item) return PI_STATUS_CONFIG_READER_ERROR;
-      }
+      if (!item) return PI_STATUS_CONFIG_READER_ERROR;
       act_prof_name = item->valuestring;
     }
-    if (!strncmp("indirect_ws", table_type, sizeof "indirect_ws")) {
-      with_selector = true;
-    }
     if (act_prof_name) {
-      // action profiles are not first class citizens in the bmv2 JSON yet, so
-      // we use the same PI id as the table for now
-      // pi_p4_id_t pi_act_prof_id = request_id(state, table, PI_ACT_PROF_ID);
-      pi_p4_id_t pi_act_prof_id = (PI_ACT_PROF_ID << 24) | (pi_id & 0xffffff);
-      PI_LOG_DEBUG("Adding action profile '%s'\n", act_prof_name);
-      pi_p4info_act_prof_add(p4info, pi_act_prof_id, act_prof_name,
-                             with_selector);
+      pi_p4_id_t pi_act_prof_id =
+          pi_p4info_act_prof_id_from_name(p4info, act_prof_name);
+      if (pi_act_prof_id == PI_INVALID_ID) return PI_STATUS_CONFIG_READER_ERROR;
       pi_p4info_act_prof_add_table(p4info, pi_act_prof_id, pi_id);
       pi_p4info_table_set_implementation(p4info, pi_id, pi_act_prof_id);
     }
@@ -765,11 +762,30 @@ static pi_status_t read_field_lists(reader_state_t *state, cJSON *root,
   return PI_STATUS_SUCCESS;
 }
 
+static bool check_json_version(cJSON *root) {
+  cJSON *item;
+  item = cJSON_GetObjectItem(root, "__meta__");
+  if (!item) return false;
+  item = cJSON_GetObjectItem(item, "version");
+  if (!item) return false;
+  const cJSON *major = cJSON_GetArrayItem(item, 0);
+  const cJSON *minor = cJSON_GetArrayItem(item, 1);
+  if (!major || !minor) return false;
+  if (major->valueint != required_major_version) return false;
+  if (minor->valueint < min_minor_version) return false;
+  return true;
+}
+
 pi_status_t pi_bmv2_json_reader(const char *config, pi_p4info_t *p4info) {
   cJSON *root = cJSON_Parse(config);
   if (!root) return PI_STATUS_CONFIG_READER_ERROR;
 
   pi_status_t status;
+
+  if (!check_json_version(root)) {
+    PI_LOG_ERROR("Json version requirement not satisfied!\n");
+    return PI_STATUS_CONFIG_READER_ERROR;
+  }
 
   reader_state_t state;
   init_reader_state(&state);
@@ -779,6 +795,10 @@ pi_status_t pi_bmv2_json_reader(const char *config, pi_p4info_t *p4info) {
   }
 
   if ((status = read_fields(&state, root, p4info)) != PI_STATUS_SUCCESS) {
+    return status;
+  }
+
+  if ((status = read_act_profs(&state, root, p4info)) != PI_STATUS_SUCCESS) {
     return status;
   }
 
