@@ -9,3 +9,5 @@ MAYBE_RPC = rpc
 endif
 
 SUBDIRS = dummy $(MAYBE_RPC) $(MAYBE_BMV2)
+
+DIST_SUBDIRS = dummy rpc $(MAYBE_BMV2)
