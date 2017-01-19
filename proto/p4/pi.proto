@@ -23,32 +23,35 @@ import "google/rpc/status.proto";
 package p4;
 
 service PI {
+  // Modifies the P4 tables containing 'TableEntry's.
   rpc TableWrite(TableWriteRequest) returns (TableWriteResponse) {
   }
+  // Reads the P4 tables containing 'TableEntry's.
   rpc TableRead(TableReadRequest) returns (stream TableReadResponse) {
   }
-
+  // Modifies 'ActionProfileEntry's.
   rpc ActionProfileWrite(ActionProfileWriteRequest)
       returns (ActionProfileWriteResponse) {
   }
+  // Reads 'ActionProfileEntry's.
   rpc ActionProfileRead(ActionProfileReadRequest)
       returns (stream ActionProfileReadResponse) {
   }
-
-  rpc CounterWrite(CounterWriteRequest)
-      returns (stream CounterWriteResponse) {
+  // Modifies 'CounterEntry's.
+  rpc CounterWrite(CounterWriteRequest) returns (stream CounterWriteResponse) {
   }
-  rpc CounterRead(CounterReadRequest)
-      returns (stream CounterReadResponse) {
+  // Reads 'CounterEntry's.
+  rpc CounterRead(CounterReadRequest) returns (stream CounterReadResponse) {
   }
-
-  rpc MeterWrite(MeterWriteRequest)
-      returns (stream MeterWriteResponse) {
+  // Modifies 'MeterEntry's.
+  rpc MeterWrite(MeterWriteRequest) returns (stream MeterWriteResponse) {
   }
-  rpc MeterRead(MeterReadRequest)
-      returns (stream MeterReadResponse) {
+  // Reads 'MeterEntry's.
+  rpc MeterRead(MeterReadRequest) returns (stream MeterReadResponse) {
   }
-
+  // Represents the bidirectional stream between the controller and the switch
+  // for the controller to send packets to the switch (to be injected to the
+  // data plane), and to receive punted packets from the switch.
   rpc PacketIO(stream PacketOutUpdate) returns (stream PacketInUpdate) {
   }
 }
@@ -99,7 +102,7 @@ message TableEntry {
   int32 table_id = 1;
   repeated FieldMatch match = 2;
   TableAction action = 3;
-  int32 priority = 4;  // ignored unless match => TCAM
+  int32 priority = 4;              // ignored unless match => TCAM
   uint64 controller_metadata = 5;  // cookie
 }
 
