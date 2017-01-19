@@ -50,9 +50,15 @@ service PI {
   rpc MeterRead(MeterReadRequest) returns (stream MeterReadResponse) {
   }
   // Represents the bidirectional stream between the controller and the switch
-  // for the controller to send packets to the switch (to be injected to the
-  // data plane), and to receive punted packets from the switch.
-  rpc PacketIO(stream PacketOutUpdate) returns (stream PacketInUpdate) {
+  // (initiated by the controller), and is managed for the following purposes:
+  // - connection initiation through master arbitration
+  // - indicating switch session liveness: the session is live when switch sends
+  //   a positive master arbitration update to the controller, and is considered
+  //   dead when either the stream breaks or the switch sends a negative update
+  //   for master arbitration
+  // - the controller sending/receiving packets to/from the switch
+  rpc StreamChannel(stream StreamMessageRequest)
+      returns (stream StreamMessageResponse) {
   }
 }
 
@@ -332,17 +338,11 @@ message MeterReadResponse {
 }
 
 //------------------------------------------------------------------------------
-message PacketOutUpdate {
+message StreamMessageRequest {
   oneof update {
-    InitPacketOutStream init = 1;
-    MasterArbitrationUpdate arbitration = 2;
-    PacketOut packet = 3;
+    MasterArbitrationUpdate arbitration = 1;
+    PacketOut packet = 2;
   }
-}
-
-message InitPacketOutStream {
-  // Device/node ID. 0 is not a valid value.
-  uint64 device_id = 1;
 }
 
 // Packet sent from the controller to the switch.
@@ -359,9 +359,10 @@ message IngressPipelineSpec {
   uint32 ingress_port = 1;
 }
 
-message PacketInUpdate {
+message StreamMessageResponse {
   oneof update {
-    PacketIn packet = 1;
+    MasterArbitrationUpdate arbitration = 1;
+    PacketIn packet = 2;
   }
 }
 
@@ -373,8 +374,16 @@ message PacketIn {
 }
 
 message MasterArbitrationUpdate {
-  // The stream RPC with the highest election_id is the master.
-  Uint128 election_id = 1;
+  uint64 device_id = 1;
+  // The stream RPC with the highest election_id is the master. The 'master'
+  // controller instance populates this with its latest election_id. Switch
+  // populates with the highest election ID it has received from all connected
+  // controllers.
+  Uint128 election_id = 2;
+  // Switch populates this with OK for the client that is the master, and with
+  // an error status for all other connected clients (at every mastership
+  // change). The controller does not populate this field.
+  .google.rpc.Status status = 3;
 }
 
 message Uint128 {
