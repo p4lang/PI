@@ -68,7 +68,7 @@ struct __attribute__((packed)) ipv4_header_t {
   uint32_t dst_addr;
 };
 
-class PacketIOSyncClient;
+class StreamChannelSyncClient;
 
 class SimpleRouterMgr {
  public:
@@ -163,5 +163,5 @@ class SimpleRouterMgr {
   boost::asio::io_service &io_service;
   std::unique_ptr<p4::tmp::Device::Stub> device_stub_;
   std::unique_ptr<p4::PI::Stub> pi_stub_;
-  std::unique_ptr<PacketIOSyncClient> packet_io_client;
+  std::unique_ptr<StreamChannelSyncClient> packet_io_client;
 };

@@ -171,17 +171,17 @@ struct ConfigUpdateHandler : public MgrHandler {
   std::promise<int> &promise;
 };
 
-class PacketIOSyncClient {
+class StreamChannelSyncClient {
  public:
-  PacketIOSyncClient(SimpleRouterMgr *simple_router_mgr,
-                     std::shared_ptr<Channel> channel)
+  StreamChannelSyncClient(SimpleRouterMgr *simple_router_mgr,
+                          std::shared_ptr<Channel> channel)
       : simple_router_mgr(simple_router_mgr), stub_(p4::PI::NewStub(channel)) {
-    stream = stub_->PacketIO(&context);
+    stream = stub_->StreamChannel(&context);
   }
 
   void recv_packet_in() {
     recv_thread = std::thread([this]() {
-        p4::PacketInUpdate packet_in;
+        p4::StreamMessageResponse packet_in;
         while (stream->Read(&packet_in)) {
           std::cout << "Received packet in bro!\n";
           const auto &packet = packet_in.packet();
@@ -195,14 +195,14 @@ class PacketIOSyncClient {
 
   void send_init(int device_id) {
     std::cout << "Sending init\n";
-    p4::PacketOutUpdate packet_out_init;
-    packet_out_init.mutable_init()->set_device_id(device_id);
+    p4::StreamMessageRequest packet_out_init;
+    packet_out_init.mutable_arbitration()->set_device_id(device_id);
     stream->Write(packet_out_init);
   }
 
   void send_packet_out(std::string bytes) {
     std::cout << "Sending packet out\n";
-    p4::PacketOutUpdate packet_out;
+    p4::StreamMessageRequest packet_out;
     packet_out.mutable_packet()->set_payload(std::move(bytes));
     stream->Write(packet_out);
   }
@@ -212,8 +212,8 @@ class PacketIOSyncClient {
   std::unique_ptr<p4::PI::Stub> stub_;
   std::thread recv_thread;
   ClientContext context;
-  std::unique_ptr<ClientReaderWriter<p4::PacketOutUpdate, p4::PacketInUpdate> >
-  stream;
+  std::unique_ptr<ClientReaderWriter<p4::StreamMessageRequest,
+                                     p4::StreamMessageResponse> > stream;
 };
 
 SimpleRouterMgr::SimpleRouterMgr(int dev_id, pi_p4info_t *p4info,
@@ -222,7 +222,7 @@ SimpleRouterMgr::SimpleRouterMgr(int dev_id, pi_p4info_t *p4info,
     : dev_id(dev_id), p4info(p4info), io_service(io_service),
       device_stub_(p4::tmp::Device::NewStub(channel)),
       pi_stub_(p4::PI::NewStub(channel)),
-      packet_io_client(new PacketIOSyncClient(this, channel)) {
+      packet_io_client(new StreamChannelSyncClient(this, channel)) {
 }
 
 SimpleRouterMgr::~SimpleRouterMgr() {

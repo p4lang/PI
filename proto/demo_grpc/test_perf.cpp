@@ -153,18 +153,18 @@ std::string uint_to_string<uint32_t>(uint32_t i) {
 
 }  // namespace
 
-class PacketIOSync {
+class StreamChannelSync {
  public:
-  PacketIOSync(std::shared_ptr<Channel> channel)
+  StreamChannelSync(std::shared_ptr<Channel> channel)
       : stub_(p4::PI::NewStub(channel)) {
-    stream = stub_->PacketIO(&context);
+    stream = stub_->StreamChannel(&context);
   }
 
   template <typename F>
   void recv_packet_in(F f) {
     stop_f = false;
     recv_thread = std::thread([this, &f]() {
-        p4::PacketInUpdate packet_in;
+        p4::StreamMessageResponse packet_in;
         while (!stop_f && stream->Read(&packet_in)) {
           f();
         }
@@ -173,14 +173,14 @@ class PacketIOSync {
 
   void send_init(int device_id) {
     std::cout << "Sending init\n";
-    p4::PacketOutUpdate packet_out_init;
-    packet_out_init.mutable_init()->set_device_id(device_id);
+    p4::StreamMessageRequest packet_out_init;
+    packet_out_init.mutable_arbitration()->set_device_id(device_id);
     stream->Write(packet_out_init);
   }
 
   void send_packet_out(std::string bytes) {
     std::cout << "Sending packet out\n";
-    p4::PacketOutUpdate packet_out;
+    p4::StreamMessageRequest packet_out;
     packet_out.mutable_packet()->set_payload(std::move(bytes));
     stream->Write(packet_out);
   }
@@ -196,8 +196,8 @@ class PacketIOSync {
   std::unique_ptr<p4::PI::Stub> stub_;
   std::thread recv_thread;
   ClientContext context;
-  std::unique_ptr<ClientReaderWriter<p4::PacketOutUpdate, p4::PacketInUpdate> >
-  stream;
+  std::unique_ptr<ClientReaderWriter<p4::StreamMessageRequest,
+                                     p4::StreamMessageResponse> > stream;
 };
 
 class Tester {
@@ -244,7 +244,8 @@ class Tester {
           auto table_entry = update->mutable_table_entry();
           table_entry->set_table_id(t_id);
           auto mf = table_entry->add_match();
-          mf->set_field_id(pi_p4info_field_id_from_name(p4info, "ipv4.dstAddr"));
+          mf->set_field_id(
+              pi_p4info_field_id_from_name(p4info, "ipv4.dstAddr"));
           auto mf_lpm = mf->mutable_lpm();
           auto nhop = static_cast<uint32_t>(0x0a00000a);
           auto port = static_cast<uint16_t>(99);
@@ -318,7 +319,7 @@ class Tester {
   const pi_p4info_t *p4info;
   DeviceClient device_client;
   PIClient pi_client;
-  PacketIOSync packet_recv;
+  StreamChannelSync packet_recv;
 };
 
 int main(int argc, char** argv) {

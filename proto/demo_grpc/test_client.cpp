@@ -114,16 +114,16 @@ class DeviceClient {
   std::unordered_map<int, const pi_p4info_t *> p4infos{};
 };
 
-class PacketIOSync {
+class StreamChannelSync {
  public:
-  PacketIOSync(std::shared_ptr<Channel> channel)
+  StreamChannelSync(std::shared_ptr<Channel> channel)
       : stub_(p4::PI::NewStub(channel)) {
-    stream = stub_->PacketIO(&context);
+    stream = stub_->StreamChannel(&context);
   }
 
   void recv_packet_in() {
     recv_thread = std::thread([this]() {
-        p4::PacketInUpdate packet_in;
+        p4::StreamMessageResponse packet_in;
         while (stream->Read(&packet_in)) {
           std::cout << "Received packet in bro!\n";
         }
@@ -132,14 +132,14 @@ class PacketIOSync {
 
   void send_init(int device_id) {
     std::cout << "Sending init\n";
-    p4::PacketOutUpdate packet_out_init;
-    packet_out_init.mutable_init()->set_device_id(device_id);
+    p4::StreamMessageRequest packet_out_init;
+    packet_out_init.mutable_arbitration()->set_device_id(device_id);
     stream->Write(packet_out_init);
   }
 
   void send_packet_out(std::string bytes) {
     std::cout << "Sending packet out\n";
-    p4::PacketOutUpdate packet_out;
+    p4::StreamMessageRequest packet_out;
     packet_out.mutable_packet()->set_payload(std::move(bytes));
     stream->Write(packet_out);
   }
@@ -148,8 +148,8 @@ class PacketIOSync {
   std::unique_ptr<p4::PI::Stub> stub_;
   std::thread recv_thread;
   ClientContext context;
-  std::unique_ptr<ClientReaderWriter<p4::PacketOutUpdate, p4::PacketInUpdate> >
-  stream;
+  std::unique_ptr<ClientReaderWriter<p4::StreamMessageRequest,
+                                     p4::StreamMessageResponse> > stream;
 };
 
 class PIAsyncClient {
@@ -167,7 +167,8 @@ class PIAsyncClient {
    public:
     AsyncRecvPacketInState(p4::PI::Stub *stub_, CompletionQueue *cq)
         : state(State::CREATE) {
-      stream = stub_->AsyncPacketIO(&context, cq, static_cast<void *>(this));
+      stream = stub_->AsyncStreamChannel(&context, cq,
+                                         static_cast<void *>(this));
       std::thread t(&AsyncRecvPacketInState::send_init, this);
       t.detach();
     }
@@ -176,8 +177,8 @@ class PIAsyncClient {
       while (true) {
         std::this_thread::sleep_for(std::chrono::seconds(1));
         std::cout << "Trying to write\n";
-        p4::PacketOutUpdate packet_out_init;
-        packet_out_init.mutable_init()->set_device_id(0);
+        p4::StreamMessageRequest packet_out_init;
+        packet_out_init.mutable_arbitration()->set_device_id(0);
         stream->Write(packet_out_init, (void *)1);
         // std::this_thread::sleep_for(std::chrono::seconds(1000));
       }
@@ -212,8 +213,8 @@ class PIAsyncClient {
     enum class State {CREATE, PROCESS, FINISH};
     State state;
 
-    p4::PacketInUpdate packet_in;
-    p4::PacketOutUpdate packet_out;
+    p4::StreamMessageResponse packet_in;
+    p4::StreamMessageRequest packet_out;
 
     Status status;
 
@@ -221,8 +222,8 @@ class PIAsyncClient {
     // the server and/or tweak certain RPC behaviors.
     ClientContext context;
 
-    std::unique_ptr<
-      ClientAsyncReaderWriter<p4::PacketOutUpdate, p4::PacketInUpdate> >stream;
+    std::unique_ptr<ClientAsyncReaderWriter<p4::StreamMessageRequest,
+                                            p4::StreamMessageResponse> > stream;
   };
 
   void AsyncRecvPacketIn() {
@@ -260,7 +261,7 @@ int main(int argc, char** argv) {
   // std::cout << "2. Status received: " << rc << std::endl;
   // PIAsyncClient async_client(channel);
   // async_client.sub_packet_in();
-  PacketIOSync packet_io_client(channel);
+  StreamChannelSync packet_io_client(channel);
   packet_io_client.send_init(0);
   std::thread t([&packet_io_client]() {
       while (true) {
