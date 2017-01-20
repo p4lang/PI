@@ -29,8 +29,8 @@ using pi::fe::proto::DeviceMgr;
 
 DeviceMgr *device_mgr = nullptr;
 
-class PacketIOClientMgr;
-PacketIOClientMgr *packet_in_mgr = nullptr;
+class StreamChannelClientMgr;
+StreamChannelClientMgr *packet_in_mgr = nullptr;
 
 // #define DEBUG
 
@@ -182,28 +182,28 @@ class PIServiceImpl : public p4::PI::Service {
   }
 };
 
-typedef p4::PI::WithAsyncMethod_PacketIO<PIServiceImpl>
+typedef p4::PI::WithAsyncMethod_StreamChannel<PIServiceImpl>
 PIHybridService;
 
-class PacketIOClientMgr {
+class StreamChannelClientMgr {
  public:
-  PacketIOClientMgr(PIHybridService *service, ServerCompletionQueue* cq)
+  StreamChannelClientMgr(PIHybridService *service, ServerCompletionQueue* cq)
       : service_(service), cq_(cq) {
-    new PacketIOWriter(this, service, cq);
+    new StreamChannelWriter(this, service, cq);
   }
 
-  using ReaderWriter =
-      ServerAsyncReaderWriter<p4::PacketInUpdate, p4::PacketOutUpdate>;
+  using ReaderWriter = ServerAsyncReaderWriter<p4::StreamMessageResponse,
+                                               p4::StreamMessageRequest>;
 
-  class PacketIOTag {
+  class StreamChannelTag {
    public:
-    virtual ~PacketIOTag() { }
+    virtual ~StreamChannelTag() { }
     virtual void proceed(bool ok = true) = 0;
   };
 
-  class PacketIOReader : public PacketIOTag {
+  class StreamChannelReader : public StreamChannelTag {
    public:
-    PacketIOReader(ReaderWriter *stream)
+    StreamChannelReader(ReaderWriter *stream)
         : stream(stream), state(State::CREATE) { }
 
     void proceed(bool ok = true) override {
@@ -219,10 +219,10 @@ class PacketIOClientMgr {
       } else if (state == State::PROCESS) {
         // SIMPLELOG << "PACKET OUT\n";
         switch (request.update_case()) {
-          case p4::PacketOutUpdate::kInit:
-            device_id = request.init().device_id();
+          case p4::StreamMessageRequest::kArbitration:
+            device_id = request.arbitration().device_id();
           break;
-          case p4::PacketOutUpdate::kPacket:
+          case p4::StreamMessageRequest::kPacket:
             device_mgr->packet_out_send(request.packet().payload());
             break;
           default:
@@ -237,15 +237,15 @@ class PacketIOClientMgr {
 
    private:
     DeviceMgr::device_id_t device_id{};
-    p4::PacketOutUpdate request{};
+    p4::StreamMessageRequest request{};
     ReaderWriter *stream;
     enum class State {CREATE, PROCESS, FINISH};
     State state;
   };
 
-  class PacketIOWriter : public PacketIOTag {
+  class StreamChannelWriter : public StreamChannelTag {
    public:
-    PacketIOWriter(PacketIOClientMgr *mgr, PIHybridService *service,
+    StreamChannelWriter(StreamChannelClientMgr *mgr, PIHybridService *service,
                    ServerCompletionQueue* cq)
         : mgr_(mgr), service_(service), cq_(cq),
           stream(&ctx), state(State::CREATE) {
@@ -270,12 +270,12 @@ class PacketIOClientMgr {
       if (state == State::CREATE) {
         // SIMPLELOG << "CREATE\n";
         state = State::CAN_WRITE;
-        service_->RequestPacketIO(&ctx, &stream, cq_, cq_, this);
+        service_->RequestStreamChannel(&ctx, &stream, cq_, cq_, this);
       } else if (state == State::CAN_WRITE) {
-        reader = new PacketIOReader(&stream);
+        reader = new StreamChannelReader(&stream);
         reader->proceed();
         // SIMPLELOG << "WRITE\n";
-        new PacketIOWriter(mgr_, service_, cq_);
+        new StreamChannelWriter(mgr_, service_, cq_);
         mgr_->register_client(this);
       } else if (state == State::MUST_WAIT) {
         // SIMPLELOG << "MUST_WAIT\n";
@@ -288,13 +288,14 @@ class PacketIOClientMgr {
     }
 
    private:
-    PacketIOClientMgr *mgr_;
+    StreamChannelClientMgr *mgr_;
     PIHybridService *service_;
     ServerCompletionQueue* cq_;
     ServerContext ctx{};
-    ServerAsyncReaderWriter<p4::PacketInUpdate, p4::PacketOutUpdate> stream;
-    PacketIOReader *reader = nullptr;
-    p4::PacketInUpdate response{};
+    ServerAsyncReaderWriter<p4::StreamMessageResponse,
+                            p4::StreamMessageRequest> stream;
+    StreamChannelReader *reader = nullptr;
+    p4::StreamMessageResponse response{};
     mutable std::mutex m_;
     enum class State { CREATE, CAN_WRITE, MUST_WAIT, FINISH};
     State state;  // The current serving state
@@ -304,13 +305,13 @@ class PacketIOClientMgr {
     void *tag;
     bool ok;
     if (!cq_->Next(&tag, &ok)) return false;
-    static_cast<PacketIOTag *>(tag)->proceed(ok);
+    static_cast<StreamChannelTag *>(tag)->proceed(ok);
     return true;
   }
 
   void notify_clients(DeviceMgr::device_id_t device_id, std::string bytes) {
     // SIMPLELOG << "NOTIFYING\n";
-    std::vector<PacketIOWriter *> clients_;
+    std::vector<StreamChannelWriter *> clients_;
     {
       std::unique_lock<std::mutex> L(mgr_m_);
       clients_ = clients;
@@ -319,12 +320,12 @@ class PacketIOClientMgr {
   }
 
  private:
-  void register_client(PacketIOWriter *client) {
+  void register_client(StreamChannelWriter *client) {
     std::unique_lock<std::mutex> L(mgr_m_);
     clients.push_back(client);
   }
 
-  void remove_client(PacketIOWriter *client) {
+  void remove_client(StreamChannelWriter *client) {
     std::unique_lock<std::mutex> L(mgr_m_);
     for (auto it = clients.begin(); it != clients.end(); it++) {
       if (*it == client) {
@@ -340,18 +341,18 @@ class PacketIOClientMgr {
 #endif
   PIHybridService *service_;
   ServerCompletionQueue* cq_;
-  std::vector<PacketIOWriter *> clients;
+  std::vector<StreamChannelWriter *> clients;
 };
 
 namespace {
 
 void packet_in_cb(DeviceMgr::device_id_t device_id, std::string packet,
                   void *cookie) {
-  auto mgr = static_cast<PacketIOClientMgr *>(cookie);
+  auto mgr = static_cast<StreamChannelClientMgr *>(cookie);
   mgr->notify_clients(device_id, std::move(packet));
 }
 
-// void probe(PacketIOClientMgr *mgr) {
+// void probe(StreamChannelClientMgr *mgr) {
 //   for (int i = 0; i < 100; i++) {
 //     std::this_thread::sleep_for(std::chrono::seconds(1));
 //     mgr->notify_clients(i, std::string("11111"));
@@ -363,7 +364,7 @@ void packet_in_cb(DeviceMgr::device_id_t device_id, std::string packet,
 Server *server_ptr = nullptr;
 
 struct PacketInGenerator {
-  PacketInGenerator(PacketIOClientMgr *mgr)
+  PacketInGenerator(StreamChannelClientMgr *mgr)
       : mgr(mgr) { }
 
   ~PacketInGenerator() { stop(); }
@@ -385,7 +386,7 @@ struct PacketInGenerator {
   }
 
   std::atomic<int> stop_f{0};
-  PacketIOClientMgr *mgr;
+  StreamChannelClientMgr *mgr;
   std::thread sender;
 };
 
@@ -408,9 +409,9 @@ void RunServer() {
   server_ptr = server.get();
   std::cout << "Server listening on " << server_address << std::endl;
 
-  packet_in_mgr = new PacketIOClientMgr(&pi_service, cq_.get());
+  packet_in_mgr = new StreamChannelClientMgr(&pi_service, cq_.get());
 
-  auto packet_io = [](PacketIOClientMgr *mgr) {
+  auto packet_io = [](StreamChannelClientMgr *mgr) {
     while (mgr->next()) { }
   };
 
