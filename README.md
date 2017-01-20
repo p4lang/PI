@@ -10,9 +10,10 @@ See [examples] (examples/) for how to use the PI.
 - libjudy-dev
 - libreadline-dev
 
-## Building pi.proto
+## Building p4runtime.proto
 
-To include `pi.proto` in the build, please run `configure` with `--with-proto`.
+To include `p4runtime.proto` in the build, please run `configure` with
+`--with-proto`.
 
 ## PI CLI
 

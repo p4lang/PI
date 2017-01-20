@@ -447,7 +447,7 @@ class DeviceMgrImp {
 
   // this function to avoid code duplication
   // we can probably simplify this code if the action_profile_id is moved up in
-  // pi.proto
+  // p4runtime.proto
   template <typename FMember, typename FGroup>
   Status action_profile_common(const p4::ActionProfileEntry &entry,
                                FMember fmember, FGroup fgroup) {

@@ -162,6 +162,6 @@ class SimpleRouterMgr {
   pi_p4info_t *p4info{nullptr};
   boost::asio::io_service &io_service;
   std::unique_ptr<p4::tmp::Device::Stub> device_stub_;
-  std::unique_ptr<p4::PI::Stub> pi_stub_;
+  std::unique_ptr<p4::P4Runtime::Stub> pi_stub_;
   std::unique_ptr<StreamChannelSyncClient> packet_io_client;
 };

@@ -22,7 +22,7 @@ import "google/rpc/status.proto";
 
 package p4;
 
-service PI {
+service P4Runtime {
   // Modifies the P4 tables containing 'TableEntry's.
   rpc TableWrite(TableWriteRequest) returns (TableWriteResponse) {
   }

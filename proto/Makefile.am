@@ -18,7 +18,7 @@ PROTOFLAGS = -I$(abs_srcdir)
 
 # Absolute paths are needed here for 'make distcheck' to work properly
 protos = \
-$(abs_srcdir)/p4/pi.proto \
+$(abs_srcdir)/p4/p4runtime.proto \
 $(abs_srcdir)/p4/config/p4info.proto \
 $(abs_srcdir)/google/rpc/status.proto \
 $(abs_srcdir)/google/rpc/code.proto \
@@ -27,7 +27,7 @@ $(abs_srcdir)/p4/tmp/device.proto
 # Somehow, using an absolute path above prevents me from using EXTRA_DIST =
 # $(protos)
 EXTRA_DIST = \
-p4/pi.proto \
+p4/p4runtime.proto \
 p4/config/p4info.proto \
 google/rpc/status.proto \
 google/rpc/code.proto \
