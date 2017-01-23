@@ -175,7 +175,8 @@ class StreamChannelSyncClient {
  public:
   StreamChannelSyncClient(SimpleRouterMgr *simple_router_mgr,
                           std::shared_ptr<Channel> channel)
-      : simple_router_mgr(simple_router_mgr), stub_(p4::PI::NewStub(channel)) {
+      : simple_router_mgr(simple_router_mgr),
+        stub_(p4::P4Runtime::NewStub(channel)) {
     stream = stub_->StreamChannel(&context);
   }
 
@@ -209,7 +210,7 @@ class StreamChannelSyncClient {
 
  private:
   SimpleRouterMgr *simple_router_mgr{nullptr};
-  std::unique_ptr<p4::PI::Stub> stub_;
+  std::unique_ptr<p4::P4Runtime::Stub> stub_;
   std::thread recv_thread;
   ClientContext context;
   std::unique_ptr<ClientReaderWriter<p4::StreamMessageRequest,
@@ -221,7 +222,7 @@ SimpleRouterMgr::SimpleRouterMgr(int dev_id, pi_p4info_t *p4info,
                                  std::shared_ptr<Channel> channel)
     : dev_id(dev_id), p4info(p4info), io_service(io_service),
       device_stub_(p4::tmp::Device::NewStub(channel)),
-      pi_stub_(p4::PI::NewStub(channel)),
+      pi_stub_(p4::P4Runtime::NewStub(channel)),
       packet_io_client(new StreamChannelSyncClient(this, channel)) {
 }
 

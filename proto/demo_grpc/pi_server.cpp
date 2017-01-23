@@ -54,7 +54,7 @@ class DeviceService : public p4::tmp::Device::Service {
   Status DeviceAssign(ServerContext *context,
                       const p4::tmp::DeviceAssignRequest *request,
                       ::google::rpc::Status *rep) override {
-    SIMPLELOG << "PI DeviceAssign\n";
+    SIMPLELOG << "P4Runtime DeviceAssign\n";
     SIMPLELOG << request->DebugString();
     device_mgr = new DeviceMgr(request->device_id());
     *rep = device_mgr->init(request->p4info(), request->extras());
@@ -66,7 +66,7 @@ class DeviceService : public p4::tmp::Device::Service {
   Status DeviceRemove(ServerContext *context,
                       const p4::tmp::DeviceRemoveRequest *request,
                       ::google::rpc::Status *rep) override {
-    SIMPLELOG << "PI DeviceRemove\n";
+    SIMPLELOG << "P4Runtime DeviceRemove\n";
     SIMPLELOG << request->DebugString();
     delete device_mgr;
     *rep = ::google::rpc::Status();
@@ -76,7 +76,7 @@ class DeviceService : public p4::tmp::Device::Service {
   Status DeviceUpdateStart(ServerContext *context,
                            const p4::tmp::DeviceUpdateStartRequest *request,
                            ::google::rpc::Status *rep) override {
-    SIMPLELOG << "PI DeviceUpdateStart\n";
+    SIMPLELOG << "P4Runtime DeviceUpdateStart\n";
     SIMPLELOG << request->DebugString();
     *rep = device_mgr->update_start(request->p4info(), request->device_data());
     return Status::OK;
@@ -85,19 +85,19 @@ class DeviceService : public p4::tmp::Device::Service {
   Status DeviceUpdateEnd(ServerContext *context,
                          const p4::tmp::DeviceUpdateEndRequest *request,
                          ::google::rpc::Status *rep) override {
-    SIMPLELOG << "PI DeviceUpdateEnd\n";
+    SIMPLELOG << "P4Runtime DeviceUpdateEnd\n";
     SIMPLELOG << request->DebugString();
     *rep = device_mgr->update_end();
     return Status::OK;
   }
 };
 
-class PIServiceImpl : public p4::PI::Service {
+class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
  private:
   Status TableWrite(ServerContext *context,
                     const p4::TableWriteRequest *request,
                     p4::TableWriteResponse *rep) override {
-    SIMPLELOG << "PI TableWrite\n";
+    SIMPLELOG << "P4Runtime TableWrite\n";
     SIMPLELOG << request->DebugString();
     bool has_error = false;
     for (const auto &table_update : request->updates()) {
@@ -113,7 +113,7 @@ class PIServiceImpl : public p4::PI::Service {
   Status TableRead(ServerContext *context,
                    const p4::TableReadRequest *request,
                    ServerWriter<p4::TableReadResponse> *writer) override {
-    SIMPLELOG << "PI TableRead\n";
+    SIMPLELOG << "P4Runtime TableRead\n";
     SIMPLELOG << request->DebugString();
     (void) context; (void) request; (void) writer;
     return Status::CANCELLED;
@@ -123,7 +123,7 @@ class PIServiceImpl : public p4::PI::Service {
   Status ActionProfileWrite(ServerContext *context,
                             const p4::ActionProfileWriteRequest *request,
                             p4::ActionProfileWriteResponse *response) override {
-    SIMPLELOG << "PI ActionProfileWrite\n";
+    SIMPLELOG << "P4Runtime ActionProfileWrite\n";
     SIMPLELOG << request->DebugString();
     (void) context; (void) request; (void) response;
     return Status::CANCELLED;
@@ -134,7 +134,7 @@ class PIServiceImpl : public p4::PI::Service {
       ServerContext* context,
       const p4::ActionProfileReadRequest* request,
       ServerWriter<p4::ActionProfileReadResponse> *writer) override {
-    SIMPLELOG << "PI ActionProfileRead\n";
+    SIMPLELOG << "P4Runtime ActionProfileRead\n";
     SIMPLELOG << request->DebugString();
     (void) context; (void) request; (void) writer;
     return Status::CANCELLED;
@@ -143,7 +143,7 @@ class PIServiceImpl : public p4::PI::Service {
   Status CounterRead(ServerContext *context,
                      const p4::CounterReadRequest *request,
                      ServerWriter<p4::CounterReadResponse> *writer) override {
-    SIMPLELOG << "PI CounterRead\n";
+    SIMPLELOG << "P4Runtime CounterRead\n";
     SIMPLELOG << request->DebugString();
     if (request->counters().empty()) {
       // read all counters
@@ -175,19 +175,20 @@ class PIServiceImpl : public p4::PI::Service {
   Status CounterWrite(ServerContext *context,
                       const p4::CounterWriteRequest *request,
                       ServerWriter<p4::CounterWriteResponse> *writer) override {
-    SIMPLELOG << "PI CounterWrite\n";
+    SIMPLELOG << "P4Runtime CounterWrite\n";
     // SIMPLELOG << request->DebugString();
     (void) context; (void) request; (void) writer;
     return Status::CANCELLED;
   }
 };
 
-typedef p4::PI::WithAsyncMethod_StreamChannel<PIServiceImpl>
-PIHybridService;
+using P4RuntimeHybridService =
+  p4::P4Runtime::WithAsyncMethod_StreamChannel<P4RuntimeServiceImpl>;
 
 class StreamChannelClientMgr {
  public:
-  StreamChannelClientMgr(PIHybridService *service, ServerCompletionQueue* cq)
+  StreamChannelClientMgr(P4RuntimeHybridService *service,
+                         ServerCompletionQueue* cq)
       : service_(service), cq_(cq) {
     new StreamChannelWriter(this, service, cq);
   }
@@ -245,8 +246,9 @@ class StreamChannelClientMgr {
 
   class StreamChannelWriter : public StreamChannelTag {
    public:
-    StreamChannelWriter(StreamChannelClientMgr *mgr, PIHybridService *service,
-                   ServerCompletionQueue* cq)
+    StreamChannelWriter(StreamChannelClientMgr *mgr,
+                        P4RuntimeHybridService *service,
+                        ServerCompletionQueue* cq)
         : mgr_(mgr), service_(service), cq_(cq),
           stream(&ctx), state(State::CREATE) {
       proceed();
@@ -289,7 +291,7 @@ class StreamChannelClientMgr {
 
    private:
     StreamChannelClientMgr *mgr_;
-    PIHybridService *service_;
+    P4RuntimeHybridService *service_;
     ServerCompletionQueue* cq_;
     ServerContext ctx{};
     ServerAsyncReaderWriter<p4::StreamMessageResponse,
@@ -339,7 +341,7 @@ class StreamChannelClientMgr {
 #ifdef __clang__
   __attribute__((unused))
 #endif
-  PIHybridService *service_;
+  P4RuntimeHybridService *service_;
   ServerCompletionQueue* cq_;
   std::vector<StreamChannelWriter *> clients;
 };
@@ -395,7 +397,7 @@ PacketInGenerator *generator = nullptr;
 void RunServer() {
   std::string server_address("0.0.0.0:50051");
   DeviceService device_service;
-  PIHybridService pi_service;
+  P4RuntimeHybridService pi_service;
 
   ServerBuilder builder;
   // Listen on the given address without any authentication mechanism.

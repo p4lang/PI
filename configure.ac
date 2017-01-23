@@ -32,11 +32,12 @@ AC_ARG_WITH([fe_cpp],
     [want_fe_cpp=yes], [])
 
 AC_ARG_WITH([proto],
-    AS_HELP_STRING([--with-proto], [Compile pi.proto and associated frontend]),
+    AS_HELP_STRING([--with-proto],
+                   [Compile p4runtime.proto and associated frontend]),
     [with_proto="$withval"], [with_proto=no])
 
 AS_IF([test "$with_proto" = yes && test "$want_fe_cpp" = no], [
-    AC_MSG_NOTICE([C++ frontend needed for pi.proto, turning it on])
+    AC_MSG_NOTICE([C++ frontend needed for p4runtime.proto, turning it on])
     want_fe_cpp=yes
 ])
 
@@ -216,6 +217,6 @@ AS_IF([test "$want_bmv2" = yes], [
 AS_ECHO("  simple_switch found ........................ : $simple_switch_found")
 ])
 AS_ECHO("Compile C++ frontend ......................... : $want_fe_cpp")
-AS_ECHO("Compile pi.proto and associated frontend ..... : $with_proto")
+AS_ECHO("Compile p4runtime.proto and associated fe .... : $with_proto")
 AS_ECHO("Compile internal RPC ......................... : $with_internal_rpc")
 AS_ECHO("Compile PI C CLI ............................. : $with_cli")

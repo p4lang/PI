@@ -117,7 +117,7 @@ class DeviceClient {
 class StreamChannelSync {
  public:
   StreamChannelSync(std::shared_ptr<Channel> channel)
-      : stub_(p4::PI::NewStub(channel)) {
+      : stub_(p4::P4Runtime::NewStub(channel)) {
     stream = stub_->StreamChannel(&context);
   }
 
@@ -145,27 +145,27 @@ class StreamChannelSync {
   }
 
  private:
-  std::unique_ptr<p4::PI::Stub> stub_;
+  std::unique_ptr<p4::P4Runtime::Stub> stub_;
   std::thread recv_thread;
   ClientContext context;
   std::unique_ptr<ClientReaderWriter<p4::StreamMessageRequest,
                                      p4::StreamMessageResponse> > stream;
 };
 
-class PIAsyncClient {
+class P4RuntimeAsyncClient {
  public:
-  PIAsyncClient(std::shared_ptr<Channel> channel)
-      : stub_(p4::PI::NewStub(channel)) {}
+  P4RuntimeAsyncClient(std::shared_ptr<Channel> channel)
+      : stub_(p4::P4Runtime::NewStub(channel)) {}
 
   void sub_packet_in() {
-    recv_thread = std::thread(&PIAsyncClient::AsyncRecvPacketIn, this);
+    recv_thread = std::thread(&P4RuntimeAsyncClient::AsyncRecvPacketIn, this);
   }
 
  private:
   // struct for keeping state and data information
   class AsyncRecvPacketInState {
    public:
-    AsyncRecvPacketInState(p4::PI::Stub *stub_, CompletionQueue *cq)
+    AsyncRecvPacketInState(p4::P4Runtime::Stub *stub_, CompletionQueue *cq)
         : state(State::CREATE) {
       stream = stub_->AsyncStreamChannel(&context, cq,
                                          static_cast<void *>(this));
@@ -244,7 +244,7 @@ class PIAsyncClient {
     }
   }
 
-  std::unique_ptr<p4::PI::Stub> stub_;
+  std::unique_ptr<p4::P4Runtime::Stub> stub_;
   CompletionQueue cq_;
   std::thread recv_thread;
 };
@@ -259,7 +259,7 @@ int main(int argc, char** argv) {
   std::cout << "1. Status received: " << rc << std::endl;
   // rc = client.route_add_test();
   // std::cout << "2. Status received: " << rc << std::endl;
-  // PIAsyncClient async_client(channel);
+  // P4RuntimeAsyncClient async_client(channel);
   // async_client.sub_packet_in();
   StreamChannelSync packet_io_client(channel);
   packet_io_client.send_init(0);

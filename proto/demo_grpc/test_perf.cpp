@@ -118,10 +118,10 @@ class DeviceClient {
   std::unique_ptr<p4::tmp::Device::Stub> stub_;
 };
 
-class PIClient {
+class P4RuntimeClient {
  public:
-  PIClient(std::shared_ptr<Channel> channel)
-      : stub_(p4::PI::NewStub(channel)) { }
+  P4RuntimeClient(std::shared_ptr<Channel> channel)
+      : stub_(p4::P4Runtime::NewStub(channel)) { }
 
   int table_write(const p4::TableWriteRequest &request) {
     p4::TableWriteResponse rep;
@@ -132,7 +132,7 @@ class PIClient {
   }
 
  private:
-  std::unique_ptr<p4::PI::Stub> stub_;
+  std::unique_ptr<p4::P4Runtime::Stub> stub_;
 };
 
 namespace {
@@ -156,7 +156,7 @@ std::string uint_to_string<uint32_t>(uint32_t i) {
 class StreamChannelSync {
  public:
   StreamChannelSync(std::shared_ptr<Channel> channel)
-      : stub_(p4::PI::NewStub(channel)) {
+      : stub_(p4::P4Runtime::NewStub(channel)) {
     stream = stub_->StreamChannel(&context);
   }
 
@@ -193,7 +193,7 @@ class StreamChannelSync {
 
  private:
   std::atomic<bool> stop_f{false};
-  std::unique_ptr<p4::PI::Stub> stub_;
+  std::unique_ptr<p4::P4Runtime::Stub> stub_;
   std::thread recv_thread;
   ClientContext context;
   std::unique_ptr<ClientReaderWriter<p4::StreamMessageRequest,
@@ -232,7 +232,7 @@ class Tester {
     auto add_entries = [this, t_id, a_id, batch_size](size_t iters) {
       using google::protobuf::Arena;
       for (size_t i = 0; i < iters; i++) {
-        // when arenas are enabled in pi.proto
+        // when arenas are enabled in p4runtime.proto
         // Arena arena;
         // p4::TableWriteRequest *request =
         //     Arena::CreateMessage<p4::TableWriteRequest>(&arena);
@@ -318,7 +318,7 @@ class Tester {
   int device_id;
   const pi_p4info_t *p4info;
   DeviceClient device_client;
-  PIClient pi_client;
+  P4RuntimeClient pi_client;
   StreamChannelSync packet_recv;
 };
 
