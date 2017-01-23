@@ -32,7 +32,7 @@
 
 #include "google/rpc/code.pb.h"
 #include "google/rpc/status.pb.h"
-#include "p4/pi.pb.h"
+#include "p4/p4runtime.pb.h"
 
 #include "common.h"
 

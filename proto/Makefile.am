@@ -34,8 +34,8 @@ google/rpc/code.proto \
 p4/tmp/device.proto
 
 proto_cpp_files = \
-cpp_out/p4/pi.pb.cc \
-cpp_out/p4/pi.pb.h \
+cpp_out/p4/p4runtime.pb.cc \
+cpp_out/p4/p4runtime.pb.h \
 cpp_out/p4/config/p4info.pb.cc \
 cpp_out/p4/config/p4info.pb.h \
 cpp_out/google/rpc/status.pb.cc \
@@ -46,8 +46,8 @@ cpp_out/p4/tmp/device.pb.cc \
 cpp_out/p4/tmp/device.pb.h
 
 proto_grpc_files = \
-grpc_out/p4/pi.grpc.pb.cc \
-grpc_out/p4/pi.grpc.pb.h \
+grpc_out/p4/p4runtime.grpc.pb.cc \
+grpc_out/p4/p4runtime.grpc.pb.h \
 grpc_out/p4/config/p4info.grpc.pb.cc \
 grpc_out/p4/config/p4info.grpc.pb.h \
 grpc_out/google/rpc/status.grpc.pb.cc \
@@ -59,8 +59,8 @@ grpc_out/p4/tmp/device.grpc.pb.h
 
 includep4dir = $(includedir)/p4/
 nodist_includep4_HEADERS = \
-cpp_out/p4/pi.pb.h \
-grpc_out/p4/pi.grpc.pb.h
+cpp_out/p4/p4runtime.pb.h \
+grpc_out/p4/p4runtime.grpc.pb.h
 
 includep4configdir = $(includedir)/p4/config/
 nodist_includep4config_HEADERS = \
