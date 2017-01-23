@@ -26,7 +26,7 @@
 
 #include <grpc++/grpc++.h>
 
-#include "p4/pi.grpc.pb.h"
+#include "p4/p4runtime.grpc.pb.h"
 #include "p4/tmp/device.grpc.pb.h"
 
 #include <iostream>
