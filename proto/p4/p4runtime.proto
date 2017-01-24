@@ -77,7 +77,7 @@ message TableWriteResponse {
 message TableReadRequest {
   uint64 device_id = 1;
   // Read all if empty.
-  repeated int32 table_ids = 2;
+  repeated uint32 table_ids = 2;
 }
 
 message TableReadResponse {
@@ -105,7 +105,7 @@ message TableUpdate {
 //   function when it is called.
 
 message TableEntry {
-  int32 table_id = 1;
+  uint32 table_id = 1;
   repeated FieldMatch match = 2;
   TableAction action = 3;
   int32 priority = 4;              // ignored unless match => TCAM
@@ -114,7 +114,7 @@ message TableEntry {
 
 // field_match_type ::= exact | ternary | lpm | range | valid
 message FieldMatch {
-  int32 field_id = 1;
+  uint32 field_id = 1;
 
   message Exact {
     bytes value = 1;
@@ -154,9 +154,9 @@ message TableAction {
 }
 
 message Action {
-  int32 action_id = 1;
+  uint32 action_id = 1;
   message Param {
-    int32 param_id = 2;
+    uint32 param_id = 2;
     bytes value = 3;
   }
   repeated Param params = 4;
@@ -177,7 +177,7 @@ message ActionProfileWriteResponse {
 message ActionProfileReadRequest {
   uint64 device_id = 1;
   // Read all if empty.
-  repeated int32 action_profile_ids = 2;
+  repeated uint32 action_profile_ids = 2;
 }
 
 message ActionProfileReadResponse {
@@ -208,8 +208,8 @@ message ActionProfileEntry {
 message ActionProfileMember {
   uint32 member_id = 1;
   Action action = 2;
-  uint32 weight = 3;  // For WCMP
-  uint32 watch = 4;   // For fast-failover, this is TBD
+  int32 weight = 3;  // For WCMP
+  uint32 watch = 4;  // For fast-failover, this is TBD
 }
 
 message ActionProfileGroup {
@@ -222,7 +222,7 @@ message ActionProfileGroup {
   }
   Type type = 2;
   repeated uint32 member_id = 3;
-  uint32 max_size = 4;
+  int32 max_size = 4;
 }
 
 //------------------------------------------------------------------------------
@@ -247,7 +247,7 @@ message CounterReadRequest {
 }
 
 message CounterEntry {
-  int32 counter_id = 1;
+  uint32 counter_id = 1;
   repeated CounterCell cells = 2;
   // TODO timestamp?
 }
@@ -296,7 +296,7 @@ message MeterReadRequest {
 }
 
 message MeterEntry {
-  int32 meter_id = 1;
+  uint32 meter_id = 1;
   repeated MeterCell cells = 2;
   // TODO timestamp?
 }
