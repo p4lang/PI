@@ -92,7 +92,7 @@ class Table:
         match_types = [t for _, t, _ in self.key]
 
         if len(match_types) == 0:
-            self.match_type = MatchTye.EXACT
+            self.match_type = MatchType.EXACT
         elif "range" in match_types:
             self.match_type = MatchType.RANGE
         elif "ternary" in match_types:
