@@ -119,14 +119,19 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
     return Status::CANCELLED;
   }
 
-  // TODO(antonin)
   Status ActionProfileWrite(ServerContext *context,
                             const p4::ActionProfileWriteRequest *request,
-                            p4::ActionProfileWriteResponse *response) override {
+                            p4::ActionProfileWriteResponse *rep) override {
     SIMPLELOG << "P4Runtime ActionProfileWrite\n";
     SIMPLELOG << request->DebugString();
-    (void) context; (void) request; (void) response;
-    return Status::CANCELLED;
+    bool has_error = false;
+    for (const auto &act_prof_update : request->updates()) {
+      auto status = device_mgr->action_profile_write(act_prof_update);
+      *rep->add_errors() = status;
+      if (status.code() != ::google::rpc::Code::OK) has_error = true;
+    }
+    if (!has_error) rep->clear_errors();
+    return Status::OK;
   }
 
   // TODO(antonin)
