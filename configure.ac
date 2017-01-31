@@ -19,6 +19,12 @@ AC_PROG_CXX
 # TODO: make this conditional on the PD if possible
 AM_PATH_PYTHON([2.7],, [:])
 
+DX_DOT_FEATURE([ON])
+DX_PDF_FEATURE([ON])
+DX_HTML_FEATURE([ON])
+DX_PS_FEATURE([OFF])
+DX_INIT_DOXYGEN([PI], [$(top_srcdir)/docs/doxygen.cfg], [doxygen-out])
+
 want_bmv2=no
 AC_ARG_WITH([bmv2],
     AS_HELP_STRING([--with-bmv2], [Build for bmv2 target]),

@@ -1,3 +1,7 @@
+# DOXYGEN SUPPORT
+# include $(top_srcdir)/aminclude.am
+@DX_RULES@
+
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 
 if WITH_CLI
@@ -17,3 +21,10 @@ DIST_SUBDIRS = third_party lib include src generators targets CLI examples \
 bin tests frontends_extra $(MAYBE_PROTO)
 
 AM_DISTCHECK_CONFIGURE_FLAGS = --with-bmv2 --with-fe-cpp
+
+# ensure the distribution of the doxygen configuration file
+EXTRA_DIST = $(top_srcdir)/docs/doxygen.cfg \
+	     $(builddir)/doxygen-out/html $(builddir)/doxygen-out/pi.pdf
+
+mostlyclean-local:
+	-$(RM) -r $(DX_CLEANFILES)
