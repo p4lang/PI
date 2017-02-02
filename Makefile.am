@@ -1,5 +1,4 @@
 # DOXYGEN SUPPORT
-# include $(top_srcdir)/aminclude.am
 @DX_RULES@
 
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
@@ -24,7 +23,8 @@ AM_DISTCHECK_CONFIGURE_FLAGS = --with-bmv2 --with-fe-cpp
 
 # ensure the distribution of the doxygen configuration file
 EXTRA_DIST = $(top_srcdir)/docs/doxygen.cfg \
-	     $(builddir)/doxygen-out/html $(builddir)/doxygen-out/pi.pdf
+	     $(top_srcdir)/docs/bfn_latex.sty \
+	     $(top_srcdir)/docs/*.md
 
 mostlyclean-local:
 	-$(RM) -r $(DX_CLEANFILES)
