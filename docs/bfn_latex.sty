@@ -1,0 +1,29 @@
+
+\newcommand{\bfnlogo}[1]{%
+\begin{figure}[H]%
+  \centering%
+  \includegraphics[width=\textwidth]{#1}%
+\end{figure}%
+}
+
+\newcommand{\bfndisclaimer}[1]{%
+  \vfill%
+  #1%
+}
+
+\newcommand{\bfncopyright}[1]{%
+\begin{center}%
+\textcopyright \space 2013-2017 Barefoot Networks, Inc. All rights reserved.%
+\end{center}%
+}
+
+%Define headers/footers for rest of document.
+\usepackage{fancyhdr}
+\pagestyle{fancyplain}
+\fancyhead[L]{\sl\sffamily\footnotesize\textbf{\today}}
+\fancyhead[R]{\sl\sffamily\footnotesize\textbf{\chaptermark}}
+\fancyfoot[L]{\sffamily\footnotesize\textbf{Barefoot Networks}}
+%\fancyfoot[C]{\sffamily\footnotesize\thepage}
+%\fancyfoot[R]{\sffamily\scriptsize\textbf{Company Confidential}}
+\fancyfoot[R]{\sffamily\footnotesize\thepage}
+\renewcommand\footrulewidth{.4pt}
