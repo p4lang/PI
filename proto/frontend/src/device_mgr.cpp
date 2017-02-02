@@ -65,7 +65,7 @@ class DeviceMgrImp {
 
   explicit DeviceMgrImp(device_id_t device_id)
       : device_id(device_id),
-        device_tgt({static_cast<pi_dev_id_t>(device_id), 0xff}) { }
+        device_tgt({static_cast<pi_dev_id_t>(device_id), 0xffff}) { }
 
   ~DeviceMgrImp() {
     pi_remove_device(device_id);
