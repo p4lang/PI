@@ -14,6 +14,8 @@
 #include "p4/tmp/device.grpc.pb.h"
 #include "google/rpc/code.pb.h"
 
+#include "pi_server.h"
+
 using grpc::Server;
 using grpc::ServerBuilder;
 using grpc::ServerContext;
@@ -27,11 +29,6 @@ using grpc::ServerAsyncReaderWriter;
 
 using pi::fe::proto::DeviceMgr;
 
-DeviceMgr *device_mgr = nullptr;
-
-class StreamChannelClientMgr;
-StreamChannelClientMgr *packet_in_mgr = nullptr;
-
 // #define DEBUG
 
 #ifdef DEBUG
@@ -44,10 +41,14 @@ StreamChannelClientMgr *packet_in_mgr = nullptr;
 
 namespace {
 
+class StreamChannelClientMgr;
+
+DeviceMgr *device_mgr = nullptr;
+
+StreamChannelClientMgr *packet_in_mgr;
+
 void packet_in_cb(DeviceMgr::device_id_t device_id, std::string packet,
                   void *cookie);
-
-}  // namespace
 
 class DeviceService : public p4::tmp::Device::Service {
  private:
@@ -351,8 +352,6 @@ class StreamChannelClientMgr {
   std::vector<StreamChannelWriter *> clients;
 };
 
-namespace {
-
 void packet_in_cb(DeviceMgr::device_id_t device_id, std::string packet,
                   void *cookie) {
   auto mgr = static_cast<StreamChannelClientMgr *>(cookie);
@@ -365,10 +364,6 @@ void packet_in_cb(DeviceMgr::device_id_t device_id, std::string packet,
 //     mgr->notify_clients(i, std::string("11111"));
 //   }
 // }
-
-}  // namespace
-
-Server *server_ptr = nullptr;
 
 struct PacketInGenerator {
   PacketInGenerator(StreamChannelClientMgr *mgr)
@@ -397,70 +392,76 @@ struct PacketInGenerator {
   std::thread sender;
 };
 
-PacketInGenerator *generator = nullptr;
-
-void RunServer() {
-  std::string server_address("0.0.0.0:50051");
+struct ServerData {
+  std::string server_address{"0.0.0.0:50051"};
   DeviceService device_service;
   P4RuntimeHybridService pi_service;
-
   ServerBuilder builder;
-  // Listen on the given address without any authentication mechanism.
-  builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
-  builder.RegisterService(&device_service);
-  builder.RegisterService(&pi_service);
-  auto cq_ = builder.AddCompletionQueue();
+  std::unique_ptr<Server> server;
+  std::thread packetin_thread;
+  std::unique_ptr<ServerCompletionQueue> cq_;
+  PacketInGenerator *generator{nullptr};
+};
 
-  // Finally assemble the server.
-  std::unique_ptr<Server> server(builder.BuildAndStart());
-  server_ptr = server.get();
-  std::cout << "Server listening on " << server_address << std::endl;
+ServerData *server_data;
 
-  packet_in_mgr = new StreamChannelClientMgr(&pi_service, cq_.get());
+}  // namespace
+
+extern "C" {
+
+void PIGrpcServerRun() {
+  server_data = new ServerData();
+  auto &builder = server_data->builder;
+  builder.AddListeningPort(
+    server_data->server_address, grpc::InsecureServerCredentials());
+  builder.RegisterService(&server_data->device_service);
+  builder.RegisterService(&server_data->pi_service);
+  server_data->cq_ = builder.AddCompletionQueue();
+
+  server_data->server = builder.BuildAndStart();
+  std::cout << "Server listening on " << server_data->server_address << "\n";
+
+  packet_in_mgr = new StreamChannelClientMgr(
+    &server_data->pi_service, server_data->cq_.get());
 
   auto packet_io = [](StreamChannelClientMgr *mgr) {
     while (mgr->next()) { }
   };
 
-  std::thread packetin_thread(packet_io, packet_in_mgr);
+  server_data->packetin_thread = std::thread(packet_io, packet_in_mgr);
 
-  auto handler = [](int s) {
-    std::cout << "Server shutting down\n";
-    server_ptr->Shutdown();
-  };
-
+  // for testing only
   auto manage_generator = [](int s) {
     if (s == SIGUSR1) {
       std::cout << "Starting generator\n";
-      generator = new PacketInGenerator(packet_in_mgr);
-      generator->run();
+      server_data->generator = new PacketInGenerator(packet_in_mgr);
+      server_data->generator->run();
     } else {
-      delete generator;
-      generator = nullptr;
+      std::cout << "Stopping generator\n";
+      delete server_data->generator;
+      server_data->generator = nullptr;
     }
   };
-
   // TODO(antonin): use sigaction?
-  std::signal(SIGINT, handler);
-  std::signal(SIGTERM, handler);
-  std::signal(SIGQUIT, handler);
   std::signal(SIGUSR1, manage_generator);
   std::signal(SIGUSR2, manage_generator);
 
   // std::thread test_thread(probe, packet_in_mgr);
-
-  // Wait for the server to shutdown. Note that some other thread must be
-  // responsible for shutting down the server for this call to ever return.
-  server->Wait();
-  cq_->Shutdown();
-  packetin_thread.join();
-  if (generator) delete generator;
 }
 
-int main(int argc, char** argv) {
-  DeviceMgr::init(256);
-  RunServer();
-  DeviceMgr::destroy();
+void PIGrpcServerWait() {
+  server_data->server->Wait();
+}
 
-  return 0;
+void PIGrpcServerShutdown() {
+  server_data->server->Shutdown();
+}
+
+void PIGrpcServerCleanup() {
+  server_data->cq_->Shutdown();
+  server_data->packetin_thread.join();
+  if (server_data->generator) delete server_data->generator;
+  delete server_data;
+}
+
 }
