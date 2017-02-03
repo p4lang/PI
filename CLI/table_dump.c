@@ -69,6 +69,7 @@ static void print_hexstr(const char *bytes, size_t nbytes) {
   }
 }
 
+// clang-format off
 static void print_match_param_v(pi_p4_id_t f_id, pi_p4info_match_type_t mt,
                                 const pi_match_key_t *match_key) {
   pi_netv_t fv;
@@ -97,6 +98,7 @@ static void print_match_param_v(pi_p4_id_t f_id, pi_p4info_match_type_t mt,
       assert(0);
   }
 }
+// clang-format on
 
 static void print_action_entry(pi_table_entry_t *entry) {
   // TODO(antonin): all types of action entries (indirect)

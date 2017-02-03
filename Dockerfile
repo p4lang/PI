@@ -17,6 +17,7 @@ ENV PI_DEPS automake \
             build-essential \
             g++ \
             clang-3.8 \
+            clang-format-3.8 \
             libboost-dev \
             libboost-system-dev \
             libtool \
