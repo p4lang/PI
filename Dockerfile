@@ -16,6 +16,8 @@ ENV CC ${CC:-gcc}
 ENV PI_DEPS automake \
             build-essential \
             g++ \
+            gcc-6 \
+            g++-6 \
             clang-3.8 \
             clang-format-3.8 \
             libboost-dev \
@@ -32,6 +34,9 @@ ENV PI_DEPS automake \
 COPY . /PI/
 WORKDIR /PI/
 RUN apt-get update && \
+    apt-get install -y --no-install-recommends software-properties-common && \
+    add-apt-repository -y ppa:ubuntu-toolchain-r/test && \
+    apt-get update && \
     apt-get install -y --no-install-recommends $PI_DEPS && \
     ./autogen.sh && \
     ./configure --with-bmv2 --with-proto && \
