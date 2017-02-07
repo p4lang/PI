@@ -295,6 +295,8 @@ TEST(P4Info, ActionsStress) {
                              pi_p4info_action_param_offset(p4info, p_id));
       offset += (j + 7) / 8;
     }
+    TEST_ASSERT_EQUAL_UINT(offset,
+                           pi_p4info_action_data_size(p4info, adata[i].id));
   }
 
   for (size_t i = 0; i < num_actions; i++) {
@@ -463,6 +465,8 @@ TEST(P4Info, TablesStress) {
                                          p4info, tdata[i].id, finfo.field_id));
       offset += get_match_key_size_one_field(match_type, bw);
     }
+    TEST_ASSERT_EQUAL_UINT(offset,
+                           pi_p4info_table_match_key_size(p4info, tdata[i].id));
 
     TEST_ASSERT_EQUAL_UINT(tdata[i].num_actions,
                            pi_p4info_table_num_actions(p4info, tdata[i].id));

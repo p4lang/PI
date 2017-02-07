@@ -71,6 +71,7 @@ typedef struct _table_data_s {
     pi_p4_id_t *indirect;
   } direct_resources;
   size_t max_size;
+  size_t match_key_size;
 } _table_data_t;
 
 static _table_data_t *get_table(const pi_p4info_t *p4info,
@@ -208,6 +209,7 @@ void pi_p4info_table_add(pi_p4info_t *p4info, pi_p4_id_t table_id,
   table->num_direct_resources = 0;
   table->match_fields_added = 0;
   table->max_size = max_size;
+  table->match_key_size = 0;
 }
 
 void pi_p4info_table_add_match_field(pi_p4info_t *p4info, pi_p4_id_t table_id,
@@ -225,14 +227,10 @@ void pi_p4info_table_add_match_field(pi_p4info_t *p4info, pi_p4_id_t table_id,
   match_field->bitwidth = bitwidth;
   get_match_field_ids(table)[table->match_fields_added] = field_id;
 
-  if (table->match_fields_added == 0) {
-    match_field->offset = 0;
-  } else {
-    _match_field_data_t *prev_field = match_field - 1;
-    match_field->offset =
-        prev_field->offset + get_match_key_size_one_field(
-                                 prev_field->match_type, prev_field->bitwidth);
-  }
+  match_field->offset = table->match_key_size;
+  size_t size = get_match_key_size_one_field(match_field->match_type,
+                                             match_field->bitwidth);
+  table->match_key_size += size;
 
   table->match_fields_added++;
 }
@@ -321,6 +319,12 @@ size_t pi_p4info_table_match_field_offset(const pi_p4info_t *p4info,
   _table_data_t *table = get_table(p4info, table_id);
   _match_field_data_t *data = &get_match_field_data(table)[index];
   return data->offset;
+}
+
+size_t pi_p4info_table_match_key_size(const pi_p4info_t *p4info,
+                                      pi_p4_id_t table_id) {
+  _table_data_t *table = get_table(p4info, table_id);
+  return table->match_key_size;
 }
 
 void pi_p4info_table_match_field_info(const pi_p4info_t *p4info,

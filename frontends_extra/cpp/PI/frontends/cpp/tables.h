@@ -72,7 +72,8 @@ class MatchKey {
   const pi_p4info_t *p4info;
   pi_p4_id_t table_id;
   size_t nset{0};
-  std::vector<size_t> offsets{};
+  size_t mk_size;
+  std::vector<char> _data;
   pi_match_key_t *match_key;
   std::vector<char> _data{};
 };
@@ -94,9 +95,8 @@ class ActionData {
 
  private:
   template <typename T>
-  error_code_t format(pi_p4_id_t ap_id, T v, size_t offset);
-  error_code_t format(pi_p4_id_t ap_id, const char *ptr, size_t s,
-                      size_t offset);
+  error_code_t format(pi_p4_id_t ap_id, T v);
+  error_code_t format(pi_p4_id_t ap_id, const char *ptr, size_t s);
 
   pi_action_data_t *get() const {
     return action_data;
@@ -108,9 +108,9 @@ class ActionData {
 #endif
   pi_p4_id_t action_id;
   size_t nset{0};
-  std::vector<size_t> offsets{};
+  size_t ad_size;
+  std::vector<char> _data;
   pi_action_data_t *action_data;
-  std::vector<char> _data{};
 };
 
 class ActionEntry {
