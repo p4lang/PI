@@ -61,6 +61,9 @@ char pi_p4info_action_param_byte0_mask(const pi_p4info_t *p4info,
 size_t pi_p4info_action_param_offset(const pi_p4info_t *p4info,
                                      pi_p4_id_t param_id);
 
+size_t pi_p4info_action_data_size(const pi_p4info_t *p4info,
+                                  pi_p4_id_t action_id);
+
 pi_p4_id_t pi_p4info_action_begin(const pi_p4info_t *p4info);
 pi_p4_id_t pi_p4info_action_next(const pi_p4info_t *p4info, pi_p4_id_t id);
 pi_p4_id_t pi_p4info_action_end(const pi_p4info_t *p4info);

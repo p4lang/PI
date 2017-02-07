@@ -51,6 +51,7 @@ typedef struct _action_data_s {
     _action_param_data_t direct[INLINE_PARAMS];
     _action_param_data_t *indirect;
   } param_data;
+  size_t action_data_size;
 } _action_data_t;
 
 static size_t get_param_idx(pi_p4_id_t param_id) {
@@ -167,6 +168,7 @@ void pi_p4info_action_add(pi_p4info_t *p4info, pi_p4_id_t action_id,
     action->param_data.indirect =
         calloc(num_params, sizeof(_action_param_data_t));
   }
+  action->action_data_size = 0;
 }
 
 static char get_byte0_mask(size_t bitwidth) {
@@ -192,6 +194,8 @@ void pi_p4info_action_add_param(pi_p4info_t *p4info, pi_p4_id_t action_id,
   size_t param_idx = get_param_idx(param_id);
   pi_p4_id_t *param_ids = get_param_ids(action);
   param_ids[param_idx] = param_id;
+
+  action->action_data_size += (bitwidth + 7) / 8;
 
   size_t offset = param_data->offset;
   _action_param_data_t *params = get_param_data(action);
@@ -265,6 +269,12 @@ size_t pi_p4info_action_param_offset(const pi_p4info_t *p4info,
                                      pi_p4_id_t param_id) {
   _action_data_t *action = get_action_from_param_id(p4info, param_id);
   return get_param_data_at(action, param_id)->offset;
+}
+
+size_t pi_p4info_action_data_size(const pi_p4info_t *p4info,
+                                  pi_p4_id_t action_id) {
+  _action_data_t *action = get_action(p4info, action_id);
+  return action->action_data_size;
 }
 
 pi_p4_id_t pi_p4info_action_begin(const pi_p4info_t *p4info) {

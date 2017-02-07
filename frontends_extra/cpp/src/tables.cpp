@@ -89,40 +89,16 @@ int64_t endianness(int64_t v) {
 }  // namespace
 
 MatchKey::MatchKey(const pi_p4info_t *p4info, pi_p4_id_t table_id)
-    : p4info(p4info), table_id(table_id) {
-  size_t s = 0;
-  size_t num_match_fields = pi_p4info_table_num_match_fields(p4info, table_id);
-  offsets.resize(num_match_fields);
-  for (size_t i = 0; i < num_match_fields; i++) {
-    offsets[i] = s;
-    pi_p4info_match_field_info_t finfo;
-    pi_p4info_table_match_field_info(p4info, table_id, i, &finfo);
-    size_t nbytes = (finfo.bitwidth + 7) / 8;
-    switch (finfo.match_type) {
-      case PI_P4INFO_MATCH_TYPE_VALID:
-        assert(nbytes == 1);
-      case PI_P4INFO_MATCH_TYPE_EXACT:
-        s += nbytes;
-        break;
-      case PI_P4INFO_MATCH_TYPE_LPM:
-        s += nbytes + sizeof(uint32_t);
-        break;
-      case PI_P4INFO_MATCH_TYPE_TERNARY:
-      case PI_P4INFO_MATCH_TYPE_RANGE:
-        s += 2 * nbytes;
-        break;
-      default:
-        assert(0);
-    }
-  }
-
-  // std::allocator is using standard new, no alignment issue
-  _data.resize(sizeof(*match_key) + s);
-  match_key = reinterpret_cast<decltype(match_key)>(_data.data());
+    : p4info(p4info), table_id(table_id),
+      mk_size(pi_p4info_table_match_key_size(p4info, table_id)),
+      _data(sizeof(*match_key) + mk_size),
+      match_key(reinterpret_cast<decltype(match_key)>(_data.data())) {
+  // std::allocator is using standard new, no alignment issue with the cast
+  // above
   match_key->p4info = p4info;
   match_key->table_id = table_id;
   match_key->priority = 0;
-  match_key->data_size = s;
+  match_key->data_size = mk_size;
   match_key->data = _data.data() + sizeof(*match_key);
 }
 
@@ -176,8 +152,7 @@ typename std::enable_if<std::is_integral<T>::value, error_code_t>::type
 MatchKey::set_exact(pi_p4_id_t f_id, T key) {
   // explicit instantiation below so compile time check not possible
   assert((!std::is_signed<T>::value) && "signed fields not supported yet");
-  size_t f_index = pi_p4info_table_match_field_index(p4info, table_id, f_id);
-  size_t offset = offsets.at(f_index);
+  size_t offset = pi_p4info_table_match_field_offset(p4info, table_id, f_id);
   size_t written = 0;
   return format(f_id, key, offset, &written);
 }
@@ -193,8 +168,7 @@ template error_code_t MatchKey::set_exact<int64_t>(pi_p4_id_t, int64_t);
 
 error_code_t
 MatchKey::set_exact(pi_p4_id_t f_id, const char *key, size_t s) {
-  size_t f_index = pi_p4info_table_match_field_index(p4info, table_id, f_id);
-  size_t offset = offsets.at(f_index);
+  size_t offset = pi_p4info_table_match_field_offset(p4info, table_id, f_id);
   size_t written = 0;
   return format(f_id, key, s, offset, &written);
 }
@@ -204,8 +178,7 @@ typename std::enable_if<std::is_integral<T>::value, error_code_t>::type
 MatchKey::set_lpm(pi_p4_id_t f_id, T key, int prefix_length) {
   // explicit instantiation below so compile time check not possible
   assert((!std::is_signed<T>::value) && "signed fields not supported yet");
-  size_t f_index = pi_p4info_table_match_field_index(p4info, table_id, f_id);
-  size_t offset = offsets.at(f_index);
+  size_t offset = pi_p4info_table_match_field_offset(p4info, table_id, f_id);
   size_t written = 0;
   error_code_t rc;
   rc = format(f_id, key, offset, &written);
@@ -226,8 +199,7 @@ template error_code_t MatchKey::set_lpm<int64_t>(pi_p4_id_t, int64_t, int);
 error_code_t
 MatchKey::set_lpm(pi_p4_id_t f_id, const char *key, size_t s,
                   int prefix_length) {
-  size_t f_index = pi_p4info_table_match_field_index(p4info, table_id, f_id);
-  size_t offset = offsets.at(f_index);
+  size_t offset = pi_p4info_table_match_field_offset(p4info, table_id, f_id);
   size_t written = 0;
   error_code_t rc;
   rc = format(f_id, key, s, offset, &written);
@@ -241,8 +213,7 @@ typename std::enable_if<std::is_integral<T>::value, error_code_t>::type
 MatchKey::set_ternary(pi_p4_id_t f_id, T key, T mask) {
   // explicit instantiation below so compile time check not possible
   assert((!std::is_signed<T>::value) && "signed fields not supported yet");
-  size_t f_index = pi_p4info_table_match_field_index(p4info, table_id, f_id);
-  size_t offset = offsets.at(f_index);
+  size_t offset = pi_p4info_table_match_field_offset(p4info, table_id, f_id);
   size_t written = 0;
   error_code_t rc;
   rc = format(f_id, key, offset, &written);
@@ -272,8 +243,7 @@ template error_code_t MatchKey::set_ternary<int64_t>(pi_p4_id_t, int64_t,
 error_code_t
 MatchKey::set_ternary(pi_p4_id_t f_id, const char *key, const char *mask,
                       size_t s) {
-  size_t f_index = pi_p4info_table_match_field_index(p4info, table_id, f_id);
-  size_t offset = offsets.at(f_index);
+  size_t offset = pi_p4info_table_match_field_offset(p4info, table_id, f_id);
   size_t written = 0;
   error_code_t rc;
   rc = format(f_id, key, s, offset, &written);
@@ -284,24 +254,14 @@ MatchKey::set_ternary(pi_p4_id_t f_id, const char *key, const char *mask,
 }
 
 ActionData::ActionData(const pi_p4info_t *p4info, pi_p4_id_t action_id)
-    : p4info(p4info), action_id(action_id) {
-  size_t s = 0;
-  size_t num_params;
-  const pi_p4_id_t *params = pi_p4info_action_get_params(p4info, action_id,
-                                                         &num_params);
-  offsets.resize(num_params);
-  for (size_t i = 0; i < num_params; i++) {
-    size_t bitwidth = pi_p4info_action_param_bitwidth(p4info, params[i]);
-    offsets[i] = s;
-    s += (bitwidth + 7) / 8;
-  }
-
-  // using standard new, no alignment issue
-  _data.resize(sizeof(*action_data) + s);
-  action_data = reinterpret_cast<decltype(action_data)>(_data.data());
+    : p4info(p4info), action_id(action_id),
+      ad_size(pi_p4info_action_data_size(p4info, action_id)),
+      _data(sizeof(*action_data) + ad_size),
+      action_data(reinterpret_cast<decltype(action_data)>(_data.data())) {
+  // using standard new, no alignment issue with cast above
   action_data->p4info = p4info;
   action_data->action_id = action_id;
-  action_data->data_size = s;
+  action_data->data_size = ad_size;
   action_data->data = _data.data() + sizeof(*action_data);
 }
 
@@ -314,8 +274,9 @@ ActionData::reset() {
 
 template <typename T>
 error_code_t
-ActionData::format(pi_p4_id_t ap_id, T v, size_t offset) {
+ActionData::format(pi_p4_id_t ap_id, T v) {
   constexpr size_t type_bitwidth = sizeof(T) * 8;
+  const size_t offset = pi_p4info_action_param_offset(p4info, ap_id);
   const size_t bitwidth = pi_p4info_action_param_bitwidth(p4info, ap_id);
   const size_t bytes = (bitwidth + 7) / 8;
   const char byte0_mask = pi_p4info_action_param_byte0_mask(p4info, ap_id);
@@ -329,8 +290,9 @@ ActionData::format(pi_p4_id_t ap_id, T v, size_t offset) {
 }
 
 error_code_t
-ActionData::format(pi_p4_id_t ap_id, const char *ptr, size_t s, size_t offset) {
+ActionData::format(pi_p4_id_t ap_id, const char *ptr, size_t s) {
   // constexpr size_t type_bitwidth = sizeof(T) * 8;
+  const size_t offset = pi_p4info_action_param_offset(p4info, ap_id);
   const size_t bitwidth = pi_p4info_action_param_bitwidth(p4info, ap_id);
   const size_t bytes = (bitwidth + 7) / 8;
   const char byte0_mask = pi_p4info_action_param_byte0_mask(p4info, ap_id);
@@ -346,14 +308,12 @@ typename std::enable_if<std::is_integral<T>::value, error_code_t>::type
 ActionData::set_arg(pi_p4_id_t ap_id, T arg) {
   // explicit instantiation below so compile time check not possible
   assert((!std::is_signed<T>::value) && "signed params not supported yet");
-  size_t index = ap_id & 0xff;
-  return format(ap_id, arg, offsets.at(index));
+  return format(ap_id, arg);
 }
 
 error_code_t
 ActionData::set_arg(pi_p4_id_t ap_id, const char *arg, size_t s) {
-  size_t index = ap_id & 0xff;
-  return format(ap_id, arg, s, offsets.at(index));
+  return format(ap_id, arg, s);
 }
 
 template error_code_t ActionData::set_arg<uint8_t>(pi_p4_id_t, uint8_t);
