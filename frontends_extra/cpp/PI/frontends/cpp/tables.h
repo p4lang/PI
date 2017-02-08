@@ -23,6 +23,7 @@
 
 #include <PI/pi.h>
 
+#include <string>
 #include <vector>
 
 #include <cstdint>
@@ -31,6 +32,25 @@ namespace pi {
 
 // TODO(antonin): temporary
 typedef int error_code_t;
+
+class MatchKeyReader {
+ public:
+  explicit MatchKeyReader(const pi_match_key_t *match_key);
+
+  error_code_t get_exact(pi_p4_id_t f_id, std::string *key) const;
+
+  error_code_t get_lpm(pi_p4_id_t f_id, std::string *key,
+                       int *prefix_length) const;
+
+  error_code_t get_ternary(pi_p4_id_t f_id, std::string *key,
+                           std::string *mask) const;
+
+  int get_priority() const;
+
+ private:
+  error_code_t read_one(pi_p4_id_t f_id, const char *src, std::string *v) const;
+  const pi_match_key_t *match_key;
+};
 
 class MatchKey {
   friend class MatchTable;
@@ -42,10 +62,14 @@ class MatchKey {
 
   void set_priority(int priority);
 
+  int get_priority() const;
+
   template <typename T>
   typename std::enable_if<std::is_integral<T>::value, error_code_t>::type
   set_exact(pi_p4_id_t f_id, T key);
   error_code_t set_exact(pi_p4_id_t f_id, const char *key, size_t s);
+
+  error_code_t get_exact(pi_p4_id_t f_id, std::string *key) const;
 
   template <typename T>
   typename std::enable_if<std::is_integral<T>::value, error_code_t>::type
@@ -53,11 +77,17 @@ class MatchKey {
   error_code_t
   set_lpm(pi_p4_id_t f_id, const char *key, size_t s, int prefix_length);
 
+  error_code_t get_lpm(pi_p4_id_t f_id, std::string *key,
+                       int *prefix_length) const;
+
   template <typename T>
   typename std::enable_if<std::is_integral<T>::value, error_code_t>::type
   set_ternary(pi_p4_id_t f_id, T key, T mask);
   error_code_t
   set_ternary(pi_p4_id_t f_id, const char *key, const char *mask, size_t s);
+
+  error_code_t get_ternary(pi_p4_id_t f_id, std::string *key,
+                           std::string *mask) const;
 
  private:
   template <typename T>
@@ -75,7 +105,19 @@ class MatchKey {
   size_t mk_size;
   std::vector<char> _data;
   pi_match_key_t *match_key;
-  std::vector<char> _data{};
+  MatchKeyReader reader;
+};
+
+class ActionDataReader {
+ public:
+  explicit ActionDataReader(const pi_action_data_t *action_data);
+
+  error_code_t get_arg(pi_p4_id_t ap_id, std::string *arg) const;
+
+  pi_p4_id_t get_action_id() const;
+
+ private:
+  const pi_action_data_t *action_data;
 };
 
 class ActionData {
@@ -92,6 +134,8 @@ class ActionData {
   set_arg(pi_p4_id_t ap_id, T arg);
   error_code_t
   set_arg(pi_p4_id_t ap_id, const char *arg, size_t s);
+
+  error_code_t get_arg(pi_p4_id_t ap_id, std::string *arg) const;
 
  private:
   template <typename T>
@@ -111,6 +155,7 @@ class ActionData {
   size_t ad_size;
   std::vector<char> _data;
   pi_action_data_t *action_data;
+  ActionDataReader reader;
 };
 
 class ActionEntry {

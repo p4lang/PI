@@ -22,11 +22,15 @@
 
 #include <gmock/gmock.h>
 
+#include <google/protobuf/util/message_differencer.h>
+
+#include <algorithm>  // std::copy
 #include <fstream>  // std::ifstream
 #include <iterator>  // std::distance
 #include <memory>
 #include <mutex>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -35,6 +39,7 @@
 
 #include "PI/frontends/proto/device_mgr.h"
 #include "PI/int/pi_int.h"
+#include "PI/int/serialize.h"
 #include "PI/pi.h"
 #include "PI/proto/util.h"
 
@@ -51,6 +56,8 @@ using pi::fe::proto::DeviceMgr;
 using device_id_t = uint64_t;
 using Code = ::google::rpc::Code;
 
+using google::protobuf::util::MessageDifferencer;
+
 class DummyMatchKey {
   friend struct DummyMatchKeyHash;
  public:
@@ -64,6 +71,18 @@ class DummyMatchKey {
 
   bool operator!=(const DummyMatchKey& other) const {
     return !(*this == other);
+  }
+
+  size_t emit(char *dst) const {
+    size_t s = 0;
+    s += emit_uint32(dst, priority);
+    std::copy(mk.begin(), mk.end(), dst + s);
+    s += mk.size();
+    return s;
+  }
+
+  size_t nbytes() const {
+    return mk.size();
   }
 
  private:
@@ -80,12 +99,26 @@ struct DummyMatchKeyHash {
   }
 };
 
-struct ActionData {
+class ActionData {
+ public:
   // define default constuctor for DummyTableEntry below
   ActionData() { }
   explicit ActionData(const pi_action_data_t *action_data)
-      : data(&action_data->data[0],
+      : action_id(action_data->action_id),
+        data(&action_data->data[0],
              &action_data->data[action_data->data_size]) { }
+
+  size_t emit(char *dst) const {
+    size_t s = 0;
+    s += emit_p4_id(dst, action_id);
+    s += emit_uint32(dst + s, data.size());
+    std::copy(data.begin(), data.end(), dst + s);
+    s += data.size();
+    return s;
+  }
+
+ private:
+  pi_p4_id_t action_id;
   std::vector<char> data;
 };
 
@@ -106,6 +139,22 @@ class DummyTableEntry {
     }
   }
 
+  size_t emit(char *dst) const {
+    size_t s = 0;
+    s += emit_action_entry_type(dst, type);
+    switch (type) {
+      case PI_ACTION_ENTRY_TYPE_NONE:
+        break;
+      case PI_ACTION_ENTRY_TYPE_DATA:
+        s += ad.emit(dst + s);
+        break;
+      case PI_ACTION_ENTRY_TYPE_INDIRECT:
+        s += emit_indirect_handle(dst + s, indirect_h);
+        break;
+    }
+    return s;
+  }
+
  private:
   pi_action_entry_type_t type;
   // not bothering with a union here
@@ -121,6 +170,26 @@ class DummyTable {
                              DummyTableEntry(table_entry));
     // TODO(antonin): we need a better error code for duplicate entry
     return r.second ? PI_STATUS_SUCCESS : PI_STATUS_TARGET_ERROR;
+  }
+
+  pi_status_t entries_fetch(pi_table_fetch_res_t *res) {
+    res->num_entries = entries.size();
+    // TODO(antonin): it does not make much sense to me anymore for it to be the
+    // target's responsibility to populate this field
+    res->mkey_nbytes = 0;
+    char *buf = new char[16384];  // should be large enough for testing
+    char *buf_ptr = buf;
+    size_t count = 0;
+    for (const auto &p : entries) {
+      buf_ptr += emit_entry_handle(buf_ptr, count++);
+      res->mkey_nbytes = p.first.nbytes();
+      buf_ptr += p.first.emit(buf_ptr);
+      buf_ptr += p.second.emit(buf_ptr);
+      buf_ptr += emit_uint32(buf_ptr, 0);  // direct resources
+    }
+    res->entries = buf;
+    res->entries_size = std::distance(buf, buf_ptr);
+    return PI_STATUS_SUCCESS;
   }
 
  private:
@@ -197,6 +266,11 @@ class DummySwitch {
     return tables[table_id].entry_add(match_key, table_entry);
   }
 
+  pi_status_t table_entries_fetch(pi_p4_id_t table_id,
+                                  pi_table_fetch_res_t *res) {
+    return tables[table_id].entries_fetch(res);
+  }
+
   pi_status_t action_prof_member_create(pi_p4_id_t act_prof_id,
                                         const pi_action_data_t *action_data,
                                         pi_indirect_handle_t *mbr_handle) {
@@ -262,6 +336,8 @@ class DummySwitchMock : public DummySwitch {
     // delegate calls to real object
     ON_CALL(*this, table_entry_add(_, _, _))
         .WillByDefault(Invoke(&sw, &DummySwitch::table_entry_add));
+    ON_CALL(*this, table_entries_fetch(_, _))
+        .WillByDefault(Invoke(&sw, &DummySwitch::table_entries_fetch));
 
     // cannot use DoAll to combine 2 actions here (call to real object + handle
     // capture), because the handle needs to be captured after the delegated
@@ -310,6 +386,8 @@ class DummySwitchMock : public DummySwitch {
   MOCK_METHOD3(table_entry_add,
                pi_status_t(pi_p4_id_t, const pi_match_key_t *,
                            const pi_table_entry_t *));
+  MOCK_METHOD2(table_entries_fetch,
+               pi_status_t(pi_p4_id_t, pi_table_fetch_res_t *));
 
   MOCK_METHOD3(action_prof_member_create,
                pi_status_t(pi_p4_id_t, const pi_action_data_t *,
@@ -424,23 +502,18 @@ pi_status_t _pi_table_entry_add(pi_session_handle_t,
       table_id, match_key, table_entry);
 }
 
-// TODO(antonin)
-// pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
-//                                     pi_dev_id_t dev_id, pi_p4_id_t table_id,
-//                                     pi_table_fetch_res_t *res) {
-//   (void)session_handle;
-//   (void)dev_id;
-//   (void)table_id;
-//   (void)res;
-//   return PI_STATUS_SUCCESS;
-// }
+pi_status_t _pi_table_entries_fetch(pi_session_handle_t,
+                                    pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                    pi_table_fetch_res_t *res) {
+  return DeviceResolver::get_switch(dev_id)->table_entries_fetch(
+      table_id, res);
+}
 
-// pi_status_t _pi_table_entries_fetch_done(pi_session_handle_t session_handle,
-//                                          pi_table_fetch_res_t *res) {
-//   (void)session_handle;
-//   (void)res;
-//   return PI_STATUS_SUCCESS;
-// }
+pi_status_t _pi_table_entries_fetch_done(pi_session_handle_t,
+                                         pi_table_fetch_res_t *res) {
+  delete[] res->entries;
+  return PI_STATUS_SUCCESS;
+}
 
 pi_status_t _pi_act_prof_mbr_create(pi_session_handle_t,
                                     pi_dev_tgt_t dev_tgt,
@@ -502,7 +575,9 @@ pi_status_t _pi_act_prof_grp_remove_mbr(pi_session_handle_t,
 
 // Google Test fixture for Protobuf Frontend tests
 class DeviceMgrTest : public ::testing::Test {
- protected:
+  // apparently cannot be "protected" because of the use of WithParamInterface
+  // in one of the subclasses
+ public:
   DeviceMgrTest()
       : mock(wrapper.sw()), device_id(wrapper.device_id()), mgr(device_id) { }
 
@@ -559,29 +634,94 @@ TEST_F(DeviceMgrTest, ResourceTypeFromId) {
             resource_type_from_id(pi::proto::util::invalid_id()));
 }
 
-class MatchTableTest : public DeviceMgrTest {
+using ::testing::WithParamInterface;
+using ::testing::Values;
+using ::testing::Combine;
+
+class MatchKeyInput {
+ public:
+  explicit MatchKeyInput(const std::string &mf_v) : mf(mf_v) { }
+  MatchKeyInput(const std::string &mf_v, const std::string &mask_v)
+      : mf(mf_v), mask(mask_v) { }
+  MatchKeyInput(const std::string &mf_v, const std::string &mask_v, int pri)
+      : mf(mf_v), mask(mask_v), priority(pri) { }
+  MatchKeyInput(const std::string &mf_v, unsigned int pLen)
+      : mf(mf_v), pLen(pLen) { }
+
+  std::string get_match_key() const {
+    std::string mk(mf);
+    mk += mask;
+    if (pLen > 0) {
+      std::string pLen_str(4, '\x00');
+      pLen_str[0] = static_cast<char>(pLen);
+      mk += pLen_str;
+    }
+    return mk;
+  }
+
+  p4::FieldMatch get_proto(pi_p4_id_t f_id) const {
+    p4::FieldMatch fm;
+    fm.set_field_id(f_id);
+    if (mask != "") {
+      auto ternary = fm.mutable_ternary();
+      ternary->set_value(mf);
+      ternary->set_mask(mask);
+    } else if (pLen > 0) {
+      auto lpm = fm.mutable_lpm();
+      lpm->set_value(mf);
+      lpm->set_prefix_len(pLen);
+    } else {
+      auto exact = fm.mutable_exact();
+      exact->set_value(mf);
+    }
+    return fm;
+  }
+
+  // The MatchKeyInput object is used to parametrize the MatchTableTest test
+  // below. If I do not define this operator, valgrind reports some memory
+  // errors regarding "uninitialised values" because of the compiler padding
+  // MatchKeyInput and gtest trying to print the binary data of the object using
+  // sizeof.
+  friend std::ostream &operator<<(std::ostream &out, const MatchKeyInput &mki) {
+    (void) mki;
+    return out;
+  }
+
+ private:
+  std::string mf;
+  std::string mask{""};
+  unsigned int pLen{0};
+  int priority{0};
+};
+
+class MatchTableTest
+    : public DeviceMgrTest,
+      public WithParamInterface<std::tuple<const char *, MatchKeyInput> > {
  protected:
-  DeviceMgr::Status generic_add(pi_p4_id_t t_id, const p4::FieldMatch &mf,
-                                const std::string &param_v);
-  DeviceMgr::Status ExactOne_add(const std::string &mf_v,
-                                 const std::string &param_v);
-  DeviceMgr::Status LpmOne_add(const std::string &mf_v, unsigned int pLen,
-                               const std::string &param_v);
-  DeviceMgr::Status TernaryOne_add(const std::string &mf_v,
-                                   const std::string &mask_v,
-                                   const std::string &param_v);
+  p4::TableEntry generic_make(pi_p4_id_t t_id, const p4::FieldMatch &mf,
+                              const std::string &param_v);
+
+  DeviceMgr::Status add_one(p4::TableEntry *entry);
 };
 
 DeviceMgr::Status
-MatchTableTest::generic_add(pi_p4_id_t t_id, const p4::FieldMatch &mf,
-                            const std::string &param_v) {
+MatchTableTest::add_one(p4::TableEntry *entry) {
   p4::TableUpdate update;
   update.set_type(p4::TableUpdate_Type_INSERT);
-  auto table_entry = update.mutable_table_entry();
-  table_entry->set_table_id(t_id);
-  auto mf_ptr = table_entry->add_match();
+  update.set_allocated_table_entry(entry);
+  auto status = mgr.table_write(update);
+  update.release_table_entry();
+  return status;
+}
+
+p4::TableEntry
+MatchTableTest::generic_make(pi_p4_id_t t_id, const p4::FieldMatch &mf,
+                             const std::string &param_v) {
+  p4::TableEntry table_entry;
+  table_entry.set_table_id(t_id);
+  auto mf_ptr = table_entry.add_match();
   *mf_ptr = mf;
-  auto entry = table_entry->mutable_action();
+  auto entry = table_entry.mutable_action();
   auto action = entry->mutable_action();
   auto a_id = pi_p4info_action_id_from_name(p4info, "actionA");
   action->set_action_id(a_id);
@@ -589,43 +729,7 @@ MatchTableTest::generic_add(pi_p4_id_t t_id, const p4::FieldMatch &mf,
   param->set_param_id(
       pi_p4info_action_param_id_from_name(p4info, a_id, "param"));
   param->set_value(param_v);
-  return mgr.table_write(update);
-}
-
-DeviceMgr::Status
-MatchTableTest::ExactOne_add(const std::string &mf_v,
-                             const std::string &param_v) {
-  auto t_id = pi_p4info_table_id_from_name(p4info, "ExactOne");
-  p4::FieldMatch mf;
-  mf.set_field_id(pi_p4info_field_id_from_name(p4info, "header_test.field32"));
-  auto mf_exact = mf.mutable_exact();
-  mf_exact->set_value(mf_v);
-  return generic_add(t_id, mf, param_v);
-}
-
-DeviceMgr::Status
-MatchTableTest::LpmOne_add(const std::string &mf_v, unsigned int pLen,
-                           const std::string &param_v) {
-  auto t_id = pi_p4info_table_id_from_name(p4info, "LpmOne");
-  p4::FieldMatch mf;
-  mf.set_field_id(pi_p4info_field_id_from_name(p4info, "header_test.field32"));
-  auto mf_lpm = mf.mutable_lpm();
-  mf_lpm->set_value(mf_v);
-  mf_lpm->set_prefix_len(pLen);
-  return generic_add(t_id, mf, param_v);
-}
-
-DeviceMgr::Status
-MatchTableTest::TernaryOne_add(const std::string &mf_v,
-                               const std::string &mask_v,
-                               const std::string &param_v) {
-  auto t_id = pi_p4info_table_id_from_name(p4info, "TernaryOne");
-  p4::FieldMatch mf;
-  mf.set_field_id(pi_p4info_field_id_from_name(p4info, "header_test.field32"));
-  auto mf_lpm = mf.mutable_ternary();
-  mf_lpm->set_value(mf_v);
-  mf_lpm->set_mask(mask_v);
-  return generic_add(t_id, mf, param_v);
+  return table_entry;
 }
 
 // started out using a lambda in the test cases, but it was too much duplicated
@@ -693,67 +797,45 @@ struct TableEntryMatcher_Indirect {
   pi_indirect_handle_t h;
 };
 
-// TODO(antonin): maybe use value-parametrized tests to avoid code duplication,
-// except if we are going to have some tests dependent on the match type
-
-TEST_F(MatchTableTest, AddExact) {
-  auto t_id = pi_p4info_table_id_from_name(p4info, "ExactOne");
+TEST_P(MatchTableTest, AddAndGet) {
+  auto t_id = pi_p4info_table_id_from_name(p4info, std::get<0>(GetParam()));
+  auto f_id = pi_p4info_field_id_from_name(p4info, "header_test.field32");
   auto a_id = pi_p4info_action_id_from_name(p4info, "actionA");
-  // TODO(antonin): check for error if size not right
-  std::string mf("\xaa\xbb\xcc\xdd", 4);
   std::string adata(6, '\x00');
-  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mf));
+  auto mk_input = std::get<1>(GetParam());
+  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mk_input.get_match_key()));
   auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher))
       .Times(2);
   DeviceMgr::Status status;
-  status = ExactOne_add(mf, adata);
+  auto entry = generic_make(t_id, mk_input.get_proto(f_id), adata);
+  status = add_one(&entry);
   ASSERT_EQ(status.code(), Code::OK);
   // second is error because duplicate match key
-  status = ExactOne_add(mf, adata);
+  status = add_one(&entry);
   ASSERT_NE(status.code(), Code::OK);
+
+  EXPECT_CALL(*mock, table_entries_fetch(t_id, _));
+  std::vector<p4::TableEntry> entries;
+  status = mgr.table_read(t_id, &entries);
+  ASSERT_EQ(status.code(), Code::OK);
+  ASSERT_EQ(1u, entries.size());
+  ASSERT_TRUE(MessageDifferencer::Equals(entry, entries.at(0)));
 }
 
-TEST_F(MatchTableTest, AddLpm) {
-  auto t_id = pi_p4info_table_id_from_name(p4info, "LpmOne");
-  auto a_id = pi_p4info_action_id_from_name(p4info, "actionA");
-  // TODO(antonin): check for error if size not right
-  std::string mf("\xaa\xbb\xcc\xdd", 4);
-  // adding the pref length (12) in little endian format, over 4 bytes
-  std::string mk = mf + std::string("\x0c\x00\x00\x00", 4);
-  std::string adata(6, '\x00');
-  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mk));
-  auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
-  EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher))
-      .Times(2);
-  DeviceMgr::Status status;
-  status = LpmOne_add(mf, 12, adata);
-  ASSERT_EQ(status.code(), Code::OK);
-  // second is error because duplicate match key
-  status = LpmOne_add(mf, 12, adata);
-  ASSERT_NE(status.code(), Code::OK);
-}
+#define MK std::string("\xaa\xbb\xcc\xdd", 4)
+#define MASK std::string("\xff\x01\xf0\x0f", 4)
+#define PREF_LEN 12
 
-TEST_F(MatchTableTest, AddTernary) {
-  auto t_id = pi_p4info_table_id_from_name(p4info, "TernaryOne");
-  auto a_id = pi_p4info_action_id_from_name(p4info, "actionA");
-  // TODO(antonin): check for error if size not right
-  std::string mf("\xaa\xbb\xcc\xdd", 4);
-  std::string mask("\xff\x01\xf0\x0f", 4);
-  // adding the mask
-  std::string mk = mf + mask;
-  std::string adata(6, '\x00');
-  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mk));
-  auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
-  EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher))
-      .Times(2);
-  DeviceMgr::Status status;
-  status = TernaryOne_add(mf, mask, adata);
-  ASSERT_EQ(status.code(), Code::OK);
-  // second is error because duplicate match key
-  status = TernaryOne_add(mf, mask, adata);
-  ASSERT_NE(status.code(), Code::OK);
-}
+INSTANTIATE_TEST_CASE_P(
+    MatchTableTypes, MatchTableTest,
+    Values(std::make_tuple("ExactOne", MatchKeyInput(MK)),
+           std::make_tuple("LpmOne", MatchKeyInput(MK, PREF_LEN)),
+           std::make_tuple("TernaryOne", MatchKeyInput(MK, MASK))));
+
+#undef MK
+#undef MASK
+#undef PREF_LEN
 
 
 class ActionProfTest : public DeviceMgrTest {
@@ -1028,36 +1110,43 @@ class MatchTableIndirectTest : public DeviceMgrTest {
     create_group(group_id, &member_id, (&member_id) + 1);
   }
 
-  DeviceMgr::Status add_indirect_entry_to_member(const std::string &mf_v,
-                                                 uint32_t member_id) {
-    return add_indirect_entry_common(mf_v, member_id, false);
+  p4::TableEntry make_indirect_entry_to_member(const std::string &mf_v,
+                                               uint32_t member_id) {
+    return make_indirect_entry_common(mf_v, member_id, false);
   }
 
-  DeviceMgr::Status add_indirect_entry_to_group(const std::string &mf_v,
-                                                uint32_t group_id) {
-    return add_indirect_entry_common(mf_v, group_id, true);
+  p4::TableEntry make_indirect_entry_to_group(const std::string &mf_v,
+                                               uint32_t group_id) {
+    return make_indirect_entry_common(mf_v, group_id, true);
+  }
+
+  DeviceMgr::Status add_indirect_entry(p4::TableEntry *entry) {
+    p4::TableUpdate update;
+    update.set_type(p4::TableUpdate_Type_INSERT);
+    update.set_allocated_table_entry(entry);
+    auto status = mgr.table_write(update);
+    update.release_table_entry();
+    return status;
   }
 
  private:
-  DeviceMgr::Status add_indirect_entry_common(const std::string &mf_v,
-                                              uint32_t indirect_id,
-                                              bool is_group) {
-    p4::TableUpdate update;
+  p4::TableEntry make_indirect_entry_common(const std::string &mf_v,
+                                            uint32_t indirect_id,
+                                            bool is_group) {
+    p4::TableEntry table_entry;
     auto t_id = pi_p4info_table_id_from_name(p4info, "IndirectWS");
-    update.set_type(p4::TableUpdate_Type_INSERT);
-    auto table_entry = update.mutable_table_entry();
-    table_entry->set_table_id(t_id);
-    auto mf = table_entry->add_match();
+    table_entry.set_table_id(t_id);
+    auto mf = table_entry.add_match();
     mf->set_field_id(
         pi_p4info_field_id_from_name(p4info, "header_test.field32"));
     auto mf_exact = mf->mutable_exact();
     mf_exact->set_value(mf_v);
-    auto entry = table_entry->mutable_action();
+    auto entry = table_entry.mutable_action();
     if (is_group)
       entry->set_action_profile_group_id(indirect_id);
     else
       entry->set_action_profile_member_id(indirect_id);
-    return mgr.table_write(update);
+    return table_entry;
   }
 };
 
@@ -1071,8 +1160,16 @@ TEST_F(MatchTableIndirectTest, Member) {
   auto mk_matcher = Truly(MatchKeyMatcher(t_id, mf));
   auto entry_matcher = Truly(TableEntryMatcher_Indirect(mbr_h));
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher));
-  auto status = add_indirect_entry_to_member(mf, member_id);
+  auto entry = make_indirect_entry_to_member(mf, member_id);
+  auto status = add_indirect_entry(&entry);
   ASSERT_EQ(status.code(), Code::OK);
+
+  EXPECT_CALL(*mock, table_entries_fetch(t_id, _));
+  std::vector<p4::TableEntry> entries;
+  status = mgr.table_read(t_id, &entries);
+  ASSERT_EQ(status.code(), Code::OK);
+  ASSERT_EQ(1u, entries.size());
+  ASSERT_TRUE(MessageDifferencer::Equals(entry, entries.at(0)));
 }
 
 TEST_F(MatchTableIndirectTest, Group) {
@@ -1087,8 +1184,16 @@ TEST_F(MatchTableIndirectTest, Group) {
   auto mk_matcher = Truly(MatchKeyMatcher(t_id, mf));
   auto entry_matcher = Truly(TableEntryMatcher_Indirect(grp_h));
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher));
-  auto status = add_indirect_entry_to_group(mf, group_id);
+  auto entry = make_indirect_entry_to_group(mf, group_id);
+  auto status = add_indirect_entry(&entry);
   ASSERT_EQ(status.code(), Code::OK);
+
+  EXPECT_CALL(*mock, table_entries_fetch(t_id, _));
+  std::vector<p4::TableEntry> entries;
+  status = mgr.table_read(t_id, &entries);
+  ASSERT_EQ(status.code(), Code::OK);
+  ASSERT_EQ(1u, entries.size());
+  ASSERT_TRUE(MessageDifferencer::Equals(entry, entries.at(0)));
 }
 
 }  // namespace

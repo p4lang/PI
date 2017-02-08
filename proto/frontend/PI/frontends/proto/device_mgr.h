@@ -71,6 +71,10 @@ class DeviceMgr {
   Status table_read(p4_id_t table_id,
                     std::vector<p4::TableEntry> *entries) const;
 
+  // this is likely to be temporary, we may not want to hold all the entries in
+  // memory at once; could be replaced by an iterator of some sort
+  Status table_read_all(std::vector<p4::TableEntry> *entries) const;
+
   Status action_profile_write(
       const p4::ActionProfileUpdate &action_profile_update);
 

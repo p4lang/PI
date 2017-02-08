@@ -317,6 +317,18 @@ ActionProfMgr::retrieve_group_handle(const Id &group_id) {
   return group_bimap.retrieve_handle(group_id);
 }
 
+const Id *
+ActionProfMgr::retrieve_member_id(pi_indirect_handle_t h) {
+  Lock lock(mutex);
+  return member_bimap.retrieve_id(h);
+}
+
+const Id *
+ActionProfMgr::retrieve_group_id(pi_indirect_handle_t h) {
+  Lock lock(mutex);
+  return group_bimap.retrieve_id(h);
+}
+
 }  // namespace proto
 
 }  // namespace fe

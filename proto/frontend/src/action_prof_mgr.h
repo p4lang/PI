@@ -139,6 +139,9 @@ class ActionProfMgr {
   const pi_indirect_handle_t *retrieve_member_handle(const Id &member_id);
   const pi_indirect_handle_t *retrieve_group_handle(const Id &group_id);
 
+  const Id *retrieve_member_id(pi_indirect_handle_t h);
+  const Id *retrieve_group_id(pi_indirect_handle_t h);
+
  private:
   pi::ActionData construct_action_data(const p4::Action &action);
 
