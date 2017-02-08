@@ -26,6 +26,8 @@
 #include <PI/int/pi_int.h>
 #include <PI/int/serialize.h>
 
+#include <string>
+
 #include <cstring>
 
 namespace pi {
@@ -88,11 +90,66 @@ int64_t endianness(int64_t v) {
 
 }  // namespace
 
+MatchKeyReader::MatchKeyReader(const pi_match_key_t *match_key)
+    : match_key(match_key) { }
+
+error_code_t
+MatchKeyReader::read_one(pi_p4_id_t f_id, const char *src,
+                         std::string *v) const {
+  const size_t bitwidth = pi_p4info_field_bitwidth(match_key->p4info, f_id);
+  const size_t bytes = (bitwidth + 7) / 8;
+  *v = std::string(src, bytes);
+  return 0;
+}
+
+error_code_t
+MatchKeyReader::get_exact(pi_p4_id_t f_id, std::string *key) const {
+  size_t offset = pi_p4info_table_match_field_offset(
+      match_key->p4info, match_key->table_id, f_id);
+  return read_one(f_id, match_key->data + offset, key);
+}
+
+error_code_t
+MatchKeyReader::get_lpm(pi_p4_id_t f_id, std::string *key,
+                        int *prefix_length) const {
+  size_t offset = pi_p4info_table_match_field_offset(
+      match_key->p4info, match_key->table_id, f_id);
+  error_code_t rc;
+  auto src = match_key->data + offset;
+  rc = read_one(f_id, src, key);
+  if (rc) return rc;
+  src += key->size();
+  uint32_t pLen;
+  retrieve_uint32(src, &pLen);
+  *prefix_length = static_cast<int>(pLen);
+  return 0;
+}
+
+error_code_t
+MatchKeyReader::get_ternary(pi_p4_id_t f_id, std::string *key,
+                            std::string *mask) const {
+  size_t offset = pi_p4info_table_match_field_offset(
+      match_key->p4info, match_key->table_id, f_id);
+  error_code_t rc;
+  auto src = match_key->data + offset;
+  rc = read_one(f_id, src, key);
+  if (rc) return rc;
+  src += key->size();
+  rc = read_one(f_id, src, mask);
+  return rc;
+}
+
+int
+MatchKeyReader::get_priority() const {
+  return match_key->priority;
+}
+
 MatchKey::MatchKey(const pi_p4info_t *p4info, pi_p4_id_t table_id)
     : p4info(p4info), table_id(table_id),
       mk_size(pi_p4info_table_match_key_size(p4info, table_id)),
       _data(sizeof(*match_key) + mk_size),
-      match_key(reinterpret_cast<decltype(match_key)>(_data.data())) {
+      match_key(reinterpret_cast<decltype(match_key)>(_data.data())),
+      reader(match_key) {
   // std::allocator is using standard new, no alignment issue with the cast
   // above
   match_key->p4info = p4info;
@@ -113,6 +170,11 @@ MatchKey::reset() {
 void
 MatchKey::set_priority(int priority) {
   match_key->priority = priority;
+}
+
+int
+MatchKey::get_priority() const {
+  return reader.get_priority();
 }
 
 template <typename T>
@@ -173,6 +235,11 @@ MatchKey::set_exact(pi_p4_id_t f_id, const char *key, size_t s) {
   return format(f_id, key, s, offset, &written);
 }
 
+error_code_t
+MatchKey::get_exact(pi_p4_id_t f_id, std::string *key) const {
+  return reader.get_exact(f_id, key);
+}
+
 template <typename T>
 typename std::enable_if<std::is_integral<T>::value, error_code_t>::type
 MatchKey::set_lpm(pi_p4_id_t f_id, T key, int prefix_length) {
@@ -206,6 +273,11 @@ MatchKey::set_lpm(pi_p4_id_t f_id, const char *key, size_t s,
   offset += written;
   emit_uint32(match_key->data + offset, prefix_length);
   return rc;
+}
+
+error_code_t
+MatchKey::get_lpm(pi_p4_id_t f_id, std::string *key, int *prefix_length) const {
+  return reader.get_lpm(f_id, key, prefix_length);
 }
 
 template <typename T>
@@ -253,11 +325,37 @@ MatchKey::set_ternary(pi_p4_id_t f_id, const char *key, const char *mask,
   return rc;
 }
 
+error_code_t
+MatchKey::get_ternary(pi_p4_id_t f_id, std::string *key,
+                      std::string *mask) const {
+  return reader.get_ternary(f_id, key, mask);
+}
+
+ActionDataReader::ActionDataReader(const pi_action_data_t *action_data)
+    : action_data(action_data) { }
+
+error_code_t
+ActionDataReader::get_arg(pi_p4_id_t ap_id, std::string *arg) const {
+  const size_t offset = pi_p4info_action_param_offset(
+      action_data->p4info, ap_id);
+  const size_t bitwidth = pi_p4info_action_param_bitwidth(
+      action_data->p4info, ap_id);
+  const size_t bytes = (bitwidth + 7) / 8;
+  *arg = std::string(action_data->data + offset, bytes);
+  return 0;
+}
+
+pi_p4_id_t
+ActionDataReader::get_action_id() const {
+  return action_data->action_id;
+}
+
 ActionData::ActionData(const pi_p4info_t *p4info, pi_p4_id_t action_id)
     : p4info(p4info), action_id(action_id),
       ad_size(pi_p4info_action_data_size(p4info, action_id)),
       _data(sizeof(*action_data) + ad_size),
-      action_data(reinterpret_cast<decltype(action_data)>(_data.data())) {
+      action_data(reinterpret_cast<decltype(action_data)>(_data.data())),
+      reader(action_data) {
   // using standard new, no alignment issue with cast above
   action_data->p4info = p4info;
   action_data->action_id = action_id;
@@ -324,6 +422,11 @@ template error_code_t ActionData::set_arg<int8_t>(pi_p4_id_t, int8_t);
 template error_code_t ActionData::set_arg<int16_t>(pi_p4_id_t, int16_t);
 template error_code_t ActionData::set_arg<int32_t>(pi_p4_id_t, int32_t);
 template error_code_t ActionData::set_arg<int64_t>(pi_p4_id_t, int64_t);
+
+error_code_t
+ActionData::get_arg(pi_p4_id_t ap_id, std::string *arg) const {
+  return reader.get_arg(ap_id, arg);
+}
 
 
 MatchTable::MatchTable(pi_session_handle_t sess, pi_dev_tgt_t dev_tgt,

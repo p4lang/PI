@@ -110,14 +110,29 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
     return Status::OK;
   }
 
-  // TODO(antonin)
   Status TableRead(ServerContext *context,
                    const p4::TableReadRequest *request,
                    ServerWriter<p4::TableReadResponse> *writer) override {
     SIMPLELOG << "P4Runtime TableRead\n";
     SIMPLELOG << request->DebugString();
-    (void) context; (void) request; (void) writer;
-    return Status::CANCELLED;
+    std::vector<p4::TableEntry> entries;
+    if (request->table_ids().empty()) {
+      auto status = device_mgr->table_read_all(&entries);
+      (void) status;  // we don't do anything with this right now
+    } else {
+      for (auto table_id : request->table_ids()) {
+        auto status = device_mgr->table_read(table_id, &entries);
+        (void) status;  // we don't do anything with this right now
+      }
+    }
+    for (auto it = entries.begin(); it != entries.end(); it++) {
+      p4::TableReadResponse response;
+      response.set_allocated_table_entry(&(*it));
+      response.set_complete(it == entries.end());
+      writer->Write(response);
+      response.release_table_entry();
+    }
+    return Status::OK;
   }
 
   Status ActionProfileWrite(ServerContext *context,

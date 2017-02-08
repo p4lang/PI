@@ -169,16 +169,134 @@ class DeviceMgrImp {
     return status;
   }
 
-  // TODO(antonin)
+  Code parse_match_key(p4_id_t table_id, const pi_match_key_t *match_key,
+                       p4::TableEntry *entry) const {
+    auto num_match_fields = pi_p4info_table_num_match_fields(
+        p4info.get(), table_id);
+    MatchKeyReader mk_reader(match_key);
+    auto priority = mk_reader.get_priority();
+    if (priority > 0) entry->set_priority(priority);
+    for (size_t j = 0; j < num_match_fields; j++) {
+      pi_p4info_match_field_info_t finfo;
+      pi_p4info_table_match_field_info(p4info.get(), table_id, j, &finfo);
+      auto mf = entry->add_match();
+      mf->set_field_id(finfo.field_id);
+      switch (finfo.match_type) {
+        case PI_P4INFO_MATCH_TYPE_VALID:
+        case PI_P4INFO_MATCH_TYPE_EXACT:
+          {
+            auto exact = mf->mutable_exact();
+            mk_reader.get_exact(finfo.field_id, exact->mutable_value());
+          }
+          break;
+        case PI_P4INFO_MATCH_TYPE_LPM:
+          {
+            auto lpm = mf->mutable_lpm();
+            int pLen;
+            mk_reader.get_lpm(finfo.field_id, lpm->mutable_value(), &pLen);
+            lpm->set_prefix_len(pLen);
+          }
+          break;
+        case PI_P4INFO_MATCH_TYPE_TERNARY:
+          {
+            auto ternary = mf->mutable_ternary();
+            mk_reader.get_ternary(finfo.field_id, ternary->mutable_value(),
+                                  ternary->mutable_mask());
+          }
+          break;
+        case PI_P4INFO_MATCH_TYPE_RANGE:
+          return Code::UNIMPLEMENTED;
+        default:
+          return Code::UNKNOWN;
+      }
+    }
+    return Code::OK;
+  }
+
+  Code parse_action_data(p4_id_t table_id, const pi_table_entry_t *pi_entry,
+                         p4::TableEntry *entry) const {
+    if (pi_entry->entry_type == PI_ACTION_ENTRY_TYPE_NONE) return Code::OK;
+
+    auto table_action = entry->mutable_action();
+    if (pi_entry->entry_type == PI_ACTION_ENTRY_TYPE_INDIRECT) {
+      auto indirect_h = pi_entry->entry.indirect_handle;
+      auto action_prof_id = pi_p4info_table_get_implementation(p4info.get(),
+                                                               table_id);
+      // check that table is indirect
+      if (action_prof_id == PI_INVALID_ID) return Code::UNKNOWN;
+      auto action_prof_mgr = get_action_prof_mgr(action_prof_id);
+      auto member_id = action_prof_mgr->retrieve_member_id(indirect_h);
+      if (member_id != nullptr) {
+        table_action->set_action_profile_member_id(*member_id);
+        return Code::OK;
+      }
+      auto group_id = action_prof_mgr->retrieve_group_id(indirect_h);
+      if (group_id == nullptr) return Code::UNKNOWN;
+      table_action->set_action_profile_group_id(*group_id);
+      return Code::OK;
+    }
+
+    auto action = table_action->mutable_action();
+    const auto pi_action_data = pi_entry->entry.action_data;
+    ActionDataReader reader(pi_action_data);
+    auto action_id = reader.get_action_id();
+    action->set_action_id(action_id);
+    size_t num_params;
+    auto param_ids = pi_p4info_action_get_params(
+        p4info.get(), action_id, &num_params);
+    for (size_t j = 0; j < num_params; j++) {
+      auto param = action->add_params();
+      param->set_param_id(param_ids[j]);
+      reader.get_arg(param_ids[j], param->mutable_value());
+    }
+    return Code::OK;
+  }
+
+  // TODO(antonin): default entry? direct resources?
   Status table_read(p4_id_t table_id,
                     std::vector<p4::TableEntry> *entries) const {
-    (void) table_id; (void) entries;
     Status status;
-    status.set_code(Code::UNIMPLEMENTED);
+    pi_table_fetch_res_t *res;
+    SessionTemp session;
+    auto pi_status = pi_table_entries_fetch(session.get(), device_id,
+                                            table_id, &res);
+    if (pi_status != PI_STATUS_SUCCESS) {
+      status.set_code(Code::UNKNOWN);
+      return status;
+    }
+    auto num_entries = pi_table_entries_num(res);
+    pi_table_ma_entry_t entry;
+    pi_entry_handle_t entry_handle;
+    Code code = Code::OK;
+    for (size_t i = 0; i < num_entries; i++) {
+      pi_table_entries_next(res, &entry, &entry_handle);
+      entries->emplace_back();
+      auto &table_entry = entries->back();
+      table_entry.set_table_id(table_id);
+      code = parse_match_key(table_id, entry.match_key, &table_entry);
+      if (code != Code::OK) break;
+      code = parse_action_data(table_id, &entry.entry, &table_entry);
+      if (code != Code::OK) break;
+    }
+
+    pi_table_entries_fetch_done(session.get(), res);
+
+    status.set_code(code);
     return status;
   }
 
-  // TODO(antonin)
+  Status table_read_all(std::vector<p4::TableEntry> *entries) const {
+    Status status;
+    status.set_code(Code::OK);
+    for (auto t_id = pi_p4info_table_begin(p4info.get());
+         t_id != pi_p4info_table_end(p4info.get());
+         t_id = pi_p4info_table_next(p4info.get(), t_id)) {
+      status = table_read(t_id, entries);
+      if (status.code() != Code::OK) break;
+    }
+    return status;
+  }
+
   Status action_profile_write(
       const p4::ActionProfileUpdate &action_profile_update) {
     Status status;
@@ -436,7 +554,7 @@ class DeviceMgrImp {
     return status;
   }
 
-  ActionProfMgr *get_action_prof_mgr(uint32_t id) {
+  ActionProfMgr *get_action_prof_mgr(uint32_t id) const {
     auto it = action_profs.find(id);
     return (it == action_profs.end()) ? nullptr : it->second.get();
   }
@@ -554,6 +672,11 @@ Status
 DeviceMgr::table_read(p4_id_t table_id,
                       std::vector<p4::TableEntry> *entries) const {
   return pimp->table_read(table_id, entries);
+}
+
+Status
+DeviceMgr::table_read_all(std::vector<p4::TableEntry> *entries) const {
+  return pimp->table_read_all(entries);
 }
 
 Status
