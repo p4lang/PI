@@ -56,8 +56,9 @@ void
 ActionProfBiMap::remove(const Id &id) {
   auto h_ptr = retrieve_handle(id);
   if (h_ptr != nullptr) {
+    auto h = *h_ptr;  // need to save the value before modifying the map
     bimap.remove_from_1(id);
-    bimap.remove_from_2(*h_ptr);
+    bimap.remove_from_2(h);
   }
 }
 
