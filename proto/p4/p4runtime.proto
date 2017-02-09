@@ -15,7 +15,7 @@
 syntax = "proto3";
 
 import "google/rpc/status.proto";
-import "config/p4info.proto";
+import "p4/config/p4info.proto";
 
 // P4 spec: http://p4.org/wp-content/uploads/2015/04/p4-latest.pdf
 
