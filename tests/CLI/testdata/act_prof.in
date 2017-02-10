@@ -1,0 +1,4 @@
+act_prof_create_member ecmp_action_profile set_nhop 10.0.0.1 7
+act_prof_create_group ecmp_action_profile
+act_prof_add_member_to_group ecmp_action_profile 0 9223372036854775808
+act_prof_dump ecmp_action_profile

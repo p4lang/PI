@@ -62,3 +62,5 @@ py-compile
 *.pyc
 
 doxygen-out
+
+core

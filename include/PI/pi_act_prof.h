@@ -70,6 +70,35 @@ pi_status_t pi_act_prof_grp_remove_mbr(pi_session_handle_t session_handle,
                                        pi_indirect_handle_t grp_handle,
                                        pi_indirect_handle_t mbr_handle);
 
+typedef struct pi_act_prof_fetch_res_s pi_act_prof_fetch_res_t;
+
+//! Retrieve all entries in an action profile as one big blob
+pi_status_t pi_act_prof_entries_fetch(pi_session_handle_t session_handle,
+                                      pi_dev_id_t dev_id,
+                                      pi_p4_id_t act_prof_id,
+                                      pi_act_prof_fetch_res_t **res);
+
+//! Need to be called after a pi_act_prof_entries_fetch, once you wish the
+//! memory to be released.
+pi_status_t pi_act_prof_entries_fetch_done(pi_session_handle_t session_handle,
+                                           pi_act_prof_fetch_res_t *res);
+
+//! Returns the number of members obtained with pi_act_prof_entries_fetch.
+size_t pi_act_prof_mbrs_num(pi_act_prof_fetch_res_t *res);
+
+//! Returns the number of groups obtained with pi_act_prof_entries_fetch.
+size_t pi_act_prof_grps_num(pi_act_prof_fetch_res_t *res);
+
+//! Iterates through members retrieved with pi_act_prof_entries_fetch.
+size_t pi_act_prof_mbrs_next(pi_act_prof_fetch_res_t *res,
+                             pi_action_data_t **action_data,
+                             pi_indirect_handle_t *mbr_handle);
+
+//! Iterates through groups retrieved with pi_act_prof_entries_fetch.
+size_t pi_act_prof_grps_next(pi_act_prof_fetch_res_t *res,
+                             pi_indirect_handle_t **mbrs, size_t *num_mbrs,
+                             pi_indirect_handle_t *grp_handle);
+
 #ifdef __cplusplus
 }
 #endif

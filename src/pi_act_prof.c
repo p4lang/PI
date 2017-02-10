@@ -18,8 +18,12 @@
  *
  */
 
-#include "PI/pi_tables.h"
-#include "PI/target/pi_act_prof_imp.h"
+#include <PI/int/pi_int.h>
+#include <PI/int/serialize.h>
+#include <PI/pi_tables.h>
+#include <PI/target/pi_act_prof_imp.h>
+
+#include <stdlib.h>
 
 pi_status_t pi_act_prof_mbr_create(pi_session_handle_t session_handle,
                                    pi_dev_tgt_t dev_tgt, pi_p4_id_t act_prof_id,
@@ -74,4 +78,88 @@ pi_status_t pi_act_prof_grp_remove_mbr(pi_session_handle_t session_handle,
                                        pi_indirect_handle_t mbr_handle) {
   return _pi_act_prof_grp_remove_mbr(session_handle, dev_id, act_prof_id,
                                      grp_handle, mbr_handle);
+}
+
+pi_status_t pi_act_prof_entries_fetch(pi_session_handle_t session_handle,
+                                      pi_dev_id_t dev_id,
+                                      pi_p4_id_t act_prof_id,
+                                      pi_act_prof_fetch_res_t **res) {
+  pi_act_prof_fetch_res_t *res_ = malloc(sizeof(pi_act_prof_fetch_res_t));
+  pi_status_t status =
+      _pi_act_prof_entries_fetch(session_handle, dev_id, act_prof_id, res_);
+  res_->p4info = pi_get_device_p4info(dev_id);
+  res_->act_prof_id = act_prof_id;
+  res_->idx_members = 0;
+  res_->idx_groups = 0;
+  res_->curr_members = 0;
+  res_->curr_groups = 0;
+  res_->action_datas = malloc(res_->num_members * sizeof(pi_action_data_t));
+  *res = res_;
+  return status;
+}
+
+pi_status_t pi_act_prof_entries_fetch_done(pi_session_handle_t session_handle,
+                                           pi_act_prof_fetch_res_t *res) {
+  pi_status_t status = _pi_act_prof_entries_fetch_done(session_handle, res);
+  if (status != PI_STATUS_SUCCESS) return status;
+
+  assert(res->action_datas);
+  free(res->action_datas);
+  free(res);
+  return PI_STATUS_SUCCESS;
+}
+
+size_t pi_act_prof_mbrs_num(pi_act_prof_fetch_res_t *res) {
+  return res->num_members;
+}
+
+size_t pi_act_prof_grps_num(pi_act_prof_fetch_res_t *res) {
+  return res->num_groups;
+}
+
+size_t pi_act_prof_mbrs_next(pi_act_prof_fetch_res_t *res,
+                             pi_action_data_t **action_data,
+                             pi_indirect_handle_t *mbr_handle) {
+  if (res->idx_members == res->num_members) return res->idx_members;
+
+  size_t curr = res->curr_members;
+  char *entries = res->entries_members;
+
+  curr += retrieve_indirect_handle(entries + curr, mbr_handle);
+
+  pi_p4_id_t action_id;
+  curr += retrieve_p4_id(entries + curr, &action_id);
+  uint32_t nbytes;
+  curr += retrieve_uint32(entries + curr, &nbytes);
+  pi_action_data_t *action_data_ = &res->action_datas[res->idx_members];
+  *action_data = action_data_;
+  action_data_->p4info = res->p4info;
+  action_data_->action_id = action_id;
+  action_data_->data_size = nbytes;
+  action_data_->data = entries + curr;
+  curr += nbytes;
+
+  res->curr_members = curr;
+
+  return res->idx_members++;
+}
+
+size_t pi_act_prof_grps_next(pi_act_prof_fetch_res_t *res,
+                             pi_indirect_handle_t **mbrs, size_t *num_mbrs,
+                             pi_indirect_handle_t *grp_handle) {
+  if (res->idx_groups == res->num_groups) return res->idx_groups;
+
+  size_t curr = res->curr_groups;
+  char *entries = res->entries_groups;
+
+  curr += retrieve_indirect_handle(entries + curr, grp_handle);
+
+  uint32_t num_mbrs_;
+  curr += retrieve_uint32(entries + curr, &num_mbrs_);
+  *num_mbrs = num_mbrs_;
+  uint32_t offset;
+  curr += retrieve_uint32(entries + curr, &offset);
+  *mbrs = res->mbr_handles + offset;
+
+  return res->idx_groups++;
 }

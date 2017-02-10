@@ -21,7 +21,12 @@
 #ifndef PI_BMV2_COMMON_H_
 #define PI_BMV2_COMMON_H_
 
+#include <PI/int/pi_int.h>
+#include <PI/p4info.h>
 #include <PI/pi.h>
+
+#include <string>
+#include <unordered_map>
 
 namespace pibmv2 {
 
@@ -49,6 +54,29 @@ struct IndirectHMgr {
 
   static constexpr pi_indirect_handle_t grp_prefix =
       (1ull << (sizeof(pi_indirect_handle_t) * 8 - 1));
+};
+
+struct ADataSize {
+  ADataSize(pi_p4_id_t id, size_t s)
+      : id(id), s(s) { }
+  pi_p4_id_t id;
+  size_t s;
+
+  static std::unordered_map<std::string, ADataSize> compute_action_sizes(
+      const pi_p4info_t *p4info, const pi_p4_id_t *action_ids,
+      size_t num_actions) {
+    std::unordered_map<std::string, ADataSize> action_map;
+    action_map.reserve(num_actions);
+
+    for (size_t i = 0; i < num_actions; i++) {
+      action_map.emplace(
+          std::string(pi_p4info_action_name_from_id(p4info, action_ids[i])),
+          ADataSize(action_ids[i],
+                    get_action_data_size(p4info, action_ids[i])));
+    }
+
+    return action_map;
+  }
 };
 
 }  // namespace pibmv2

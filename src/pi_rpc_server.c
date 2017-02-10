@@ -741,6 +741,64 @@ static void __pi_act_prof_grp_remove_mbr(char *req) {
   grp_add_remove_mbr(req, PI_RPC_ACT_PROF_GRP_REMOVE_MBR);
 }
 
+static void __pi_act_prof_entries_fetch(char *req) {
+  printf("RPC: _pi_act_prof_entries_fetch\n");
+
+  pi_session_handle_t sess;
+  req += retrieve_session_handle(req, &sess);
+  pi_dev_id_t dev_id;
+  req += retrieve_dev_id(req, &dev_id);
+  pi_p4_id_t act_prof_id;
+  req += retrieve_p4_id(req, &act_prof_id);
+
+  pi_act_prof_fetch_res_t res;
+  pi_status_t status =
+      _pi_act_prof_entries_fetch(sess, dev_id, act_prof_id, &res);
+
+  if (status != PI_STATUS_SUCCESS) {
+    send_status(status);
+    return;
+  }
+
+  size_t s = 0;
+  s += sizeof(rep_hdr_t);
+  s += sizeof(uint32_t);  // num members
+  s += sizeof(uint32_t);  // num groups
+  s += sizeof(uint32_t);  // members size (in bytes)
+  s += res.entries_members_size;
+  s += sizeof(uint32_t);  // groups size (in bytes)
+  s += res.entries_groups_size;
+  s += sizeof(uint32_t);  // num mbr handles
+  size_t mbr_handles_size =
+      res.num_cumulated_mbr_handles * sizeof(s_pi_indirect_handle_t);
+  s += mbr_handles_size;
+
+  char *rep = nn_allocmsg(s, 0);
+  char *rep_ = rep;
+  rep_ += emit_rep_hdr(rep_, status);
+  rep_ += emit_uint32(rep_, res.num_members);
+  rep_ += emit_uint32(rep_, res.num_groups);
+  rep_ += emit_uint32(rep_, res.entries_members_size);
+  memcpy(rep_, res.entries_members, res.entries_members_size);
+  rep_ += res.entries_members_size;
+  rep_ += emit_uint32(rep_, res.entries_groups_size);
+  memcpy(rep_, res.entries_groups, res.entries_groups_size);
+  rep_ += res.entries_groups_size;
+  rep_ += emit_uint32(rep_, res.num_cumulated_mbr_handles);
+  assert(sizeof(pi_indirect_handle_t) == sizeof(s_pi_indirect_handle_t));
+  memcpy(rep_, res.mbr_handles, mbr_handles_size);
+  rep_ += mbr_handles_size;
+
+  // release target memory
+  _pi_act_prof_entries_fetch_done(sess, &res);
+
+  // make sure I have copied exactly the right amount
+  assert((size_t)(rep_ - rep) == s);
+
+  int bytes = nn_send(state.s, &rep, NN_MSG, 0);
+  assert((size_t)bytes == s);
+}
+
 static void counter_read(char *req, pi_rpc_type_t direct_or_not) {
   pi_session_handle_t sess;
   req += retrieve_session_handle(req, &sess);
@@ -1052,6 +1110,9 @@ pi_status_t pi_rpc_server_run(const pi_remote_addr_t *remote_addr) {
         break;
       case PI_RPC_ACT_PROF_GRP_REMOVE_MBR:
         __pi_act_prof_grp_remove_mbr(req_);
+        break;
+      case PI_RPC_ACT_PROF_ENTRIES_FETCH:
+        __pi_act_prof_entries_fetch(req_);
         break;
 
       case PI_RPC_COUNTER_READ:

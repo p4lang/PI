@@ -22,6 +22,9 @@
 
 #include "pi_rpc.h"
 
+#include <stdlib.h>
+#include <string.h>
+
 static pi_status_t wait_for_handle(uint32_t req_id, pi_indirect_handle_t *h) {
   typedef struct __attribute__((packed)) {
     rep_hdr_t hdr;
@@ -234,4 +237,77 @@ pi_status_t _pi_act_prof_grp_remove_mbr(pi_session_handle_t session_handle,
                                         pi_indirect_handle_t mbr_handle) {
   return grp_add_remove_mbr(session_handle, dev_id, act_prof_id, grp_handle,
                             mbr_handle, PI_RPC_ACT_PROF_GRP_REMOVE_MBR);
+}
+
+pi_status_t _pi_act_prof_entries_fetch(pi_session_handle_t session_handle,
+                                       pi_dev_id_t dev_id,
+                                       pi_p4_id_t act_prof_id,
+                                       pi_act_prof_fetch_res_t *res) {
+  if (!state.init) return PI_STATUS_RPC_NOT_INIT;
+
+  typedef struct __attribute__((packed)) {
+    req_hdr_t hdr;
+    s_pi_session_handle_t sess;
+    s_pi_dev_id_t dev_id;
+    s_pi_p4_id_t act_prof_id;
+  } req_t;
+  req_t req;
+  char *req_ = (char *)&req;
+  pi_rpc_id_t req_id = state.req_id++;
+  req_ += emit_req_hdr(req_, req_id, PI_RPC_ACT_PROF_ENTRIES_FETCH);
+  req_ += emit_session_handle(req_, session_handle);
+  req_ += emit_dev_id(req_, dev_id);
+  req_ += emit_p4_id(req_, act_prof_id);
+
+  int rc = nn_send(state.s, &req, sizeof(req), 0);
+  if (rc != sizeof(req)) return PI_STATUS_RPC_TRANSPORT_ERROR;
+
+  char *rep = NULL;
+  int bytes = nn_recv(state.s, &rep, NN_MSG, 0);
+  if (bytes <= 0) return PI_STATUS_RPC_TRANSPORT_ERROR;
+
+  char *rep_ = rep;
+  pi_status_t status = retrieve_rep_hdr(rep_, req_id);
+  if (status != PI_STATUS_SUCCESS) {
+    nn_freemsg(rep);
+    return status;
+  }
+  rep_ += sizeof(rep_hdr_t);
+
+  uint32_t tmp32;
+  rep_ += retrieve_uint32(rep_, &tmp32);
+  res->num_members = tmp32;
+  rep_ += retrieve_uint32(rep_, &tmp32);
+  res->num_groups = tmp32;
+
+  rep_ += retrieve_uint32(rep_, &tmp32);
+  res->entries_members_size = tmp32;
+  res->entries_members = malloc(res->entries_members_size);
+  memcpy(res->entries_members, rep_, res->entries_members_size);
+  rep_ += res->entries_members_size;
+
+  rep_ += retrieve_uint32(rep_, &tmp32);
+  res->entries_groups_size = tmp32;
+  res->entries_groups = malloc(res->entries_groups_size);
+  memcpy(res->entries_groups, rep_, res->entries_groups_size);
+  rep_ += res->entries_groups_size;
+
+  rep_ += retrieve_uint32(rep_, &tmp32);
+  res->num_cumulated_mbr_handles = tmp32;
+  assert(sizeof(pi_indirect_handle_t) == sizeof(s_pi_indirect_handle_t));
+  size_t mbr_handles_size = tmp32 * sizeof(pi_indirect_handle_t);
+  res->mbr_handles = malloc(mbr_handles_size);
+  memcpy(res->mbr_handles, rep_, mbr_handles_size);
+
+  nn_freemsg(rep);
+  return status;
+}
+
+pi_status_t _pi_act_prof_entries_fetch_done(pi_session_handle_t session_handle,
+                                            pi_act_prof_fetch_res_t *res) {
+  (void)session_handle;
+  free(res->entries_members);
+  free(res->entries_groups);
+  free(res->mbr_handles);
+  return PI_STATUS_SUCCESS;
 }

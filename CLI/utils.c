@@ -21,6 +21,7 @@
 #include "PI/pi.h"
 
 #include <readline/readline.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -241,4 +242,11 @@ char *complete_one_name(const char *text, int state,
     return complete_p4_res(text, len, state, res_type);
   }
   return NULL;
+}
+
+void print_hexstr(const char *bytes, size_t nbytes) {
+  for (size_t i = 0; i < nbytes; i++) {
+    // (unsigned char) case necessary otherwise the char is sign-extended
+    printf("%02x", (unsigned char)bytes[i]);
+  }
 }

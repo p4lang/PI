@@ -23,8 +23,12 @@
 #include <PI/int/pi_int.h>
 #include <PI/p4info.h>
 
+#include <bm/Standard.h>
+
 #include <string>
 #include <vector>
+
+#include <cstring>
 
 namespace pibmv2 {
 
@@ -48,6 +52,29 @@ std::vector<std::string> build_action_data(const pi_action_data_t *action_data,
     ad_data += nbytes;
   }
 
+  return data;
+}
+
+char *dump_action_data(const pi_p4info_t *p4info, char *data,
+                       pi_p4_id_t action_id,
+                       const ::bm_runtime::standard::BmActionData &params) {
+  // unfortunately, I have observed that bmv2 sometimes returns shorter binary
+  // strings than it received (0 padding is removed), which makes things more
+  // complicated and expensive here.
+  size_t num_params;
+  const pi_p4_id_t *param_ids = pi_p4info_action_get_params(
+      p4info, action_id, &num_params);
+  assert(num_params == params.size());
+  for (size_t i = 0; i < num_params; i++) {
+    size_t bitwidth = pi_p4info_action_param_bitwidth(p4info, param_ids[i]);
+    size_t nbytes = (bitwidth + 7) / 8;
+    const auto &p = params.at(i);
+    assert(nbytes >= p.size());
+    size_t diff = nbytes - p.size();
+    std::memset(data, 0, diff);
+    std::memcpy(data + diff, p.data(), p.size());
+    data += nbytes;
+  }
   return data;
 }
 

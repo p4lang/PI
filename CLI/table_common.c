@@ -229,6 +229,25 @@ pi_cli_status_t read_action_data(char *in, pi_p4_id_t a_id,
   return PI_CLI_STATUS_SUCCESS;
 }
 
+void print_action_data(const pi_action_data_t *action_data) {
+  pi_p4_id_t action_id = pi_action_data_action_id_get(action_data);
+
+  const char *action_name =
+      pi_p4info_action_name_from_id(p4info_curr, action_id);
+  printf("Action entry: %s - ", action_name);
+  size_t num_params;
+  const pi_p4_id_t *param_ids =
+      pi_p4info_action_get_params(p4info_curr, action_id, &num_params);
+  for (size_t j = 0; j < num_params; j++) {
+    pi_netv_t argv;
+    pi_action_data_arg_get(action_data, param_ids[j], &argv);
+    print_hexstr(argv.v.ptr, argv.size);
+
+    if (j != num_params - 1) printf(", ");
+  }
+  printf("\n");
+}
+
 char *complete_table(const char *text, int state) {
   static int token_count;
   static int len;
