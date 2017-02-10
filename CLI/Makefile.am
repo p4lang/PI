@@ -27,9 +27,9 @@ direct_res_reset.c \
 main.c
 
 libpicli_la_SOURCES += \
-act_profs/table_indirect_create_member.c \
-act_profs/table_indirect_common.h \
-act_profs/table_indirect_common.c
+act_profs/act_prof_create_member.c \
+act_profs/act_prof_common.h \
+act_profs/act_prof_common.c
 
 bin_PROGRAMS = pi_CLI_dummy pi_CLI_rpc
 

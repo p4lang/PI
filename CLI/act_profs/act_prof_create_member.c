@@ -18,9 +18,9 @@
  *
  */
 
+#include "act_prof_common.h"
 #include "error_codes.h"
 #include "table_common.h"
-#include "table_indirect_common.h"
 #include "utils.h"
 
 #include "PI/frontends/generic/pi.h"
@@ -31,12 +31,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-char table_indirect_create_member_hs[] =
+char act_prof_create_member_hs[] =
     "Add a member to an indirect match table: "
-    "table_indirect_create_member <table name> <action_name> "
+    "act_prof_create_member <act_prof_name> <action_name> "
     "[action parameters]";
 
-pi_cli_status_t do_table_indirect_create_member(char *subcmd) {
+pi_cli_status_t do_act_prof_create_member(char *subcmd) {
   const char *args[2];
   size_t num_args = sizeof(args) / sizeof(char *);
   if (parse_fixed_args(subcmd, args, num_args) < num_args)
@@ -76,6 +76,6 @@ pi_cli_status_t do_table_indirect_create_member(char *subcmd) {
                                    : PI_CLI_STATUS_TARGET_ERROR;
 };
 
-char *complete_table_indirect_create_member(const char *text, int state) {
+char *complete_act_prof_create_member(const char *text, int state) {
   return complete_act_prof_and_action(text, state);
 }

@@ -159,9 +159,8 @@ static void init_cmd_map() {
   register_cmd("table_dump", do_table_dump, table_dump_hs, complete_table_dump,
                PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
 
-  register_cmd("table_indirect_create_member", do_table_indirect_create_member,
-               table_indirect_create_member_hs,
-               complete_table_indirect_create_member,
+  register_cmd("act_prof_create_member", do_act_prof_create_member,
+               act_prof_create_member_hs, complete_act_prof_create_member,
                PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
 
   register_cmd("counter_read", do_counter_read, counter_read_hs,
