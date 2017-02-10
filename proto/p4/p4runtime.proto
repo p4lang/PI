@@ -15,6 +15,7 @@
 syntax = "proto3";
 
 import "google/rpc/status.proto";
+import "p4/config/p4info.proto";
 
 // P4 spec: http://p4.org/wp-content/uploads/2015/04/p4-latest.pdf
 
@@ -23,6 +24,12 @@ import "google/rpc/status.proto";
 package p4;
 
 service P4Runtime {
+  // Sets the P4 config.
+  rpc ConfigSet(P4ConfigSetRequest) returns (P4ConfigSetResponse) {
+  }
+  // Gets the current P4 config.
+  rpc ConfigGet(P4ConfigGetRequest) returns (P4ConfigGetResponse) {
+  }
   // Modifies the P4 tables containing 'TableEntry's.
   rpc TableWrite(TableWriteRequest) returns (TableWriteResponse) {
   }
@@ -60,6 +67,27 @@ service P4Runtime {
   rpc StreamChannel(stream StreamMessageRequest)
       returns (stream StreamMessageResponse) {
   }
+}
+
+//------------------------------------------------------------------------------
+message P4ConfigSetRequest {
+  uint64 device_id = 1;
+  config.P4Info p4info = 2;
+  // Target-specific P4 configuration.
+  bytes p4_device_config = 3;
+}
+
+message P4ConfigSetResponse {
+}
+
+message P4ConfigGetRequest {
+  uint64 device_id = 1;
+}
+
+message P4ConfigGetResponse {
+  config.P4Info p4info = 1;
+  // Target-specific P4 configuration.
+  bytes p4_device_config = 2;
 }
 
 //------------------------------------------------------------------------------
