@@ -246,6 +246,42 @@ class DummyActionProf {
     return (count == 0) ? PI_STATUS_TARGET_ERROR : PI_STATUS_SUCCESS;
   }
 
+  pi_status_t entries_fetch(pi_act_prof_fetch_res_t *res) {
+    res->num_members = members.size();
+    res->num_groups = groups.size();
+    constexpr size_t kBufSize = 16384;  // should be large enough for testing
+    // members
+    {
+      char *buf = new char[kBufSize];
+      char *buf_ptr = buf;
+      for (const auto &p : members) {
+        buf_ptr += emit_indirect_handle(buf_ptr, p.first);
+        buf_ptr += p.second.emit(buf_ptr);
+      }
+      res->entries_members = buf;
+      res->entries_members_size = std::distance(buf, buf_ptr);
+    }
+    // groups
+    {
+      char *buf = new char[kBufSize];
+      char *buf_ptr = buf;
+      res->mbr_handles = new pi_indirect_handle_t[kBufSize];
+      res->num_cumulated_mbr_handles = 0;
+      size_t offset = 0;
+      for (const auto &p : groups) {
+        buf_ptr += emit_indirect_handle(buf_ptr, p.first);
+        auto &mbrs = p.second;
+        buf_ptr += emit_uint32(buf_ptr, mbrs.size());
+        buf_ptr += emit_uint32(buf_ptr, res->num_cumulated_mbr_handles);
+        res->num_cumulated_mbr_handles += mbrs.size();
+        for (const auto &m : mbrs) res->mbr_handles[offset++] = m;
+      }
+      res->entries_groups = buf;
+      res->entries_groups_size = std::distance(buf, buf_ptr);
+    }
+    return PI_STATUS_SUCCESS;
+  }
+
  private:
   using GroupMembers = std::unordered_set<pi_indirect_handle_t>;
   std::unordered_map<pi_indirect_handle_t, ActionData> members{};
@@ -313,6 +349,11 @@ class DummySwitch {
         grp_handle, mbr_handle);
   }
 
+  pi_status_t action_prof_entries_fetch(pi_p4_id_t act_prof_id,
+                                        pi_act_prof_fetch_res_t *res) {
+    return action_profs[act_prof_id].entries_fetch(res);
+  }
+
  private:
   std::unordered_map<pi_p4_id_t, DummyTable> tables{};
   std::unordered_map<pi_p4_id_t, DummyActionProf> action_profs{};
@@ -360,6 +401,8 @@ class DummySwitchMock : public DummySwitch {
     ON_CALL(*this, action_prof_group_remove_member(_, _, _))
         .WillByDefault(
             Invoke(&sw, &DummySwitch::action_prof_group_remove_member));
+    ON_CALL(*this, action_prof_entries_fetch(_, _))
+        .WillByDefault(Invoke(&sw, &DummySwitch::action_prof_entries_fetch));
   }
 
   // used to capture handle for members
@@ -407,6 +450,8 @@ class DummySwitchMock : public DummySwitch {
   MOCK_METHOD3(action_prof_group_remove_member,
                pi_status_t(pi_p4_id_t, pi_indirect_handle_t,
                            pi_indirect_handle_t));
+  MOCK_METHOD2(action_prof_entries_fetch,
+               pi_status_t(pi_p4_id_t, pi_act_prof_fetch_res_t *));
 
  private:
   DummySwitch sw;
@@ -569,6 +614,22 @@ pi_status_t _pi_act_prof_grp_remove_mbr(pi_session_handle_t,
                                         pi_indirect_handle_t mbr_handle) {
   return DeviceResolver::get_switch(dev_id)->action_prof_group_remove_member(
       act_prof_id, grp_handle, mbr_handle);
+}
+
+pi_status_t _pi_act_prof_entries_fetch(pi_session_handle_t,
+                                       pi_dev_id_t dev_id,
+                                       pi_p4_id_t act_prof_id,
+                                       pi_act_prof_fetch_res_t *res) {
+  return DeviceResolver::get_switch(dev_id)->action_prof_entries_fetch(
+      act_prof_id, res);
+}
+
+pi_status_t _pi_act_prof_entries_fetch_done(pi_session_handle_t,
+                                            pi_act_prof_fetch_res_t *res) {
+  delete[] res->entries_members;
+  delete[] res->entries_groups;
+  delete[] res->mbr_handles;
+  return PI_STATUS_SUCCESS;
 }
 
 }
@@ -797,7 +858,7 @@ struct TableEntryMatcher_Indirect {
   pi_indirect_handle_t h;
 };
 
-TEST_P(MatchTableTest, AddAndGet) {
+TEST_P(MatchTableTest, AddAndRead) {
   auto t_id = pi_p4info_table_id_from_name(p4info, std::get<0>(GetParam()));
   auto f_id = pi_p4info_field_id_from_name(p4info, "header_test.field32");
   auto a_id = pi_p4info_action_id_from_name(p4info, "actionA");
@@ -1021,6 +1082,45 @@ TEST_F(ActionProfTest, Group) {
   EXPECT_CALL(*mock, action_prof_group_remove_member(_, _, _)).Times(0);
   status = mgr.action_profile_write(update);
   ASSERT_EQ(status.code(), Code::OK);
+}
+
+TEST_F(ActionProfTest, Read) {
+  DeviceMgr::Status status;
+  auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
+  uint32_t group_id = 1000;
+  uint32_t member_id_1 = 1;
+
+  // create 1 member
+  std::string adata(6, '\x00');
+  EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _));
+  auto update_mbr = create_base_member_update(member_id_1, adata);
+  status = mgr.action_profile_write(update_mbr);
+  ASSERT_EQ(status.code(), Code::OK);
+  // create_member(member_id_1, adata);
+  auto mbr_h_1 = mock->get_action_prof_handle();
+
+  // create group with one member
+  p4::ActionProfileUpdate update_grp;
+  update_grp.set_type(p4::ActionProfileUpdate_Type_CREATE);
+  auto entry = update_grp.mutable_action_profile_entry();
+  entry->set_action_profile_id(act_prof_id);
+  auto group = entry->mutable_group();
+  group->set_group_id(group_id);
+  group->add_member_id(member_id_1);
+  EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, _, _));
+  EXPECT_CALL(*mock, action_prof_group_add_member(act_prof_id, _, mbr_h_1));
+  status = mgr.action_profile_write(update_grp);
+  ASSERT_EQ(status.code(), Code::OK);
+
+  EXPECT_CALL(*mock, action_prof_entries_fetch(act_prof_id, _));
+  std::vector<p4::ActionProfileEntry> entries;
+  status = mgr.action_profile_read(act_prof_id, &entries);
+  ASSERT_EQ(status.code(), Code::OK);
+  ASSERT_EQ(2u, entries.size());  // 1 member + 1 group
+  ASSERT_TRUE(MessageDifferencer::Equals(
+      update_mbr.action_profile_entry(), entries.at(0)));
+  ASSERT_TRUE(MessageDifferencer::Equals(
+      update_grp.action_profile_entry(), entries.at(1)));
 }
 
 TEST_F(ActionProfTest, CreateDupGroupId) {

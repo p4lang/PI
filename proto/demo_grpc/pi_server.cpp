@@ -150,15 +150,31 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
     return Status::OK;
   }
 
-  // TODO(antonin)
   Status ActionProfileRead(
       ServerContext* context,
       const p4::ActionProfileReadRequest* request,
       ServerWriter<p4::ActionProfileReadResponse> *writer) override {
     SIMPLELOG << "P4Runtime ActionProfileRead\n";
     SIMPLELOG << request->DebugString();
-    (void) context; (void) request; (void) writer;
-    return Status::CANCELLED;
+    std::vector<p4::ActionProfileEntry> entries;
+    if (request->action_profile_ids().empty()) {
+      auto status = device_mgr->action_profile_read_all(&entries);
+      (void) status;  // we don't do anything with this right now
+    } else {
+      for (auto action_profile_id : request->action_profile_ids()) {
+        auto status = device_mgr->action_profile_read(action_profile_id,
+                                                      &entries);
+        (void) status;  // we don't do anything with this right now
+      }
+    }
+    for (auto it = entries.begin(); it != entries.end(); it++) {
+      p4::ActionProfileReadResponse response;
+      response.set_allocated_action_profile_entry(&(*it));
+      response.set_complete(it == entries.end());
+      writer->Write(response);
+      response.release_action_profile_entry();
+    }
+    return Status::OK;
   }
 
   Status CounterRead(ServerContext *context,
