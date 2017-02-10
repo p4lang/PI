@@ -62,13 +62,6 @@ static const char *match_type_to_str(pi_p4info_match_type_t mt) {
   }
 }
 
-static void print_hexstr(const char *bytes, size_t nbytes) {
-  for (size_t i = 0; i < nbytes; i++) {
-    // (unsigned char) case necessary otherwise the char is sign-extended
-    printf("%02x", (unsigned char)bytes[i]);
-  }
-}
-
 // clang-format off
 static void print_match_param_v(pi_p4_id_t f_id, pi_p4info_match_type_t mt,
                                 const pi_match_key_t *match_key) {
@@ -113,23 +106,7 @@ static void print_action_entry(pi_table_entry_t *entry) {
     return;
   }
 
-  const pi_action_data_t *action_data = entry->entry.action_data;
-  pi_p4_id_t action_id = pi_action_data_action_id_get(action_data);
-
-  const char *action_name =
-      pi_p4info_action_name_from_id(p4info_curr, action_id);
-  printf("Action entry: %s - ", action_name);
-  size_t num_params;
-  const pi_p4_id_t *param_ids =
-      pi_p4info_action_get_params(p4info_curr, action_id, &num_params);
-  for (size_t j = 0; j < num_params; j++) {
-    pi_netv_t argv;
-    pi_action_data_arg_get(action_data, param_ids[j], &argv);
-    print_hexstr(argv.v.ptr, argv.size);
-
-    if (j != num_params - 1) printf(", ");
-  }
-  printf("\n");
+  print_action_data(entry->entry.action_data);
 }
 
 static pi_cli_status_t dump_entries(pi_p4_id_t t_id,

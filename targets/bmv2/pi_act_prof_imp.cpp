@@ -19,6 +19,7 @@
  */
 
 #include <PI/int/pi_int.h>
+#include <PI/int/serialize.h>
 #include <PI/p4info.h>
 #include <PI/pi.h>
 
@@ -236,6 +237,104 @@ pi_status_t _pi_act_prof_grp_remove_mbr(pi_session_handle_t session_handle,
     return static_cast<pi_status_t>(PI_STATUS_TARGET_ERROR + ito.code);
   }
 
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_act_prof_entries_fetch(pi_session_handle_t session_handle,
+                                       pi_dev_id_t dev_id,
+                                       pi_p4_id_t act_prof_id,
+                                       pi_act_prof_fetch_res_t *res) {
+  (void) session_handle;
+
+  pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_id);
+  assert(d_info->assigned);
+  const pi_p4info_t *p4info = d_info->p4info;
+  std::string ap_name(pi_p4info_act_prof_name_from_id(p4info, act_prof_id));
+
+  auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_id);
+
+  std::vector<BmMtActProfMember> members;
+  std::vector<BmMtActProfGroup> groups;
+  try {
+    client.c->bm_mt_act_prof_get_members(members, 0, ap_name);
+    client.c->bm_mt_act_prof_get_groups(groups, 0, ap_name);
+  } catch (InvalidTableOperation &ito) {
+    const char *what =
+        _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
+    std::cout << "Invalid action profile (" << ap_name << ") operation ("
+              << ito.code << "): " << what << std::endl;
+    return static_cast<pi_status_t>(PI_STATUS_TARGET_ERROR + ito.code);
+  }
+
+  // members
+  {
+    res->num_members = members.size();
+
+    size_t data_size = 0;
+    data_size += members.size() * sizeof(s_pi_indirect_handle_t);
+    // action id and action data nbytes
+    data_size += members.size() * (sizeof(s_pi_p4_id_t) + sizeof(uint32_t));
+    size_t num_actions;
+    auto action_ids = pi_p4info_act_prof_get_actions(p4info, act_prof_id,
+                                                     &num_actions);
+    auto action_map = pibmv2::ADataSize::compute_action_sizes(
+        p4info, action_ids, num_actions);
+    for (const auto &mbr : members)
+      data_size += action_map.at(mbr.action_name).s;
+
+    char *data = new char[data_size];
+    res->entries_members_size = data_size;
+    res->entries_members = data;
+
+    for (const auto &mbr : members) {
+      data += emit_indirect_handle(data, mbr.mbr_handle);
+      const auto &adata_size = action_map.at(mbr.action_name);
+      data += emit_p4_id(data, adata_size.id);
+      data += emit_uint32(data, adata_size.s);
+      data = pibmv2::dump_action_data(p4info, data, adata_size.id,
+                                      mbr.action_data);
+    }
+  }
+
+  // groups
+  {
+    res->num_groups = groups.size();
+
+    size_t data_size = 0;
+    size_t num_member_handles = 0;
+    data_size += groups.size() * sizeof(s_pi_indirect_handle_t);
+    // number of members + offset in member handles list
+    data_size += groups.size() * 2 * sizeof(uint32_t);
+    for (const auto &grp : groups) num_member_handles += grp.mbr_handles.size();
+
+    char *data = new char[data_size];
+    res->entries_groups_size = data_size;
+    res->entries_groups = data;
+    res->num_cumulated_mbr_handles = num_member_handles;
+    res->mbr_handles = new pi_indirect_handle_t[num_member_handles];
+
+    size_t handle_offset = 0;
+    for (const auto &grp : groups) {
+      data += emit_indirect_handle(
+          data, pibmv2::IndirectHMgr::make_grp_h(grp.grp_handle));
+      const auto num_mbrs = grp.mbr_handles.size();
+      data += emit_uint32(data, num_mbrs);
+      data += emit_uint32(data, handle_offset);
+      for (const auto mbr_h : grp.mbr_handles)
+        res->mbr_handles[handle_offset++] = mbr_h;
+    }
+  }
+
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_act_prof_entries_fetch_done(pi_session_handle_t session_handle,
+                                            pi_act_prof_fetch_res_t *res) {
+  (void)session_handle;
+
+  delete[] res->entries_members;
+  delete[] res->entries_groups;
+  delete[] res->mbr_handles;
   return PI_STATUS_SUCCESS;
 }
 

@@ -1,0 +1,22 @@
+????
+Device assigned successfully.
+Selecting device.
+????
+Member was successfully created with handle 0.
+????
+Group was successfully created with handle 9223372036854775808.
+????
+Member was successfully added to group.
+????
+Successfully retrieved 1 member(s) and 1 group(s).
+==========
+MEMBERS
+**********
+Dumping member 0
+Action entry: set_nhop - 0a000001, 0007
+==========
+GROUPS
+**********
+Dumping group 9223372036854775808
+Members: [0]
+????

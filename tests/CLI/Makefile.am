@@ -14,7 +14,8 @@ meter.test \
 meter_direct.test \
 counter_and_meter_direct.test \
 direct_res_reset.test \
-device_update.test
+device_update.test \
+act_prof.test
 
 # test_config.py.in included by default
 EXTRA_DIST = \
@@ -37,7 +38,10 @@ testdata/table_wkey.in \
 testdata/table_wkey.out \
 device_commands.test \
 testdata/device_commands.in \
-testdata/device_commands.out
+testdata/device_commands.out \
+act_prof.test \
+testdata/act_prof.in \
+testdata/act_prof.out
 
 EXTRA_DIST += \
 testdata/stats.json \

@@ -39,6 +39,8 @@ pi_cli_status_t read_match_key_with_priority(char *in, pi_p4_id_t t_id,
 pi_cli_status_t read_action_data(char *in, pi_p4_id_t a_id,
                                  pi_action_data_t *adata);
 
+void print_action_data(const pi_action_data_t *action_data);
+
 char *complete_table(const char *text, int state);
 char *complete_table_and_action(const char *text, int state);
 

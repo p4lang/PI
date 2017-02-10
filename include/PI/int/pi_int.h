@@ -116,6 +116,24 @@ struct pi_table_fetch_res_s {
   // direct resources
 };
 
+struct pi_act_prof_fetch_res_s {
+  const pi_p4info_t *p4info;
+  pi_p4_id_t act_prof_id;  // TODO(antonin): remove?
+  size_t num_members;
+  size_t num_groups;
+  size_t idx_members;
+  size_t idx_groups;
+  size_t curr_members;
+  size_t curr_groups;
+  size_t entries_members_size;
+  size_t entries_groups_size;
+  char *entries_members;
+  char *entries_groups;
+  size_t num_cumulated_mbr_handles;
+  pi_indirect_handle_t *mbr_handles;
+  struct pi_action_data_s *action_datas;
+};
+
 typedef struct {
   int backend_id;
   size_t version;

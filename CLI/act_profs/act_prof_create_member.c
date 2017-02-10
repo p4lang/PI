@@ -32,7 +32,7 @@
 #include <string.h>
 
 char act_prof_create_member_hs[] =
-    "Add a member to an indirect match table: "
+    "Add a member to an action profile: "
     "act_prof_create_member <act_prof_name> <action_name> "
     "[action parameters]";
 

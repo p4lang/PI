@@ -76,6 +76,18 @@ extern char act_prof_create_member_hs[];
 pi_cli_status_t do_act_prof_create_member(char *subcmd);
 char *complete_act_prof_create_member(const char *text, int state);
 
+extern char act_prof_create_group_hs[];
+pi_cli_status_t do_act_prof_create_group(char *subcmd);
+char *complete_act_prof_create_group(const char *text, int state);
+
+extern char act_prof_add_member_to_group_hs[];
+pi_cli_status_t do_act_prof_add_member_to_group(char *subcmd);
+char *complete_act_prof_add_member_to_group(const char *text, int state);
+
+extern char act_prof_dump_hs[];
+pi_cli_status_t do_act_prof_dump(char *subcmd);
+char *complete_act_prof_dump(const char *text, int state);
+
 extern char counter_read_hs[];
 pi_cli_status_t do_counter_read(char *subcmd);
 char *complete_counter_read(const char *text, int state);

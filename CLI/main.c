@@ -162,6 +162,15 @@ static void init_cmd_map() {
   register_cmd("act_prof_create_member", do_act_prof_create_member,
                act_prof_create_member_hs, complete_act_prof_create_member,
                PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
+  register_cmd("act_prof_create_group", do_act_prof_create_group,
+               act_prof_create_group_hs, complete_act_prof_create_group,
+               PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
+  register_cmd("act_prof_add_member_to_group", do_act_prof_add_member_to_group,
+               act_prof_add_member_to_group_hs,
+               complete_act_prof_add_member_to_group,
+               PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
+  register_cmd("act_prof_dump", do_act_prof_dump, act_prof_dump_hs,
+               complete_act_prof_dump, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
 
   register_cmd("counter_read", do_counter_read, counter_read_hs,
                complete_counter_read, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);

@@ -18,25 +18,12 @@
  *
  */
 
-#ifndef PI_BMV2_ACTION_HELPERS_H_
-#define PI_BMV2_ACTION_HELPERS_H_
-
-#include <PI/pi.h>
-
 #include <bm/Standard.h>
 
-#include <string>
-#include <vector>
+#include "common.h"
 
 namespace pibmv2 {
 
-std::vector<std::string> build_action_data(const pi_action_data_t *action_data,
-                                           const pi_p4info_t *p4info);
 
-char *dump_action_data(const pi_p4info_t *p4info, char *data,
-                       pi_p4_id_t action_id,
-                       const ::bm_runtime::standard::BmActionData &params);
 
 }  // namespace pibmv2
-
-#endif  // PI_BMV2_ACTION_HELPERS_H_

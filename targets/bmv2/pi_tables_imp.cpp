@@ -26,7 +26,6 @@
 #include <algorithm>
 #include <iostream>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include <cstring>
@@ -134,28 +133,6 @@ void build_key_and_options(pi_p4_id_t table_id,
   bool requires_priority = false;
   *mkey = build_key(table_id, match_key, p4info, &requires_priority);
   if (requires_priority) options->__set_priority(match_key->priority);
-}
-
-char *dump_action_data(const pi_p4info_t *p4info, char *data,
-                       pi_p4_id_t action_id, const BmActionData &params) {
-  // unfortunately, I have observed that bmv2 sometimes returns shorter binary
-  // strings than it received (0 padding is removed), which makes things more
-  // complicated and expensive here.
-  size_t num_params;
-  const pi_p4_id_t *param_ids = pi_p4info_action_get_params(
-      p4info, action_id, &num_params);
-  assert(num_params == params.size());
-  for (size_t i = 0; i < num_params; i++) {
-    size_t bitwidth = pi_p4info_action_param_bitwidth(p4info, param_ids[i]);
-    size_t nbytes = (bitwidth + 7) / 8;
-    const auto &p = params.at(i);
-    assert(nbytes >= p.size());
-    size_t diff = nbytes - p.size();
-    std::memset(data, 0, diff);
-    std::memcpy(data + diff, p.data(), p.size());
-    data += nbytes;
-  }
-  return data;
 }
 
 
@@ -280,7 +257,7 @@ void retrieve_entry(const pi_p4info_t *p4info, const std::string &a_name,
 
   table_entry->entry.action_data = adata;
 
-  data_ = dump_action_data(p4info, data_, action_id, action_data);
+  data_ = pibmv2::dump_action_data(p4info, data_, action_id, action_data);
 }
 
 void retrieve_indirect_entry(const pi_p4info_t *p4info, int32_t h,
@@ -621,7 +598,7 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
 
   size_t data_size = 0u;
 
-  data_size += entries.size() * sizeof(uint64_t);  // entry handles
+  data_size += entries.size() * sizeof(s_pi_entry_handle_t);
   // TODO(antonin): really needed of table type is enough?
   data_size += entries.size() * sizeof(s_pi_action_entry_type_t);
   data_size += entries.size() * sizeof(uint32_t);  // for priority
@@ -630,24 +607,10 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
   res->mkey_nbytes = get_match_key_size(p4info, table_id);
   data_size += entries.size() * res->mkey_nbytes;
 
-  struct ADataSize {
-    ADataSize(pi_p4_id_t id, size_t s)
-        : id(id), s(s) { }
-    pi_p4_id_t id;
-    size_t s;
-  };
-
   size_t num_actions;
-  const pi_p4_id_t *action_ids = pi_p4info_table_get_actions(p4info, table_id,
-                                                             &num_actions);
-  std::unordered_map<std::string, ADataSize> action_map;
-  action_map.reserve(num_actions);
-
-  for (size_t i = 0; i < num_actions; i++) {
-    action_map.emplace(
-        std::string(pi_p4info_action_name_from_id(p4info, action_ids[i])),
-        ADataSize(action_ids[i], get_action_data_size(p4info, action_ids[i])));
-  }
+  auto action_ids = pi_p4info_table_get_actions(p4info, table_id, &num_actions);
+  auto action_map = pibmv2::ADataSize::compute_action_sizes(p4info, action_ids,
+                                                            num_actions);
 
   for (const auto &e : entries) {
     switch (e.action_entry.action_type) {
@@ -721,8 +684,8 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
           const auto &adata_size = action_map.at(action_entry.action_name);
           data += emit_p4_id(data, adata_size.id);
           data += emit_uint32(data, adata_size.s);
-          data = dump_action_data(p4info, data, adata_size.id,
-                                  action_entry.action_data);
+          data = pibmv2::dump_action_data(p4info, data, adata_size.id,
+                                          action_entry.action_data);
         }
         break;
       case BmActionEntryType::MBR_HANDLE:

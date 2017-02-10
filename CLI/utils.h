@@ -46,4 +46,6 @@ char *complete_p4_res(const char *text, int len, int state,
 // meant to be used when the completion only involves one resource name
 char *complete_one_name(const char *text, int state, pi_res_type_id_t res_type);
 
+void print_hexstr(const char *bytes, size_t nbytes);
+
 #endif  // PI_CLI_UTILS_H_

@@ -28,6 +28,8 @@ main.c
 
 libpicli_la_SOURCES += \
 act_profs/act_prof_create_member.c \
+act_profs/act_prof_dump.c \
+act_profs/act_prof_groups.c \
 act_profs/act_prof_common.h \
 act_profs/act_prof_common.c
 
