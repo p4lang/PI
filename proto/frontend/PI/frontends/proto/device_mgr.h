@@ -82,6 +82,11 @@ class DeviceMgr {
       p4_id_t action_profile_id,
       std::vector<p4::ActionProfileEntry> *entries) const;
 
+  // this is likely to be temporary, we may not want to hold all the entries in
+  // memory at once; could be replaced by an iterator of some sort
+  Status action_profile_read_all(
+      std::vector<p4::ActionProfileEntry> *entries) const;
+
   // from the perspective of P4, a punted packet is just bytes. Either the
   // controller is responsible for encapsulating the packet in the appropriate
   // header, or the gRPC server is.

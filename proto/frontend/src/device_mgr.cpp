@@ -213,8 +213,24 @@ class DeviceMgrImp {
     return Code::OK;
   }
 
-  Code parse_action_data(p4_id_t table_id, const pi_table_entry_t *pi_entry,
-                         p4::TableEntry *entry) const {
+  Code parse_action_data(const pi_action_data_t *pi_action_data,
+                         p4::Action *action) const {
+    ActionDataReader reader(pi_action_data);
+    auto action_id = reader.get_action_id();
+    action->set_action_id(action_id);
+    size_t num_params;
+    auto param_ids = pi_p4info_action_get_params(
+        p4info.get(), action_id, &num_params);
+    for (size_t j = 0; j < num_params; j++) {
+      auto param = action->add_params();
+      param->set_param_id(param_ids[j]);
+      reader.get_arg(param_ids[j], param->mutable_value());
+    }
+    return Code::OK;
+  }
+
+  Code parse_action_entry(p4_id_t table_id, const pi_table_entry_t *pi_entry,
+                          p4::TableEntry *entry) const {
     if (pi_entry->entry_type == PI_ACTION_ENTRY_TYPE_NONE) return Code::OK;
 
     auto table_action = entry->mutable_action();
@@ -236,20 +252,8 @@ class DeviceMgrImp {
       return Code::OK;
     }
 
-    auto action = table_action->mutable_action();
-    const auto pi_action_data = pi_entry->entry.action_data;
-    ActionDataReader reader(pi_action_data);
-    auto action_id = reader.get_action_id();
-    action->set_action_id(action_id);
-    size_t num_params;
-    auto param_ids = pi_p4info_action_get_params(
-        p4info.get(), action_id, &num_params);
-    for (size_t j = 0; j < num_params; j++) {
-      auto param = action->add_params();
-      param->set_param_id(param_ids[j]);
-      reader.get_arg(param_ids[j], param->mutable_value());
-    }
-    return Code::OK;
+    return parse_action_data(pi_entry->entry.action_data,
+                             table_action->mutable_action());
   }
 
   // TODO(antonin): default entry? direct resources?
@@ -275,7 +279,7 @@ class DeviceMgrImp {
       table_entry.set_table_id(table_id);
       code = parse_match_key(table_id, entry.match_key, &table_entry);
       if (code != Code::OK) break;
-      code = parse_action_data(table_id, &entry.entry, &table_entry);
+      code = parse_action_entry(table_id, &entry.entry, &table_entry);
       if (code != Code::OK) break;
     }
 
@@ -316,13 +320,93 @@ class DeviceMgrImp {
     return status;
   }
 
-  // TODO(antonin)
   Status action_profile_read(
       p4_id_t action_profile_id,
       std::vector<p4::ActionProfileEntry> *entries) const {
-    (void) action_profile_id; (void) entries;
     Status status;
-    status.set_code(Code::UNIMPLEMENTED);
+    Code code;
+
+    auto action_prof_mgr = get_action_prof_mgr(action_profile_id);
+    if (action_prof_mgr == nullptr) {
+      status.set_code(Code::INVALID_ARGUMENT);
+      return status;
+    }
+
+    SessionTemp session;
+    pi_act_prof_fetch_res_t *res;
+    auto pi_status = pi_act_prof_entries_fetch(session.get(), device_id,
+                                               action_profile_id, &res);
+    if (pi_status != PI_STATUS_SUCCESS) {
+      status.set_code(Code::UNKNOWN);
+      return status;
+    }
+
+    auto push_entry = [entries, action_profile_id]()
+        -> p4::ActionProfileEntry& {
+      entries->emplace_back();
+      auto &entry = entries->back();
+      entry.set_action_profile_id(action_profile_id);
+      return entry;
+    };
+
+    auto num_members = pi_act_prof_mbrs_num(res);
+    for (size_t i = 0; i < num_members; i++) {
+      pi_action_data_t *action_data;
+      pi_indirect_handle_t member_h;
+      pi_act_prof_mbrs_next(res, &action_data, &member_h);
+      auto member = push_entry().mutable_member();
+      code = parse_action_data(action_data, member->mutable_action());
+      if (code != Code::OK) break;
+      auto member_id = action_prof_mgr->retrieve_member_id(member_h);
+      if (member_id == nullptr) {
+        code = Code::UNKNOWN;
+        break;
+      }
+      member->set_member_id(*member_id);
+      // TODO(antonin): I just realized that the weight attribute here does not
+      // make sense; I need to bring it up in an issue. The weight is a property
+      // of a member in a group, not of a member in an action profile.
+    }
+
+    auto num_groups = pi_act_prof_grps_num(res);
+    for (size_t i = 0; i < num_groups; i++) {
+      pi_indirect_handle_t *members_h;
+      size_t num;
+      pi_indirect_handle_t group_h;
+      pi_act_prof_grps_next(res, &members_h, &num, &group_h);
+      auto group = push_entry().mutable_group();
+      auto group_id = action_prof_mgr->retrieve_group_id(group_h);
+      if (group_id == nullptr) {
+        code = Code::UNKNOWN;
+        break;
+      }
+      group->set_group_id(*group_id);
+      for (size_t j = 0; j < num; j++) {
+        auto member_id = action_prof_mgr->retrieve_member_id(members_h[j]);
+        if (member_id == nullptr) {
+          code = Code::UNKNOWN;
+          break;
+        }
+        group->add_member_id(*member_id);
+      }
+    }
+
+    pi_act_prof_entries_fetch_done(session.get(), res);
+
+    status.set_code(code);
+    return status;
+  }
+
+  Status action_profile_read_all(
+      std::vector<p4::ActionProfileEntry> *entries) const {
+    Status status;
+    status.set_code(Code::OK);
+    for (auto act_prof_id = pi_p4info_act_prof_begin(p4info.get());
+         act_prof_id != pi_p4info_act_prof_end(p4info.get());
+         act_prof_id = pi_p4info_act_prof_next(p4info.get(), act_prof_id)) {
+      status = action_profile_read(act_prof_id, entries);
+      if (status.code() != Code::OK) break;
+    }
     return status;
   }
 
@@ -690,6 +774,12 @@ DeviceMgr::action_profile_read(
     p4_id_t action_profile_id,
     std::vector<p4::ActionProfileEntry> *entries) const {
   return pimp->action_profile_read(action_profile_id, entries);
+}
+
+Status
+DeviceMgr::action_profile_read_all(
+    std::vector<p4::ActionProfileEntry> *entries) const {
+  return pimp->action_profile_read_all(entries);
 }
 
 Status
