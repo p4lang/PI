@@ -139,6 +139,15 @@ MatchKeyReader::get_ternary(pi_p4_id_t f_id, std::string *key,
   return rc;
 }
 
+error_code_t
+MatchKeyReader::get_valid(pi_p4_id_t f_id, bool *key) const {
+  size_t offset = pi_p4info_table_match_field_offset(
+      match_key->p4info, match_key->table_id, f_id);
+  auto src = match_key->data + offset;
+  *key = (*src != 0);
+  return 0;
+}
+
 int
 MatchKeyReader::get_priority() const {
   return match_key->priority;
@@ -329,6 +338,19 @@ error_code_t
 MatchKey::get_ternary(pi_p4_id_t f_id, std::string *key,
                       std::string *mask) const {
   return reader.get_ternary(f_id, key, mask);
+}
+
+error_code_t
+MatchKey::set_valid(pi_p4_id_t f_id, bool key) {
+  size_t offset = pi_p4info_table_match_field_offset(p4info, table_id, f_id);
+  auto dst = match_key->data + offset;
+  *dst = key ? 1 : 0;
+  return 0;
+}
+
+error_code_t
+MatchKey::get_valid(pi_p4_id_t f_id, bool *key) const {
+  return reader.get_valid(f_id, key);
 }
 
 ActionDataReader::ActionDataReader(const pi_action_data_t *action_data)
