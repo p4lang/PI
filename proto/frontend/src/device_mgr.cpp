@@ -183,6 +183,13 @@ class DeviceMgrImp {
       mf->set_field_id(finfo.field_id);
       switch (finfo.match_type) {
         case PI_P4INFO_MATCH_TYPE_VALID:
+          {
+            auto valid = mf->mutable_valid();
+            bool value;
+            mk_reader.get_valid(finfo.field_id, &value);
+            valid->set_value(value);
+          }
+          break;
         case PI_P4INFO_MATCH_TYPE_EXACT:
           {
             auto exact = mf->mutable_exact();
@@ -494,8 +501,10 @@ class DeviceMgrImp {
                                  mf.ternary().mask().data(),
                                  mf.ternary().value().size());
           break;
-        case p4::FieldMatch::kRange:
         case p4::FieldMatch::kValid:
+          match_key->set_valid(mf.field_id(), mf.valid().value());
+          break;
+        case p4::FieldMatch::kRange:
           return Code::UNIMPLEMENTED;
         default:
           return Code::INVALID_ARGUMENT;

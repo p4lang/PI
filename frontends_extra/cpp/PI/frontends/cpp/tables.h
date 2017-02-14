@@ -45,6 +45,8 @@ class MatchKeyReader {
   error_code_t get_ternary(pi_p4_id_t f_id, std::string *key,
                            std::string *mask) const;
 
+  error_code_t get_valid(pi_p4_id_t f_id, bool *key) const;
+
   int get_priority() const;
 
  private:
@@ -88,6 +90,9 @@ class MatchKey {
 
   error_code_t get_ternary(pi_p4_id_t f_id, std::string *key,
                            std::string *mask) const;
+
+  error_code_t set_valid(pi_p4_id_t f_id, bool key);
+  error_code_t get_valid(pi_p4_id_t f_id, bool *key) const;
 
  private:
   template <typename T>
