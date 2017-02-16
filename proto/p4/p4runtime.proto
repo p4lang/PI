@@ -236,8 +236,6 @@ message ActionProfileEntry {
 message ActionProfileMember {
   uint32 member_id = 1;
   Action action = 2;
-  int32 weight = 3;  // For WCMP
-  uint32 watch = 4;  // For fast-failover, this is TBD
 }
 
 message ActionProfileGroup {
@@ -249,7 +247,13 @@ message ActionProfileGroup {
     FAST_FAILOVER = 2;
   }
   Type type = 2;
-  repeated uint32 member_id = 3;
+  message Member {
+    uint32 member_id = 1;
+    int32 weight = 2;  // For WCMP
+    uint32 watch = 3;  // For fast-failover, this is TBD
+  }
+  repeated Member members = 3;
+  // Maximum size of the group (to help provision resources on the target).
   int32 max_size = 4;
 }
 
