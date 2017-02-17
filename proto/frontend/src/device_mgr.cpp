@@ -394,7 +394,8 @@ class DeviceMgrImp {
           code = Code::UNKNOWN;
           break;
         }
-        group->add_member_id(*member_id);
+        auto member = group->add_members();
+        member->set_member_id(*member_id);
       }
     }
 

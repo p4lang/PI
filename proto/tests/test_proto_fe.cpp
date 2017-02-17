@@ -940,6 +940,11 @@ class ActionProfTest : public DeviceMgrTest {
     group->set_group_id(group_id);
     return update;
   }
+
+  void add_member_to_group(p4::ActionProfileGroup *group, uint32_t member_id) {
+    auto member = group->add_members();
+    member->set_member_id(member_id);
+  }
 };
 
 TEST_F(ActionProfTest, Member) {
@@ -1047,7 +1052,7 @@ TEST_F(ActionProfTest, Group) {
   entry->set_action_profile_id(act_prof_id);
   auto group = entry->mutable_group();
   group->set_group_id(group_id);
-  group->add_member_id(member_id_1);
+  add_member_to_group(group, member_id_1);
   EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, _, _));
   EXPECT_CALL(*mock, action_prof_group_add_member(act_prof_id, _, mbr_h_1));
   status = mgr.action_profile_write(update);
@@ -1061,13 +1066,14 @@ TEST_F(ActionProfTest, Group) {
   ASSERT_EQ(status.code(), Code::OK);
 
   // add a second member
-  group->add_member_id(member_id_2);
+  add_member_to_group(group, member_id_2);
   EXPECT_CALL(*mock, action_prof_group_add_member(act_prof_id, grp_h, mbr_h_2));
   status = mgr.action_profile_write(update);
   ASSERT_EQ(status.code(), Code::OK);
 
   // remove one member
-  group->clear_member_id(); group->add_member_id(member_id_2);
+  group->clear_members();
+  add_member_to_group(group, member_id_2);
   EXPECT_CALL(*mock,
               action_prof_group_remove_member(act_prof_id, grp_h, mbr_h_1));
   status = mgr.action_profile_write(update);
@@ -1075,7 +1081,7 @@ TEST_F(ActionProfTest, Group) {
 
   // delete group, which has one remaining member
   update.set_type(p4::ActionProfileUpdate_Type_DELETE);
-  group->clear_member_id();  // not needed
+  group->clear_members();  // not needed
   EXPECT_CALL(*mock, action_prof_group_delete(act_prof_id, grp_h));
   // we do not expect a call to remove_member, the target is supposed to be able
   // to handle removing non-empty groups
@@ -1106,7 +1112,7 @@ TEST_F(ActionProfTest, Read) {
   entry->set_action_profile_id(act_prof_id);
   auto group = entry->mutable_group();
   group->set_group_id(group_id);
-  group->add_member_id(member_id_1);
+  add_member_to_group(group, member_id_1);
   EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, _, _));
   EXPECT_CALL(*mock, action_prof_group_add_member(act_prof_id, _, mbr_h_1));
   status = mgr.action_profile_write(update_grp);
@@ -1158,7 +1164,7 @@ TEST_F(ActionProfTest, AddBadMemberIdToGroup) {
   auto update = create_base_group_update(group_id);
   auto entry = update.mutable_action_profile_entry();
   auto group = entry->mutable_group();
-  group->add_member_id(bad_member_id);
+  add_member_to_group(group, bad_member_id);
   EXPECT_CALL(*mock, action_prof_group_create(_, _, _));
   EXPECT_CALL(*mock, action_prof_group_add_member(_, _, _)).Times(0);
   status = mgr.action_profile_write(update);
@@ -1198,7 +1204,10 @@ class MatchTableIndirectTest : public DeviceMgrTest {
     entry->set_action_profile_id(act_prof_id);
     auto group = entry->mutable_group();
     group->set_group_id(group_id);
-    for (auto it = first; it != last; ++it) group->add_member_id(*it);
+    for (auto it = first; it != last; ++it) {
+      auto member = group->add_members();
+      member->set_member_id(*it);
+    }
     EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, _, _));
     EXPECT_CALL(*mock, action_prof_group_add_member(act_prof_id, _, _))
         .Times(std::distance(first, last));
