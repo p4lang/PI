@@ -251,8 +251,10 @@ Code
 ActionProfMgr::group_update_members(pi::ActProf &ap,
                                     const p4::ActionProfileGroup &group) {
   Code code;
-  std::vector<Id> new_membership(group.member_id().begin(),
-                                 group.member_id().end());
+  std::vector<Id> new_membership(group.members().size());
+  std::transform(
+      group.members().begin(), group.members().end(), new_membership.begin(),
+      [](const p4::ActionProfileGroup::Member &m) { return m.member_id(); });
   std::sort(new_membership.begin(), new_membership.end());
   auto group_id = group.group_id();
   auto &membership = group_members.at(group_id);
