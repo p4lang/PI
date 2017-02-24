@@ -642,7 +642,7 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
     } else {
       data += emit_uint32(data, 0);
     }
-    for (auto p : e.match_key) {
+    for (const auto &p : e.match_key) {
       switch (p.type) {
         case BmMatchParamType::type::EXACT:
           std::memcpy(data, p.exact.key.data(), p.exact.key.size());
