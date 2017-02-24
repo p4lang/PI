@@ -20,7 +20,7 @@
 
 #include <PI/frontends/proto/device_mgr.h>
 
-#include "pi_server.h"
+#include <PI/proto/pi_server.h>
 
 #include <iostream>
 

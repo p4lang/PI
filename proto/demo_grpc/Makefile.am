@@ -31,7 +31,7 @@ lib_LTLIBRARIES = libpigrpcserver.la
 
 libpigrpcserver_la_SOURCES = pi_server.cpp
 
-include_HEADERS = pi_server.h
+nobase_include_HEADERS = PI/proto/pi_server.h
 
 COMMON_SERVER_LIBS = \
 $(top_builddir)/frontend/libpifeproto.la \
