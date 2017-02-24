@@ -169,6 +169,8 @@ pi_status_t _pi_act_prof_grp_delete(pi_session_handle_t session_handle,
   const pi_p4info_t *p4info = d_info->p4info;
   std::string ap_name(pi_p4info_act_prof_name_from_id(p4info, act_prof_id));
 
+  grp_handle = pibmv2::IndirectHMgr::clear_grp_h(grp_handle);
+
   auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_id);
 
   try {
@@ -195,6 +197,8 @@ pi_status_t _pi_act_prof_grp_add_mbr(pi_session_handle_t session_handle,
   assert(d_info->assigned);
   const pi_p4info_t *p4info = d_info->p4info;
   std::string ap_name(pi_p4info_act_prof_name_from_id(p4info, act_prof_id));
+
+  grp_handle = pibmv2::IndirectHMgr::clear_grp_h(grp_handle);
 
   auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_id);
 
@@ -223,6 +227,8 @@ pi_status_t _pi_act_prof_grp_remove_mbr(pi_session_handle_t session_handle,
   assert(d_info->assigned);
   const pi_p4info_t *p4info = d_info->p4info;
   std::string ap_name(pi_p4info_act_prof_name_from_id(p4info, act_prof_id));
+
+  grp_handle = pibmv2::IndirectHMgr::clear_grp_h(grp_handle);
 
   auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_id);
 
