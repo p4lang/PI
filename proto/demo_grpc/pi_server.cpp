@@ -444,7 +444,7 @@ struct PacketInGenerator {
 };
 
 struct ServerData {
-  std::string server_address{"0.0.0.0:50051"};
+  std::string server_address;
   DeviceService device_service;
   P4RuntimeHybridService pi_service;
   ServerBuilder builder;
@@ -460,8 +460,9 @@ ServerData *server_data;
 
 extern "C" {
 
-void PIGrpcServerRun() {
+void PIGrpcServerRunAddr(const char *server_address) {
   server_data = new ServerData();
+  server_data->server_address = std::string(server_address);
   auto &builder = server_data->builder;
   builder.AddListeningPort(
     server_data->server_address, grpc::InsecureServerCredentials());
@@ -498,6 +499,10 @@ void PIGrpcServerRun() {
   std::signal(SIGUSR2, manage_generator);
 
   // std::thread test_thread(probe, packet_in_mgr);
+}
+
+void PIGrpcServerRun() {
+  PIGrpcServerRunAddr("0.0.0.0:50051");
 }
 
 void PIGrpcServerWait() {

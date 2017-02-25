@@ -29,6 +29,16 @@
 using pi::fe::proto::DeviceMgr;
 
 int main(int argc, char** argv) {
+  const char *server_address = "0.0.0.0:50051";
+  if (argc > 2) {
+    std::cerr << "Two many arguments.\n";
+    std::cerr << "Usage: " << argv[0]
+              << " [address (default " << server_address << ")].\n";
+    return 1;
+  } else if (argc == 2) {
+    server_address = argv[1];
+  }
+
   DeviceMgr::init(256);
 
   auto handler = [](int s) {
@@ -36,7 +46,7 @@ int main(int argc, char** argv) {
     PIGrpcServerShutdown();
   };
 
-  PIGrpcServerRun();
+  PIGrpcServerRunAddr(server_address);
 
   // TODO(antonin): use sigaction?
   std::signal(SIGINT, handler);
