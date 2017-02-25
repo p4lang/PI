@@ -39,3 +39,18 @@ Dumping default entry
 Action entry: set_nhop - 08080808, 0009
 ==========
 ????
+Entry with handle 0 was successfully removed.
+????
+Successfully retrieved 1 entrie(s).
+==========
+TABLE ENTRIES
+**********
+Dumping entry 1
+Match key:
+* ipv4.dstAddr        : LPM       c0000000/8
+Action entry: set_nhop - c0a80001, 0004
+==========
+Dumping default entry
+Action entry: set_nhop - 08080808, 0009
+==========
+????

@@ -493,11 +493,15 @@ pi_status_t _pi_table_entry_delete(pi_session_handle_t session_handle,
   const pi_p4info_t *p4info = d_info->p4info;
 
   std::string t_name(pi_p4info_table_name_from_id(p4info, table_id));
+  auto ap_id = pi_p4info_table_get_implementation(p4info, table_id);
 
   auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_id);
 
   try {
-    client.c->bm_mt_delete_entry(0, t_name, entry_handle);
+    if (ap_id == PI_INVALID_ID)
+      client.c->bm_mt_delete_entry(0, t_name, entry_handle);
+    else
+      client.c->bm_mt_indirect_delete_entry(0, t_name, entry_handle);
   } catch (InvalidTableOperation &ito) {
     const char *what =
         _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
