@@ -24,7 +24,11 @@
 extern "C" {
 #endif
 
+// Start server and bind to default address (0.0.0.0:50051)
 void PIGrpcServerRun();
+// Start server and bind to given address (eg. localhost:1234,
+// 192.168.1.1:31416, [::1]:27182, etc.)
+void PIGrpcServerRunAddr(const char *server_address);
 
 // Wait for the server to shutdown. Note that some other thread must be
 // responsible for shutting down the server for this call to ever return.
