@@ -84,11 +84,8 @@ message Table {
 message Action {
   Preamble preamble = 1;
   message Param {
-    // id is not really needed, as it can be inferred from the action id and the
-    // position of the parameter, but having it could be convenient.
-    int32 id = 1;
-    string name = 2;
-    int32 bitwidth = 3;
+    Preamble preamble = 1;
+    int32 bitwidth = 2;
   }
   repeated Param params = 2;
 }
