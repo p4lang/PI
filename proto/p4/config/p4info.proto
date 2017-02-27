@@ -79,10 +79,10 @@ message Table {
   // 0 (default value) means that the table does not have a const default action
   uint32 const_default_action_id = 4;
   // a table may have a const default action, whose action parameter values can
-  // be changed at runtime. However, in most cases a table's action entry is set
-  // in the P4 program and cannot be changed, which is what this boolean flag
-  // indicates.
-  bool has_const_default_action_entry = 5;
+  // be changed at runtime. However, in most cases the parameters of the default
+  // action are also bound at compile-time and cannot be changed by the runtime,
+  // which is what this boolean flag indicates.
+  bool const_default_action_has_mutable_params = 5;
   // P4 id of the "implementation" for this table (e.g. action profile id); 0
   // (default value) means that the table is a regular (direct) match table. As
   // of today, only action profiles are supported but other table
