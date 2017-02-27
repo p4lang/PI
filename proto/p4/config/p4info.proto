@@ -92,17 +92,22 @@ message Table {
   repeated int32 action_ids = 3;
   // 0 (default value) means that the table does not have a const default action
   int32 const_default_action_id = 4;
+  // a table may have a const default action, whose action parameter values can
+  // be changed at runtime. However, in most cases the parameters of the default
+  // action are also bound at compile-time and cannot be changed by the runtime,
+  // which is what this boolean flag indicates.
+  bool const_default_action_has_mutable_params = 5;
   // P4 id of the "implementation" for this table (e.g. action profile id); 0
   // (default value) means that the table is a regular (direct) match table. As
   // of today, only action profiles are supported but other table
   // implementations may be added in the future
-  int32 implementation_id = 5;
+  int32 implementation_id = 6;
   // ids of the direct resources (if any) attached to this table; for now this
   // includes only direct counters and direct meters, but other resources may be
   // added in the future
-  repeated int32 direct_resource_ids = 6;
-  int64 size = 7;  // number of entries in table
-  bool with_entry_timeout = 8;  // entry ageing is enabled for table
+  repeated int32 direct_resource_ids = 7;
+  int64 size = 8;  // number of entries in table
+  bool with_entry_timeout = 9;  // entry ageing is enabled for table
 }
 
 message Action {
