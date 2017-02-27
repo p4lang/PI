@@ -88,6 +88,7 @@ message Table {
   // added in the future
   repeated int32 direct_resource_ids = 6;
   int64 size = 7;  // number of entries in table
+  bool with_entry_timeout = 8;  // entry ageing is enabled for table
 }
 
 message Action {
