@@ -60,7 +60,8 @@ message HeaderFieldList {
 
 // TODO(antonin): define inside the Table message?
 message MatchField {
-  int32 header_field_id = 1;
+  Preamble preamble = 1;
+  int32 bitwidth = 2;
   enum MatchType {
     UNSPECIFIED = 0;
     VALID = 1;
@@ -69,7 +70,7 @@ message MatchField {
     TERNARY = 4;
     RANGE = 5;
   }
-  MatchType match_type = 2;
+  MatchType match_type = 3;
 }
 
 message Table {
