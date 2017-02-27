@@ -41,9 +41,18 @@ message Preamble {
   // (e.g. direct resource list for a table) without ambiguity. Note that id 0
   // is reserved and means "invalid id".
   int32 id = 1;
-  // fully qualified name of the P4 object
-  string name = 2;
-  repeated string annotations = 3;
+  // fully qualified name of the P4 object, e.g. c1.c2.ipv4_lpm
+  string path = 2;
+  // an alias for the P4 object, probably shorter than its path. The only
+  // constraint is for it to be unique with respect to other P4 objects of the
+  // same type. By default, the compiler uses the shortest suffix of the path
+  // that uniquely indentifies the object. For example if the P4 program
+  // contains two tables with paths s.c1.t and s.c2.t, the default names will
+  // respectively be c1.t and c2.t. The P4 programmer may also override the
+  // default name for any P4 object (TBD). When resolving a P4 object id, an
+  // application should be able to indiscriminately use the path or the name.
+  string name = 3;
+  repeated string annotations = 4;
 }
 
 // TODO(antonin): define inside the Table message?
