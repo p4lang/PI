@@ -18,6 +18,19 @@ import "google/protobuf/any.proto";
 
 // This package and its contents are a work-in-progress.
 
+// !!! This package is undergoing an update an is in a transition state !!!
+// We are using a multi-stage approach as suggested by teverman:
+// 1) Update P4Info to contain a preamble in the match key.  Leave full header
+// field support in place for the time being.  Have p4c generate P4Info with
+// the match key preambles. Commit to github.
+// 2) Pull phase 1 changes to partner repos and adapt P4Info client code to
+// operate with the new match key preamble, and then phase out dependencies on
+// P4Info header fields.  Commit these changes to partner internal repose.
+// 3) Remove header fields from P4Info, which should now no longer be
+// referenced. Commit to github.
+// 4) Pull phase 3 changes and confirm partner code is free of header field
+// dependencies.
+
 package p4.config;
 
 message P4Info {
@@ -57,6 +70,9 @@ message Preamble {
   repeated string annotations = 4;
 }
 
+
+// TODO(antonin): remove HeaderField and HeaderFieldList in stage 3 of p4info
+// update
 message HeaderField {
   Preamble preamble = 1;
   int32 bitwidth = 2;
