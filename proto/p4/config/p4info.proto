@@ -34,16 +34,18 @@ import "google/protobuf/any.proto";
 package p4.config;
 
 message P4Info {
-  repeated HeaderField header_fields = 1;
-  repeated HeaderFieldList header_field_lists = 2;
-  repeated Table tables = 3;
-  repeated Action actions = 4;
-  repeated ActionProfile action_profiles = 5;
-  repeated Counter counters = 6;
-  repeated Meter meters = 7;
+  repeated Table tables = 1;
+  repeated Action actions = 2;
+  repeated ActionProfile action_profiles = 3;
+  repeated Counter counters = 4;
+  repeated Meter meters = 5;
 
   // for extern?
   repeated google.protobuf.Any externs = 100;
+
+  // TODO(antonin): remove in stage 3 of p4info update
+  repeated HeaderField header_fields = 101;
+  repeated HeaderFieldList header_field_lists = 102;
 }
 
 message Preamble {
