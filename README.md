@@ -12,6 +12,7 @@ See [examples] (examples/) for how to use the PI.
 
 - libjudy-dev
 - libreadline-dev
+- libgrpc-dev
 
 ## Building p4runtime.proto
 
