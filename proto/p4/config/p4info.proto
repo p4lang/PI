@@ -124,7 +124,7 @@ message Table {
   // includes only direct counters and direct meters, but other resources may be
   // added in the future
   repeated uint32 direct_resource_ids = 7;
-  int64 size = 8;  // number of entries in table
+  int64 size = 8;  // max number of entries in table
   bool with_entry_timeout = 9;  // entry ageing is enabled for table
 }
 
@@ -148,7 +148,7 @@ message ActionProfile {
   repeated uint32 table_ids = 2;
   // true iff the action profile used dynamic selection
   bool with_selector = 3;
-  int64 size = 4;  // number of entries in action profile
+  int64 size = 4;  // max number of entries in action profile
 }
 
 message Counter {
