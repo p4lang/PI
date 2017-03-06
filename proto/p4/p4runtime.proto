@@ -86,7 +86,7 @@ message WriteResponse {
 
 message ReadRequest {
   uint64 device_id = 1;
-  repeated Entity entities = 1;
+  repeated Entity entities = 2;
 }
 
 message ReadResponse {
@@ -107,7 +107,7 @@ message Update {
 }
 
 message Entity {
-  oneof {
+  oneof entity {
     TableEntry table_entry = 1;
     ActionProfileMember action_profile_member = 2;
     ActionProfileGroup action_profile_group = 3;
@@ -202,8 +202,8 @@ message ActionProfileGroup {
     int32 weight = 2;
     uint32 watch = 3;
   }
-  repeated Member members = 3;
-  int32 max_size = 4;
+  repeated Member members = 4;
+  int32 max_size = 5;
 }
 
 //------------------------------------------------------------------------------
@@ -217,14 +217,14 @@ message ActionProfileGroup {
 // - Direct: All meter cells for given meter_id if table_entry.match is empty.
 message MeterEntry {
   uint32 meter_id = 1;
-  oneof {
+  oneof type {
     // For indirect meter
-    int64 index = 1;
+    int64 index = 2;
     // For direct meter, the associated table entry match.
     // table_entry.action is ignored. Other fields specify the match.
-    TableEntry table_entry = 2;
+    TableEntry table_entry = 3;
   }
-  MeterConfig config = 3;
+  MeterConfig config = 4;
 }
 
 // Modeled as RFC 2698: A Two Rate Three Color Marker (trTCM)
@@ -260,12 +260,12 @@ message CounterEntry {
   uint32 counter_id = 1;
   oneof type {
     // For indirect counter
-    int64 index = 1;
+    int64 index = 2;
     // For direct counter, the associated table entry match.
     // table_entry.action is ignored. Other fields specify the match.
-    TableEntry table_entry = 2;
+    TableEntry table_entry = 3;
   }
-  CounterData data = 3;
+  CounterData data = 4;
 }
 
 message CounterData {
