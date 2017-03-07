@@ -342,6 +342,26 @@ static void __pi_session_cleanup(char *req) {
   send_status(_pi_session_cleanup(sess));
 }
 
+static void __pi_batch_begin(char *req) {
+  printf("RPC: _pi_batch_begin\n");
+
+  pi_session_handle_t sess;
+  req += retrieve_session_handle(req, &sess);
+
+  send_status(_pi_batch_begin(sess));
+}
+
+static void __pi_batch_end(char *req) {
+  printf("RPC: _pi_batch_end\n");
+
+  pi_session_handle_t sess;
+  req += retrieve_session_handle(req, &sess);
+  uint32_t hw_sync;
+  req += retrieve_uint32(req, &hw_sync);
+
+  send_status(_pi_batch_end(sess, (bool)hw_sync));
+}
+
 // src cannot const because we are not copying key data, instead we are pointing
 // directly inside the message buffer
 static size_t retrieve_match_key(char *src, pi_match_key_t *match_key) {
@@ -1064,6 +1084,12 @@ pi_status_t pi_rpc_server_run(const pi_remote_addr_t *remote_addr) {
         break;
       case PI_RPC_SESSION_CLEANUP:
         __pi_session_cleanup(req_);
+        break;
+      case PI_RPC_BATCH_BEGIN:
+        __pi_batch_begin(req_);
+        break;
+      case PI_RPC_BATCH_END:
+        __pi_batch_end(req_);
         break;
       case PI_RPC_TABLE_ENTRY_ADD:
         __pi_table_entry_add(req_);

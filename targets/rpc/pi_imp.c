@@ -347,6 +347,46 @@ pi_status_t _pi_session_cleanup(pi_session_handle_t session_handle) {
   return wait_for_status(req_id);
 }
 
+pi_status_t _pi_batch_begin(pi_session_handle_t session_handle) {
+  if (!state.init) return PI_STATUS_RPC_NOT_INIT;
+
+  typedef struct __attribute__((packed)) {
+    req_hdr_t hdr;
+    s_pi_session_handle_t h;
+  } req_t;
+  req_t req;
+  char *req_ = (char *)&req;
+  pi_rpc_id_t req_id = state.req_id++;
+  req_ += emit_req_hdr(req_, req_id, PI_RPC_BATCH_BEGIN);
+  req_ += emit_session_handle(req_, session_handle);
+
+  int rc = nn_send(state.s, &req, sizeof(req), 0);
+  if (rc != sizeof(req)) return PI_STATUS_RPC_TRANSPORT_ERROR;
+
+  return wait_for_status(req_id);
+}
+
+pi_status_t _pi_batch_end(pi_session_handle_t session_handle, bool hw_sync) {
+  if (!state.init) return PI_STATUS_RPC_NOT_INIT;
+
+  typedef struct __attribute__((packed)) {
+    req_hdr_t hdr;
+    s_pi_session_handle_t h;
+    uint32_t hw_sync;
+  } req_t;
+  req_t req;
+  char *req_ = (char *)&req;
+  pi_rpc_id_t req_id = state.req_id++;
+  req_ += emit_req_hdr(req_, req_id, PI_RPC_BATCH_END);
+  req_ += emit_session_handle(req_, session_handle);
+  req_ += emit_uint32(req_, hw_sync);
+
+  int rc = nn_send(state.s, &req, sizeof(req), 0);
+  if (rc != sizeof(req)) return PI_STATUS_RPC_TRANSPORT_ERROR;
+
+  return wait_for_status(req_id);
+}
+
 pi_status_t _pi_packetout_send(pi_dev_id_t dev_id, const char *pkt,
                                size_t size) {
   if (!state.init) return PI_STATUS_RPC_NOT_INIT;
