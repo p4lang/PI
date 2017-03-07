@@ -169,6 +169,14 @@ pi_status_t pi_session_cleanup(pi_session_handle_t session_handle) {
   return _pi_session_cleanup(session_handle);
 }
 
+pi_status_t pi_batch_begin(pi_session_handle_t session_handle) {
+  return _pi_batch_begin(session_handle);
+}
+
+pi_status_t pi_batch_end(pi_session_handle_t session_handle, bool hw_sync) {
+  return _pi_batch_end(session_handle, hw_sync);
+}
+
 pi_status_t pi_destroy() {
   free(device_mapping);
   device_mapping = NULL;
