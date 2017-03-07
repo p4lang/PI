@@ -72,6 +72,12 @@ service P4Runtime {
   rpc ActionProfileRead(ActionProfileReadRequest)
       returns (stream ActionProfileReadResponse) {
   }
+  // Modifies 'CounterEntry's.
+  rpc CounterWrite(CounterWriteRequest) returns (stream CounterWriteResponse) {
+  }
+  // Reads 'CounterEntry's.
+  rpc CounterRead(CounterReadRequest) returns (stream CounterReadResponse) {
+  }
 }
 
 //------------------------------------------------------------------------------
@@ -266,6 +272,9 @@ message CounterEntry {
     TableEntry table_entry = 3;
   }
   CounterData data = 4;
+
+  // TODO(wmohsin) Remove once partners have moved to new API.
+  repeated CounterCell cells = 5;
 }
 
 message CounterData {
@@ -439,4 +448,42 @@ message ActionProfileEntry {
     ActionProfileMember member = 2;
     ActionProfileGroup group = 3;
   }
+}
+
+//------------------------------------------------------------------------------
+message CounterWriteRequest {
+  uint64 device_id = 1;
+  repeated CounterEntry updates = 2;
+}
+
+message CounterWriteResponse {
+  // Corresponds one-to-one to request.updates, and populated only
+  // if one or more updates didn't succeed.
+  repeated .google.rpc.Status errors = 1;
+}
+
+message CounterReadRequest {
+  uint64 device_id = 1;
+  // Read all counters if empty.
+  // Read all cells of counter.counter_id if counter.cells is empty.
+  // 'CounterEntry' is shared between request and response messages. For
+  // the request, counters.cells.data need not be populated, and is ignored.
+  repeated CounterEntry counters = 2;
+}
+
+message CounterReadResponse {
+  CounterEntry counter_entry = 1;
+  // Set to true if no responses will follow this one.
+  bool complete = 2;
+}
+
+message CounterCell {
+  oneof type {
+    // For indirect counter
+    int64 index = 1;
+    // For direct counter, the associated table entry match.
+    // table_entry.action is ignored. Other fields specify the match.
+    TableEntry table_entry = 2;
+  }
+  CounterData data = 3;
 }
