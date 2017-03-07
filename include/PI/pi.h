@@ -81,6 +81,14 @@ pi_status_t pi_session_init(pi_session_handle_t *session_handle);
 //! Terminate a client session.
 pi_status_t pi_session_cleanup(pi_session_handle_t session_handle);
 
+//! Start a batch of operations for the session. For a given session, there can
+//! only be one ongoing batch operation.
+pi_status_t pi_batch_begin(pi_session_handle_t session_handle);
+
+//! End the ongoing batch for the session. If \p hw_sync is true, the call will
+//! block until all the operations have been committed to hardware.
+pi_status_t pi_batch_end(pi_session_handle_t session_handle, bool hw_sync);
+
 //! PI cleanup function.
 pi_status_t pi_destroy();
 

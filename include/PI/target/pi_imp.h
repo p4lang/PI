@@ -45,6 +45,10 @@ pi_status_t _pi_session_init(pi_session_handle_t *session_handle);
 
 pi_status_t _pi_session_cleanup(pi_session_handle_t session_handle);
 
+pi_status_t _pi_batch_begin(pi_session_handle_t session_handle);
+
+pi_status_t _pi_batch_end(pi_session_handle_t session_handle, bool hw_sync);
+
 pi_status_t _pi_destroy();
 
 pi_status_t _pi_packetout_send(pi_dev_id_t dev_id, const char *pkt,
