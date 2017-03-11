@@ -87,8 +87,10 @@ message HeaderFieldList {
 
 // TODO(antonin): define inside the Table message?
 message MatchField {
-  Preamble preamble = 1;
-  int32 bitwidth = 2;
+  uint32 id = 1;
+  string name = 2;
+  repeated string annotations = 3;
+  int32 bitwidth = 4;
   enum MatchType {
     UNSPECIFIED = 0;
     VALID = 1;
@@ -97,7 +99,7 @@ message MatchField {
     TERNARY = 4;
     RANGE = 5;
   }
-  MatchType match_type = 3;
+  MatchType match_type = 5;
   // TODO(antonin): remove in stage 3 of p4info update
   uint32 header_field_id = 100;
 }
@@ -131,12 +133,10 @@ message Table {
 message Action {
   Preamble preamble = 1;
   message Param {
-    Preamble preamble = 1;
-    int32 bitwidth = 2;
-    // TODO(antonin): remove in stage 3 of p4info update, these are replaced by
-    // Preamble 
-    uint32 id = 100;
-    string name = 101;
+    uint32 id = 1;
+    string name = 2;
+    repeated string annotations = 3;
+    int32 bitwidth = 4;
   }
   repeated Param params = 2;
 }
