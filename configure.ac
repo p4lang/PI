@@ -28,14 +28,14 @@ DX_INIT_DOXYGEN([PI], [$(top_srcdir)/docs/doxygen.cfg], [doxygen-out])
 want_bmv2=no
 AC_ARG_WITH([bmv2],
     AS_HELP_STRING([--with-bmv2], [Build for bmv2 target]),
-    [want_bmv2=yes], [])
+    [want_bmv2="$withval"], [])
 
 AM_CONDITIONAL([WITH_BMV2], [test "$want_bmv2" = yes])
 
 want_fe_cpp=no
 AC_ARG_WITH([fe_cpp],
     AS_HELP_STRING([--with-fe-cpp], [Build with C++ frontend]),
-    [want_fe_cpp=yes], [])
+    [want_fe_cpp="$withval"], [])
 
 AC_ARG_WITH([proto],
     AS_HELP_STRING([--with-proto],
