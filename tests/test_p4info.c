@@ -20,7 +20,6 @@
 
 #include "PI/p4info.h"
 #include "p4info/actions_int.h"
-#include "p4info/fields_int.h"
 #include "p4info/p4info_struct.h"
 #include "p4info/tables_int.h"
 #include "read_file.h"
@@ -41,127 +40,6 @@ TEST_GROUP(P4Info);
 TEST_SETUP(P4Info) { pi_add_config(NULL, PI_CONFIG_TYPE_NONE, &p4info); }
 
 TEST_TEAR_DOWN(P4Info) { pi_destroy_config(p4info); }
-
-TEST(P4Info, Fields) {
-  const size_t num_fields = 3;
-  const pi_p4_id_t f0 = pi_make_field_id(0), f1 = pi_make_field_id(1),
-                   f2 = pi_make_field_id(2);
-  const size_t bw0 = 11, bw1 = 16, bw2 = 128;
-  const char *n0 = "f0", *n1 = "f1", *n2 = "f2";
-
-  pi_p4info_field_init(p4info, num_fields);
-
-  // adding them out of order on purpose
-  pi_p4info_field_add(p4info, f1, n1, bw1);
-  pi_p4info_field_add(p4info, f0, n0, bw0);
-  pi_p4info_field_add(p4info, f2, n2, bw2);
-
-  TEST_ASSERT_EQUAL_UINT(f0, pi_p4info_field_id_from_name(p4info, n0));
-  TEST_ASSERT_EQUAL_UINT(f1, pi_p4info_field_id_from_name(p4info, n1));
-  TEST_ASSERT_EQUAL_UINT(f2, pi_p4info_field_id_from_name(p4info, n2));
-
-  TEST_ASSERT_EQUAL_STRING(n0, pi_p4info_field_name_from_id(p4info, f0));
-  TEST_ASSERT_EQUAL_STRING(n1, pi_p4info_field_name_from_id(p4info, f1));
-  TEST_ASSERT_EQUAL_STRING(n2, pi_p4info_field_name_from_id(p4info, f2));
-
-  TEST_ASSERT_EQUAL_UINT(bw0, pi_p4info_field_bitwidth(p4info, f0));
-  TEST_ASSERT_EQUAL_UINT(bw1, pi_p4info_field_bitwidth(p4info, f1));
-  TEST_ASSERT_EQUAL_UINT(bw2, pi_p4info_field_bitwidth(p4info, f2));
-}
-
-TEST(P4Info, FieldsInvalidId) {
-  const size_t num_fields = 1;
-  pi_p4info_field_init(p4info, num_fields);
-  TEST_ASSERT_EQUAL_UINT(PI_INVALID_ID,
-                         pi_p4info_field_id_from_name(p4info, "bad_name"));
-}
-
-TEST(P4Info, FieldsByte0Mask) {
-  const size_t num_fields = 128;
-
-  pi_p4info_field_init(p4info, num_fields);
-
-  for (size_t i = 0; i < num_fields; i++) {
-    char name[16];
-    snprintf(name, sizeof(name), "f%zu", i);
-    pi_p4info_field_add(p4info, pi_make_field_id(i), name, i + 1);
-  }
-
-  TEST_ASSERT_EQUAL_HEX8(
-      0x01, pi_p4info_field_byte0_mask(p4info, pi_make_field_id(0)));
-  TEST_ASSERT_EQUAL_HEX8(
-      0x03, pi_p4info_field_byte0_mask(p4info, pi_make_field_id(1)));
-  TEST_ASSERT_EQUAL_HEX8(
-      0x07, pi_p4info_field_byte0_mask(p4info, pi_make_field_id(2)));
-  TEST_ASSERT_EQUAL_HEX8(
-      0x0f, pi_p4info_field_byte0_mask(p4info, pi_make_field_id(3)));
-  TEST_ASSERT_EQUAL_HEX8(
-      0x1f, pi_p4info_field_byte0_mask(p4info, pi_make_field_id(4)));
-  TEST_ASSERT_EQUAL_HEX8(
-      0x3f, pi_p4info_field_byte0_mask(p4info, pi_make_field_id(5)));
-  TEST_ASSERT_EQUAL_HEX8(
-      0x7f, pi_p4info_field_byte0_mask(p4info, pi_make_field_id(6)));
-  TEST_ASSERT_EQUAL_HEX8(
-      0xff, pi_p4info_field_byte0_mask(p4info, pi_make_field_id(7)));
-  for (size_t i = 8; i < num_fields; i++) {
-    char mask;
-    size_t bitwidth = i + 1;
-    mask = (bitwidth % 8 == 0) ? 0xff : ((1 << (bitwidth % 8)) - 1);
-    TEST_ASSERT_EQUAL_HEX8(
-        mask, pi_p4info_field_byte0_mask(p4info, pi_make_field_id(i)));
-  }
-}
-
-TEST(P4Info, FieldsStress) {
-  const size_t num_fields = 4096;
-
-  pi_p4info_field_init(p4info, num_fields);
-
-  char name[16];
-  for (size_t i = 0; i < num_fields; i++) {
-    snprintf(name, sizeof(name), "f%zu", i);
-    pi_p4info_field_add(p4info, pi_make_field_id(i), name, 1 + (i % 128));
-  }
-
-  for (size_t i = 0; i < num_fields; i++) {
-    snprintf(name, sizeof(name), "f%zu", i);
-    TEST_ASSERT_EQUAL_UINT(pi_make_field_id(i),
-                           pi_p4info_field_id_from_name(p4info, name));
-  }
-
-  for (size_t i = 0; i < num_fields; i++) {
-    snprintf(name, sizeof(name), "f%zu", i);
-    TEST_ASSERT_EQUAL_STRING(
-        name, pi_p4info_field_name_from_id(p4info, pi_make_field_id(i)));
-  }
-
-  for (size_t i = 0; i < num_fields; i++) {
-    TEST_ASSERT_EQUAL_UINT(
-        1 + (i % 128), pi_p4info_field_bitwidth(p4info, pi_make_field_id(i)));
-  }
-}
-
-TEST(P4Info, FieldsIterator) {
-  const size_t num_fields = 4096;
-
-  pi_p4info_field_init(p4info, num_fields);
-
-  char name[16];
-  for (size_t i = 0; i < num_fields; i++) {
-    snprintf(name, sizeof(name), "f%zu", i);
-    pi_p4info_field_add(p4info, pi_make_field_id(i), name, 1 + (i % 128));
-  }
-
-  size_t cnt = 0;
-  for (pi_p4_id_t id = pi_p4info_field_begin(p4info);
-       id != pi_p4info_field_end(p4info);
-       id = pi_p4info_field_next(p4info, id)) {
-    snprintf(name, sizeof(name), "f%zu", cnt++);
-    TEST_ASSERT_EQUAL_UINT(id, pi_p4info_field_id_from_name(p4info, name));
-  }
-
-  TEST_ASSERT_EQUAL_UINT(num_fields, cnt);
-}
 
 typedef struct {
   pi_p4_id_t id;
@@ -363,22 +241,14 @@ void gen_rand_ids(pi_p4_id_t *ids, pi_p4_id_t max, size_t num) {
 }
 
 TEST(P4Info, TablesStress) {
-  // tables are more complex than fields & actions, because tables reference
-  // actions and fields
-  size_t num_fields = 4096;
   size_t num_actions = 1024;
   size_t num_tables = 256;
-  pi_p4info_field_init(p4info, num_fields);
   pi_p4info_action_init(p4info, num_actions);
   pi_p4info_table_init(p4info, num_tables);
 
   tdata_t *tdata = calloc(num_tables, sizeof(tdata_t));
 
   char name[16];
-  for (size_t i = 0; i < num_fields; i++) {
-    snprintf(name, sizeof(name), "f%zu", i);
-    pi_p4info_field_add(p4info, pi_make_field_id(i), name, 1 + i % 128);
-  }
   for (size_t i = 0; i < num_actions; i++) {
     snprintf(name, sizeof(name), "a%zu", i);
     // no params to make things easier
@@ -396,11 +266,9 @@ TEST(P4Info, TablesStress) {
     pi_p4info_table_add(p4info, tdata[i].id, tdata[i].name,
                         tdata[i].num_match_fields, tdata[i].num_actions,
                         DEFAULT_TABLE_SIZE);
-    gen_rand_ids(tdata[i].match_fields, num_fields, tdata[i].num_match_fields);
     for (size_t j = 0; j < tdata[i].num_match_fields; j++) {
-      pi_p4_id_t id = tdata[i].match_fields[j];
+      pi_p4_id_t id = j;
       snprintf(name, sizeof(name), "f%zu", (size_t)id);
-      id = pi_make_field_id(id);
       tdata[i].match_fields[j] = id;
       pi_p4info_match_type_t match_type = (i + j) % PI_P4INFO_MATCH_TYPE_END;
       size_t bw =
@@ -438,31 +306,32 @@ TEST(P4Info, TablesStress) {
       TEST_ASSERT_TRUE(pi_p4info_table_is_match_field_of(
           p4info, tdata[i].id, tdata[i].match_fields[j]));
     }
-    TEST_ASSERT_FALSE(
-        pi_p4info_table_is_match_field_of(p4info, tdata[i].id, num_fields + 1));
+    TEST_ASSERT_FALSE(pi_p4info_table_is_match_field_of(
+        p4info, tdata[i].id, tdata[i].num_match_fields));
     for (size_t j = 0; j < tdata[i].num_match_fields; j++) {
       TEST_ASSERT_EQUAL_UINT(
           j, pi_p4info_table_match_field_index(p4info, tdata[i].id,
                                                tdata[i].match_fields[j]));
     }
-    TEST_ASSERT_EQUAL_UINT(
-        (size_t)-1,
-        pi_p4info_table_match_field_index(p4info, tdata[i].id, num_fields + 1));
+    TEST_ASSERT_EQUAL_UINT((size_t)-1,
+                           pi_p4info_table_match_field_index(
+                               p4info, tdata[i].id, tdata[i].num_match_fields));
     size_t offset = 0;
     for (size_t j = 0; j < tdata[i].num_match_fields; j++) {
-      pi_p4info_match_field_info_t finfo;
-      pi_p4info_table_match_field_info(p4info, tdata[i].id, j, &finfo);
-      TEST_ASSERT_EQUAL_UINT(tdata[i].match_fields[j], finfo.field_id);
+      const pi_p4info_match_field_info_t *finfo =
+          pi_p4info_table_match_field_info(p4info, tdata[i].id, j);
+      TEST_ASSERT_EQUAL_UINT(tdata[i].match_fields[j], finfo->mf_id);
       TEST_ASSERT_EQUAL_STRING(
-          pi_p4info_field_name_from_id(p4info, tdata[i].match_fields[j]),
-          finfo.name);
+          pi_p4info_table_match_field_name_from_id(p4info, tdata[i].id,
+                                                   tdata[i].match_fields[j]),
+          finfo->name);
       pi_p4info_match_type_t match_type = (i + j) % PI_P4INFO_MATCH_TYPE_END;
       size_t bw =
           (match_type == PI_P4INFO_MATCH_TYPE_VALID) ? 1 : (1 + j % 128);
-      TEST_ASSERT_EQUAL_INT(match_type, finfo.match_type);
-      TEST_ASSERT_EQUAL_UINT(bw, finfo.bitwidth);
+      TEST_ASSERT_EQUAL_INT(match_type, finfo->match_type);
+      TEST_ASSERT_EQUAL_UINT(bw, finfo->bitwidth);
       TEST_ASSERT_EQUAL_UINT(offset, pi_p4info_table_match_field_offset(
-                                         p4info, tdata[i].id, finfo.field_id));
+                                         p4info, tdata[i].id, finfo->mf_id));
       offset += get_match_key_size_one_field(match_type, bw);
     }
     TEST_ASSERT_EQUAL_UINT(offset,
@@ -554,11 +423,6 @@ TEST(P4Info, Serialize) {
 }
 
 TEST_GROUP_RUNNER(P4Info) {
-  RUN_TEST_CASE(P4Info, Fields);
-  RUN_TEST_CASE(P4Info, FieldsInvalidId);
-  RUN_TEST_CASE(P4Info, FieldsByte0Mask);
-  RUN_TEST_CASE(P4Info, FieldsStress);
-  RUN_TEST_CASE(P4Info, FieldsIterator);
   RUN_TEST_CASE(P4Info, Actions);
   RUN_TEST_CASE(P4Info, ActionsInvalidId);
   RUN_TEST_CASE(P4Info, ActionsStress);

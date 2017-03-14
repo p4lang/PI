@@ -29,25 +29,16 @@
 
 #include "common.h"
 
+// IMPORTANT: we temporary disabled support for this because of a p4info update
+
 namespace {
 
 // TODO(antonin): support for multi-devices
 bm_apps::LearnListener *learn_listener = NULL;
 
-size_t get_learn_sample_size(const pi_p4info_t *p4info,
-                             pi_p4_id_t field_list_id) {
-  size_t num_fields = 0;
-  const pi_p4_id_t *fids = pi_p4info_field_list_get_fields(
-      p4info, field_list_id, &num_fields);
-  size_t s = 0;
-  for (size_t i = 0; i < num_fields; i++) {
-    s += (pi_p4info_field_bitwidth(p4info, fids[i]) + 7) / 8;
-  }
-  return s;
-}
-
 void cb_fn(const bm_apps::LearnListener::MsgInfo &msg_info,
            const char *data, void *cookie) {
+  (void)data;
   (void)cookie;
   pibmv2::device_info_t *d_info = pibmv2::get_device_info(msg_info.switch_id);
   if (!d_info) {
@@ -56,16 +47,16 @@ void cb_fn(const bm_apps::LearnListener::MsgInfo &msg_info,
   }
   const pi_p4info_t *p4info = d_info->p4info;
   assert(p4info);
-  pi_learn_msg_t *msg = new pi_learn_msg_t;
-  msg->dev_tgt.dev_id = msg_info.switch_id;
-  msg->dev_tgt.dev_pipe_mask = msg_info.cxt_id;
-  // total hack for now
-  msg->learn_id = (PI_FIELD_LIST_ID << 24) | (msg_info.list_id - 1);
-  msg->msg_id = msg_info.buffer_id;
-  msg->num_entries = msg_info.num_samples;
-  msg->entry_size = get_learn_sample_size(p4info, msg->learn_id);
-  msg->entries = const_cast<char *>(data);  // ouch
-  pi_learn_new_msg(msg);
+  // pi_learn_msg_t *msg = new pi_learn_msg_t;
+  // msg->dev_tgt.dev_id = msg_info.switch_id;
+  // msg->dev_tgt.dev_pipe_mask = msg_info.cxt_id;
+  // // total hack for now
+  // msg->learn_id = (PI_FIELD_LIST_ID << 24) | (msg_info.list_id - 1);
+  // msg->msg_id = msg_info.buffer_id;
+  // msg->num_entries = msg_info.num_samples;
+  // msg->entry_size = get_learn_sample_size(p4info, msg->learn_id);
+  // msg->entries = const_cast<char *>(data);  // ouch
+  // pi_learn_new_msg(msg);
 }
 
 }  // namespace

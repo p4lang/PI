@@ -61,13 +61,12 @@ std::vector<BmMatchParam> build_key(pi_p4_id_t table_id,
 
   size_t num_match_fields = pi_p4info_table_num_match_fields(p4info, table_id);
   for (size_t i = 0; i < num_match_fields; i++) {
-    pi_p4info_match_field_info_t finfo;
-    pi_p4info_table_match_field_info(p4info, table_id, i, &finfo);
-    size_t f_bw = finfo.bitwidth;
+    auto finfo = pi_p4info_table_match_field_info(p4info, table_id, i);
+    size_t f_bw = finfo->bitwidth;
     size_t nbytes = (f_bw + 7) / 8;
     uint32_t pLen;
 
-    switch (finfo.match_type) {
+    switch (finfo->match_type) {
       case PI_P4INFO_MATCH_TYPE_VALID:
         param_valid.key = (*mk_data != 0);
         mk_data++;

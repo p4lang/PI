@@ -74,30 +74,6 @@ void read_actions(const p4::config::P4Info &p4info_proto, pi_p4info_t *p4info) {
   }
 }
 
-void read_fields(const p4::config::P4Info &p4info_proto, pi_p4info_t *p4info) {
-  const auto &header_fields = p4info_proto.header_fields();
-  pi_p4info_field_init(p4info, header_fields.size());
-  for (const auto &field : header_fields) {
-    const auto &pre = field.preamble();
-    pi_p4info_field_add(p4info, pre.id(), pre.name().c_str(), field.bitwidth());
-    import_annotations(pre, p4info);
-  }
-}
-
-void read_field_lists(const p4::config::P4Info &p4info_proto,
-                      pi_p4info_t *p4info) {
-  const auto &header_field_lists = p4info_proto.header_field_lists();
-  pi_p4info_field_list_init(p4info, header_field_lists.size());
-  for (const auto &field_list : p4info_proto.header_field_lists()) {
-    const auto &pre = field_list.preamble();
-    pi_p4info_field_list_add(p4info, pre.id(), pre.name().c_str(),
-                             field_list.header_field_ids().size());
-    for (const auto field_id : field_list.header_field_ids())
-      pi_p4info_field_list_add_field(p4info, pre.id(), field_id);
-    import_annotations(pre, p4info);
-  }
-}
-
 void read_tables(const p4::config::P4Info &p4info_proto, pi_p4info_t *p4info) {
   const auto &tables = p4info_proto.tables();
   pi_p4info_table_init(p4info, tables.size());
@@ -125,10 +101,9 @@ void read_tables(const p4::config::P4Info &p4info_proto, pi_p4info_t *p4info) {
         }
       };
 
-      auto mf_id = mf.header_field_id();
       pi_p4info_table_add_match_field(
-          p4info, pre.id(), mf_id, pi_p4info_field_name_from_id(p4info, mf_id),
-          match_type_convert(), pi_p4info_field_bitwidth(p4info, mf_id));
+          p4info, pre.id(), mf.id(), mf.name().c_str(), match_type_convert(),
+          mf.bitwidth());
     }
 
     for (const auto action_id : table.action_ids())
@@ -236,12 +211,10 @@ bool p4info_proto_reader(const p4::config::P4Info &p4info_proto,
   pi_empty_config(p4info);
   try {
     read_actions(p4info_proto, *p4info);
-    read_fields(p4info_proto, *p4info);
     read_tables(p4info_proto, *p4info);
     read_act_profs(p4info_proto, *p4info);
     read_counters(p4info_proto, *p4info);
     read_meters(p4info_proto, *p4info);
-    read_field_lists(p4info_proto, *p4info);
   } catch (const read_proto_exception &e) {
     std::cerr << e.what() << "\n";
     return false;
@@ -286,33 +259,6 @@ void p4info_serialize_actions(const pi_p4info_t *p4info,
   }
 }
 
-void p4info_serialize_fields(const pi_p4info_t *p4info,
-                             p4::config::P4Info *p4info_proto) {
-  for (auto id = pi_p4info_field_begin(p4info);
-       id != pi_p4info_field_end(p4info);
-       id = pi_p4info_field_next(p4info, id)) {
-    auto header_field = p4info_proto->add_header_fields();
-    auto name = pi_p4info_field_name_from_id(p4info, id);
-    set_preamble(header_field, id, name, p4info);
-    header_field->set_bitwidth(pi_p4info_field_bitwidth(p4info, id));
-  }
-}
-
-void p4info_serialize_field_lists(const pi_p4info_t *p4info,
-                                  p4::config::P4Info *p4info_proto) {
-  for (auto id = pi_p4info_field_list_begin(p4info);
-       id != pi_p4info_field_list_end(p4info);
-       id = pi_p4info_field_list_next(p4info, id)) {
-    auto header_field_list = p4info_proto->add_header_field_lists();
-    auto name = pi_p4info_field_list_name_from_id(p4info, id);
-    set_preamble(header_field_list, id, name, p4info);
-    size_t num_fields;
-    auto field_ids = pi_p4info_field_list_get_fields(p4info, id, &num_fields);
-    for (size_t i = 0; i < num_fields; i++)
-      header_field_list->add_header_field_ids(field_ids[i]);
-  }
-}
-
 void p4info_serialize_tables(const pi_p4info_t *p4info,
                              p4::config::P4Info *p4info_proto) {
   for (auto id = pi_p4info_table_begin(p4info);
@@ -327,11 +273,12 @@ void p4info_serialize_tables(const pi_p4info_t *p4info,
                                                             &num_match_fields);
     for (size_t i = 0; i < num_match_fields; i++) {
       auto mf = table->add_match_fields();
-      mf->set_header_field_id(match_field_ids[i]);
-      pi_p4info_match_field_info_t info;
-      pi_p4info_table_match_field_info(p4info, id, i, &info);
-      auto match_type_convert = [&info]() {
-        switch (info.match_type) {
+      auto mf_id = match_field_ids[i];
+      auto info = pi_p4info_table_match_field_info(p4info, id, i);
+      assert(mf_id == info->mf_id);
+      mf->set_id(mf_id);
+      auto match_type_convert = [info]() {
+        switch (info->match_type) {
           case PI_P4INFO_MATCH_TYPE_VALID:
             return p4::config::MatchField_MatchType_VALID;
           case PI_P4INFO_MATCH_TYPE_EXACT:
@@ -347,6 +294,8 @@ void p4info_serialize_tables(const pi_p4info_t *p4info,
         }
       };
       mf->set_match_type(match_type_convert());
+      mf->set_name(info->name);
+      mf->set_bitwidth(info->bitwidth);
     }
 
     size_t num_actions;
@@ -455,8 +404,6 @@ void p4info_serialize_meters(const pi_p4info_t *p4info,
 p4::config::P4Info p4info_serialize_to_proto(const pi_p4info_t *p4info) {
   p4::config::P4Info p4info_proto;
   p4info_serialize_actions(p4info, &p4info_proto);
-  p4info_serialize_fields(p4info, &p4info_proto);
-  p4info_serialize_field_lists(p4info, &p4info_proto);
   p4info_serialize_tables(p4info, &p4info_proto);
   p4info_serialize_act_profs(p4info, &p4info_proto);
   p4info_serialize_counters(p4info, &p4info_proto);

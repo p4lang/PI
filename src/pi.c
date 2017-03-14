@@ -210,9 +210,9 @@ size_t get_match_key_size(const pi_p4info_t *p4info, pi_p4_id_t table_id) {
   size_t s = 0;
   size_t num_match_fields = pi_p4info_table_num_match_fields(p4info, table_id);
   for (size_t i = 0; i < num_match_fields; i++) {
-    pi_p4info_match_field_info_t finfo;
-    pi_p4info_table_match_field_info(p4info, table_id, i, &finfo);
-    s += get_match_key_size_one_field(finfo.match_type, finfo.bitwidth);
+    const pi_p4info_match_field_info_t *finfo =
+        pi_p4info_table_match_field_info(p4info, table_id, i);
+    s += get_match_key_size_one_field(finfo->match_type, finfo->bitwidth);
   }
   return s;
 }

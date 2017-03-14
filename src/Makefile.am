@@ -7,8 +7,6 @@ AM_CPPFLAGS += \
 libpip4info_la_SOURCES = \
 p4info/actions.c \
 p4info/actions_int.h \
-p4info/fields.c \
-p4info/fields_int.h \
 p4info/p4info_struct.h \
 p4info/p4info_struct.c \
 p4info/tables.c \
@@ -19,8 +17,6 @@ p4info/counters.c \
 p4info/counters_int.h \
 p4info/meters.c \
 p4info/meters_int.h \
-p4info/field_list.c \
-p4info/field_list_int.h \
 config_readers/bmv2_json_reader.c \
 config_readers/native_json_reader.c \
 config_readers/readers.h \

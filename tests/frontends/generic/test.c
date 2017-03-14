@@ -22,7 +22,6 @@
 #include "PI/int//serialize.h"
 #include "PI/p4info.h"
 #include "p4info/actions_int.h"
-#include "p4info/fields_int.h"
 #include "p4info/p4info_struct.h"
 #include "p4info/tables_int.h"
 
@@ -53,19 +52,16 @@ TEST_TEAR_DOWN(FrontendGeneric_OneExact) {}
 static void p4info_init(size_t bitwidth, pi_p4info_match_type_t match_type) {
   pi_add_config(NULL, PI_CONFIG_TYPE_NONE, &p4info);
 
-  pi_p4info_field_init(p4info, num_fields);
   pi_p4info_action_init(p4info, num_actions);
   pi_p4info_table_init(p4info, num_tables);
 
-  fid = pi_make_field_id(0);
-  pi_p4info_field_add(p4info, fid, "f0", bitwidth);
   aid = pi_make_action_id(0);
   pi_p4info_action_add(p4info, aid, "a0", 1);
   pid = pi_make_action_param_id(aid, 0);
   pi_p4info_action_add_param(p4info, aid, pid, "p0_0", bitwidth);
   tid = pi_make_table_id(0);
   pi_p4info_table_add(p4info, tid, "t0", 1, 1, DEFAULT_TABLE_SIZE);
-  pi_p4info_table_add_match_field(p4info, tid, fid, "f0", match_type, bitwidth);
+  pi_p4info_table_add_match_field(p4info, tid, 0, "f0", match_type, bitwidth);
   pi_p4info_table_add_action(p4info, tid, aid);
 
   pi_match_key_allocate(p4info, tid, &mkey);
@@ -88,7 +84,7 @@ TEST(FrontendGeneric_OneExact, U8) {
       uint8_t test_v = v;
       pi_netv_t fv;
       pi_match_key_init(mkey);
-      rc = pi_getnetv_u8(p4info, fid, test_v, &fv);
+      rc = pi_getnetv_u8(p4info, tid, fid, test_v, &fv);
       TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
       rc = pi_match_key_exact_set(mkey, &fv);
       TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
@@ -109,7 +105,7 @@ TEST(FrontendGeneric_OneExact, U128) {
   pi_netv_t fv;
   p4info_init(bitwidth, PI_P4INFO_MATCH_TYPE_EXACT);
   pi_match_key_init(mkey);
-  rc = pi_getnetv_ptr(p4info, fid, test_v, sizeof(test_v), &fv);
+  rc = pi_getnetv_ptr(p4info, tid, fid, test_v, sizeof(test_v), &fv);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
   rc = pi_match_key_exact_set(mkey, &fv);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
@@ -140,7 +136,7 @@ TEST(FrontendGeneric_OneLPM, U8) {
   uint8_t test_v = 0x5b;
   pi_netv_t fv;
   pi_match_key_init(mkey);
-  rc = pi_getnetv_u8(p4info, fid, test_v, &fv);
+  rc = pi_getnetv_u8(p4info, tid, fid, test_v, &fv);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
   rc = pi_match_key_lpm_set(mkey, &fv, prefix_length);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
@@ -175,9 +171,9 @@ TEST(FrontendGeneric_OneTernary, U8) {
   uint8_t test_mask = 0x72;
   pi_netv_t fv, mask;
   pi_match_key_init(mkey);
-  rc = pi_getnetv_u8(p4info, fid, test_v, &fv);
+  rc = pi_getnetv_u8(p4info, tid, fid, test_v, &fv);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
-  rc = pi_getnetv_u8(p4info, fid, test_mask, &mask);
+  rc = pi_getnetv_u8(p4info, tid, fid, test_mask, &mask);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
   rc = pi_match_key_ternary_set(mkey, &fv, &mask);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
@@ -212,7 +208,7 @@ TEST(FrontendGeneric_Adata, U8) {
       uint8_t test_v = v;
       pi_netv_t argv;
       pi_action_data_init(adata);
-      rc = pi_getnetv_u8(p4info, pid, test_v, &argv);
+      rc = pi_getnetv_u8(p4info, aid, pid, test_v, &argv);
       TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
       rc = pi_action_data_arg_set(adata, &argv);
       TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
@@ -233,7 +229,7 @@ TEST(FrontendGeneric_Adata, U128) {
   pi_netv_t argv;
   p4info_init(bitwidth, PI_P4INFO_MATCH_TYPE_EXACT);
   pi_action_data_init(adata);
-  rc = pi_getnetv_ptr(p4info, pid, test_v, sizeof(test_v), &argv);
+  rc = pi_getnetv_ptr(p4info, aid, pid, test_v, sizeof(test_v), &argv);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
   rc = pi_action_data_arg_set(adata, &argv);
   TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);

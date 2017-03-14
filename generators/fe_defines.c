@@ -174,19 +174,6 @@ int main(int argc, char *const argv[]) {
   sprintf(prefix, "PI_%s", p4_name);
   to_upper(prefix);
 
-  fprintf(gen_fptr, "// FIELDS\n\n");
-  for (pi_p4_id_t id = pi_p4info_field_begin(p4info);
-       id != pi_p4info_field_end(p4info);
-       id = pi_p4info_field_next(p4info, id)) {
-    const char *name = pi_p4info_field_name_from_id(p4info, id);
-    // quick and dirty
-    char *name_ = strdup(name);
-    sanitize_name(name_);
-    fprintf(gen_fptr, "#define %s_FIELD_%s %#x\n", prefix, name_, id);
-    free(name_);
-  }
-  fprintf(gen_fptr, "\n\n");
-
   fprintf(gen_fptr, "// ACTIONS AND ACTION PARAMETERS\n\n");
   for (pi_p4_id_t id = pi_p4info_action_begin(p4info);
        id != pi_p4info_action_end(p4info);
@@ -213,7 +200,7 @@ int main(int argc, char *const argv[]) {
   }
   fprintf(gen_fptr, "\n");
 
-  fprintf(gen_fptr, "// TABLES\n\n");
+  fprintf(gen_fptr, "// TABLES AND MATCH FIELDS\n\n");
   for (pi_p4_id_t id = pi_p4info_table_begin(p4info);
        id != pi_p4info_table_end(p4info);
        id = pi_p4info_table_next(p4info, id)) {
@@ -222,9 +209,23 @@ int main(int argc, char *const argv[]) {
     char *name_ = strdup(name);
     sanitize_name(name_);
     fprintf(gen_fptr, "#define %s_TABLE_%s %#x\n", prefix, name_, id);
+    size_t num_match_fields = 0;
+    const pi_p4_id_t *match_fields =
+        pi_p4info_table_get_match_fields(p4info, id, &num_match_fields);
+    for (size_t i = 0; i < num_match_fields; i++) {
+      pi_p4_id_t mf_id = match_fields[i];
+      const char *mf_name =
+          pi_p4info_table_match_field_name_from_id(p4info, id, mf_id);
+      char *mf_name_ = strdup(mf_name);
+      sanitize_name(mf_name_);
+      fprintf(gen_fptr, "#define %s_MF_%s_%s %#x\n", prefix, name_, mf_name_,
+              mf_id);
+      free(mf_name_);
+    }
     free(name_);
+    fprintf(gen_fptr, "\n");
   }
-  fprintf(gen_fptr, "\n\n");
+  fprintf(gen_fptr, "\n");
 
   fprintf(gen_fptr, "#endif  // %s\n", inc_guard);
 

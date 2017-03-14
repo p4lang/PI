@@ -39,8 +39,6 @@ enum class P4ResourceType {
   ACTION = 0x01,
   TABLE = 0x02,
   ACTION_PARAM = 0x03,
-  FIELD = 0x04,
-  FIELD_LIST = 0x05,
   ACTION_PROFILE = 0x11,
   COUNTER = 0x12,
   METER = 0x13,

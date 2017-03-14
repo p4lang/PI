@@ -39,7 +39,7 @@ int add_route(uint32_t prefix, int pLen, uint32_t nhop, uint16_t port,
 
   // match key
   pi::MatchKey match_key(p4info, PI_P4_TABLE_IPV4_LPM);
-  rc |= match_key.set_lpm(PI_P4_FIELD_IPV4_DSTADDR, prefix, pLen);
+  rc |= match_key.set_lpm(PI_P4_MF_IPV4_LPM_IPV4_DSTADDR, prefix, pLen);
 
   // action data
   pi::ActionEntry action_entry;
@@ -62,7 +62,7 @@ int add_route_fast(uint32_t prefix, int pLen, uint32_t nhop, uint16_t port,
   // match key
   thread_local pi::MatchKey match_key(p4info, PI_P4_TABLE_IPV4_LPM);
   match_key.reset();
-  rc |= match_key.set_lpm(PI_P4_FIELD_IPV4_DSTADDR, prefix, pLen);
+  rc |= match_key.set_lpm(PI_P4_MF_IPV4_LPM_IPV4_DSTADDR, prefix, pLen);
 
   // action data
   thread_local pi::ActionEntry action_entry;

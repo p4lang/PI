@@ -48,14 +48,15 @@ static int add_route(uint32_t prefix, int pLen, uint32_t nhop, uint16_t port,
   // match key
   rc |= pi_match_key_init(mkey_ipv4_lpm);
   pi_netv_t prefix_netv;
-  rc |= pi_getnetv_u32(p4info, f_ipv4_dstAddr, prefix, &prefix_netv);
+  rc |=
+      pi_getnetv_u32(p4info, t_ipv4_lpm, f_ipv4_dstAddr, prefix, &prefix_netv);
   rc |= pi_match_key_lpm_set(mkey_ipv4_lpm, &prefix_netv, pLen);
 
   // action data
   rc |= pi_action_data_init(adata_set_nhop);
   pi_netv_t nhop_ipv4_netv, port_netv;
-  rc |= pi_getnetv_u32(p4info, ap_nhop_ipv4, nhop, &nhop_ipv4_netv);
-  rc |= pi_getnetv_u16(p4info, ap_port, port, &port_netv);
+  rc |= pi_getnetv_u32(p4info, a_set_nhop, ap_nhop_ipv4, nhop, &nhop_ipv4_netv);
+  rc |= pi_getnetv_u16(p4info, a_set_nhop, ap_port, port, &port_netv);
   rc |= pi_action_data_arg_set(adata_set_nhop, &nhop_ipv4_netv);
   rc |= pi_action_data_arg_set(adata_set_nhop, &port_netv);
 
@@ -74,7 +75,8 @@ static int add_route(uint32_t prefix, int pLen, uint32_t nhop, uint16_t port,
 static void init_ids() {
   t_ipv4_lpm = pi_p4info_table_id_from_name(p4info, "ipv4_lpm");
   a_set_nhop = pi_p4info_action_id_from_name(p4info, "set_nhop");
-  f_ipv4_dstAddr = pi_p4info_field_id_from_name(p4info, "ipv4.dstAddr");
+  f_ipv4_dstAddr = pi_p4info_table_match_field_id_from_name(p4info, t_ipv4_lpm,
+                                                            "ipv4.dstAddr");
   ap_nhop_ipv4 =
       pi_p4info_action_param_id_from_name(p4info, a_set_nhop, "nhop_ipv4");
   ap_port = pi_p4info_action_param_id_from_name(p4info, a_set_nhop, "port");

@@ -81,34 +81,6 @@ static pi_status_t read_actions(cJSON *root, pi_p4info_t *p4info) {
   return PI_STATUS_SUCCESS;
 }
 
-static pi_status_t read_fields(cJSON *root, pi_p4info_t *p4info) {
-  assert(root);
-  cJSON *fields = cJSON_GetObjectItem(root, "fields");
-  if (!fields) return PI_STATUS_CONFIG_READER_ERROR;
-  size_t num_fields = cJSON_GetArraySize(fields);
-  pi_p4info_field_init(p4info, num_fields);
-
-  cJSON *field;
-  cJSON_ArrayForEach(field, fields) {
-    const cJSON *item;
-    item = cJSON_GetObjectItem(field, "name");
-    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
-    const char *name = item->valuestring;
-    item = cJSON_GetObjectItem(field, "id");
-    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
-    pi_p4_id_t pi_id = item->valueint;
-    item = cJSON_GetObjectItem(field, "bitwidth");
-    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
-    size_t bitwidth = item->valueint;
-
-    pi_p4info_field_add(p4info, pi_id, name, bitwidth);
-
-    import_annotations(field, p4info, pi_id);
-  }
-
-  return PI_STATUS_SUCCESS;
-}
-
 static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
   assert(root);
   cJSON *tables = cJSON_GetObjectItem(root, "tables");
@@ -146,13 +118,20 @@ static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
       if (!item) return PI_STATUS_CONFIG_READER_ERROR;
       pi_p4_id_t id = item->valueint;
 
+      item = cJSON_GetObjectItem(match_field, "name");
+      if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+      const char *fname = item->valuestring;
+
+      item = cJSON_GetObjectItem(match_field, "bitwidth");
+      if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+      size_t bitwidth = item->valueint;
+
       item = cJSON_GetObjectItem(match_field, "match_type");
       if (!item) return PI_STATUS_CONFIG_READER_ERROR;
       pi_p4info_match_type_t match_type = item->valueint;
 
-      pi_p4info_table_add_match_field(
-          p4info, pi_id, id, pi_p4info_field_name_from_id(p4info, id),
-          match_type, pi_p4info_field_bitwidth(p4info, id));
+      pi_p4info_table_add_match_field(p4info, pi_id, id, fname, match_type,
+                                      bitwidth);
     }
 
     cJSON *action;
@@ -301,41 +280,6 @@ static pi_status_t read_meters(cJSON *root, pi_p4info_t *p4info) {
   return PI_STATUS_SUCCESS;
 }
 
-static pi_status_t read_field_lists(cJSON *root, pi_p4info_t *p4info) {
-  assert(root);
-  cJSON *field_lists = cJSON_GetObjectItem(root, "field_lists");
-  if (!field_lists) return PI_STATUS_CONFIG_READER_ERROR;
-  size_t num_field_lists = cJSON_GetArraySize(field_lists);
-  pi_p4info_field_list_init(p4info, num_field_lists);
-
-  cJSON *field_list;
-  cJSON_ArrayForEach(field_list, field_lists) {
-    const cJSON *item;
-    item = cJSON_GetObjectItem(field_list, "name");
-    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
-    const char *name = item->valuestring;
-    item = cJSON_GetObjectItem(field_list, "id");
-    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
-    pi_p4_id_t pi_id = item->valueint;
-
-    cJSON *fields = cJSON_GetObjectItem(field_list, "fields");
-    if (!fields) return PI_STATUS_CONFIG_READER_ERROR;
-    size_t num_fields = cJSON_GetArraySize(fields);
-
-    pi_p4info_field_list_add(p4info, pi_id, name, num_fields);
-
-    import_annotations(field_list, p4info, pi_id);
-
-    cJSON *field;
-    cJSON_ArrayForEach(field, fields) {
-      pi_p4_id_t id = field->valueint;
-      pi_p4info_field_list_add_field(p4info, pi_id, id);
-    }
-  }
-
-  return PI_STATUS_SUCCESS;
-}
-
 pi_status_t pi_native_json_reader(const char *config, pi_p4info_t *p4info) {
   cJSON *root = cJSON_Parse(config);
   if (!root) return PI_STATUS_CONFIG_READER_ERROR;
@@ -343,10 +287,6 @@ pi_status_t pi_native_json_reader(const char *config, pi_p4info_t *p4info) {
   pi_status_t status;
 
   if ((status = read_actions(root, p4info)) != PI_STATUS_SUCCESS) {
-    return status;
-  }
-
-  if ((status = read_fields(root, p4info)) != PI_STATUS_SUCCESS) {
     return status;
   }
 
@@ -363,10 +303,6 @@ pi_status_t pi_native_json_reader(const char *config, pi_p4info_t *p4info) {
   }
 
   if ((status = read_meters(root, p4info)) != PI_STATUS_SUCCESS) {
-    return status;
-  }
-
-  if ((status = read_field_lists(root, p4info)) != PI_STATUS_SUCCESS) {
     return status;
   }
 

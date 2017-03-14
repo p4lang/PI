@@ -22,7 +22,6 @@
 #include "act_profs_int.h"
 #include "actions_int.h"
 #include "config_readers/readers.h"
-#include "fields_int.h"
 #include "p4info_struct.h"
 #include "read_file.h"
 #include "tables_int.h"

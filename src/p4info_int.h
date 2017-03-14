@@ -24,8 +24,6 @@
 #include "p4info/act_profs_int.h"
 #include "p4info/actions_int.h"
 #include "p4info/counters_int.h"
-#include "p4info/field_list_int.h"
-#include "p4info/fields_int.h"
 #include "p4info/meters_int.h"
 #include "p4info/tables_int.h"
 

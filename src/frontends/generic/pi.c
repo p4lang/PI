@@ -71,9 +71,9 @@ pi_status_t pi_match_key_allocate(const pi_p4info_t *p4info,
   for (size_t i = 0; i < num_match_fields; i++) {
     offsets[i].is_set = 0;
     offsets[i].offset = s;
-    pi_p4info_match_field_info_t finfo;
-    pi_p4info_table_match_field_info(p4info, table_id, i, &finfo);
-    s += get_match_key_size_one_field(finfo.match_type, finfo.bitwidth);
+    const pi_p4info_match_field_info_t *finfo =
+        pi_p4info_table_match_field_info(p4info, table_id, i);
+    s += get_match_key_size_one_field(finfo->match_type, finfo->bitwidth);
   }
   size_t mk_size = s;
 
@@ -155,7 +155,7 @@ pi_status_t pi_match_key_exact_get(const pi_match_key_t *key, pi_p4_id_t fid,
                                    pi_netv_t *fv) {
   size_t f_offset =
       pi_p4info_table_match_field_offset(key->p4info, key->table_id, fid);
-  pi_getnetv_ptr(key->p4info, fid, key->data + f_offset, 0, fv);
+  pi_getnetv_ptr(key->p4info, key->table_id, fid, key->data + f_offset, 0, fv);
   return PI_STATUS_SUCCESS;
 }
 
@@ -178,7 +178,7 @@ pi_status_t pi_match_key_lpm_get(const pi_match_key_t *key, pi_p4_id_t fid,
   size_t f_offset =
       pi_p4info_table_match_field_offset(key->p4info, key->table_id, fid);
   const char *src = key->data + f_offset;
-  pi_getnetv_ptr(key->p4info, fid, src, 0, fv);
+  pi_getnetv_ptr(key->p4info, key->table_id, fid, src, 0, fv);
   src += fv->size;
   uint32_t pLen;
   retrieve_uint32(src, &pLen);
@@ -205,9 +205,9 @@ pi_status_t pi_match_key_ternary_get(const pi_match_key_t *key, pi_p4_id_t fid,
   size_t f_offset =
       pi_p4info_table_match_field_offset(key->p4info, key->table_id, fid);
   const char *src = key->data + f_offset;
-  pi_getnetv_ptr(key->p4info, fid, src, 0, fv);
+  pi_getnetv_ptr(key->p4info, key->table_id, fid, src, 0, fv);
   src += fv->size;
-  pi_getnetv_ptr(key->p4info, fid, src, 0, mask);
+  pi_getnetv_ptr(key->p4info, key->table_id, fid, src, 0, mask);
   return PI_STATUS_SUCCESS;
 }
 
@@ -230,9 +230,9 @@ pi_status_t pi_match_key_range_get(const pi_match_key_t *key, pi_p4_id_t fid,
   size_t f_offset =
       pi_p4info_table_match_field_offset(key->p4info, key->table_id, fid);
   const char *src = key->data + f_offset;
-  pi_getnetv_ptr(key->p4info, fid, src, 0, start);
+  pi_getnetv_ptr(key->p4info, key->table_id, fid, src, 0, start);
   src += start->size;
-  pi_getnetv_ptr(key->p4info, fid, src, 0, end);
+  pi_getnetv_ptr(key->p4info, key->table_id, fid, src, 0, end);
   return PI_STATUS_SUCCESS;
 }
 
@@ -353,7 +353,7 @@ pi_status_t pi_action_data_arg_get(const pi_action_data_t *adata,
                                    pi_p4_id_t pid, pi_netv_t *argv) {
   size_t offset = pi_p4info_action_param_offset(adata->p4info, pid);
   const char *src = adata->data + offset;
-  pi_getnetv_ptr(adata->p4info, pid, src, 0, argv);
+  pi_getnetv_ptr(adata->p4info, adata->action_id, pid, src, 0, argv);
   return PI_STATUS_SUCCESS;
 }
 

@@ -684,9 +684,6 @@ TEST_F(DeviceMgrTest, ResourceTypeFromId) {
   ASSERT_EQ(Type::TABLE, resource_type_from_id(t_id));
   auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
   ASSERT_EQ(Type::ACTION_PROFILE, resource_type_from_id(act_prof_id));
-  auto f_id = pi_p4info_field_id_from_name(p4info, "header_test.field32");
-  ASSERT_EQ(Type::FIELD, resource_type_from_id(f_id));
-  // TODO(antonin): add one for field list
   auto c_id = pi_p4info_counter_id_from_name(p4info, "ExactOne_counter");
   ASSERT_EQ(Type::COUNTER, resource_type_from_id(c_id));
   auto m_id = pi_p4info_meter_id_from_name(p4info, "ExactOne_meter");
@@ -860,7 +857,8 @@ struct TableEntryMatcher_Indirect {
 
 TEST_P(MatchTableTest, AddAndRead) {
   auto t_id = pi_p4info_table_id_from_name(p4info, std::get<0>(GetParam()));
-  auto f_id = pi_p4info_field_id_from_name(p4info, "header_test.field32");
+  auto mf_id = pi_p4info_table_match_field_id_from_name(
+      p4info, t_id, "header_test.field32");
   auto a_id = pi_p4info_action_id_from_name(p4info, "actionA");
   std::string adata(6, '\x00');
   auto mk_input = std::get<1>(GetParam());
@@ -869,7 +867,7 @@ TEST_P(MatchTableTest, AddAndRead) {
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher))
       .Times(2);
   DeviceMgr::Status status;
-  auto entry = generic_make(t_id, mk_input.get_proto(f_id), adata);
+  auto entry = generic_make(t_id, mk_input.get_proto(mf_id), adata);
   status = add_one(&entry);
   ASSERT_EQ(status.code(), Code::OK);
   // second is error because duplicate match key
@@ -1246,8 +1244,8 @@ class MatchTableIndirectTest : public DeviceMgrTest {
     auto t_id = pi_p4info_table_id_from_name(p4info, "IndirectWS");
     table_entry.set_table_id(t_id);
     auto mf = table_entry.add_match();
-    mf->set_field_id(
-        pi_p4info_field_id_from_name(p4info, "header_test.field32"));
+    mf->set_field_id(pi_p4info_table_match_field_id_from_name(
+        p4info, t_id, "header_test.field32"));
     auto mf_exact = mf->mutable_exact();
     mf_exact->set_value(mf_v);
     auto entry = table_entry.mutable_action();

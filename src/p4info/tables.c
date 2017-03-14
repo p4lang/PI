@@ -34,11 +34,9 @@
 #define INLINE_DIRECT_RES 4
 
 typedef struct {
-  char *name;
-  pi_p4_id_t field_id;
-  pi_p4info_match_type_t match_type;
-  size_t bitwidth;
+  pi_p4info_match_field_info_t info;
   size_t offset;
+  char byte0_mask;
 } _match_field_data_t;
 
 typedef struct _table_data_s {
@@ -108,15 +106,33 @@ static const char *retrieve_name(const void *data) {
   return table->name;
 }
 
+static pi_p4_id_t get_match_field_id(_table_data_t *table, const char *name) {
+  pi_p4_id_t *match_field_ids = get_match_field_ids(table);
+  _match_field_data_t *match_field_data = get_match_field_data(table);
+  for (size_t i = 0; i < table->num_match_fields; i++) {
+    if (!strcmp(name, match_field_data[i].info.name)) return match_field_ids[i];
+  }
+  return 0;
+}
+
+static const char *get_match_field_name(_table_data_t *table, pi_p4_id_t id) {
+  _match_field_data_t *match_field_data = get_match_field_data(table);
+  for (size_t i = 0; i < table->num_match_fields; i++) {
+    if (match_field_data[i].info.mf_id == id)
+      return match_field_data[i].info.name;
+  }
+  return 0;
+}
+
 static void free_table_data(void *data) {
   _table_data_t *table = (_table_data_t *)data;
   if (!table->name) return;
   free(table->name);
   _match_field_data_t *match_fields = get_match_field_data(table);
   for (size_t j = 0; j < table->num_match_fields; j++) {
-    _match_field_data_t *match_field = &match_fields[j];
-    if (!match_field->name) continue;
-    free(match_field->name);
+    pi_p4info_match_field_info_t *mf_info = &match_fields[j].info;
+    if (!mf_info->name) continue;
+    free(mf_info->name);
   }
   if (table->num_match_fields > INLINE_MATCH_FIELDS) {
     assert(table->match_field_ids.indirect);
@@ -144,9 +160,12 @@ void pi_p4info_table_serialize(cJSON *root, const pi_p4info_t *p4info) {
     cJSON *mfArray = cJSON_CreateArray();
     _match_field_data_t *mf_data = get_match_field_data(table);
     for (size_t j = 0; j < table->num_match_fields; j++) {
+      pi_p4info_match_field_info_t *mf_info = &mf_data[j].info;
       cJSON *mf = cJSON_CreateObject();
-      cJSON_AddNumberToObject(mf, "id", mf_data[j].field_id);
-      cJSON_AddNumberToObject(mf, "match_type", mf_data[j].match_type);
+      cJSON_AddNumberToObject(mf, "id", mf_info->mf_id);
+      cJSON_AddStringToObject(mf, "name", mf_info->name);
+      cJSON_AddNumberToObject(mf, "bitwidth", mf_info->bitwidth);
+      cJSON_AddNumberToObject(mf, "match_type", mf_info->match_type);
       cJSON_AddItemToArray(mfArray, mf);
     }
     cJSON_AddItemToObject(tObject, "match_fields", mfArray);
@@ -212,24 +231,33 @@ void pi_p4info_table_add(pi_p4info_t *p4info, pi_p4_id_t table_id,
   table->match_key_size = 0;
 }
 
+static char get_byte0_mask(size_t bitwidth) {
+  if (bitwidth % 8 == 0) return 0xff;
+  int nbits = bitwidth % 8;
+  return ((1 << nbits) - 1);
+}
+
 void pi_p4info_table_add_match_field(pi_p4info_t *p4info, pi_p4_id_t table_id,
-                                     pi_p4_id_t field_id, const char *name,
+                                     pi_p4_id_t mf_id, const char *name,
                                      pi_p4info_match_type_t match_type,
                                      size_t bitwidth) {
   _table_data_t *table = get_table(p4info, table_id);
   assert(table->match_fields_added < table->num_match_fields);
-  _match_field_data_t *match_field =
+  _match_field_data_t *mf_data =
       &get_match_field_data(table)[table->match_fields_added];
-  assert(!match_field->name);
-  match_field->name = strdup(name);
-  match_field->field_id = field_id;
-  match_field->match_type = match_type;
-  match_field->bitwidth = bitwidth;
-  get_match_field_ids(table)[table->match_fields_added] = field_id;
+  pi_p4info_match_field_info_t *mf_info = &mf_data->info;
+  assert(!mf_info->name);
+  mf_info->name = strdup(name);
+  mf_info->mf_id = mf_id;
+  mf_info->match_type = match_type;
+  mf_info->bitwidth = bitwidth;
+  get_match_field_ids(table)[table->match_fields_added] = mf_id;
 
-  match_field->offset = table->match_key_size;
-  size_t size = get_match_key_size_one_field(match_field->match_type,
-                                             match_field->bitwidth);
+  mf_data->offset = table->match_key_size;
+  mf_data->byte0_mask = get_byte0_mask(bitwidth);
+
+  size_t size =
+      get_match_key_size_one_field(mf_info->match_type, mf_info->bitwidth);
   table->match_key_size += size;
 
   table->match_fields_added++;
@@ -293,32 +321,63 @@ const pi_p4_id_t *pi_p4info_table_get_match_fields(const pi_p4info_t *p4info,
 }
 
 bool pi_p4info_table_is_match_field_of(const pi_p4info_t *p4info,
-                                       pi_p4_id_t table_id,
-                                       pi_p4_id_t field_id) {
+                                       pi_p4_id_t table_id, pi_p4_id_t mf_id) {
   _table_data_t *table = get_table(p4info, table_id);
   pi_p4_id_t *ids = get_match_field_ids(table);
   for (size_t i = 0; i < table->num_match_fields; i++)
-    if (ids[i] == field_id) return true;
+    if (ids[i] == mf_id) return true;
   return false;
+}
+
+pi_p4_id_t pi_p4info_table_match_field_id_from_name(const pi_p4info_t *p4info,
+                                                    pi_p4_id_t table_id,
+                                                    const char *name) {
+  _table_data_t *table = get_table(p4info, table_id);
+  return get_match_field_id(table, name);
+}
+
+const char *pi_p4info_table_match_field_name_from_id(const pi_p4info_t *p4info,
+                                                     pi_p4_id_t table_id,
+                                                     pi_p4_id_t mf_id) {
+  _table_data_t *table = get_table(p4info, table_id);
+  return get_match_field_name(table, mf_id);
 }
 
 size_t pi_p4info_table_match_field_index(const pi_p4info_t *p4info,
                                          pi_p4_id_t table_id,
-                                         pi_p4_id_t field_id) {
+                                         pi_p4_id_t mf_id) {
   _table_data_t *table = get_table(p4info, table_id);
   pi_p4_id_t *ids = get_match_field_ids(table);
   for (size_t i = 0; i < table->num_match_fields; i++)
-    if (ids[i] == field_id) return i;
+    if (ids[i] == mf_id) return i;
   return (size_t)-1;
 }
 
 size_t pi_p4info_table_match_field_offset(const pi_p4info_t *p4info,
                                           pi_p4_id_t table_id,
-                                          pi_p4_id_t field_id) {
-  size_t index = pi_p4info_table_match_field_index(p4info, table_id, field_id);
+                                          pi_p4_id_t mf_id) {
+  size_t index = pi_p4info_table_match_field_index(p4info, table_id, mf_id);
   _table_data_t *table = get_table(p4info, table_id);
   _match_field_data_t *data = &get_match_field_data(table)[index];
   return data->offset;
+}
+
+size_t pi_p4info_table_match_field_bitwidth(const pi_p4info_t *p4info,
+                                            pi_p4_id_t table_id,
+                                            pi_p4_id_t mf_id) {
+  size_t index = pi_p4info_table_match_field_index(p4info, table_id, mf_id);
+  _table_data_t *table = get_table(p4info, table_id);
+  _match_field_data_t *data = &get_match_field_data(table)[index];
+  return data->info.bitwidth;
+}
+
+size_t pi_p4info_table_match_field_byte0_mask(const pi_p4info_t *p4info,
+                                              pi_p4_id_t table_id,
+                                              pi_p4_id_t mf_id) {
+  size_t index = pi_p4info_table_match_field_index(p4info, table_id, mf_id);
+  _table_data_t *table = get_table(p4info, table_id);
+  _match_field_data_t *data = &get_match_field_data(table)[index];
+  return data->byte0_mask;
 }
 
 size_t pi_p4info_table_match_key_size(const pi_p4info_t *p4info,
@@ -327,15 +386,11 @@ size_t pi_p4info_table_match_key_size(const pi_p4info_t *p4info,
   return table->match_key_size;
 }
 
-void pi_p4info_table_match_field_info(const pi_p4info_t *p4info,
-                                      pi_p4_id_t table_id, size_t index,
-                                      pi_p4info_match_field_info_t *info) {
+const pi_p4info_match_field_info_t *pi_p4info_table_match_field_info(
+    const pi_p4info_t *p4info, pi_p4_id_t table_id, size_t index) {
   _table_data_t *table = get_table(p4info, table_id);
   _match_field_data_t *data = &get_match_field_data(table)[index];
-  info->name = data->name;
-  info->field_id = data->field_id;
-  info->match_type = data->match_type;
-  info->bitwidth = data->bitwidth;
+  return &data->info;
 }
 
 size_t pi_p4info_table_num_actions(const pi_p4info_t *p4info,
