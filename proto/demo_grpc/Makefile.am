@@ -9,10 +9,7 @@ AM_CPPFLAGS = \
 
 AM_CXXFLAGS = -Wall -Werror
 
-bin_PROGRAMS = pi_grpc_server
 noinst_PROGRAMS = test_client controller pi_server_dummy test_perf
-
-pi_grpc_server_SOURCES = pi_server_main.cpp
 
 pi_server_dummy_SOURCES = pi_server_main.cpp
 
@@ -44,6 +41,11 @@ $(PROTOBUF_LIBS) $(GRPC_LIBS)
 libpigrpcserver_la_LIBADD = \
 $(COMMON_SERVER_LIBS)
 
+if WITH_BMV2
+bin_PROGRAMS = pi_grpc_server
+
+pi_grpc_server_SOURCES = pi_server_main.cpp
+
 # COMMON_SERVER_LIBS need to be repeated here for some reason, this seems to be
 # specific to the libtool version packaged with Ubuntu (see
 # http://stackoverflow.com/questions/11802727/libtool-doesnt-provide-library-dependencies-to-link). Also
@@ -54,6 +56,7 @@ $(COMMON_SERVER_LIBS) \
 libpigrpcserver.la \
 $(top_builddir)/../targets/bmv2/libpi_bmv2.la \
 -lthrift -lruntimestubs -lsimpleswitch_thrift
+endif  # WITH_BMV2
 
 pi_server_dummy_LDADD = \
 $(COMMON_SERVER_LIBS) \
