@@ -86,6 +86,7 @@ static inline void pi_getv_ptr(const char *ptr, uint32_t size, pi_value_t *v) {
 // in byte order
 typedef struct {
   int is_ptr;
+  pi_p4_id_t parent_id;
   pi_p4_id_t obj_id;
   size_t size;
   union {

@@ -61,14 +61,13 @@ TEST(P4Info, Actions) {
   pi_p4info_action_add(p4info, adata_0.id, adata_0.name, adata_0.num_params);
   pi_p4info_action_add(p4info, adata_1.id, adata_1.name, adata_1.num_params);
 
-  pi_p4_id_t param_0_0 = pi_make_action_param_id(adata_0.id, 0);
-  pi_p4_id_t param_0_1 = pi_make_action_param_id(adata_0.id, 1);
+  pi_p4_id_t param_0_0 = 0;
+  pi_p4_id_t param_0_1 = 1;
 
-  // out of order on purpose
-  pi_p4info_action_add_param(p4info, adata_0.id, param_0_1, param_names[1],
-                             param_bws[1]);
   pi_p4info_action_add_param(p4info, adata_0.id, param_0_0, param_names[0],
                              param_bws[0]);
+  pi_p4info_action_add_param(p4info, adata_0.id, param_0_1, param_names[1],
+                             param_bws[1]);
 
   TEST_ASSERT_EQUAL_UINT(adata_0.id,
                          pi_p4info_action_id_from_name(p4info, adata_0.name));
@@ -90,20 +89,20 @@ TEST(P4Info, Actions) {
   TEST_ASSERT_EQUAL_UINT(param_0_1, pi_p4info_action_param_id_from_name(
                                         p4info, adata_0.id, param_names[1]));
 
-  TEST_ASSERT_EQUAL_STRING(
-      param_names[0], pi_p4info_action_param_name_from_id(p4info, param_0_0));
-  TEST_ASSERT_EQUAL_STRING(
-      param_names[1], pi_p4info_action_param_name_from_id(p4info, param_0_1));
+  TEST_ASSERT_EQUAL_STRING(param_names[0], pi_p4info_action_param_name_from_id(
+                                               p4info, adata_0.id, param_0_0));
+  TEST_ASSERT_EQUAL_STRING(param_names[1], pi_p4info_action_param_name_from_id(
+                                               p4info, adata_0.id, param_0_1));
 
-  TEST_ASSERT_EQUAL_UINT(param_bws[0],
-                         pi_p4info_action_param_bitwidth(p4info, param_0_0));
-  TEST_ASSERT_EQUAL_UINT(param_bws[1],
-                         pi_p4info_action_param_bitwidth(p4info, param_0_1));
+  TEST_ASSERT_EQUAL_UINT(param_bws[0], pi_p4info_action_param_bitwidth(
+                                           p4info, adata_0.id, param_0_0));
+  TEST_ASSERT_EQUAL_UINT(param_bws[1], pi_p4info_action_param_bitwidth(
+                                           p4info, adata_0.id, param_0_1));
 
-  TEST_ASSERT_EQUAL_UINT(param_offsets[0],
-                         pi_p4info_action_param_offset(p4info, param_0_0));
-  TEST_ASSERT_EQUAL_UINT(param_offsets[1],
-                         pi_p4info_action_param_offset(p4info, param_0_1));
+  TEST_ASSERT_EQUAL_UINT(param_offsets[0], pi_p4info_action_param_offset(
+                                               p4info, adata_0.id, param_0_0));
+  TEST_ASSERT_EQUAL_UINT(param_offsets[1], pi_p4info_action_param_offset(
+                                               p4info, adata_0.id, param_0_1));
 }
 
 TEST(P4Info, ActionsInvalidId) {
@@ -145,7 +144,7 @@ TEST(P4Info, ActionsStress) {
   for (size_t i = 0; i < num_actions; i++) {
     for (size_t j = 0; j < adata[i].num_params; j++) {
       snprintf(name, sizeof(name), "a%zu_p%zu", i, j);
-      pi_p4_id_t p_id = pi_make_action_param_id(adata[i].id, j);
+      pi_p4_id_t p_id = j;
       pi_p4info_action_add_param(p4info, adata[i].id, p_id, name, j);
     }
   }
@@ -159,18 +158,19 @@ TEST(P4Info, ActionsStress) {
     size_t offset = 0;
     for (size_t j = 0; j < adata[i].num_params; j++) {
       snprintf(name, sizeof(name), "a%zu_p%zu", i, j);
-      pi_p4_id_t p_id = pi_make_action_param_id(adata[i].id, j);
+      pi_p4_id_t p_id = j;
 
       TEST_ASSERT_EQUAL_UINT(
           p_id, pi_p4info_action_param_id_from_name(p4info, adata[i].id, name));
 
       TEST_ASSERT_EQUAL_STRING(
-          name, pi_p4info_action_param_name_from_id(p4info, p_id));
+          name, pi_p4info_action_param_name_from_id(p4info, adata[i].id, p_id));
 
-      TEST_ASSERT_EQUAL_UINT(j, pi_p4info_action_param_bitwidth(p4info, p_id));
+      TEST_ASSERT_EQUAL_UINT(
+          j, pi_p4info_action_param_bitwidth(p4info, adata[i].id, p_id));
 
-      TEST_ASSERT_EQUAL_UINT(offset,
-                             pi_p4info_action_param_offset(p4info, p_id));
+      TEST_ASSERT_EQUAL_UINT(
+          offset, pi_p4info_action_param_offset(p4info, adata[i].id, p_id));
       offset += (j + 7) / 8;
     }
     TEST_ASSERT_EQUAL_UINT(offset,

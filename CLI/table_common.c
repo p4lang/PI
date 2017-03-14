@@ -216,7 +216,8 @@ pi_cli_status_t read_action_data(char *in, pi_p4_id_t a_id,
       pi_p4info_action_get_params(p4info_curr, a_id, &num_params);
   for (size_t i = 0; i < num_params; i++) {
     pi_p4_id_t p_id = param_ids[i];
-    size_t p_bitwidth = pi_p4info_action_param_bitwidth(p4info_curr, p_id);
+    size_t p_bitwidth =
+        pi_p4info_action_param_bitwidth(p4info_curr, a_id, p_id);
     char *ap = strtok(in, " ");
     in = NULL;
     if (!ap || ap[0] == '=') return PI_CLI_STATUS_TOO_FEW_ACTION_PARAMS;

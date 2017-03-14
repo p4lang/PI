@@ -59,20 +59,21 @@ static pi_status_t read_actions(cJSON *root, pi_p4info_t *p4info) {
 
     pi_p4info_action_add(p4info, pi_id, name, num_params);
 
-    int param_id = 0;
     cJSON *param;
     cJSON_ArrayForEach(param, params) {
       item = cJSON_GetObjectItem(param, "name");
       if (!item) return PI_STATUS_CONFIG_READER_ERROR;
       const char *param_name = item->valuestring;
 
+      item = cJSON_GetObjectItem(param, "id");
+      if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+      pi_p4_id_t id = item->valueint;
+
       item = cJSON_GetObjectItem(param, "bitwidth");
       if (!item) return PI_STATUS_CONFIG_READER_ERROR;
       int param_bitwidth = item->valueint;
 
-      pi_p4info_action_add_param(p4info, pi_id,
-                                 pi_make_action_param_id(pi_id, param_id++),
-                                 param_name, param_bitwidth);
+      pi_p4info_action_add_param(p4info, pi_id, id, param_name, param_bitwidth);
     }
 
     import_annotations(action, p4info, pi_id);
@@ -114,13 +115,13 @@ static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
 
     cJSON *match_field;
     cJSON_ArrayForEach(match_field, match_fields) {
-      item = cJSON_GetObjectItem(match_field, "id");
-      if (!item) return PI_STATUS_CONFIG_READER_ERROR;
-      pi_p4_id_t id = item->valueint;
-
       item = cJSON_GetObjectItem(match_field, "name");
       if (!item) return PI_STATUS_CONFIG_READER_ERROR;
       const char *fname = item->valuestring;
+
+      item = cJSON_GetObjectItem(match_field, "id");
+      if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+      pi_p4_id_t id = item->valueint;
 
       item = cJSON_GetObjectItem(match_field, "bitwidth");
       if (!item) return PI_STATUS_CONFIG_READER_ERROR;

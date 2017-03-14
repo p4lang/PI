@@ -38,8 +38,6 @@ pi_status_t pi_empty_config(pi_p4info_t **p4info) {
   // for convenience
   p4info_->actions = &p4info_->resources[PI_ACTION_ID];
   p4info_->tables = &p4info_->resources[PI_TABLE_ID];
-  p4info_->fields = &p4info_->resources[PI_FIELD_ID];
-  p4info_->field_lists = &p4info_->resources[PI_FIELD_LIST_ID];
   p4info_->act_profs = &p4info_->resources[PI_ACT_PROF_ID];
   p4info_->counters = &p4info_->resources[PI_COUNTER_ID];
   p4info_->meters = &p4info_->resources[PI_METER_ID];

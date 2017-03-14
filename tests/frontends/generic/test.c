@@ -57,7 +57,7 @@ static void p4info_init(size_t bitwidth, pi_p4info_match_type_t match_type) {
 
   aid = pi_make_action_id(0);
   pi_p4info_action_add(p4info, aid, "a0", 1);
-  pid = pi_make_action_param_id(aid, 0);
+  pid = 0;
   pi_p4info_action_add_param(p4info, aid, pid, "p0_0", bitwidth);
   tid = pi_make_table_id(0);
   pi_p4info_table_add(p4info, tid, "t0", 1, 1, DEFAULT_TABLE_SIZE);

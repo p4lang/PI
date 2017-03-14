@@ -253,8 +253,10 @@ void p4info_serialize_actions(const pi_p4info_t *p4info,
       auto param = action->add_params();
       auto param_id = param_ids[i];
       param->set_id(param_id);
-      param->set_name(pi_p4info_action_param_name_from_id(p4info, param_id));
-      param->set_bitwidth(pi_p4info_action_param_bitwidth(p4info, param_id));
+      param->set_name(
+          pi_p4info_action_param_name_from_id(p4info, id, param_id));
+      param->set_bitwidth(
+          pi_p4info_action_param_bitwidth(p4info, id, param_id));
     }
   }
 }

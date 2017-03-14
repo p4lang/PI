@@ -35,8 +35,6 @@ resource_type_from_id(p4_id_t p4_id) {
       return P4ResourceType::ACTION;
     case PI_TABLE_ID:
       return P4ResourceType::TABLE;
-    case PI_ACTION_PARAM_ID:
-      return P4ResourceType::ACTION_PARAM;
     case PI_ACT_PROF_ID:
       return P4ResourceType::ACTION_PROFILE;
     case PI_COUNTER_ID:

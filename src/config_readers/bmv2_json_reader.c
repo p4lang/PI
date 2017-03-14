@@ -197,9 +197,6 @@ static pi_p4_id_t generate_id_from_name(reader_state_t *state, cJSON *object,
 
 static pi_p4_id_t request_id(reader_state_t *state, cJSON *object,
                              pi_res_type_id_t type_id) {
-  // cannot be called for these resource types, for which the id is deduced from
-  // the parent's id (resp. action / header instance)
-  assert(type_id != PI_ACTION_PARAM_ID);
   pi_p4_id_t ids[MAX_IDS_IN_ANNOTATION];
   size_t num_ids = 0;
   find_annotation_id(object, ids, &num_ids);
@@ -215,11 +212,6 @@ static pi_p4_id_t request_id(reader_state_t *state, cJSON *object,
     }
   }
   return generate_id_from_name(state, object, type_id);
-}
-
-static pi_p4_id_t make_action_param_id(pi_p4_id_t action_id, int param_index) {
-  uint16_t action_base_id = action_id & 0xffff;
-  return (PI_ACTION_PARAM_ID << 24) | (action_base_id << 8) | param_index;
 }
 
 static void import_pragmas(cJSON *object, pi_p4info_t *p4info, pi_p4_id_t id) {
@@ -288,7 +280,7 @@ static pi_status_t read_actions(reader_state_t *state, cJSON *root,
     PI_LOG_DEBUG("Adding action '%s'\n", name);
     pi_p4info_action_add(p4info, pi_id, name, num_params);
 
-    int param_id = 0;
+    int param_index = 0;
     cJSON *param;
     cJSON_ArrayForEach(param, params) {
       item = cJSON_GetObjectItem(param, "name");
@@ -299,9 +291,9 @@ static pi_status_t read_actions(reader_state_t *state, cJSON *root,
       if (!item) return PI_STATUS_CONFIG_READER_ERROR;
       int param_bitwidth = item->valueint;
 
-      pi_p4info_action_add_param(p4info, pi_id,
-                                 make_action_param_id(pi_id, param_id++),
-                                 param_name, param_bitwidth);
+      pi_p4_id_t param_id = param_index++;
+      pi_p4info_action_add_param(p4info, pi_id, param_id, param_name,
+                                 param_bitwidth);
     }
 
     import_pragmas(action, p4info, pi_id);

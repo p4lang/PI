@@ -115,9 +115,6 @@ typedef struct pi_p4info_s pi_p4info_t;
 
 #define PI_ACTION_ID 0x01
 #define PI_TABLE_ID 0x02
-#define PI_ACTION_PARAM_ID 0x03
-#define PI_FIELD_ID 0x04
-#define PI_FIELD_LIST_ID 0x05
 
 #define PI_ACT_PROF_ID 0x11
 
@@ -131,8 +128,6 @@ typedef size_t pi_res_type_id_t;
 // TODO(antonin): make inline?
 bool pi_is_action_id(pi_p4_id_t id);
 bool pi_is_table_id(pi_p4_id_t id);
-bool pi_is_action_param_id(pi_p4_id_t id);
-bool pi_is_field_id(pi_p4_id_t id);
 
 bool pi_is_act_prof_id(pi_p4_id_t id);
 

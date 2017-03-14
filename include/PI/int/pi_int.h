@@ -35,20 +35,6 @@ static inline pi_p4_id_t pi_make_table_id(uint16_t index) {
   return (PI_TABLE_ID << 24) | index;
 }
 
-static inline pi_p4_id_t pi_make_action_param_id(pi_p4_id_t action_id,
-                                                 uint8_t index) {
-  uint16_t action_index = action_id & 0xffff;
-  return (PI_ACTION_PARAM_ID << 24) | (action_index << 8) | index;
-}
-
-static inline pi_p4_id_t pi_make_field_id(uint16_t index) {
-  return (PI_FIELD_ID << 24) | index;
-}
-
-static inline pi_p4_id_t pi_make_field_list_id(uint16_t index) {
-  return (PI_FIELD_LIST_ID << 24) | index;
-}
-
 static inline pi_p4_id_t pi_make_act_prof_id(uint16_t index) {
   return (PI_ACT_PROF_ID << 24) | index;
 }
@@ -81,9 +67,6 @@ static inline size_t get_match_key_size_one_field(
       assert(0);
   }
 }
-
-size_t get_match_key_size(const pi_p4info_t *p4info, pi_p4_id_t table_id);
-size_t get_action_data_size(const pi_p4info_t *p4info, pi_p4_id_t action_id);
 
 struct pi_match_key_s {
   const pi_p4info_t *p4info;

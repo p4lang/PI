@@ -188,7 +188,8 @@ int main(int argc, char *const argv[]) {
         pi_p4info_action_get_params(p4info, id, &num_params);
     for (size_t i = 0; i < num_params; i++) {
       pi_p4_id_t p_id = params[i];
-      const char *p_name = pi_p4info_action_param_name_from_id(p4info, p_id);
+      const char *p_name =
+          pi_p4info_action_param_name_from_id(p4info, id, p_id);
       char *p_name_ = strdup(p_name);
       sanitize_name(p_name_);
       fprintf(gen_fptr, "#define %s_ACTIONP_%s_%s %#x\n", prefix, name_,

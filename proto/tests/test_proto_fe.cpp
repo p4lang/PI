@@ -678,8 +678,6 @@ TEST_F(DeviceMgrTest, ResourceTypeFromId) {
   using pi::proto::util::resource_type_from_id;
   auto a_id = pi_p4info_action_id_from_name(p4info, "actionA");
   ASSERT_EQ(Type::ACTION, resource_type_from_id(a_id));
-  auto ap_id = pi_p4info_action_param_id_from_name(p4info, a_id, "param");
-  ASSERT_EQ(Type::ACTION_PARAM, resource_type_from_id(ap_id));
   auto t_id = pi_p4info_table_id_from_name(p4info, "ExactOne");
   ASSERT_EQ(Type::TABLE, resource_type_from_id(t_id));
   auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");

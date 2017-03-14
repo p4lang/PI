@@ -190,12 +190,6 @@ bool pi_is_action_id(pi_p4_id_t id) {
 
 bool pi_is_table_id(pi_p4_id_t id) { return PI_GET_TYPE_ID(id) == PI_TABLE_ID; }
 
-bool pi_is_action_param_id(pi_p4_id_t id) {
-  return PI_GET_TYPE_ID(id) == PI_ACTION_PARAM_ID;
-}
-
-bool pi_is_field_id(pi_p4_id_t id) { return PI_GET_TYPE_ID(id) == PI_FIELD_ID; }
-
 bool pi_is_act_prof_id(pi_p4_id_t id) {
   return PI_GET_TYPE_ID(id) == PI_ACT_PROF_ID;
 }
@@ -205,29 +199,6 @@ bool pi_is_counter_id(pi_p4_id_t id) {
 }
 
 bool pi_is_meter_id(pi_p4_id_t id) { return PI_GET_TYPE_ID(id) == PI_METER_ID; }
-
-size_t get_match_key_size(const pi_p4info_t *p4info, pi_p4_id_t table_id) {
-  size_t s = 0;
-  size_t num_match_fields = pi_p4info_table_num_match_fields(p4info, table_id);
-  for (size_t i = 0; i < num_match_fields; i++) {
-    const pi_p4info_match_field_info_t *finfo =
-        pi_p4info_table_match_field_info(p4info, table_id, i);
-    s += get_match_key_size_one_field(finfo->match_type, finfo->bitwidth);
-  }
-  return s;
-}
-
-size_t get_action_data_size(const pi_p4info_t *p4info, pi_p4_id_t action_id) {
-  size_t num_params;
-  const pi_p4_id_t *params =
-      pi_p4info_action_get_params(p4info, action_id, &num_params);
-  size_t s = 0;
-  for (size_t i = 0; i < num_params; i++) {
-    size_t bitwidth = pi_p4info_action_param_bitwidth(p4info, params[i]);
-    s += (bitwidth + 7) / 8;
-  }
-  return s;
-}
 
 pi_status_t pi_direct_res_register(pi_res_type_id_t res_type,
                                    PIDirectResMsgSizeFn msg_size_fn,

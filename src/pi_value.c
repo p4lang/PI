@@ -32,8 +32,8 @@ static inline pi_status_t get_bitwidth_and_mask(const pi_p4info_t *p4info,
                                                 size_t *bitwidth, char *mask) {
   switch (PI_GET_TYPE_ID(parent_id)) {
     case PI_ACTION_ID:
-      *bitwidth = pi_p4info_action_param_bitwidth(p4info, obj_id);
-      *mask = pi_p4info_action_param_byte0_mask(p4info, obj_id);
+      *bitwidth = pi_p4info_action_param_bitwidth(p4info, parent_id, obj_id);
+      *mask = pi_p4info_action_param_byte0_mask(p4info, parent_id, obj_id);
       return PI_STATUS_SUCCESS;
     case PI_TABLE_ID:
       *bitwidth =
@@ -55,6 +55,7 @@ pi_status_t pi_getnetv_u8(const pi_p4info_t *p4info, pi_p4_id_t parent_id,
   if (rc != PI_STATUS_SUCCESS) return rc;
   if (bitwidth > 8) return PI_STATUS_NETV_INVALID_SIZE;
   fv->is_ptr = 0;
+  fv->parent_id = parent_id;
   fv->obj_id = obj_id;
   fv->size = 1;
   u8 &= byte0_mask;
@@ -71,6 +72,7 @@ pi_status_t pi_getnetv_u16(const pi_p4info_t *p4info, pi_p4_id_t parent_id,
   if (rc != PI_STATUS_SUCCESS) return rc;
   if (bitwidth <= 8 || bitwidth > 16) return PI_STATUS_NETV_INVALID_SIZE;
   fv->is_ptr = 0;
+  fv->parent_id = parent_id;
   fv->obj_id = obj_id;
   fv->size = 2;
   u16 = htons(u16);
@@ -89,6 +91,7 @@ pi_status_t pi_getnetv_u32(const pi_p4info_t *p4info, pi_p4_id_t parent_id,
   if (rc != PI_STATUS_SUCCESS) return rc;
   if (bitwidth <= 16 || bitwidth > 32) return PI_STATUS_NETV_INVALID_SIZE;
   fv->is_ptr = 0;
+  fv->parent_id = parent_id;
   fv->obj_id = obj_id;
   fv->size = (bitwidth + 7) / 8;
   u32 = htonl(u32);
@@ -108,6 +111,7 @@ pi_status_t pi_getnetv_u64(const pi_p4info_t *p4info, pi_p4_id_t parent_id,
   if (rc != PI_STATUS_SUCCESS) return rc;
   if (bitwidth <= 32 || bitwidth > 64) return PI_STATUS_NETV_INVALID_SIZE;
   fv->is_ptr = 0;
+  fv->parent_id = parent_id;
   fv->obj_id = obj_id;
   fv->size = (bitwidth + 7) / 8;
   u64 = htonll(u64);
@@ -134,6 +138,7 @@ pi_status_t pi_getnetv_ptr(const pi_p4info_t *p4info, pi_p4_id_t parent_id,
   if (size > 0 && ((bitwidth + 7) / 8 != size))
     return PI_STATUS_NETV_INVALID_SIZE;
   fv->is_ptr = 1;
+  fv->parent_id = parent_id;
   fv->obj_id = obj_id;
   fv->size = (bitwidth + 7) / 8;
   fv->v.ptr = ptr;

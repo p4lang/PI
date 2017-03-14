@@ -242,7 +242,7 @@ void retrieve_entry(const pi_p4info_t *p4info, const std::string &a_name,
 
   table_entry->entry_type = PI_ACTION_ENTRY_TYPE_DATA;
 
-  const size_t adata_size = get_action_data_size(p4info, action_id);
+  const size_t adata_size = pi_p4info_action_data_size(p4info, action_id);
 
   // no alignment issue with new[]
   char *data_ = new char[sizeof(pi_action_data_t) + adata_size];
@@ -607,7 +607,7 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
   data_size += entries.size() * sizeof(uint32_t);  // for priority
   data_size += entries.size() * sizeof(uint32_t);  // for properties
 
-  res->mkey_nbytes = get_match_key_size(p4info, table_id);
+  res->mkey_nbytes = pi_p4info_table_match_key_size(p4info, table_id);
   data_size += entries.size() * res->mkey_nbytes;
 
   size_t num_actions;

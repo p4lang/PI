@@ -142,6 +142,7 @@ static void mk_update_fset(_fegen_mk_prefix_t *prefix, size_t index) {
 }
 
 pi_status_t pi_match_key_exact_set(pi_match_key_t *key, const pi_netv_t *fv) {
+  assert(key->table_id == fv->parent_id);
   _fegen_mk_prefix_t *prefix = get_mk_prefix(key);
   size_t f_index = pi_p4info_table_match_field_index(
       key->p4info, prefix->table_id, fv->obj_id);
@@ -161,6 +162,7 @@ pi_status_t pi_match_key_exact_get(const pi_match_key_t *key, pi_p4_id_t fid,
 
 pi_status_t pi_match_key_lpm_set(pi_match_key_t *key, const pi_netv_t *fv,
                                  const pi_prefix_length_t prefix_length) {
+  assert(key->table_id == fv->parent_id);
   _fegen_mk_prefix_t *prefix = get_mk_prefix(key);
   size_t f_index = pi_p4info_table_match_field_index(
       key->p4info, prefix->table_id, fv->obj_id);
@@ -188,6 +190,7 @@ pi_status_t pi_match_key_lpm_get(const pi_match_key_t *key, pi_p4_id_t fid,
 
 pi_status_t pi_match_key_ternary_set(pi_match_key_t *key, const pi_netv_t *fv,
                                      const pi_netv_t *mask) {
+  assert(key->table_id == fv->parent_id && key->table_id == mask->parent_id);
   assert(fv->obj_id == mask->obj_id);
   _fegen_mk_prefix_t *prefix = get_mk_prefix(key);
   size_t f_index = pi_p4info_table_match_field_index(
@@ -213,6 +216,7 @@ pi_status_t pi_match_key_ternary_get(const pi_match_key_t *key, pi_p4_id_t fid,
 
 pi_status_t pi_match_key_range_set(pi_match_key_t *key, const pi_netv_t *start,
                                    const pi_netv_t *end) {
+  assert(key->table_id == start->parent_id && key->table_id == end->parent_id);
   assert(start->obj_id == end->obj_id);
   _fegen_mk_prefix_t *prefix = get_mk_prefix(key);
   size_t f_index = pi_p4info_table_match_field_index(
@@ -275,7 +279,8 @@ pi_status_t pi_action_data_allocate(const pi_p4info_t *p4info,
   _fegen_mbr_info_t *offsets = malloc(sizeof(_fegen_mbr_info_t) * num_params);
 
   for (size_t i = 0; i < num_params; i++) {
-    size_t bitwidth = pi_p4info_action_param_bitwidth(p4info, params[i]);
+    size_t bitwidth =
+        pi_p4info_action_param_bitwidth(p4info, action_id, params[i]);
     offsets[i].is_set = 0;
     offsets[i].offset = s;
     s += (bitwidth + 7) / 8;
@@ -333,9 +338,9 @@ pi_status_t pi_action_data_arg_set(pi_action_data_t *adata,
   check_ad_prefix(prefix);
 
   pi_p4_id_t param_id = argv->obj_id;
-  assert(pi_is_action_param_id(param_id));
-  // TODO(antonin): check action
-  size_t index = param_id & 0xff;
+  assert(adata->action_id == argv->parent_id);
+  size_t index =
+      pi_p4info_action_param_index(adata->p4info, adata->action_id, param_id);
 
   const char *src = argv->is_ptr ? argv->v.ptr : &argv->v.data[0];
   char *dst = adata->data + prefix->p_info[index].offset;
@@ -351,7 +356,8 @@ pi_status_t pi_action_data_arg_set(pi_action_data_t *adata,
 
 pi_status_t pi_action_data_arg_get(const pi_action_data_t *adata,
                                    pi_p4_id_t pid, pi_netv_t *argv) {
-  size_t offset = pi_p4info_action_param_offset(adata->p4info, pid);
+  size_t offset =
+      pi_p4info_action_param_offset(adata->p4info, adata->action_id, pid);
   const char *src = adata->data + offset;
   pi_getnetv_ptr(adata->p4info, adata->action_id, pid, src, 0, argv);
   return PI_STATUS_SUCCESS;

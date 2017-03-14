@@ -112,7 +112,7 @@ static pi_p4_id_t get_match_field_id(_table_data_t *table, const char *name) {
   for (size_t i = 0; i < table->num_match_fields; i++) {
     if (!strcmp(name, match_field_data[i].info.name)) return match_field_ids[i];
   }
-  return 0;
+  return PI_INVALID_ID;
 }
 
 static const char *get_match_field_name(_table_data_t *table, pi_p4_id_t id) {
@@ -121,7 +121,7 @@ static const char *get_match_field_name(_table_data_t *table, pi_p4_id_t id) {
     if (match_field_data[i].info.mf_id == id)
       return match_field_data[i].info.name;
   }
-  return 0;
+  return NULL;
 }
 
 static void free_table_data(void *data) {
@@ -162,8 +162,8 @@ void pi_p4info_table_serialize(cJSON *root, const pi_p4info_t *p4info) {
     for (size_t j = 0; j < table->num_match_fields; j++) {
       pi_p4info_match_field_info_t *mf_info = &mf_data[j].info;
       cJSON *mf = cJSON_CreateObject();
-      cJSON_AddNumberToObject(mf, "id", mf_info->mf_id);
       cJSON_AddStringToObject(mf, "name", mf_info->name);
+      cJSON_AddNumberToObject(mf, "id", mf_info->mf_id);
       cJSON_AddNumberToObject(mf, "bitwidth", mf_info->bitwidth);
       cJSON_AddNumberToObject(mf, "match_type", mf_info->match_type);
       cJSON_AddItemToArray(mfArray, mf);

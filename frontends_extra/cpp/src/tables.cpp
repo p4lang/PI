@@ -364,9 +364,9 @@ ActionDataReader::ActionDataReader(const pi_action_data_t *action_data)
 error_code_t
 ActionDataReader::get_arg(pi_p4_id_t ap_id, std::string *arg) const {
   const size_t offset = pi_p4info_action_param_offset(
-      action_data->p4info, ap_id);
+      action_data->p4info, action_data->action_id, ap_id);
   const size_t bitwidth = pi_p4info_action_param_bitwidth(
-      action_data->p4info, ap_id);
+      action_data->p4info, action_data->action_id, ap_id);
   const size_t bytes = (bitwidth + 7) / 8;
   *arg = std::string(action_data->data + offset, bytes);
   return 0;
@@ -401,10 +401,12 @@ template <typename T>
 error_code_t
 ActionData::format(pi_p4_id_t ap_id, T v) {
   constexpr size_t type_bitwidth = sizeof(T) * 8;
-  const size_t offset = pi_p4info_action_param_offset(p4info, ap_id);
-  const size_t bitwidth = pi_p4info_action_param_bitwidth(p4info, ap_id);
+  const size_t offset = pi_p4info_action_param_offset(p4info, action_id, ap_id);
+  const size_t bitwidth = pi_p4info_action_param_bitwidth(
+      p4info, action_id, ap_id);
   const size_t bytes = (bitwidth + 7) / 8;
-  const char byte0_mask = pi_p4info_action_param_byte0_mask(p4info, ap_id);
+  const char byte0_mask = pi_p4info_action_param_byte0_mask(
+      p4info, action_id, ap_id);
   if (bitwidth > type_bitwidth) return 1;
   v = endianness(v);
   char *data = reinterpret_cast<char *>(&v);
@@ -417,10 +419,12 @@ ActionData::format(pi_p4_id_t ap_id, T v) {
 error_code_t
 ActionData::format(pi_p4_id_t ap_id, const char *ptr, size_t s) {
   // constexpr size_t type_bitwidth = sizeof(T) * 8;
-  const size_t offset = pi_p4info_action_param_offset(p4info, ap_id);
-  const size_t bitwidth = pi_p4info_action_param_bitwidth(p4info, ap_id);
+  const size_t offset = pi_p4info_action_param_offset(p4info, action_id, ap_id);
+  const size_t bitwidth = pi_p4info_action_param_bitwidth(
+      p4info, action_id, ap_id);
   const size_t bytes = (bitwidth + 7) / 8;
-  const char byte0_mask = pi_p4info_action_param_byte0_mask(p4info, ap_id);
+  const char byte0_mask = pi_p4info_action_param_byte0_mask(
+      p4info, action_id, ap_id);
   if (bytes != s) return 1;
   char *dst = action_data->data + offset;
   memcpy(dst, ptr, bytes);
