@@ -58,8 +58,8 @@ void p4info_struct_destroy(pi_p4info_t *p4info) {
 // C1x §6.7.2.1.13: "A pointer to a structure object, suitably converted, points
 // to its initial member ... and vice versa. There may be unnamed padding within
 // as structure object, but not at its beginning."
-p4info_common_t *pi_p4info_get_common(const pi_p4info_t *p4info,
-                                      pi_p4_id_t id) {
+static p4info_common_t *pi_p4info_get_common(const pi_p4info_t *p4info,
+                                             pi_p4_id_t id) {
   void *e = p4info_get_at(p4info, id);
   return (p4info_common_t *)e;
 }
@@ -109,4 +109,49 @@ pi_p4_id_t pi_p4info_any_end(const pi_p4info_t *p4info, pi_res_type_id_t type) {
   (void)p4info;
   (void)type;
   return PI_INVALID_ID;
+}
+
+size_t pi_p4info_any_num(const pi_p4info_t *p4info, pi_res_type_id_t type) {
+  return num_res(p4info, type);
+}
+
+const char *pi_p4info_any_name_from_id(const pi_p4info_t *p4info,
+                                       pi_p4_id_t id) {
+  const pi_p4info_res_t *res = &p4info->resources[PI_GET_TYPE_ID(id)];
+  const void *data = p4info_get_at(p4info, id);
+  return res->retrieve_name_fn(data);
+}
+
+pi_p4_id_t pi_p4info_any_id_from_name(const pi_p4info_t *p4info,
+                                      pi_res_type_id_t type, const char *name) {
+  const pi_p4info_res_t *res = &p4info->resources[type];
+  return p4info_name_map_get(&res->name_map, name);
+}
+
+pi_status_t pi_p4info_add_alias(pi_p4info_t *p4info, pi_p4_id_t id,
+                                const char *alias) {
+  pi_p4info_res_t *res = &p4info->resources[PI_GET_TYPE_ID(id)];
+  int rc = p4info_name_map_add(&res->name_map, alias, id);
+  if (rc == 0) return PI_STATUS_ALIAS_ALREADY_EXISTS;
+  p4info_common_push_back_alias(pi_p4info_get_common(p4info, id), alias);
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_p4info_add_annotation(pi_p4info_t *p4info, pi_p4_id_t id,
+                                     const char *annotation) {
+  p4info_common_push_back_annotation(pi_p4info_get_common(p4info, id),
+                                     annotation);
+  return PI_STATUS_SUCCESS;
+}
+
+char const *const *pi_p4info_get_aliases(const pi_p4info_t *p4info,
+                                         pi_p4_id_t id, size_t *num_aliases) {
+  return p4info_common_aliases(pi_p4info_get_common(p4info, id), num_aliases);
+}
+
+char const *const *pi_p4info_get_annotations(const pi_p4info_t *p4info,
+                                             pi_p4_id_t id,
+                                             size_t *num_annotations) {
+  return p4info_common_annotations(pi_p4info_get_common(p4info, id),
+                                   num_annotations);
 }

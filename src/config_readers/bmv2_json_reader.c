@@ -215,12 +215,11 @@ static pi_p4_id_t request_id(reader_state_t *state, cJSON *object,
 }
 
 static void import_pragmas(cJSON *object, pi_p4info_t *p4info, pi_p4_id_t id) {
-  p4info_common_t *common = pi_p4info_get_common(p4info, id);
   cJSON *pragmas = cJSON_GetObjectItem(object, "pragmas");
   if (!pragmas) return;
   cJSON *pragma;
   cJSON_ArrayForEach(pragma, pragmas) {
-    p4info_common_push_back_annotation(common, pragma->valuestring);
+    pi_p4info_add_annotation(p4info, id, pragma->valuestring);
   }
 }
 

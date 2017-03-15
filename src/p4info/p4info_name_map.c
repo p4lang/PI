@@ -22,11 +22,13 @@
 
 #include <Judy.h>
 
-void p4info_name_map_add(p4info_name_map_t *map, const char *name,
-                         pi_p4_id_t id) {
+int p4info_name_map_add(p4info_name_map_t *map, const char *name,
+                        pi_p4_id_t id) {
   Word_t *ptr = NULL;
   JSLI(ptr, *map, (const uint8_t *)name);
+  if (*ptr != 0) return 0;
   *ptr = id;
+  return 1;
 }
 
 pi_p4_id_t p4info_name_map_get(const p4info_name_map_t *map, const char *name) {

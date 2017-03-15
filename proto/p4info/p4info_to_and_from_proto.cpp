@@ -54,9 +54,17 @@ class read_proto_exception : public std::exception {
 };
 
 void import_annotations(const p4::config::Preamble &pre, pi_p4info_t *p4info) {
-  auto common = pi_p4info_get_common(p4info, pre.id());
   for (const auto &annotation : pre.annotations())
-    p4info_common_push_back_annotation(common, annotation.c_str());
+    pi_p4info_add_annotation(p4info, pre.id(), annotation.c_str());
+}
+
+void import_alias(const p4::config::Preamble &pre, pi_p4info_t *p4info) {
+  pi_p4info_add_alias(p4info, pre.id(), pre.alias().c_str());
+}
+
+void import_common(const p4::config::Preamble &pre, pi_p4info_t *p4info) {
+  import_annotations(pre, p4info);
+  import_alias(pre, p4info);
 }
 
 void read_actions(const p4::config::P4Info &p4info_proto, pi_p4info_t *p4info) {
@@ -70,7 +78,7 @@ void read_actions(const p4::config::P4Info &p4info_proto, pi_p4info_t *p4info) {
       pi_p4info_action_add_param(p4info, pre.id(), param.id(),
                                  param.name().c_str(), param.bitwidth());
     }
-    import_annotations(pre, p4info);
+    import_common(pre, p4info);
   }
 }
 
@@ -123,7 +131,7 @@ void read_tables(const p4::config::P4Info &p4info_proto, pi_p4info_t *p4info) {
     for (const auto &direct_res_id : table.direct_resource_ids())
       pi_p4info_table_add_direct_resource(p4info, pre.id(), direct_res_id);
 
-    import_annotations(pre, p4info);
+    import_common(pre, p4info);
   }
 }
 
@@ -138,7 +146,7 @@ void read_act_profs(const p4::config::P4Info &p4info_proto,
     for (const auto table_id : act_prof.table_ids())
       pi_p4info_act_prof_add_table(p4info, pre.id(), table_id);
 
-    import_annotations(pre, p4info);
+    import_common(pre, p4info);
   }
 }
 
@@ -166,7 +174,7 @@ void read_counters(const p4::config::P4Info &p4info_proto,
       pi_p4info_counter_make_direct(p4info, pre.id(),
                                     counter.direct_table_id());
     }
-    import_annotations(pre, p4info);
+    import_common(pre, p4info);
   }
 }
 
@@ -201,7 +209,7 @@ void read_meters(const p4::config::P4Info &p4info_proto, pi_p4info_t *p4info) {
       pi_p4info_meter_make_direct(p4info, pre.id(),
                                     meter.direct_table_id());
     }
-    import_annotations(pre, p4info);
+    import_common(pre, p4info);
   }
 }
 
@@ -233,11 +241,14 @@ void set_preamble(T *obj, pi_p4_id_t id, const char *name,
   auto pre = obj->mutable_preamble();
   pre->set_id(id);
   pre->set_name(name);
-  auto common = pi_p4info_get_common(p4info, id);
   size_t num_annotations;
-  auto annotations = p4info_common_annotations(common, &num_annotations);
+  auto annotations = pi_p4info_get_annotations(p4info, id, &num_annotations);
   for (size_t i = 0; i < num_annotations; i++)
     pre->add_annotations(annotations[i]);
+  size_t num_aliases;
+  auto aliases = pi_p4info_get_aliases(p4info, id, &num_aliases);
+  // TODO(antonin): warn if more than one alias
+  if (num_aliases > 0) pre->set_alias(aliases[0]);
 }
 
 void p4info_serialize_actions(const pi_p4info_t *p4info,

@@ -28,12 +28,11 @@
 
 static void import_annotations(cJSON *object, pi_p4info_t *p4info,
                                pi_p4_id_t id) {
-  p4info_common_t *common = pi_p4info_get_common(p4info, id);
   cJSON *annotations = cJSON_GetObjectItem(object, "annotations");
   if (!annotations) return;
   cJSON *annotation;
   cJSON_ArrayForEach(annotation, annotations) {
-    p4info_common_push_back_annotation(common, annotation->valuestring);
+    pi_p4info_add_annotation(p4info, id, annotation->valuestring);
   }
 }
 

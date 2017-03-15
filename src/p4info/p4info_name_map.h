@@ -25,8 +25,9 @@
 
 typedef void *p4info_name_map_t;
 
-void p4info_name_map_add(p4info_name_map_t *map, const char *name,
-                         pi_p4_id_t id);
+// returns 1 if value succesfully inserted, 0 if key was already present
+int p4info_name_map_add(p4info_name_map_t *map, const char *name,
+                        pi_p4_id_t id);
 
 pi_p4_id_t p4info_name_map_get(const p4info_name_map_t *map, const char *name);
 

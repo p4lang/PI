@@ -33,6 +33,11 @@ void p4info_common_push_back_annotation(p4info_common_t *common,
 char const *const *p4info_common_annotations(p4info_common_t *common,
                                              size_t *num_annotations);
 
+void p4info_common_push_back_alias(p4info_common_t *common, const char *alias);
+
+char const *const *p4info_common_aliases(p4info_common_t *common,
+                                         size_t *num_aliases);
+
 typedef struct cJSON cJSON;
 void p4info_common_serialize(cJSON *object, const p4info_common_t *common);
 

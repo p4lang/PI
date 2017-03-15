@@ -18,10 +18,9 @@
  *
  */
 
+#include "PI/int/pi_int.h"
 #include "PI/p4info.h"
-#include "p4info/actions_int.h"
-#include "p4info/p4info_struct.h"
-#include "p4info/tables_int.h"
+#include "p4info_int.h"
 #include "read_file.h"
 
 #include "utils.h"
@@ -431,6 +430,52 @@ TEST(P4Info, Serialize) {
   free(config);
 }
 
+static void add_one_of_each() {
+  pi_p4info_action_init(p4info, 1);
+  pi_p4info_table_init(p4info, 1);
+  pi_p4info_act_prof_init(p4info, 1);
+  pi_p4info_counter_init(p4info, 1);
+  pi_p4info_meter_init(p4info, 1);
+
+  pi_p4info_action_add(p4info, pi_make_action_id(0), "action0", 0);
+  pi_p4info_table_add(p4info, pi_make_table_id(0), "table0", 0, 0, 128);
+  pi_p4info_act_prof_add(p4info, pi_make_act_prof_id(0), "act_prof0", false, 8);
+  pi_p4info_counter_add(p4info, pi_make_counter_id(0), "counter0",
+                        PI_P4INFO_COUNTER_UNIT_BOTH, 128);
+  pi_p4info_meter_add(p4info, pi_make_meter_id(0), "meter0",
+                      PI_P4INFO_METER_UNIT_PACKETS,
+                      PI_P4INFO_METER_TYPE_COLOR_UNAWARE, 128);
+}
+
+TEST(P4Info, Generic) {
+  add_one_of_each();
+
+  pi_res_type_id_t types[] = {PI_ACTION_ID, PI_TABLE_ID, PI_ACT_PROF_ID,
+                              PI_COUNTER_ID, PI_METER_ID};
+  size_t num_types = sizeof(types) / sizeof(types[0]);
+
+  for (size_t i = 0; i < num_types; i++) {
+    pi_p4_id_t id = types[i] << 24;
+    const char *name = pi_p4info_any_name_from_id(p4info, id);
+    TEST_ASSERT_NOT_NULL(name);
+    TEST_ASSERT_EQUAL_UINT(id,
+                           pi_p4info_any_id_from_name(p4info, types[i], name));
+
+    TEST_ASSERT_EQUAL_UINT(1u, pi_p4info_any_num(p4info, types[i]));
+    TEST_ASSERT_EQUAL_UINT(id, pi_p4info_any_begin(p4info, types[i]));
+    TEST_ASSERT_EQUAL_UINT(pi_p4info_any_end(p4info, types[i]),
+                           pi_p4info_any_next(p4info, id));
+
+    const char *alias = "alias";
+    TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS,
+                      pi_p4info_add_alias(p4info, id, "alias"));
+    TEST_ASSERT_EQUAL_UINT(id,
+                           pi_p4info_any_id_from_name(p4info, types[i], alias));
+    TEST_ASSERT_EQUAL(PI_STATUS_ALIAS_ALREADY_EXISTS,
+                      pi_p4info_add_alias(p4info, id, "alias"));
+  }
+}
+
 TEST_GROUP_RUNNER(P4Info) {
   RUN_TEST_CASE(P4Info, Actions);
   RUN_TEST_CASE(P4Info, ActionsInvalidId);
@@ -440,6 +485,7 @@ TEST_GROUP_RUNNER(P4Info) {
   RUN_TEST_CASE(P4Info, TablesStress);
   RUN_TEST_CASE(P4Info, TablesIterator);
   RUN_TEST_CASE(P4Info, Serialize);
+  RUN_TEST_CASE(P4Info, Generic);
 }
 
 void test_p4info() { RUN_TEST_GROUP(P4Info); }
