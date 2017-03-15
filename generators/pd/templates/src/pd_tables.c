@@ -83,8 +83,7 @@ static void build_key_${t_name} (
   pi_status_t rc; (void) rc;
   pi_netv_t netv_1, netv_2; (void) netv_1; (void) netv_2;
 
-//::   for field_name, field_match_type, field_bw in t.key:
-//::     fid = fields[field_name].id_
+//::   for field_name, fid, field_match_type, field_bw in t.key:
 //::     field_name = get_c_name(field_name)
 //::     nbytes = (field_bw + 7) / 8
 //::     fnB = nbytes if nbytes <= 4 else 'X'

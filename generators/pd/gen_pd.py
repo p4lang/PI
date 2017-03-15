@@ -37,8 +37,6 @@ TABLES = {}
 TABLES_BY_ID = {}
 ACTIONS = {}
 ACTIONS_BY_ID = {}
-FIELDS = {}
-FIELDS_BY_ID = {}
 ACT_PROFS = {}
 ACT_PROFS_BY_ID = {}
 COUNTER_ARRAYS = {}
@@ -89,7 +87,7 @@ class Table:
 
     def set_match_type(self):
         assert(self.match_type is None)
-        match_types = [t for _, t, _ in self.key]
+        match_types = [t[2] for t in self.key]
 
         if len(match_types) == 0:
             self.match_type = MatchType.EXACT
@@ -112,7 +110,7 @@ class Table:
 
     def key_str(self):
         def one_str(f):
-            name, t, bw = f
+            name, _, t, bw = f
             return name + "(" + MatchType.to_str(t) + ", " + str(bw) + ")"
 
         return ",\t".join([one_str(f) for f in self.key])
@@ -139,16 +137,6 @@ class Action:
 
     def action_str(self):
         return "{0:30} [{1}]".format(self.name, self.runtime_data_str())
-
-
-class Field:
-    def __init__(self, name, id_, bitwidth):
-        self.name = name
-        self.id_ = id_
-        self.bitwidth = bitwidth
-
-        FIELDS[name] = self
-        FIELDS_BY_ID[id_] = self
 
 
 class ActProf:
@@ -216,12 +204,6 @@ def load_json(json_str):
     # json_ = json.loads(json_str)
     json_ = json_str
 
-    for j_field in json_["fields"]:
-        field_name = j_field["name"]
-        # a bit flaky, but that's how it is in the PD
-        field_name = field_name.replace("_valid", "valid")  # hack
-        f = Field(field_name, j_field["id"], j_field["bitwidth"])
-
     for j_action in json_["actions"]:
         action = Action(j_action["name"], j_action["id"])
         for j_param in j_action["params"]:
@@ -243,9 +225,10 @@ def load_json(json_str):
         for j_key in j_table["match_fields"]:
             fid = j_key["id"]
             match_type = get_match_type(j_key["match_type"])
-            field_name, bitwidth = (FIELDS_BY_ID[fid].name,
-                                    FIELDS_BY_ID[fid].bitwidth)
-            table.key += [(field_name, match_type, bitwidth)]
+            # TODO(antonin): fix this when valid match handling is improved
+            field_name = j_key["name"].replace("_valid", "valid")
+            bitwidth = j_key["bitwidth"]
+            table.key += [(field_name, fid, match_type, bitwidth)]
         table.set_match_type()
 
     if "act_profs" in json_:
@@ -351,7 +334,7 @@ def get_c_type(byte_width):
 # key is a Python list of tuples (field_name, match_type, bitwidth)
 def gen_match_params(key):
     params = []
-    for field, match_type, bitwidth in key:
+    for field, _, match_type, bitwidth in key:
         bytes_needed = bits_to_bytes(bitwidth)
         if match_type == MatchType.RANGE:
             params += [(field + "_start", bytes_needed)]
@@ -406,8 +389,6 @@ def generate_pd_source(json_dict, dest_dir, p4_prefix, templates_dir, target):
     TABLES_BY_ID.clear()
     ACTIONS.clear()
     ACTIONS_BY_ID.clear()
-    FIELDS.clear()
-    FIELDS_BY_ID.clear()
     ACT_PROFS.clear()
     ACT_PROFS_BY_ID.clear()
     COUNTER_ARRAYS.clear()
@@ -431,7 +412,6 @@ def generate_pd_source(json_dict, dest_dir, p4_prefix, templates_dir, target):
     render_dict["get_thrift_type"] = get_thrift_type
     render_dict["tables"] = TABLES
     render_dict["actions"] = ACTIONS
-    render_dict["fields"] = FIELDS
     render_dict["act_profs"] = ACT_PROFS
     render_dict["counter_arrays"] = COUNTER_ARRAYS
     render_dict["meter_arrays"] = METER_ARRAYS
