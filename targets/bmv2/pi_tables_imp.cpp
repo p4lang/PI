@@ -403,10 +403,13 @@ pi_status_t _pi_table_default_action_set(pi_session_handle_t session_handle,
       // TODO(antonin): equivalent for indirect?
       // TODO(antonin): move to common PI code?
       if (pi_p4info_table_has_const_default_action(p4info, table_id)) {
-        const pi_p4_id_t default_action_id =
-            pi_p4info_table_get_const_default_action(p4info, table_id);
+        bool has_mutable_action_params;
+        auto default_action_id = pi_p4info_table_get_const_default_action(
+            p4info, table_id, &has_mutable_action_params);
         if (default_action_id != adata->action_id)
           return PI_STATUS_CONST_DEFAULT_ACTION;
+        if (has_mutable_action_params)
+          return PI_STATUS_CONST_DEFAULT_ACTION_NON_MUTABLE_PARAMS;
       }
 
       set_default_entry(p4info, dev_tgt, t_name, adata);

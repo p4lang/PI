@@ -143,7 +143,11 @@ static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
 
     item = cJSON_GetObjectItem(table, "const_default_action_id");
     if (item && item->valueint != PI_INVALID_ID) {
-      pi_p4info_table_set_const_default_action(p4info, pi_id, item->valueint);
+      pi_p4_id_t const_default_action_id = item->valueint;
+      item = cJSON_GetObjectItem(table, "has_mutable_action_params");
+      bool has_mutable_action_params = item && (item->valueint != 0);
+      pi_p4info_table_set_const_default_action(
+          p4info, pi_id, const_default_action_id, has_mutable_action_params);
     }
 
     item = cJSON_GetObjectItem(table, "implementation");

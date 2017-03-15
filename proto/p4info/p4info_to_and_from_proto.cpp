@@ -110,8 +110,9 @@ void read_tables(const p4::config::P4Info &p4info_proto, pi_p4info_t *p4info) {
       pi_p4info_table_add_action(p4info, pre.id(), action_id);
 
     if (table.const_default_action_id() != PI_INVALID_ID) {
-      pi_p4info_table_set_const_default_action(p4info, pre.id(),
-                                               table.const_default_action_id());
+      pi_p4info_table_set_const_default_action(
+          p4info, pre.id(), table.const_default_action_id(),
+          table.const_default_action_has_mutable_params());
     }
 
     if (table.implementation_id() != PI_INVALID_ID) {
@@ -305,8 +306,13 @@ void p4info_serialize_tables(const pi_p4info_t *p4info,
     for (size_t i = 0; i < num_actions; i++)
       table->add_action_ids(action_ids[i]);
 
-    table->set_const_default_action_id(
-        pi_p4info_table_get_const_default_action(p4info, id));
+    bool has_mutable_action_params;
+    auto const_default_action_id = pi_p4info_table_get_const_default_action(
+        p4info, id, &has_mutable_action_params);
+    table->set_const_default_action_id(const_default_action_id);
+    table->set_const_default_action_has_mutable_params(
+        has_mutable_action_params);
+
     table->set_implementation_id(
         pi_p4info_table_get_implementation(p4info, id));
 

@@ -47,7 +47,8 @@ void pi_p4info_table_set_implementation(pi_p4info_t *p4info,
 
 void pi_p4info_table_set_const_default_action(pi_p4info_t *p4info,
                                               pi_p4_id_t table_id,
-                                              pi_p4_id_t default_action_id);
+                                              pi_p4_id_t default_action_id,
+                                              bool has_mutable_action_params);
 
 void pi_p4info_table_add_direct_resource(pi_p4info_t *p4info,
                                          pi_p4_id_t table_id,

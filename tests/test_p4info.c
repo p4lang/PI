@@ -240,6 +240,17 @@ void gen_rand_ids(pi_p4_id_t *ids, pi_p4_id_t max, size_t num) {
 #pragma GCC diagnostic pop
 }
 
+static void check_default_action(pi_p4_id_t tid, pi_p4_id_t expected_id,
+                                 bool expected_mutable_params) {
+  TEST_ASSERT_EQUAL_INT(expected_id != PI_INVALID_ID,
+                        pi_p4info_table_has_const_default_action(p4info, tid));
+  bool has_mutable_params;
+  pi_p4_id_t default_action_id = pi_p4info_table_get_const_default_action(
+      p4info, tid, &has_mutable_params);
+  TEST_ASSERT_EQUAL_UINT(expected_id, default_action_id);
+  TEST_ASSERT_EQUAL_INT(expected_mutable_params, has_mutable_params);
+}
+
 TEST(P4Info, TablesStress) {
   size_t num_actions = 1024;
   size_t num_tables = 256;
@@ -355,17 +366,15 @@ TEST(P4Info, TablesStress) {
   for (size_t i = 0; i < num_tables; i++) {
     if (tdata[i].num_actions == 0) continue;
     pi_p4_id_t action_id = tdata[i].actions[0];
-    TEST_ASSERT_FALSE(
-        pi_p4info_table_has_const_default_action(p4info, tdata[i].id));
-    TEST_ASSERT_EQUAL_UINT(
-        PI_INVALID_ID,
-        pi_p4info_table_get_const_default_action(p4info, tdata[i].id));
+    check_default_action(tdata[i].id, PI_INVALID_ID, false);
 
-    pi_p4info_table_set_const_default_action(p4info, tdata[i].id, action_id);
-    TEST_ASSERT_TRUE(
-        pi_p4info_table_has_const_default_action(p4info, tdata[i].id));
-    TEST_ASSERT_EQUAL_UINT(action_id, pi_p4info_table_get_const_default_action(
-                                          p4info, tdata[i].id));
+    pi_p4info_table_set_const_default_action(p4info, tdata[i].id, action_id,
+                                             false);
+    check_default_action(tdata[i].id, action_id, false);
+
+    pi_p4info_table_set_const_default_action(p4info, tdata[i].id, action_id,
+                                             true);
+    check_default_action(tdata[i].id, action_id, true);
   }
 
   free(tdata);

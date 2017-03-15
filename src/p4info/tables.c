@@ -61,6 +61,7 @@ typedef struct _table_data_s {
   size_t actions_added;
   // PI_INVALID_ID if no const default action
   pi_p4_id_t const_default_action_id;
+  bool has_mutable_action_params;
   // PI_INVALID_ID if default
   pi_p4_id_t implementation;
   size_t num_direct_resources;
@@ -180,6 +181,8 @@ void pi_p4info_table_serialize(cJSON *root, const pi_p4info_t *p4info) {
 
     cJSON_AddNumberToObject(tObject, "const_default_action_id",
                             table->const_default_action_id);
+    cJSON_AddBoolToObject(tObject, "has_mutable_action_params",
+                          table->has_mutable_action_params);
 
     cJSON_AddNumberToObject(tObject, "implementation", table->implementation);
 
@@ -224,6 +227,7 @@ void pi_p4info_table_add(pi_p4info_t *p4info, pi_p4_id_t table_id,
   }
 
   table->const_default_action_id = PI_INVALID_ID;
+  table->has_mutable_action_params = false;
   table->implementation = PI_INVALID_ID;
   table->num_direct_resources = 0;
   table->match_fields_added = 0;
@@ -280,11 +284,13 @@ void pi_p4info_table_set_implementation(pi_p4info_t *p4info,
 
 void pi_p4info_table_set_const_default_action(pi_p4info_t *p4info,
                                               pi_p4_id_t table_id,
-                                              pi_p4_id_t default_action_id) {
+                                              pi_p4_id_t default_action_id,
+                                              bool has_mutable_action_params) {
   _table_data_t *table = get_table(p4info, table_id);
   assert(table->num_actions > 0);
   assert(pi_p4info_table_is_action_of(p4info, table_id, default_action_id));
   table->const_default_action_id = default_action_id;
+  table->has_mutable_action_params = has_mutable_action_params;
 }
 
 void pi_p4info_table_add_direct_resource(pi_p4info_t *p4info,
@@ -422,9 +428,12 @@ bool pi_p4info_table_has_const_default_action(const pi_p4info_t *p4info,
   return (table->const_default_action_id != PI_INVALID_ID);
 }
 
-pi_p4_id_t pi_p4info_table_get_const_default_action(const pi_p4info_t *p4info,
-                                                    pi_p4_id_t table_id) {
+pi_p4_id_t pi_p4info_table_get_const_default_action(
+    const pi_p4info_t *p4info, pi_p4_id_t table_id,
+    bool *has_mutable_action_params) {
   _table_data_t *table = get_table(p4info, table_id);
+  // false by default (if default action is not const)
+  *has_mutable_action_params = table->has_mutable_action_params;
   return table->const_default_action_id;
 }
 

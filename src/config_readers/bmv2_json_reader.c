@@ -539,6 +539,7 @@ static pi_status_t read_tables(reader_state_t *state, cJSON *root,
       size_t bitwidth = (size_t)*bitwidth_ptr;
       pi_p4info_table_add_match_field(p4info, pi_id, mf_id, fname, match_type,
                                       bitwidth);
+      // TODO(antonin): const default action
     }
 
     cJSON *action;
