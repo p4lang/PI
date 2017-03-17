@@ -79,6 +79,7 @@ esac
 AC_CONFIG_FILES([Makefile
                  p4info/Makefile
                  frontend/Makefile
+                 server/Makefile
                  demo_grpc/Makefile
                  tests/Makefile])
 
