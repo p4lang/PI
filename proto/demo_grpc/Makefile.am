@@ -3,6 +3,7 @@ ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 AM_CPPFLAGS = \
 -I$(top_srcdir)/../include \
 -I$(top_srcdir)/frontend \
+-I$(top_srcdir)/server \
 -I$(top_builddir)/cpp_out \
 -I$(top_builddir)/grpc_out \
 -I$(top_srcdir)/p4info
@@ -24,43 +25,24 @@ web_server.cpp \
 web_server.h \
 app.cpp
 
-lib_LTLIBRARIES = libpigrpcserver.la
-
-libpigrpcserver_la_SOURCES = pi_server.cpp
-
-nobase_include_HEADERS = PI/proto/pi_server.h
-
 COMMON_SERVER_LIBS = \
+$(top_builddir)/server/libpigrpcserver.la \
 $(top_builddir)/frontend/libpifeproto.la \
-$(top_builddir)/../frontends_extra/cpp/libpifecpp.la \
-$(top_builddir)/libpiproto.la \
-$(top_builddir)/../src/libpiall.la \
-$(top_builddir)/p4info/libpiconvertproto.la \
-$(PROTOBUF_LIBS) $(GRPC_LIBS)
-
-libpigrpcserver_la_LIBADD = \
-$(COMMON_SERVER_LIBS)
+$(top_builddir)/../src/libpiall.la
 
 if WITH_BMV2
 bin_PROGRAMS = pi_grpc_server
 
 pi_grpc_server_SOURCES = pi_server_main.cpp
 
-# COMMON_SERVER_LIBS need to be repeated here for some reason, this seems to be
-# specific to the libtool version packaged with Ubuntu (see
-# http://stackoverflow.com/questions/11802727/libtool-doesnt-provide-library-dependencies-to-link). Also
-# COMMON_SERVER_LIBS need to appear before libpigrpcserver, which I also don't
-# explain.
 pi_grpc_server_LDADD = \
 $(COMMON_SERVER_LIBS) \
-libpigrpcserver.la \
 $(top_builddir)/../targets/bmv2/libpi_bmv2.la \
 -lthrift -lruntimestubs -lsimpleswitch_thrift
 endif  # WITH_BMV2
 
 pi_server_dummy_LDADD = \
 $(COMMON_SERVER_LIBS) \
-libpigrpcserver.la \
 $(top_builddir)/../targets/dummy/libpi_dummy.la
 
 test_client_LDADD = \
