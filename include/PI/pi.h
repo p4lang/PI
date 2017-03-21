@@ -72,6 +72,9 @@ pi_status_t pi_update_device_start(pi_dev_id_t dev_id,
 //! Terminates a P4 config update sequence, see pi_update_device_start.
 pi_status_t pi_update_device_end(pi_dev_id_t dev_id);
 
+//! Check if a device was assigned.
+bool pi_is_device_assigned(pi_dev_id_t dev_id);
+
 //! Remove a device.
 pi_status_t pi_remove_device(pi_dev_id_t dev_id);
 

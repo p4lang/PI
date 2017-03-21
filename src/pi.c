@@ -149,6 +149,12 @@ pi_status_t pi_update_device_end(pi_dev_id_t dev_id) {
   return _pi_update_device_end(dev_id);
 }
 
+bool pi_is_device_assigned(pi_dev_id_t dev_id) {
+  if (dev_id >= num_devices) return false;
+  pi_device_info_t *info = &device_mapping[dev_id];
+  return info->version;
+}
+
 pi_status_t pi_remove_device(pi_dev_id_t dev_id) {
   if (dev_id >= num_devices) return PI_STATUS_DEV_OUT_OF_RANGE;
 
