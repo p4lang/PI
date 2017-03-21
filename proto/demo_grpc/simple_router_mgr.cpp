@@ -302,7 +302,8 @@ SimpleRouterMgr::add_route_(uint32_t prefix, int pLen, uint32_t nhop,
     match_action_entry.set_table_id(t_id);
 
     auto mf = match_action_entry.add_match();
-    mf->set_field_id(pi_p4info_field_id_from_name(p4info, "ipv4.dstAddr"));
+    mf->set_field_id(pi_p4info_table_match_field_id_from_name(
+        p4info, t_id, "ipv4.dstAddr"));
     auto mf_lpm = mf->mutable_lpm();
     mf_lpm->set_value(uint_to_string(nhop));
     mf_lpm->set_prefix_len(pLen);
@@ -352,8 +353,8 @@ SimpleRouterMgr::add_arp_entry(uint32_t addr,
   match_action_entry.set_table_id(t_id);
 
   auto mf = match_action_entry.add_match();
-  mf->set_field_id(pi_p4info_field_id_from_name(
-      p4info, "routing_metadata.nhop_ipv4"));
+  mf->set_field_id(pi_p4info_table_match_field_id_from_name(
+      p4info, t_id, "routing_metadata.nhop_ipv4"));
   auto mf_exact = mf->mutable_exact();
   mf_exact->set_value(uint_to_string(addr));
 
@@ -381,8 +382,8 @@ SimpleRouterMgr::assign_mac_addr(uint16_t port,
   match_action_entry.set_table_id(t_id);
 
   auto mf = match_action_entry.add_match();
-  mf->set_field_id(pi_p4info_field_id_from_name(
-      p4info, "standard_metadata.egress_port"));
+  mf->set_field_id(pi_p4info_table_match_field_id_from_name(
+      p4info, t_id, "standard_metadata.egress_port"));
   auto mf_exact = mf->mutable_exact();
   mf_exact->set_value(uint_to_string(port));
 
@@ -423,8 +424,8 @@ SimpleRouterMgr::set_default_entries() {
     match_action_entry.set_table_id(t_id);
 
     auto mf = match_action_entry.add_match();
-    mf->set_field_id(pi_p4info_field_id_from_name(
-        p4info, "routing_metadata.nhop_ipv4"));
+    mf->set_field_id(pi_p4info_table_match_field_id_from_name(
+        p4info, t_id, "routing_metadata.nhop_ipv4"));
     auto mf_exact = mf->mutable_exact();
     mf_exact->set_value(uint_to_string(static_cast<uint32_t>(0)));
 

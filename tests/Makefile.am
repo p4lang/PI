@@ -70,7 +70,6 @@ testdata/stats.json \
 testdata/l2_switch.json \
 testdata/pragmas.json \
 testdata/unittest.json \
-testdata/pi_omit.json \
 testdata/id_collision.json \
 testdata/act_prof.json
 

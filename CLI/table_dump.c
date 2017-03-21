@@ -37,9 +37,9 @@ static int get_name_out_width(int min, pi_p4_id_t t_id) {
   size_t num_match_fields = pi_p4info_table_num_match_fields(p4info_curr, t_id);
   size_t max = min;
   for (size_t j = 0; j < num_match_fields; j++) {
-    pi_p4info_match_field_info_t finfo;
-    pi_p4info_table_match_field_info(p4info_curr, t_id, j, &finfo);
-    size_t L = strlen(finfo.name);
+    const pi_p4info_match_field_info_t *finfo =
+        pi_p4info_table_match_field_info(p4info_curr, t_id, j);
+    size_t L = strlen(finfo->name);
     max = (L > max) ? L : max;
   }
   return (int)max;
@@ -128,11 +128,11 @@ static pi_cli_status_t dump_entries(pi_p4_id_t t_id,
 
     printf("Match key:\n");
     for (size_t j = 0; j < num_match_fields; j++) {
-      pi_p4info_match_field_info_t finfo;
-      pi_p4info_table_match_field_info(p4info_curr, t_id, j, &finfo);
-      printf("* %-*s: %-10s", name_out_width, finfo.name,
-             match_type_to_str(finfo.match_type));
-      print_match_param_v(finfo.field_id, finfo.match_type, entry.match_key);
+      const pi_p4info_match_field_info_t *finfo =
+          pi_p4info_table_match_field_info(p4info_curr, t_id, j);
+      printf("* %-*s: %-10s", name_out_width, finfo->name,
+             match_type_to_str(finfo->match_type));
+      print_match_param_v(finfo->mf_id, finfo->match_type, entry.match_key);
       printf("\n");
     }
 

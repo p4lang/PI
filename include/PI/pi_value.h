@@ -86,6 +86,7 @@ static inline void pi_getv_ptr(const char *ptr, uint32_t size, pi_value_t *v) {
 // in byte order
 typedef struct {
   int is_ptr;
+  pi_p4_id_t parent_id;
   pi_p4_id_t obj_id;
   size_t size;
   union {
@@ -94,25 +95,26 @@ typedef struct {
   } v;
 } pi_netv_t;
 
-pi_status_t pi_getnetv_u8(const pi_p4info_t *p4info, pi_p4_id_t obj_id,
-                          uint8_t u8, pi_netv_t *fv);
+pi_status_t pi_getnetv_u8(const pi_p4info_t *p4info, pi_p4_id_t parent_id,
+                          pi_p4_id_t obj_id, uint8_t u8, pi_netv_t *fv);
 
-pi_status_t pi_getnetv_u16(const pi_p4info_t *p4info, pi_p4_id_t obj_id,
-                           uint16_t u16, pi_netv_t *fv);
+pi_status_t pi_getnetv_u16(const pi_p4info_t *p4info, pi_p4_id_t parent_id,
+                           pi_p4_id_t obj_id, uint16_t u16, pi_netv_t *fv);
 
-pi_status_t pi_getnetv_u32(const pi_p4info_t *p4info, pi_p4_id_t obj_id,
-                           uint32_t u32, pi_netv_t *fv);
+pi_status_t pi_getnetv_u32(const pi_p4info_t *p4info, pi_p4_id_t parent_id,
+                           pi_p4_id_t obj_id, uint32_t u32, pi_netv_t *fv);
 
-pi_status_t pi_getnetv_u64(const pi_p4info_t *p4info, pi_p4_id_t obj_id,
-                           uint64_t u64, pi_netv_t *fv);
+pi_status_t pi_getnetv_u64(const pi_p4info_t *p4info, pi_p4_id_t parent_id,
+                           pi_p4_id_t obj_id, uint64_t u64, pi_netv_t *fv);
 
 // we borrow the pointer, client is still responsible for deleting memory when
 // he is done with the value
 // unlike for previous cases, I am not masking the first byte, because I do not
 // want to write to the client's memory
 // FIXME(antonin)
-pi_status_t pi_getnetv_ptr(const pi_p4info_t *p4info, pi_p4_id_t obj_id,
-                           const char *ptr, size_t size, pi_netv_t *fv);
+pi_status_t pi_getnetv_ptr(const pi_p4info_t *p4info, pi_p4_id_t parent_id,
+                           pi_p4_id_t obj_id, const char *ptr, size_t size,
+                           pi_netv_t *fv);
 
 #ifdef __cplusplus
 }

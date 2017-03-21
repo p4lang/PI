@@ -24,8 +24,6 @@
 #include "p4info/act_profs_int.h"
 #include "p4info/actions_int.h"
 #include "p4info/counters_int.h"
-#include "p4info/field_list_int.h"
-#include "p4info/fields_int.h"
 #include "p4info/meters_int.h"
 #include "p4info/tables_int.h"
 
@@ -33,7 +31,18 @@
 extern "C" {
 #endif
 
-p4info_common_t *pi_p4info_get_common(const pi_p4info_t *p4info, pi_p4_id_t id);
+pi_status_t pi_p4info_add_alias(pi_p4info_t *p4info, pi_p4_id_t id,
+                                const char *alias);
+
+char const *const *pi_p4info_get_aliases(const pi_p4info_t *p4info,
+                                         pi_p4_id_t id, size_t *num_aliases);
+
+pi_status_t pi_p4info_add_annotation(pi_p4info_t *p4info, pi_p4_id_t id,
+                                     const char *annotation);
+
+char const *const *pi_p4info_get_annotations(const pi_p4info_t *p4info,
+                                             pi_p4_id_t id,
+                                             size_t *num_annotations);
 
 #ifdef __cplusplus
 }

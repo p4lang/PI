@@ -33,6 +33,7 @@
 
 typedef struct {
   char *name;
+  pi_p4_id_t param_id;
   size_t bitwidth;
   char byte0_mask;
   size_t offset;
@@ -52,16 +53,8 @@ typedef struct _action_data_s {
     _action_param_data_t *indirect;
   } param_data;
   size_t action_data_size;
+  size_t params_added;
 } _action_data_t;
-
-static size_t get_param_idx(pi_p4_id_t param_id) {
-  assert(PI_GET_TYPE_ID(param_id) == PI_ACTION_PARAM_ID);
-  return param_id & 0xFF;
-}
-
-static size_t get_action_id_from_param_id(pi_p4_id_t param_id) {
-  return (PI_ACTION_ID << 24) | ((param_id & 0xffff00) >> 8);
-}
 
 static _action_data_t *get_action(const pi_p4info_t *p4info,
                                   pi_p4_id_t action_id) {
@@ -81,11 +74,11 @@ static _action_param_data_t *get_param_data(_action_data_t *action) {
 
 static _action_param_data_t *get_param_data_at(_action_data_t *action,
                                                pi_p4_id_t param_id) {
-  size_t param_idx = get_param_idx(param_id);
-  assert(param_idx < action->num_params);
-  return (action->num_params <= INLINE_PARAMS)
-             ? &action->param_data.direct[param_idx]
-             : &action->param_data.indirect[param_idx];
+  _action_param_data_t *param_data = get_param_data(action);
+  for (size_t i = 0; i < action->num_params; i++) {
+    if (param_data[i].param_id == param_id) return &param_data[i];
+  }
+  return NULL;
 }
 
 static pi_p4_id_t get_param_id(_action_data_t *action, const char *name) {
@@ -94,7 +87,7 @@ static pi_p4_id_t get_param_id(_action_data_t *action, const char *name) {
   for (size_t i = 0; i < action->num_params; i++) {
     if (!strcmp(name, param_data[i].name)) return param_ids[i];
   }
-  return 0;
+  return PI_INVALID_ID;
 }
 
 static size_t num_actions(const pi_p4info_t *p4info) {
@@ -140,6 +133,7 @@ void pi_p4info_action_serialize(cJSON *root, const pi_p4info_t *p4info) {
     for (size_t j = 0; j < action->num_params; j++) {
       cJSON *p = cJSON_CreateObject();
       cJSON_AddStringToObject(p, "name", param_data[j].name);
+      cJSON_AddNumberToObject(p, "id", param_data[j].param_id);
       cJSON_AddNumberToObject(p, "bitwidth", param_data[j].bitwidth);
       cJSON_AddItemToArray(pArray, p);
     }
@@ -169,6 +163,7 @@ void pi_p4info_action_add(pi_p4info_t *p4info, pi_p4_id_t action_id,
         calloc(num_params, sizeof(_action_param_data_t));
   }
   action->action_data_size = 0;
+  action->params_added = 0;
 }
 
 static char get_byte0_mask(size_t bitwidth) {
@@ -177,32 +172,24 @@ static char get_byte0_mask(size_t bitwidth) {
   return ((1 << nbits) - 1);
 }
 
-static bool param_matches_action(pi_p4_id_t action_id, pi_p4_id_t param_id) {
-  return action_id == get_action_id_from_param_id(param_id);
-}
-
 void pi_p4info_action_add_param(pi_p4info_t *p4info, pi_p4_id_t action_id,
                                 pi_p4_id_t param_id, const char *name,
                                 size_t bitwidth) {
-  assert(param_matches_action(action_id, param_id));
   _action_data_t *action = get_action(p4info, action_id);
-  _action_param_data_t *param_data = get_param_data_at(action, param_id);
+  assert(action->params_added < action->num_params);
+  _action_param_data_t *param_data =
+      &get_param_data(action)[action->params_added];
   param_data->name = strdup(name);
+  param_data->param_id = param_id;
   param_data->bitwidth = bitwidth;
   param_data->byte0_mask = get_byte0_mask(bitwidth);
+  param_data->offset = action->action_data_size;
 
-  size_t param_idx = get_param_idx(param_id);
-  pi_p4_id_t *param_ids = get_param_ids(action);
-  param_ids[param_idx] = param_id;
+  get_param_ids(action)[action->params_added] = param_id;
 
   action->action_data_size += (bitwidth + 7) / 8;
 
-  size_t offset = param_data->offset;
-  _action_param_data_t *params = get_param_data(action);
-  for (size_t i = param_idx; i < action->num_params - 1; i++) {
-    offset += (params[i].bitwidth + 7) / 8;
-    params[i + 1].offset = offset;
-  }
+  action->params_added++;
 }
 
 size_t pi_p4info_action_get_num(const pi_p4info_t *p4info) {
@@ -241,33 +228,41 @@ pi_p4_id_t pi_p4info_action_param_id_from_name(const pi_p4info_t *p4info,
   return get_param_id(action, name);
 }
 
-static _action_data_t *get_action_from_param_id(const pi_p4info_t *p4info,
-                                                pi_p4_id_t param_id) {
-  size_t idx = get_action_id_from_param_id(param_id);
-  return p4info_get_at(p4info, idx);
+size_t pi_p4info_action_param_index(const pi_p4info_t *p4info,
+                                    pi_p4_id_t action_id, pi_p4_id_t param_id) {
+  _action_data_t *action = get_action(p4info, action_id);
+  pi_p4_id_t *param_ids = get_param_ids(action);
+  for (size_t i = 0; i < action->num_params; i++) {
+    if (param_ids[i] == param_id) return i;
+  }
+  return (size_t)-1;
 }
 
 const char *pi_p4info_action_param_name_from_id(const pi_p4info_t *p4info,
+                                                pi_p4_id_t action_id,
                                                 pi_p4_id_t param_id) {
-  _action_data_t *action = get_action_from_param_id(p4info, param_id);
+  _action_data_t *action = get_action(p4info, action_id);
   return get_param_data_at(action, param_id)->name;
 }
 
 size_t pi_p4info_action_param_bitwidth(const pi_p4info_t *p4info,
+                                       pi_p4_id_t action_id,
                                        pi_p4_id_t param_id) {
-  _action_data_t *action = get_action_from_param_id(p4info, param_id);
+  _action_data_t *action = get_action(p4info, action_id);
   return get_param_data_at(action, param_id)->bitwidth;
 }
 
 char pi_p4info_action_param_byte0_mask(const pi_p4info_t *p4info,
+                                       pi_p4_id_t action_id,
                                        pi_p4_id_t param_id) {
-  _action_data_t *action = get_action_from_param_id(p4info, param_id);
+  _action_data_t *action = get_action(p4info, action_id);
   return get_param_data_at(action, param_id)->byte0_mask;
 }
 
 size_t pi_p4info_action_param_offset(const pi_p4info_t *p4info,
+                                     pi_p4_id_t action_id,
                                      pi_p4_id_t param_id) {
-  _action_data_t *action = get_action_from_param_id(p4info, param_id);
+  _action_data_t *action = get_action(p4info, action_id);
   return get_param_data_at(action, param_id)->offset;
 }
 

@@ -70,6 +70,7 @@ typedef enum {
   PI_STATUS_INVALID_ENTRY_TYPE,
   PI_STATUS_UNSUPPORTED_MATCH_TYPE,
   PI_STATUS_CONST_DEFAULT_ACTION,
+  PI_STATUS_CONST_DEFAULT_ACTION_NON_MUTABLE_PARAMS,
   PI_STATUS_NOT_A_DIRECT_RES_OF_TABLE,
   // TODO(antonin): remove now that we have PI_STATUS_TARGET_ERROR?
   PI_STATUS_INVALID_TABLE_OPERATION,
@@ -84,6 +85,7 @@ typedef enum {
   PI_STATUS_OUT_OF_BOUND_IDX,
 
   PI_STATUS_INVALID_RES_TYPE_ID,
+  PI_STATUS_ALIAS_ALREADY_EXISTS,
 
   PI_STATUS_LEARN_NO_MATCHING_CB,
   PI_STATUS_PACKETIN_NO_CB,
@@ -115,9 +117,6 @@ typedef struct pi_p4info_s pi_p4info_t;
 
 #define PI_ACTION_ID 0x01
 #define PI_TABLE_ID 0x02
-#define PI_ACTION_PARAM_ID 0x03
-#define PI_FIELD_ID 0x04
-#define PI_FIELD_LIST_ID 0x05
 
 #define PI_ACT_PROF_ID 0x11
 
@@ -131,8 +130,6 @@ typedef size_t pi_res_type_id_t;
 // TODO(antonin): make inline?
 bool pi_is_action_id(pi_p4_id_t id);
 bool pi_is_table_id(pi_p4_id_t id);
-bool pi_is_action_param_id(pi_p4_id_t id);
-bool pi_is_field_id(pi_p4_id_t id);
 
 bool pi_is_act_prof_id(pi_p4_id_t id);
 

@@ -96,7 +96,8 @@ MatchKeyReader::MatchKeyReader(const pi_match_key_t *match_key)
 error_code_t
 MatchKeyReader::read_one(pi_p4_id_t f_id, const char *src,
                          std::string *v) const {
-  const size_t bitwidth = pi_p4info_field_bitwidth(match_key->p4info, f_id);
+  const size_t bitwidth = pi_p4info_table_match_field_bitwidth(
+      match_key->p4info, match_key->table_id, f_id);
   const size_t bytes = (bitwidth + 7) / 8;
   *v = std::string(src, bytes);
   return 0;
@@ -190,9 +191,11 @@ template <typename T>
 error_code_t
 MatchKey::format(pi_p4_id_t f_id, T v, size_t offset, size_t *written) {
   constexpr size_t type_bitwidth = sizeof(T) * 8;
-  const size_t bitwidth = pi_p4info_field_bitwidth(p4info, f_id);
+  const size_t bitwidth = pi_p4info_table_match_field_bitwidth(
+      p4info, table_id, f_id);
   const size_t bytes = (bitwidth + 7) / 8;
-  const char byte0_mask = pi_p4info_field_byte0_mask(p4info, f_id);
+  const char byte0_mask = pi_p4info_table_match_field_byte0_mask(
+      p4info, table_id, f_id);
   if (bitwidth > type_bitwidth) return 1;
   v = endianness(v);
   char *data = reinterpret_cast<char *>(&v);
@@ -207,9 +210,11 @@ error_code_t
 MatchKey::format(pi_p4_id_t f_id, const char *ptr, size_t s, size_t offset,
                  size_t *written) {
   // constexpr size_t type_bitwidth = sizeof(T) * 8;
-  const size_t bitwidth = pi_p4info_field_bitwidth(p4info, f_id);
+  const size_t bitwidth = pi_p4info_table_match_field_bitwidth(
+      p4info, table_id, f_id);
   const size_t bytes = (bitwidth + 7) / 8;
-  const char byte0_mask = pi_p4info_field_byte0_mask(p4info, f_id);
+  const char byte0_mask = pi_p4info_table_match_field_byte0_mask(
+      p4info, table_id, f_id);
   if (bytes != s) return 1;
   char *dst = match_key->data + offset;
   memcpy(dst, ptr, bytes);
@@ -359,9 +364,9 @@ ActionDataReader::ActionDataReader(const pi_action_data_t *action_data)
 error_code_t
 ActionDataReader::get_arg(pi_p4_id_t ap_id, std::string *arg) const {
   const size_t offset = pi_p4info_action_param_offset(
-      action_data->p4info, ap_id);
+      action_data->p4info, action_data->action_id, ap_id);
   const size_t bitwidth = pi_p4info_action_param_bitwidth(
-      action_data->p4info, ap_id);
+      action_data->p4info, action_data->action_id, ap_id);
   const size_t bytes = (bitwidth + 7) / 8;
   *arg = std::string(action_data->data + offset, bytes);
   return 0;
@@ -396,10 +401,12 @@ template <typename T>
 error_code_t
 ActionData::format(pi_p4_id_t ap_id, T v) {
   constexpr size_t type_bitwidth = sizeof(T) * 8;
-  const size_t offset = pi_p4info_action_param_offset(p4info, ap_id);
-  const size_t bitwidth = pi_p4info_action_param_bitwidth(p4info, ap_id);
+  const size_t offset = pi_p4info_action_param_offset(p4info, action_id, ap_id);
+  const size_t bitwidth = pi_p4info_action_param_bitwidth(
+      p4info, action_id, ap_id);
   const size_t bytes = (bitwidth + 7) / 8;
-  const char byte0_mask = pi_p4info_action_param_byte0_mask(p4info, ap_id);
+  const char byte0_mask = pi_p4info_action_param_byte0_mask(
+      p4info, action_id, ap_id);
   if (bitwidth > type_bitwidth) return 1;
   v = endianness(v);
   char *data = reinterpret_cast<char *>(&v);
@@ -412,10 +419,12 @@ ActionData::format(pi_p4_id_t ap_id, T v) {
 error_code_t
 ActionData::format(pi_p4_id_t ap_id, const char *ptr, size_t s) {
   // constexpr size_t type_bitwidth = sizeof(T) * 8;
-  const size_t offset = pi_p4info_action_param_offset(p4info, ap_id);
-  const size_t bitwidth = pi_p4info_action_param_bitwidth(p4info, ap_id);
+  const size_t offset = pi_p4info_action_param_offset(p4info, action_id, ap_id);
+  const size_t bitwidth = pi_p4info_action_param_bitwidth(
+      p4info, action_id, ap_id);
   const size_t bytes = (bitwidth + 7) / 8;
-  const char byte0_mask = pi_p4info_action_param_byte0_mask(p4info, ap_id);
+  const char byte0_mask = pi_p4info_action_param_byte0_mask(
+      p4info, action_id, ap_id);
   if (bytes != s) return 1;
   char *dst = action_data->data + offset;
   memcpy(dst, ptr, bytes);

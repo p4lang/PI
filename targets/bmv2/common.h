@@ -72,7 +72,7 @@ struct ADataSize {
       action_map.emplace(
           std::string(pi_p4info_action_name_from_id(p4info, action_ids[i])),
           ADataSize(action_ids[i],
-                    get_action_data_size(p4info, action_ids[i])));
+                    pi_p4info_action_data_size(p4info, action_ids[i])));
     }
 
     return action_map;

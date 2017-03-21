@@ -16,12 +16,10 @@ PI/frontends/generic/pi.h
 
 nobase_include_HEADERS += \
 PI/p4info/actions.h \
-PI/p4info/fields.h \
 PI/p4info/tables.h \
 PI/p4info/act_profs.h \
 PI/p4info/counters.h \
-PI/p4info/meters.h \
-PI/p4info/field_list.h
+PI/p4info/meters.h
 
 nobase_include_HEADERS += \
 PI/int/pi_int.h \

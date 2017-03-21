@@ -50,16 +50,22 @@ pi_p4_id_t pi_p4info_action_param_id_from_name(const pi_p4info_t *p4info,
                                                const char *name);
 
 const char *pi_p4info_action_param_name_from_id(const pi_p4info_t *p4info,
+                                                pi_p4_id_t action_id,
                                                 pi_p4_id_t param_id);
 
+size_t pi_p4info_action_param_index(const pi_p4info_t *p4info,
+                                    pi_p4_id_t action_id, pi_p4_id_t param_id);
+
 size_t pi_p4info_action_param_bitwidth(const pi_p4info_t *p4info,
+                                       pi_p4_id_t action_id,
                                        pi_p4_id_t param_id);
 
 char pi_p4info_action_param_byte0_mask(const pi_p4info_t *p4info,
+                                       pi_p4_id_t action_id,
                                        pi_p4_id_t param_id);
 
 size_t pi_p4info_action_param_offset(const pi_p4info_t *p4info,
-                                     pi_p4_id_t param_id);
+                                     pi_p4_id_t action_id, pi_p4_id_t param_id);
 
 size_t pi_p4info_action_data_size(const pi_p4info_t *p4info,
                                   pi_p4_id_t action_id);

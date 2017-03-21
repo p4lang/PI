@@ -219,7 +219,7 @@ char *complete_p4_res(const char *text, int len, int state,
   static pi_p4_id_t id;
   if (!state) id = pi_p4info_any_begin(p4info_curr, res_type);
   while (id != pi_p4info_any_end(p4info_curr, res_type)) {
-    const char *name = pi_p4info_any_name_from_id(p4info_curr, res_type, id);
+    const char *name = pi_p4info_any_name_from_id(p4info_curr, id);
     id = pi_p4info_any_next(p4info_curr, id);
     if (!strncmp(name, text, len)) return strdup(name);
   }

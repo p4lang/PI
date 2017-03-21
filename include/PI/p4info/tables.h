@@ -40,8 +40,8 @@ typedef enum {
 } pi_p4info_match_type_t;
 
 typedef struct {
-  const char *name;
-  pi_p4_id_t field_id;
+  char *name;
+  pi_p4_id_t mf_id;
   pi_p4info_match_type_t match_type;
   size_t bitwidth;
 } pi_p4info_match_field_info_t;
@@ -60,23 +60,36 @@ const pi_p4_id_t *pi_p4info_table_get_match_fields(const pi_p4info_t *p4info,
                                                    size_t *num_match_fields);
 
 bool pi_p4info_table_is_match_field_of(const pi_p4info_t *p4info,
-                                       pi_p4_id_t table_id,
-                                       pi_p4_id_t field_id);
+                                       pi_p4_id_t table_id, pi_p4_id_t mf_id);
+
+pi_p4_id_t pi_p4info_table_match_field_id_from_name(const pi_p4info_t *p4info,
+                                                    pi_p4_id_t table_id,
+                                                    const char *name);
+
+const char *pi_p4info_table_match_field_name_from_id(const pi_p4info_t *p4info,
+                                                     pi_p4_id_t table_id,
+                                                     pi_p4_id_t mf_id);
 
 size_t pi_p4info_table_match_field_index(const pi_p4info_t *p4info,
-                                         pi_p4_id_t table_id,
-                                         pi_p4_id_t field_id);
+                                         pi_p4_id_t table_id, pi_p4_id_t mf_id);
 
 size_t pi_p4info_table_match_field_offset(const pi_p4info_t *p4info,
                                           pi_p4_id_t table_id,
-                                          pi_p4_id_t field_id);
+                                          pi_p4_id_t mf_id);
+
+size_t pi_p4info_table_match_field_bitwidth(const pi_p4info_t *p4info,
+                                            pi_p4_id_t table_id,
+                                            pi_p4_id_t mf_id);
+
+size_t pi_p4info_table_match_field_byte0_mask(const pi_p4info_t *p4info,
+                                              pi_p4_id_t table_id,
+                                              pi_p4_id_t mf_id);
 
 size_t pi_p4info_table_match_key_size(const pi_p4info_t *p4info,
                                       pi_p4_id_t table_id);
 
-void pi_p4info_table_match_field_info(const pi_p4info_t *p4info,
-                                      pi_p4_id_t table_id, size_t index,
-                                      pi_p4info_match_field_info_t *info);
+const pi_p4info_match_field_info_t *pi_p4info_table_match_field_info(
+    const pi_p4info_t *p4info, pi_p4_id_t table_id, size_t index);
 
 size_t pi_p4info_table_num_actions(const pi_p4info_t *p4info,
                                    pi_p4_id_t table_id);
@@ -90,8 +103,10 @@ const pi_p4_id_t *pi_p4info_table_get_actions(const pi_p4info_t *p4info,
 
 bool pi_p4info_table_has_const_default_action(const pi_p4info_t *p4info,
                                               pi_p4_id_t table_id);
-pi_p4_id_t pi_p4info_table_get_const_default_action(const pi_p4info_t *p4info,
-                                                    pi_p4_id_t table_id);
+
+pi_p4_id_t pi_p4info_table_get_const_default_action(
+    const pi_p4info_t *p4info, pi_p4_id_t table_id,
+    bool *has_mutable_action_params);
 
 pi_p4_id_t pi_p4info_table_get_implementation(const pi_p4info_t *p4info,
                                               pi_p4_id_t table_id);

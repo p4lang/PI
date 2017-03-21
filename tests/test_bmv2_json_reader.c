@@ -149,14 +149,6 @@ TEST_SETUP(IdAssignment) {
 
 TEST_TEAR_DOWN(IdAssignment) { pi_destroy(); }
 
-static pi_p4_id_t make_fid(pi_p4_id_t h, int index) {
-  return (PI_FIELD_ID << 24) | (h << 8) | index;
-}
-
-static pi_p4_id_t make_pid(pi_p4_id_t a, int index) {
-  return (PI_ACTION_PARAM_ID << 24) | (a << 8) | index;
-}
-
 TEST(IdAssignment, Pragmas) {
   pi_p4info_t *p4info;
   char *config = read_json(TESTDATADIR
@@ -167,28 +159,16 @@ TEST(IdAssignment, Pragmas) {
 
   // the expected ids are taken from pragmas.[p4/json]
 
-  TEST_ASSERT_EQUAL_UINT(make_fid(1, 0),
-                         pi_p4info_field_id_from_name(p4info, "h.f32"));
-
-  TEST_ASSERT_EQUAL_UINT(make_fid(2, 0),
-                         pi_p4info_field_id_from_name(p4info, "hs[0].f32"));
-  TEST_ASSERT_EQUAL_UINT(make_fid(3, 0),
-                         pi_p4info_field_id_from_name(p4info, "hs[1].f32"));
-  TEST_ASSERT_EQUAL_UINT(make_fid(4, 0),
-                         pi_p4info_field_id_from_name(p4info, "hs[2].f32"));
-
   TEST_ASSERT_EQUAL_UINT((PI_METER_ID << 24) | 5,
                          pi_p4info_meter_id_from_name(p4info, "m"));
 
   TEST_ASSERT_EQUAL_UINT((PI_COUNTER_ID << 24) | 6,
                          pi_p4info_counter_id_from_name(p4info, "c"));
 
-  // field lists are not fully supported yet (only for learning)
-
   pi_p4_id_t action_id = (PI_ACTION_ID << 24) | 8;
   TEST_ASSERT_EQUAL_UINT(action_id, pi_p4info_action_id_from_name(p4info, "a"));
-  TEST_ASSERT_EQUAL_UINT(make_pid(8, 0), pi_p4info_action_param_id_from_name(
-                                             p4info, action_id, "ap"));
+  TEST_ASSERT_EQUAL_UINT(
+      0, pi_p4info_action_param_id_from_name(p4info, action_id, "ap"));
 
   TEST_ASSERT_EQUAL_UINT((PI_TABLE_ID << 24) | 9,
                          pi_p4info_table_id_from_name(p4info, "t"));
@@ -197,23 +177,6 @@ TEST(IdAssignment, Pragmas) {
   TEST_ASSERT_EQUAL_UINT((PI_ACT_PROF_ID << 24) | 11,
                          pi_p4info_act_prof_id_from_name(p4info, "ap"));
 
-  TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS, pi_destroy_config(p4info));
-  free(config);
-}
-
-TEST(IdAssignment, PiOmit) {
-  pi_p4info_t *p4info;
-  char *config = read_json(TESTDATADIR
-                           "/"
-                           "pi_omit.json");
-  TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS,
-                    pi_add_config(config, PI_CONFIG_TYPE_BMV2_JSON, &p4info));
-  TEST_ASSERT_EQUAL_UINT(PI_INVALID_ID,
-                         pi_p4info_field_id_from_name(p4info, "scalars.f1"));
-  TEST_ASSERT_NOT_EQUAL(PI_INVALID_ID,
-                        pi_p4info_field_id_from_name(p4info, "reg1.f1"));
-  TEST_ASSERT_NOT_EQUAL(PI_INVALID_ID,
-                        pi_p4info_field_id_from_name(p4info, "reg2.f1"));
   TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS, pi_destroy_config(p4info));
   free(config);
 }
@@ -256,7 +219,6 @@ TEST(IdAssignment, IdCollision) {
 }
 
 TEST_GROUP_RUNNER(IdAssignment) {
-  RUN_TEST_CASE(IdAssignment, PiOmit);
   RUN_TEST_CASE(IdAssignment, Pragmas);
   RUN_TEST_CASE(IdAssignment, IdCollision);
 }

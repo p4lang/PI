@@ -32,8 +32,6 @@ extern "C" {
 #include "p4info/act_profs.h"
 #include "p4info/actions.h"
 #include "p4info/counters.h"
-#include "p4info/field_list.h"
-#include "p4info/fields.h"
 #include "p4info/meters.h"
 #include "p4info/tables.h"
 #include "pi_base.h"
@@ -66,9 +64,16 @@ pi_p4_id_t pi_p4info_any_next(const pi_p4info_t *p4info, pi_p4_id_t id);
 pi_p4_id_t pi_p4info_any_end(const pi_p4info_t *p4info, pi_res_type_id_t type);
 
 size_t pi_p4info_any_num(const pi_p4info_t *p4info, pi_res_type_id_t type);
-// TODO(antonin): why do I need type, it is in id...
+
+//! Obtain the name corresponding to \p id for any type of resource.
 const char *pi_p4info_any_name_from_id(const pi_p4info_t *p4info,
-                                       pi_res_type_id_t type, pi_p4_id_t id);
+                                       pi_p4_id_t id);
+
+//! Obtain the id corresponding to \p name for any type of resource. \p name
+//! does not have to be the full-qualified name of the object, but can be any of
+//! its aliases.
+pi_p4_id_t pi_p4info_any_id_from_name(const pi_p4info_t *p4info,
+                                      pi_res_type_id_t type, const char *name);
 
 #ifdef __cplusplus
 }

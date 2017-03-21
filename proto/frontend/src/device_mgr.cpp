@@ -177,37 +177,36 @@ class DeviceMgrImp {
     auto priority = mk_reader.get_priority();
     if (priority > 0) entry->set_priority(priority);
     for (size_t j = 0; j < num_match_fields; j++) {
-      pi_p4info_match_field_info_t finfo;
-      pi_p4info_table_match_field_info(p4info.get(), table_id, j, &finfo);
+      auto finfo = pi_p4info_table_match_field_info(p4info.get(), table_id, j);
       auto mf = entry->add_match();
-      mf->set_field_id(finfo.field_id);
-      switch (finfo.match_type) {
+      mf->set_field_id(finfo->mf_id);
+      switch (finfo->match_type) {
         case PI_P4INFO_MATCH_TYPE_VALID:
           {
             auto valid = mf->mutable_valid();
             bool value;
-            mk_reader.get_valid(finfo.field_id, &value);
+            mk_reader.get_valid(finfo->mf_id, &value);
             valid->set_value(value);
           }
           break;
         case PI_P4INFO_MATCH_TYPE_EXACT:
           {
             auto exact = mf->mutable_exact();
-            mk_reader.get_exact(finfo.field_id, exact->mutable_value());
+            mk_reader.get_exact(finfo->mf_id, exact->mutable_value());
           }
           break;
         case PI_P4INFO_MATCH_TYPE_LPM:
           {
             auto lpm = mf->mutable_lpm();
             int pLen;
-            mk_reader.get_lpm(finfo.field_id, lpm->mutable_value(), &pLen);
+            mk_reader.get_lpm(finfo->mf_id, lpm->mutable_value(), &pLen);
             lpm->set_prefix_len(pLen);
           }
           break;
         case PI_P4INFO_MATCH_TYPE_TERNARY:
           {
             auto ternary = mf->mutable_ternary();
-            mk_reader.get_ternary(finfo.field_id, ternary->mutable_value(),
+            mk_reader.get_ternary(finfo->mf_id, ternary->mutable_value(),
                                   ternary->mutable_mask());
           }
           break;

@@ -44,17 +44,19 @@ static int add_route(uint32_t prefix, int pLen, uint32_t nhop, uint16_t port,
   // match key
   rc |= pi_match_key_init(mkey_ipv4_lpm);
   pi_netv_t prefix_netv;
-  rc |= pi_getnetv_u32(p4info, PI_ROUTER_FIELD_IPV4_DSTADDR, prefix,
-                       &prefix_netv);
+  rc |=
+      pi_getnetv_u32(p4info, PI_ROUTER_TABLE_IPV4_LPM,
+                     PI_ROUTER_MF_IPV4_LPM_IPV4_DSTADDR, prefix, &prefix_netv);
   rc |= pi_match_key_lpm_set(mkey_ipv4_lpm, &prefix_netv, pLen);
 
   // action data
   rc |= pi_action_data_init(adata_set_nhop);
   pi_netv_t nhop_ipv4_netv, port_netv;
-  rc |= pi_getnetv_u32(p4info, PI_ROUTER_ACTIONP_SET_NHOP_NHOP_IPV4, nhop,
+  rc |= pi_getnetv_u32(p4info, PI_ROUTER_ACTION_SET_NHOP,
+                       PI_ROUTER_ACTIONP_SET_NHOP_NHOP_IPV4, nhop,
                        &nhop_ipv4_netv);
-  rc |=
-      pi_getnetv_u16(p4info, PI_ROUTER_ACTIONP_SET_NHOP_PORT, port, &port_netv);
+  rc |= pi_getnetv_u16(p4info, PI_ROUTER_ACTION_SET_NHOP,
+                       PI_ROUTER_ACTIONP_SET_NHOP_PORT, port, &port_netv);
   rc |= pi_action_data_arg_set(adata_set_nhop, &nhop_ipv4_netv);
   rc |= pi_action_data_arg_set(adata_set_nhop, &port_netv);
 

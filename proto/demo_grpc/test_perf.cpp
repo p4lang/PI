@@ -244,8 +244,8 @@ class Tester {
           auto table_entry = update->mutable_table_entry();
           table_entry->set_table_id(t_id);
           auto mf = table_entry->add_match();
-          mf->set_field_id(
-              pi_p4info_field_id_from_name(p4info, "ipv4.dstAddr"));
+          mf->set_field_id(pi_p4info_table_match_field_id_from_name(
+              p4info, t_id, "ipv4.dstAddr"));
           auto mf_lpm = mf->mutable_lpm();
           auto nhop = static_cast<uint32_t>(0x0a00000a);
           auto port = static_cast<uint16_t>(99);

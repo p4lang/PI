@@ -39,6 +39,7 @@ typedef const char *(*P4InfoRetrieveNameFn)(const void *);
 
 struct p4info_common_s {
   vector_t *annotations;
+  vector_t *aliases;
 };
 
 typedef void *p4info_id_map_t;
@@ -58,13 +59,11 @@ typedef struct {
 } pi_p4info_res_t;
 
 struct pi_p4info_s {
-  pi_p4info_res_t resources[256];
+  pi_p4info_res_t resources[PI_RES_TYPE_MAX];
 
   // for convenience, maybe remove later
   pi_p4info_res_t *actions;
   pi_p4info_res_t *tables;
-  pi_p4info_res_t *fields;
-  pi_p4info_res_t *field_lists;
   pi_p4info_res_t *act_profs;
   pi_p4info_res_t *counters;
   pi_p4info_res_t *meters;
