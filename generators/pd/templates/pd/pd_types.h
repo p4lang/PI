@@ -59,7 +59,7 @@ typedef struct ${pd_prefix}${t_name}_match_spec {
 //::   #endif
 //::   action_params = gen_action_params(a.runtime_data)
 typedef struct ${pd_prefix}${a_name}_action_spec {
-//::   for name, width in action_params:
+//::   for name, _, width in action_params:
 //::     c_name = get_c_name(name)
 //::     if width > 4:
   uint8_t ${c_name}[${width}];

@@ -207,7 +207,8 @@ def load_json(json_str):
     for j_action in json_["actions"]:
         action = Action(j_action["name"], j_action["id"])
         for j_param in j_action["params"]:
-            action.runtime_data += [(j_param["name"], j_param["bitwidth"])]
+            pid = j_param["id"]
+            action.runtime_data += [(j_param["name"], pid, j_param["bitwidth"])]
 
     def get_match_type(mt):
         return {0 : MatchType.VALID,
@@ -350,10 +351,10 @@ def gen_match_params(key):
 
 def gen_action_params(runtime_data):
     params = []
-    for name, bitwidth in runtime_data:
+    for name, pid, bitwidth in runtime_data:
         # for some reason, I was prefixing everything with "action_" originally
         name = "action_" + name
-        params += [(name, bits_to_bytes(bitwidth))]
+        params += [(name, pid, bits_to_bytes(bitwidth))]
     return params
 
 

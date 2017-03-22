@@ -33,42 +33,42 @@
 
 
 __attribute__ ((unused))
-static void get_f_1B(const pi_p4info_t *p4info,
+static void get_f_1B(const pi_p4info_t *p4info, pi_p4_id_t parent_id,
                      pi_p4_id_t fid, uint8_t f, int nbytes, pi_netv_t *netv) {
   (void) nbytes;
-  pi_status_t rc = pi_getnetv_u8(p4info, fid, f, netv);
+  pi_status_t rc = pi_getnetv_u8(p4info, parent_id, fid, f, netv);
   assert(rc == PI_STATUS_SUCCESS);
 }
 
 __attribute__ ((unused))
-static void get_f_2B(const pi_p4info_t *p4info,
+static void get_f_2B(const pi_p4info_t *p4info, pi_p4_id_t parent_id,
                      pi_p4_id_t fid, uint16_t f, int nbytes, pi_netv_t *netv) {
   (void) nbytes;
-  pi_status_t rc = pi_getnetv_u16(p4info, fid, f, netv);
+  pi_status_t rc = pi_getnetv_u16(p4info, parent_id, fid, f, netv);
   assert(rc == PI_STATUS_SUCCESS);
 }
 
 __attribute__ ((unused))
-static void get_f_3B(const pi_p4info_t *p4info,
+static void get_f_3B(const pi_p4info_t *p4info, pi_p4_id_t parent_id,
                      pi_p4_id_t fid, uint32_t f, int nbytes, pi_netv_t *netv) {
   (void) nbytes;
-  pi_status_t rc = pi_getnetv_u32(p4info, fid, f, netv);
+  pi_status_t rc = pi_getnetv_u32(p4info, parent_id, fid, f, netv);
   assert(rc == PI_STATUS_SUCCESS);
 }
 
 __attribute__ ((unused))
-static void get_f_4B(const pi_p4info_t *p4info,
+static void get_f_4B(const pi_p4info_t *p4info, pi_p4_id_t parent_id,
                      pi_p4_id_t fid, uint32_t f, int nbytes, pi_netv_t *netv) {
   (void) nbytes;
-  pi_status_t rc = pi_getnetv_u32(p4info, fid, f, netv);
+  pi_status_t rc = pi_getnetv_u32(p4info, parent_id, fid, f, netv);
   assert(rc == PI_STATUS_SUCCESS);
 }
 
 __attribute__ ((unused))
-static void get_f_XB(const pi_p4info_t *p4info,
+static void get_f_XB(const pi_p4info_t *p4info, pi_p4_id_t parent_id,
                      pi_p4_id_t fid, uint8_t *f, int nbytes, pi_netv_t *netv) {
   char *f_ = (char *) f;
-  pi_status_t rc = pi_getnetv_ptr(p4info, fid, f_, nbytes, netv);
+  pi_status_t rc = pi_getnetv_ptr(p4info, parent_id, fid, f_, nbytes, netv);
   assert(rc == PI_STATUS_SUCCESS);
 }
 
@@ -88,26 +88,26 @@ static void build_key_${t_name} (
 //::     nbytes = (field_bw + 7) / 8
 //::     fnB = nbytes if nbytes <= 4 else 'X'
 //::     if field_match_type == MatchType.EXACT:
-  get_f_${fnB}B(p4info, ${fid}, match_spec->${field_name}, ${nbytes}, &netv_1);
+  get_f_${fnB}B(p4info, ${t.id_}, ${fid}, match_spec->${field_name}, ${nbytes}, &netv_1);
   rc = pi_match_key_exact_set(mk, &netv_1);
   assert(rc == PI_STATUS_SUCCESS);
 //::     elif field_match_type == MatchType.LPM:
-  get_f_${fnB}B(p4info, ${fid}, match_spec->${field_name}, ${nbytes}, &netv_1);
+  get_f_${fnB}B(p4info, ${t.id_}, ${fid}, match_spec->${field_name}, ${nbytes}, &netv_1);
   rc = pi_match_key_lpm_set(mk, &netv_1, match_spec->${field_name}_prefix_length);
   assert(rc == PI_STATUS_SUCCESS);
 //::     elif field_match_type == MatchType.TERNARY:
-  get_f_${fnB}B(p4info, ${fid}, match_spec->${field_name}, ${nbytes}, &netv_1);
-  get_f_${fnB}B(p4info, ${fid}, match_spec->${field_name}_mask, ${nbytes}, &netv_1);
+  get_f_${fnB}B(p4info, ${t.id_}, ${fid}, match_spec->${field_name}, ${nbytes}, &netv_1);
+  get_f_${fnB}B(p4info, ${t.id_}, ${fid}, match_spec->${field_name}_mask, ${nbytes}, &netv_1);
   rc = pi_match_key_ternary_set(mk, &netv_1, &netv_2);
   assert(rc == PI_STATUS_SUCCESS);
 //::     elif field_match_type == MatchType.VALID:
-  rc = pi_getnetv_u8(p4info, ${fid}, (uint8_t) (match_spec->${field_name} != 0), &netv_1);
+  rc = pi_getnetv_u8(p4info, ${t.id_}, ${fid}, (uint8_t) (match_spec->${field_name} != 0), &netv_1);
   assert(rc == PI_STATUS_SUCCESS);
   rc = pi_match_key_exact_set(mk, &netv_1);
   assert(rc == PI_STATUS_SUCCESS);
 //::     elif field_match_type == MatchType.RANGE:
-  get_f_${fnB}B(p4info, ${fid}, match_spec->${field_name}_start, ${nbytes}, &netv_1);
-  get_f_${fnB}B(p4info, ${fid}, match_spec->${field_name}_end, ${nbytes}, &netv_1);
+  get_f_${fnB}B(p4info, ${t.id_}, ${fid}, match_spec->${field_name}_start, ${nbytes}, &netv_1);
+  get_f_${fnB}B(p4info, ${t.id_}, ${fid}, match_spec->${field_name}_end, ${nbytes}, &netv_1);
   rc = pi_match_key_range_set(mk, &netv_1, &netv_2);
   assert(rc == PI_STATUS_SUCCESS);
 //::     else:
@@ -131,11 +131,10 @@ static void build_action_data_${a_name} (
   pi_netv_t netv;
   pi_status_t rc;
 //::   idx = 0
-//::   for name, width in action_params:
+//::   for name, pid, width in action_params:
 //::     name = get_c_name(name)
 //::     fnB = width if width <= 4 else 'X'
-  get_f_${fnB}B(p4info, pi_make_action_param_id(${a.id_}, ${idx}),
-                action_spec->${name}, ${width}, &netv);
+  get_f_${fnB}B(p4info, ${a.id_}, ${pid}, action_spec->${name}, ${width}, &netv);
   rc = pi_action_data_arg_set(adata, &netv);
   assert(rc == PI_STATUS_SUCCESS);
 //::     idx += 1

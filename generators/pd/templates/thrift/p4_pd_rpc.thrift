@@ -89,7 +89,7 @@ struct ${api_prefix}${t_name}_match_spec_t {
 //::   action_params = gen_action_params(a.runtime_data)
 struct ${api_prefix}${a_name}_action_spec_t {
 //::   id = 1
-//::   for name, width in action_params:
+//::   for name, _, width in action_params:
 //::     c_name = get_c_name(name)
 //::     type_ = get_thrift_type(width)
   ${id}: required ${type_} ${name};
