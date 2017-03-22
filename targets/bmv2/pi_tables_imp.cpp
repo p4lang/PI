@@ -408,7 +408,7 @@ pi_status_t _pi_table_default_action_set(pi_session_handle_t session_handle,
             p4info, table_id, &has_mutable_action_params);
         if (default_action_id != adata->action_id)
           return PI_STATUS_CONST_DEFAULT_ACTION;
-        if (has_mutable_action_params)
+        if (!has_mutable_action_params)
           return PI_STATUS_CONST_DEFAULT_ACTION_NON_MUTABLE_PARAMS;
       }
 
