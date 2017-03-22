@@ -176,7 +176,7 @@ public:
 //::     if has_action_spec:
         ${pd_prefix}${a_name}_action_spec_t pd_action_spec;
 //::       action_params = gen_action_params(a.runtime_data)
-//::       for name, width in action_params:
+//::       for name, _, width in action_params:
 //::         name = get_c_name(name)
 //::         if width <= 4:
         pd_action_spec.${name} = action_spec.${name};
@@ -244,7 +244,7 @@ public:
 //::     if has_action_spec:
         ${pd_prefix}${a_name}_action_spec_t pd_action_spec;
 //::       action_params = gen_action_params(a.runtime_data)
-//::       for name, width in action_params:
+//::       for name, _, width in action_params:
 //::         name = get_c_name(name)
 //::         if width <= 4:
         pd_action_spec.${name} = action_spec.${name};
@@ -322,7 +322,7 @@ public:
 //::     if has_action_spec:
         ${pd_prefix}${a_name}_action_spec_t pd_action_spec;
 //::       action_params = gen_action_params(a.runtime_data)
-//::       for name, width in action_params:
+//::       for name, _, width in action_params:
 //::         name = get_c_name(name)
 //::         if width <= 4:
         pd_action_spec.${name} = action_spec.${name};
@@ -393,7 +393,7 @@ public:
 //::     if has_action_spec:
         ${pd_prefix}${a_name}_action_spec_t pd_action_spec;
 //::       action_params = gen_action_params(a.runtime_data)
-//::       for name, width in action_params:
+//::       for name, _, width in action_params:
 //::         name = get_c_name(name)
 //::         if width <= 4:
         pd_action_spec.${name} = action_spec.${name};
@@ -430,7 +430,7 @@ public:
 //::     if has_action_spec:
         ${pd_prefix}${a_name}_action_spec_t pd_action_spec;
 //::       action_params = gen_action_params(a.runtime_data)
-//::       for name, width in action_params:
+//::       for name, _, width in action_params:
 //::         name = get_c_name(name)
 //::         if width <= 4:
         pd_action_spec.${name} = action_spec.${name};
