@@ -64,6 +64,12 @@ class DeviceMgr {
 
   Status update_end();
 
+  // New write and read methods, meant to replace all the methods below
+  Status write(const p4::WriteRequest &request);
+
+  Status read(const p4::ReadRequest &request, p4::ReadResponse *response) const;
+  Status read_one(const p4::Entity &entity, p4::ReadResponse *response) const;
+
   // should we use ::google::rpc::Status or should we just return an error code
   // that the gRPC server can then wrap in a Status message
   Status table_write(const p4::TableUpdate &table_update);

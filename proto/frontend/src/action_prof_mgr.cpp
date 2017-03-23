@@ -101,12 +101,12 @@ ActionProfMgr::ActionProfMgr(pi_dev_tgt_t device_tgt, pi_p4_id_t act_prof_id,
     : device_tgt(device_tgt), act_prof_id(act_prof_id), p4info(p4info) { }
 
 Status
-ActionProfMgr::member_create(const p4::ActionProfileMember &member) {
+ActionProfMgr::member_create(const p4::ActionProfileMember &member,
+                             const SessionTemp &session) {
   Status status;
   auto action_data = construct_action_data(member.action());
   // TODO(antonin): weight / watch?
   Lock lock(mutex);
-  SessionTemp session;
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   // we check if the member id already exists
   if (member_bimap.retrieve_handle(member.member_id()) != nullptr) {
@@ -125,10 +125,10 @@ ActionProfMgr::member_create(const p4::ActionProfileMember &member) {
 }
 
 Status
-ActionProfMgr::group_create(const p4::ActionProfileGroup &group) {
+ActionProfMgr::group_create(const p4::ActionProfileGroup &group,
+                            const SessionTemp &session) {
   Status status;
   Lock lock(mutex);
-  SessionTemp session;
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   // we check if the group id already exists
   if (group_bimap.retrieve_handle(group.group_id()) != nullptr) {
@@ -149,12 +149,12 @@ ActionProfMgr::group_create(const p4::ActionProfileGroup &group) {
 }
 
 Status
-ActionProfMgr::member_modify(const p4::ActionProfileMember &member) {
+ActionProfMgr::member_modify(const p4::ActionProfileMember &member,
+                             const SessionTemp &session) {
   Status status;
   auto action_data = construct_action_data(member.action());
   // TODO(antonin): weight / watch?
   Lock lock(mutex);
-  SessionTemp session;
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   auto member_h = member_bimap.retrieve_handle(member.member_id());
   if (member_h == nullptr) {
@@ -173,10 +173,10 @@ ActionProfMgr::member_modify(const p4::ActionProfileMember &member) {
 // we stop as soon as there is an error, but make sure to keep consistency
 // between device and local state
 Status
-ActionProfMgr::group_modify(const p4::ActionProfileGroup &group) {
+ActionProfMgr::group_modify(const p4::ActionProfileGroup &group,
+                            const SessionTemp &session) {
   Status status;
   Lock lock(mutex);
-  SessionTemp session;
   auto group_id = group.group_id();
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   auto group_h = group_bimap.retrieve_handle(group_id);
@@ -190,10 +190,10 @@ ActionProfMgr::group_modify(const p4::ActionProfileGroup &group) {
 }
 
 Status
-ActionProfMgr::member_delete(const p4::ActionProfileMember &member) {
+ActionProfMgr::member_delete(const p4::ActionProfileMember &member,
+                             const SessionTemp &session) {
   Status status;
   Lock lock(mutex);
-  SessionTemp session;
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   auto member_h = member_bimap.retrieve_handle(member.member_id());
   if (member_h == nullptr) {
@@ -212,10 +212,10 @@ ActionProfMgr::member_delete(const p4::ActionProfileMember &member) {
 }
 
 Status
-ActionProfMgr::group_delete(const p4::ActionProfileGroup &group) {
+ActionProfMgr::group_delete(const p4::ActionProfileGroup &group,
+                            const SessionTemp &session) {
   Status status;
   Lock lock(mutex);
-  SessionTemp session;
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   auto group_h = group_bimap.retrieve_handle(group.group_id());
   if (group_h == nullptr) {

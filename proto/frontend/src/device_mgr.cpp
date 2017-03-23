@@ -150,18 +150,113 @@ class DeviceMgrImp {
     return status;
   }
 
+  Status write(const p4::WriteRequest &request) {
+    Status status;
+    status.set_code(Code::OK);
+    SessionTemp session(true  /* = batch */);
+    for (const auto &update : request.updates()) {
+      const auto &entity = update.entity();
+      switch (entity.entity_case()) {
+        case p4::Entity::kTableEntry:
+          status = table_write_2(update.type(), entity.table_entry(), session);
+          break;
+        case p4::Entity::kActionProfileMember:
+          status = action_profile_member_write_2(
+              update.type(), entity.action_profile_member(), session);
+          break;
+        case p4::Entity::kActionProfileGroup:
+          status = action_profile_group_write_2(
+              update.type(), entity.action_profile_group(), session);
+          break;
+        case p4::Entity::kMeterEntry:
+          status.set_code(Code::UNIMPLEMENTED);
+          break;
+        case p4::Entity::kCounterEntry:
+          status.set_code(Code::UNIMPLEMENTED);
+          break;
+        default:
+          status.set_code(Code::UNKNOWN);
+          break;
+      }
+      if (status.code() != Code::OK) break;
+    }
+    return status;
+  }
+
+  Status read(const p4::ReadRequest &request,
+              p4::ReadResponse *response) const {
+    Status status;
+    status.set_code(Code::OK);
+    for (const auto &entity : request.entities()) {
+      status = read_one(entity, response);
+      if (status.code() != Code::OK) break;
+    }
+    return status;
+  }
+
+  Status read_one(const p4::Entity &entity, p4::ReadResponse *response) const {
+    Status status;
+    status.set_code(Code::OK);
+    SessionTemp session(false  /* = batch */);
+    switch (entity.entity_case()) {
+      case p4::Entity::kTableEntry:
+        status = table_read_2(entity.table_entry(), session, response);
+        break;
+      case p4::Entity::kActionProfileMember:
+        status = action_profile_member_read_2(
+            entity.action_profile_member(), session, response);
+        break;
+      case p4::Entity::kActionProfileGroup:
+        status = action_profile_group_read_2(
+            entity.action_profile_group(), session, response);
+        break;
+      case p4::Entity::kMeterEntry:
+        status.set_code(Code::UNIMPLEMENTED);
+        break;
+      case p4::Entity::kCounterEntry:
+        status = counter_read_2(entity.counter_entry(), session, response);
+        break;
+      default:
+        status.set_code(Code::UNKNOWN);
+        break;
+    }
+    return status;
+  }
+
   Status table_write(const p4::TableUpdate &table_update) {
     Status status;
+    SessionTemp session;
     switch (table_update.type()) {
       case p4::TableUpdate_Type_UNSPECIFIED:
         status.set_code(Code::INVALID_ARGUMENT);
         break;
       case p4::TableUpdate_Type_INSERT:
-        return table_insert(table_update.table_entry());
+        return table_insert(table_update.table_entry(), session);
       case p4::TableUpdate_Type_MODIFY:
-        return table_modify(table_update.table_entry());
+        return table_modify(table_update.table_entry(), session);
       case p4::TableUpdate_Type_DELETE:
-        return table_delete(table_update.table_entry());
+        return table_delete(table_update.table_entry(), session);
+      default:
+        status.set_code(Code::INVALID_ARGUMENT);
+        break;
+    }
+    return status;
+  }
+
+  Status table_write_2(p4::Update_Type update,
+                       const p4::TableEntry &table_entry,
+                       const SessionTemp &session) {
+    Status status;
+    switch (update) {
+      case p4::Update_Type_UNSPECIFIED:
+        status.set_code(Code::INVALID_ARGUMENT);
+        break;
+      case p4::Update_Type_INSERT:
+        return table_insert(table_entry, session);
+      case p4::Update_Type_MODIFY:
+        return table_modify(table_entry, session);
+      case p4::Update_Type_DELETE:
+        return table_delete(table_entry, session);
       default:
         status.set_code(Code::INVALID_ARGUMENT);
         break;
@@ -262,12 +357,13 @@ class DeviceMgrImp {
                              table_action->mutable_action());
   }
 
-  // TODO(antonin): default entry? direct resources?
-  Status table_read(p4_id_t table_id,
-                    std::vector<p4::TableEntry> *entries) const {
+  // An is a functor which will be called on entries and needs to append a new
+  // p4::TableEntry to entries and return a pointer to it
+  template <typename T, typename Accessor>
+  Status table_read_common(p4_id_t table_id, const SessionTemp &session,
+                           T *entries, Accessor An) const {
     Status status;
     pi_table_fetch_res_t *res;
-    SessionTemp session;
     auto pi_status = pi_table_entries_fetch(session.get(), device_id,
                                             table_id, &res);
     if (pi_status != PI_STATUS_SUCCESS) {
@@ -280,12 +376,11 @@ class DeviceMgrImp {
     Code code = Code::OK;
     for (size_t i = 0; i < num_entries; i++) {
       pi_table_entries_next(res, &entry, &entry_handle);
-      entries->emplace_back();
-      auto &table_entry = entries->back();
-      table_entry.set_table_id(table_id);
-      code = parse_match_key(table_id, entry.match_key, &table_entry);
+      auto table_entry = An(entries);
+      table_entry->set_table_id(table_id);
+      code = parse_match_key(table_id, entry.match_key, table_entry);
       if (code != Code::OK) break;
-      code = parse_action_entry(table_id, &entry.entry, &table_entry);
+      code = parse_action_entry(table_id, &entry.entry, table_entry);
       if (code != Code::OK) break;
     }
 
@@ -293,6 +388,15 @@ class DeviceMgrImp {
 
     status.set_code(code);
     return status;
+  }
+
+  // TODO(antonin): default entry? direct resources?
+  Status table_read(p4_id_t table_id,
+                    std::vector<p4::TableEntry> *entries) const {
+    SessionTemp session;
+    return table_read_common(
+        table_id, session, entries,
+        [] (decltype(entries) e) { e->emplace_back(); return &e->back(); });
   }
 
   Status table_read_all(std::vector<p4::TableEntry> *entries) const {
@@ -303,6 +407,33 @@ class DeviceMgrImp {
          t_id = pi_p4info_table_next(p4info.get(), t_id)) {
       status = table_read(t_id, entries);
       if (status.code() != Code::OK) break;
+    }
+    return status;
+  }
+
+  Status table_read_one_2(p4_id_t table_id, const SessionTemp &session,
+                          p4::ReadResponse *response) const {
+    return table_read_common(
+        table_id, session, response,
+        [] (decltype(response) r) {
+          return r->add_entities()->mutable_table_entry(); });
+  }
+
+  // TODO(antonin): full filtering on the match key, action, ...
+  Status table_read_2(const p4::TableEntry &table_entry,
+                      const SessionTemp &session,
+                      p4::ReadResponse *response) const {
+    Status status;
+    status.set_code(Code::OK);
+    if (table_entry.table_id() == 0) {  // read all entries for all tables
+      for (auto t_id = pi_p4info_table_begin(p4info.get());
+           t_id != pi_p4info_table_end(p4info.get());
+           t_id = pi_p4info_table_next(p4info.get(), t_id)) {
+        status = table_read_one_2(t_id, session, response);
+        if (status.code() != Code::OK) break;
+      }
+    } else {  // read for a single table
+      status = table_read_one_2(table_entry.table_id(), session, response);
     }
     return status;
   }
@@ -326,11 +457,64 @@ class DeviceMgrImp {
     return status;
   }
 
-  Status action_profile_read(
-      p4_id_t action_profile_id,
-      std::vector<p4::ActionProfileEntry> *entries) const {
+  Status action_profile_member_write_2(p4::Update_Type update,
+                                       const p4::ActionProfileMember &member,
+                                       const SessionTemp &session) {
     Status status;
-    Code code;
+    auto action_prof_mgr = get_action_prof_mgr(member.action_profile_id());
+    if (action_prof_mgr == nullptr) {
+      status.set_code(Code::INVALID_ARGUMENT);
+      return status;
+    }
+    switch (update) {
+      case p4::Update_Type_UNSPECIFIED:
+        status.set_code(Code::INVALID_ARGUMENT);
+        break;
+      case p4::Update_Type_INSERT:
+        return action_prof_mgr->member_create(member, session);
+      case p4::Update_Type_MODIFY:
+        return action_prof_mgr->member_modify(member, session);
+      case p4::Update_Type_DELETE:
+        return action_prof_mgr->member_delete(member, session);
+      default:
+        status.set_code(Code::INVALID_ARGUMENT);
+        break;
+    }
+    return status;
+  }
+
+  Status action_profile_group_write_2(p4::Update_Type update,
+                                      const p4::ActionProfileGroup &group,
+                                      const SessionTemp &session) {
+    Status status;
+    auto action_prof_mgr = get_action_prof_mgr(group.action_profile_id());
+    if (action_prof_mgr == nullptr) {
+      status.set_code(Code::INVALID_ARGUMENT);
+      return status;
+    }
+    switch (update) {
+      case p4::Update_Type_UNSPECIFIED:
+        status.set_code(Code::INVALID_ARGUMENT);
+        break;
+      case p4::Update_Type_INSERT:
+        return action_prof_mgr->group_create(group, session);
+      case p4::Update_Type_MODIFY:
+        return action_prof_mgr->group_modify(group, session);
+      case p4::Update_Type_DELETE:
+        return action_prof_mgr->group_delete(group, session);
+      default:
+        status.set_code(Code::INVALID_ARGUMENT);
+        break;
+    }
+    return status;
+  }
+
+  template <typename T, typename MemberAccessor, typename GroupAccessor>
+  Status action_profile_read_common(
+      p4_id_t action_profile_id, const SessionTemp &session,
+      T *entries, MemberAccessor MAn, GroupAccessor GAn) const {
+    Status status;
+    Code code(Code::OK);
 
     auto action_prof_mgr = get_action_prof_mgr(action_profile_id);
     if (action_prof_mgr == nullptr) {
@@ -338,7 +522,6 @@ class DeviceMgrImp {
       return status;
     }
 
-    SessionTemp session;
     pi_act_prof_fetch_res_t *res;
     auto pi_status = pi_act_prof_entries_fetch(session.get(), device_id,
                                                action_profile_id, &res);
@@ -347,20 +530,14 @@ class DeviceMgrImp {
       return status;
     }
 
-    auto push_entry = [entries, action_profile_id]()
-        -> p4::ActionProfileEntry& {
-      entries->emplace_back();
-      auto &entry = entries->back();
-      entry.set_action_profile_id(action_profile_id);
-      return entry;
-    };
-
     auto num_members = pi_act_prof_mbrs_num(res);
     for (size_t i = 0; i < num_members; i++) {
       pi_action_data_t *action_data;
       pi_indirect_handle_t member_h;
+      auto member = MAn(entries);
+      if (member == nullptr) break;
+      member->set_action_profile_id(action_profile_id);
       pi_act_prof_mbrs_next(res, &action_data, &member_h);
-      auto member = push_entry().mutable_member();
       code = parse_action_data(action_data, member->mutable_action());
       if (code != Code::OK) break;
       auto member_id = action_prof_mgr->retrieve_member_id(member_h);
@@ -369,9 +546,6 @@ class DeviceMgrImp {
         break;
       }
       member->set_member_id(*member_id);
-      // TODO(antonin): I just realized that the weight attribute here does not
-      // make sense; I need to bring it up in an issue. The weight is a property
-      // of a member in a group, not of a member in an action profile.
     }
 
     auto num_groups = pi_act_prof_grps_num(res);
@@ -379,8 +553,10 @@ class DeviceMgrImp {
       pi_indirect_handle_t *members_h;
       size_t num;
       pi_indirect_handle_t group_h;
+      auto group = GAn(entries);
+      if (group == nullptr) break;
+      group->set_action_profile_id(action_profile_id);
       pi_act_prof_grps_next(res, &members_h, &num, &group_h);
-      auto group = push_entry().mutable_group();
       auto group_id = action_prof_mgr->retrieve_group_id(group_h);
       if (group_id == nullptr) {
         code = Code::UNKNOWN;
@@ -404,6 +580,24 @@ class DeviceMgrImp {
     return status;
   }
 
+  Status action_profile_read(
+      p4_id_t action_profile_id,
+      std::vector<p4::ActionProfileEntry> *entries) const {
+    SessionTemp session;
+    auto push_entry = [action_profile_id](decltype(entries) entries) {
+      entries->emplace_back();
+      auto entry = &entries->back();
+      entry->set_action_profile_id(action_profile_id);
+      return entry;
+    };
+    return action_profile_read_common(
+        action_profile_id, session, entries,
+        [&push_entry] (decltype(entries) e) {
+          return push_entry(e)->mutable_member(); },
+        [&push_entry] (decltype(entries) e) {
+          return push_entry(e)->mutable_group(); });
+  }
+
   Status action_profile_read_all(
       std::vector<p4::ActionProfileEntry> *entries) const {
     Status status;
@@ -413,6 +607,70 @@ class DeviceMgrImp {
          act_prof_id = pi_p4info_act_prof_next(p4info.get(), act_prof_id)) {
       status = action_profile_read(act_prof_id, entries);
       if (status.code() != Code::OK) break;
+    }
+    return status;
+  }
+
+  Status action_profile_member_read_one_2(p4_id_t action_profile_id,
+                                          const SessionTemp &session,
+                                          p4::ReadResponse *response) const {
+    return action_profile_read_common(
+        action_profile_id, session, response,
+        [] (decltype(response) r) {
+          return r->add_entities()->mutable_action_profile_member(); },
+        [] (decltype(response)) -> p4::ActionProfileGroup * {
+          return nullptr; });
+  }
+
+  // TODO(antonin): full filtering
+  Status action_profile_member_read_2(const p4::ActionProfileMember &member,
+                                      const SessionTemp &session,
+                                      p4::ReadResponse *response) const {
+    Status status;
+    status.set_code(Code::OK);
+    if (member.action_profile_id() == 0) {
+      for (auto act_prof_id = pi_p4info_act_prof_begin(p4info.get());
+           act_prof_id != pi_p4info_act_prof_end(p4info.get());
+           act_prof_id = pi_p4info_act_prof_next(p4info.get(), act_prof_id)) {
+        status = action_profile_member_read_one_2(act_prof_id, session,
+                                                  response);
+        if (status.code() != Code::OK) break;
+      }
+    } else {
+      status = action_profile_member_read_one_2(
+          member.action_profile_id(), session, response);
+    }
+    return status;
+  }
+
+  Status action_profile_group_read_one_2(p4_id_t action_profile_id,
+                                          const SessionTemp &session,
+                                          p4::ReadResponse *response) const {
+    return action_profile_read_common(
+        action_profile_id, session, response,
+        [] (decltype(response)) -> p4::ActionProfileMember * {
+          return nullptr; },
+        [] (decltype(response) r) {
+          return r->add_entities()->mutable_action_profile_group(); });
+  }
+
+  // TODO(antonin): full filtering
+  Status action_profile_group_read_2(const p4::ActionProfileGroup &group,
+                                     const SessionTemp &session,
+                                     p4::ReadResponse *response) const {
+    Status status;
+    status.set_code(Code::OK);
+    if (group.action_profile_id() == 0) {
+      for (auto act_prof_id = pi_p4info_act_prof_begin(p4info.get());
+           act_prof_id != pi_p4info_act_prof_end(p4info.get());
+           act_prof_id = pi_p4info_act_prof_next(p4info.get(), act_prof_id)) {
+        status = action_profile_group_read_one_2(act_prof_id, session,
+                                                 response);
+        if (status.code() != Code::OK) break;
+      }
+    } else {
+      status = action_profile_group_read_one_2(
+          group.action_profile_id(), session, response);
     }
     return status;
   }
@@ -453,8 +711,9 @@ class DeviceMgrImp {
     if (entry->cells().empty()) {
       auto counter_size = pi_p4info_counter_get_size(p4info.get(), counter_id);
       for (size_t index = 0; index < counter_size; index++) {
-        auto code = counter_read_one_index(session, counter_id,
-                                           entry->add_cells());
+        auto cell = entry->add_cells();
+        cell->set_index(index);
+        auto code = counter_read_one_index(session, counter_id, cell);
         if (code != Code::OK) {
           status.set_code(code);
           return status;
@@ -470,6 +729,62 @@ class DeviceMgrImp {
       }
     }
     status.set_code(Code::OK);
+    return status;
+  }
+
+  Status counter_read_one_2(p4_id_t counter_id,
+                            const p4::CounterEntry &counter_entry,
+                            const SessionTemp &session,
+                            p4::ReadResponse *response) const {
+    Status status;
+    status.set_code(Code::OK);
+    auto is_direct = (pi_p4info_counter_get_direct(p4info.get(), counter_id)
+                      != PI_INVALID_ID);
+    if (is_direct) {  // TODO(antonin)
+      status.set_code(Code::UNIMPLEMENTED);
+      return status;
+    }
+    if (counter_entry.type_case() == p4::CounterEntry::kTableEntry) {
+      status.set_code(Code::INVALID_ARGUMENT);
+      return status;
+    }
+    if (counter_entry.type_case() == p4::CounterEntry::kIndex) {
+      auto entry = response->add_entities()->mutable_counter_entry();
+      entry->CopyFrom(counter_entry);
+      auto code = counter_read_one_index(session, counter_id, entry);
+      if (code != Code::OK) status.set_code(code);
+      return status;
+    }
+    // no index, read all
+    auto counter_size = pi_p4info_counter_get_size(p4info.get(), counter_id);
+    for (size_t index = 0; index < counter_size; index++) {
+      auto entry = response->add_entities()->mutable_counter_entry();
+      entry->set_index(index);
+      auto code = counter_read_one_index(session, counter_id, entry);
+      if (code != Code::OK) {
+        status.set_code(code);
+        return status;
+      }
+    }
+    return status;
+  }
+
+  Status counter_read_2(const p4::CounterEntry &counter_entry,
+                        const SessionTemp &session,
+                        p4::ReadResponse *response) const {
+    Status status;
+    status.set_code(Code::OK);
+    if (counter_entry.counter_id() == 0) {  // read all entries for all counters
+      for (auto c_id = pi_p4info_counter_begin(p4info.get());
+           c_id != pi_p4info_counter_end(p4info.get());
+           c_id = pi_p4info_counter_next(p4info.get(), c_id)) {
+        status = counter_read_one_2(c_id, counter_entry, session, response);
+        if (status.code() != Code::OK) break;
+      }
+    } else {  // read for a single counter
+      status = counter_read_one_2(counter_entry.counter_id(), counter_entry,
+                                  session, response);
+    }
     return status;
   }
 
@@ -568,7 +883,8 @@ class DeviceMgrImp {
     }
   }
 
-  Status table_insert(const p4::TableEntry &table_entry) {
+  Status table_insert(const p4::TableEntry &table_entry,
+                      const SessionTemp &session) {
     Status status;
     Code code;
     const auto table_id = table_entry.table_id();
@@ -587,7 +903,6 @@ class DeviceMgrImp {
       return status;
     }
 
-    SessionTemp session;
     pi::MatchTable mt(session.get(), device_tgt, p4info.get(), table_id);
     pi_status_t pi_status;
     // an empty match means default entry
@@ -608,14 +923,17 @@ class DeviceMgrImp {
     return status;
   }
 
-  Status table_modify(const p4::TableEntry &table_entry) {
+  Status table_modify(const p4::TableEntry &table_entry,
+                      const SessionTemp &session) {
     (void) table_entry;
+    (void) session;
     Status status;
     status.set_code(Code::UNIMPLEMENTED);
     return status;
   }
 
-  Status table_delete(const p4::TableEntry &table_entry) {
+  Status table_delete(const p4::TableEntry &table_entry,
+                      const SessionTemp &session) {
     Status status;
     Code code;
     const auto table_id = table_entry.table_id();
@@ -626,7 +944,6 @@ class DeviceMgrImp {
       return status;
     }
 
-    SessionTemp session;
     pi::MatchTable mt(session.get(), device_tgt, p4info.get(), table_id);
     pi_status_t pi_status;
     // an empty match means default entry
@@ -668,11 +985,12 @@ class DeviceMgrImp {
       status.set_code(Code::INVALID_ARGUMENT);
       return status;
     }
+    SessionTemp session;
     switch (entry.type_case()) {
       case p4::ActionProfileEntry::kMember:
-        return (action_prof_mgr->*fmember)(entry.member());
+        return (action_prof_mgr->*fmember)(entry.member(), session);
       case p4::ActionProfileEntry::kGroup:
-        return (action_prof_mgr->*fgroup)(entry.group());
+        return (action_prof_mgr->*fgroup)(entry.group(), session);
       default:  // cannot happen (caught by get_action_prof_mgr)
         assert(0);
     }
@@ -693,8 +1011,9 @@ class DeviceMgrImp {
         entry, &ActionProfMgr::member_delete, &ActionProfMgr::group_delete);
   }
 
+  template <typename T>
   Code counter_read_one_index(const SessionTemp &session, uint32_t counter_id,
-                              p4::CounterCell *cell) const {
+                              T *cell) const {
     auto index = cell->index();
     int flags = PI_COUNTER_FLAGS_NONE;
     pi_counter_data_t counter_data;
@@ -754,6 +1073,23 @@ DeviceMgr::update_start(const p4::config::P4Info &p4info,
 Status
 DeviceMgr::update_end() {
   return pimp->update_end();
+}
+
+Status
+DeviceMgr::write(const p4::WriteRequest &request) {
+  return pimp->write(request);
+}
+
+Status
+DeviceMgr::read(const p4::ReadRequest &request,
+                p4::ReadResponse *response) const {
+  return pimp->read(request, response);
+}
+
+Status
+DeviceMgr::read_one(const p4::Entity &entity,
+                    p4::ReadResponse *response) const {
+  return pimp->read_one(entity, response);
 }
 
 Status

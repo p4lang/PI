@@ -536,6 +536,14 @@ pi_status_t _pi_session_cleanup(pi_session_handle_t) {
   return PI_STATUS_SUCCESS;
 }
 
+pi_status_t _pi_batch_begin(pi_session_handle_t) {
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_batch_end(pi_session_handle_t, bool) {
+  return PI_STATUS_SUCCESS;
+}
+
 pi_status_t _pi_table_entry_add(pi_session_handle_t,
                                 pi_dev_tgt_t dev_tgt, pi_p4_id_t table_id,
                                 const pi_match_key_t *match_key,
@@ -762,11 +770,21 @@ class MatchTableTest
 
 DeviceMgr::Status
 MatchTableTest::add_one(p4::TableEntry *entry) {
+#ifdef NEW_P4RUNTIME
+  p4::WriteRequest request;
+  auto update = request.add_updates();
+  update->set_type(p4::Update_Type_INSERT);
+  auto entity = update->mutable_entity();
+  entity->set_allocated_table_entry(entry);
+  auto status = mgr.write(request);
+  entity->release_table_entry();
+#else
   p4::TableUpdate update;
   update.set_type(p4::TableUpdate_Type_INSERT);
   update.set_allocated_table_entry(entry);
   auto status = mgr.table_write(update);
   update.release_table_entry();
+#endif
   return status;
 }
 
@@ -873,11 +891,23 @@ TEST_P(MatchTableTest, AddAndRead) {
   ASSERT_NE(status.code(), Code::OK);
 
   EXPECT_CALL(*mock, table_entries_fetch(t_id, _));
+#ifdef NEW_P4RUNTIME
+  p4::ReadResponse response;
+  p4::Entity entity;
+  auto table_entry = entity.mutable_table_entry();
+  table_entry->set_table_id(t_id);
+  status = mgr.read_one(entity, &response);
+  ASSERT_EQ(status.code(), Code::OK);
+  const auto &entities = response.entities();
+  ASSERT_EQ(1, entities.size());
+  ASSERT_TRUE(MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
+#else
   std::vector<p4::TableEntry> entries;
   status = mgr.table_read(t_id, &entries);
   ASSERT_EQ(status.code(), Code::OK);
   ASSERT_EQ(1u, entries.size());
   ASSERT_TRUE(MessageDifferencer::Equals(entry, entries.at(0)));
+#endif
 }
 
 #define MK std::string("\xaa\xbb\xcc\xdd", 4)
@@ -906,23 +936,61 @@ class ActionProfTest : public DeviceMgrTest {
     param->set_value(param_v);
   }
 
-  p4::ActionProfileUpdate create_base_member_update(
-      uint32_t member_id, const std::string &param_v) {
+  p4::ActionProfileMember make_member(uint32_t member_id,
+                                      const std::string &param_v = "") {
+    p4::ActionProfileMember member;
+    auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
+    member.set_action_profile_id(act_prof_id);
+    member.set_member_id(member_id);
+    set_action(member.mutable_action(), param_v);
+    return member;
+  }
+
+  template <typename T>
+  DeviceMgr::Status write_member(T type, p4::ActionProfileMember *member) {
+#ifdef NEW_P4RUNTIME
+    p4::WriteRequest request;
+    auto update = request.add_updates();
+    update->set_type(type);
+    auto entity = update->mutable_entity();
+    entity->set_allocated_action_profile_member(member);
+    auto status = mgr.write(request);
+    entity->release_action_profile_member();
+#else
     p4::ActionProfileUpdate update;
-    update.set_type(p4::ActionProfileUpdate_Type_CREATE);
+    update.set_type(type);
     auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
     auto entry = update.mutable_action_profile_entry();
     entry->set_action_profile_id(act_prof_id);
-    auto member = entry->mutable_member();
-    member->set_member_id(member_id);
-    set_action(member->mutable_action(), param_v);
-    return update;
+    entry->set_allocated_member(member);
+    auto status = mgr.action_profile_write(update);
+    entry->release_member();
+#endif
+    return status;
   }
 
-  void create_member(uint32_t member_id, const std::string &param_v) {
-    auto update = create_base_member_update(member_id, param_v);
-    auto status = mgr.action_profile_write(update);
-    ASSERT_EQ(status.code(), Code::OK);
+  DeviceMgr::Status create_member(p4::ActionProfileMember *member) {
+#ifdef NEW_P4RUNTIME
+    return write_member(p4::Update_Type_INSERT, member);
+#else
+    return write_member(p4::ActionProfileUpdate_Type_CREATE, member);
+#endif
+  }
+
+  DeviceMgr::Status modify_member(p4::ActionProfileMember *member) {
+#ifdef NEW_P4RUNTIME
+    return write_member(p4::Update_Type_MODIFY, member);
+#else
+    return write_member(p4::ActionProfileUpdate_Type_MODIFY, member);
+#endif
+  }
+
+  DeviceMgr::Status delete_member(p4::ActionProfileMember *member) {
+#ifdef NEW_P4RUNTIME
+    return write_member(p4::Update_Type_DELETE, member);
+#else
+    return write_member(p4::ActionProfileUpdate_Type_DELETE, member);
+#endif
   }
 
   // create empty group
@@ -933,6 +1001,7 @@ class ActionProfTest : public DeviceMgrTest {
     auto entry = update.mutable_action_profile_entry();
     entry->set_action_profile_id(act_prof_id);
     auto group = entry->mutable_group();
+    group->set_action_profile_id(act_prof_id);
     group->set_group_id(group_id);
     return update;
   }
@@ -941,10 +1010,75 @@ class ActionProfTest : public DeviceMgrTest {
     auto member = group->add_members();
     member->set_member_id(member_id);
   }
+
+  template <typename It>
+  p4::ActionProfileGroup make_group(uint32_t group_id,
+                                    It members_begin, It members_end) {
+    p4::ActionProfileGroup group;
+    auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
+    group.set_action_profile_id(act_prof_id);
+    group.set_group_id(group_id);
+    for (auto it = members_begin; it != members_end; ++it) {
+      auto member = group.add_members();
+      member->set_member_id(*it);
+    }
+    return group;
+  }
+
+  p4::ActionProfileGroup make_group(uint32_t group_id) {
+    std::vector<uint32_t> members;
+    return make_group(group_id, members.begin(), members.end());
+  }
+
+  template <typename T>
+  DeviceMgr::Status write_group(T type, p4::ActionProfileGroup *group) {
+#ifdef NEW_P4RUNTIME
+    p4::WriteRequest request;
+    auto update = request.add_updates();
+    update->set_type(type);
+    auto entity = update->mutable_entity();
+    entity->set_allocated_action_profile_group(group);
+    auto status = mgr.write(request);
+    entity->release_action_profile_group();
+#else
+    p4::ActionProfileUpdate update;
+    update.set_type(type);
+    auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
+    auto entry = update.mutable_action_profile_entry();
+    entry->set_action_profile_id(act_prof_id);
+    entry->set_allocated_group(group);
+    auto status = mgr.action_profile_write(update);
+    entry->release_group();
+#endif
+    return status;
+  }
+
+  DeviceMgr::Status create_group(p4::ActionProfileGroup *group) {
+#ifdef NEW_P4RUNTIME
+    return write_group(p4::Update_Type_INSERT, group);
+#else
+    return write_group(p4::ActionProfileUpdate_Type_CREATE, group);
+#endif
+  }
+
+  DeviceMgr::Status modify_group(p4::ActionProfileGroup *group) {
+#ifdef NEW_P4RUNTIME
+    return write_group(p4::Update_Type_MODIFY, group);
+#else
+    return write_group(p4::ActionProfileUpdate_Type_MODIFY, group);
+#endif
+  }
+
+  DeviceMgr::Status delete_group(p4::ActionProfileGroup *group) {
+#ifdef NEW_P4RUNTIME
+    return write_group(p4::Update_Type_DELETE, group);
+#else
+    return write_group(p4::ActionProfileUpdate_Type_DELETE, group);
+#endif
+  }
 };
 
 TEST_F(ActionProfTest, Member) {
-  DeviceMgr::Status status;
   auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
   auto a_id = pi_p4info_action_id_from_name(p4info, "actionA");
   uint32_t member_id_1 = 123, member_id_2 = 234;  // can be arbitrary
@@ -954,46 +1088,29 @@ TEST_F(ActionProfTest, Member) {
   auto ad_matcher_2 = Truly(ActionDataMatcher(a_id, adata_2));
 
   // add one member
-  p4::ActionProfileUpdate update;
-  update.set_type(p4::ActionProfileUpdate_Type_CREATE);
-  auto entry = update.mutable_action_profile_entry();
-  entry->set_action_profile_id(act_prof_id);
-  auto member = entry->mutable_member();
-  member->set_member_id(member_id_1);
-  set_action(member->mutable_action(), adata_1);
+  auto member_1 = make_member(member_id_1, adata_1);
   EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, ad_matcher_1, _));
-  status = mgr.action_profile_write(update);
-  ASSERT_EQ(status.code(), Code::OK);
+  EXPECT_EQ(create_member(&member_1).code(), Code::OK);
   auto mbr_h_1 = mock->get_action_prof_handle();
 
   // modify member
-  set_action(member->mutable_action(), adata_2);
-  update.set_type(p4::ActionProfileUpdate_Type_MODIFY);
+  member_1 = make_member(member_id_1, adata_2);
   EXPECT_CALL(*mock, action_prof_member_modify(
       act_prof_id, mbr_h_1, ad_matcher_2));
-  status = mgr.action_profile_write(update);
-  ASSERT_EQ(status.code(), Code::OK);
+  EXPECT_EQ(modify_member(&member_1).code(), Code::OK);
 
   // add another member
-  update.set_type(p4::ActionProfileUpdate_Type_CREATE);
-  // use a different member id of course!
-  member->set_member_id(member_id_2);
+  auto member_2 = make_member(member_id_2, adata_2);
   EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, ad_matcher_2, _));
-  status = mgr.action_profile_write(update);
-  ASSERT_EQ(status.code(), Code::OK);
+  EXPECT_EQ(create_member(&member_2).code(), Code::OK);
   auto mbr_h_2 = mock->get_action_prof_handle();
   ASSERT_NE(mbr_h_1, mbr_h_2);
 
   // delete both members
-  update.set_type(p4::ActionProfileUpdate_Type_DELETE);
-  member->set_member_id(member_id_1);
   EXPECT_CALL(*mock, action_prof_member_delete(act_prof_id, mbr_h_1));
-  status = mgr.action_profile_write(update);
-  ASSERT_EQ(status.code(), Code::OK);
-  member->set_member_id(member_id_2);
+  EXPECT_EQ(delete_member(&member_1).code(), Code::OK);
   EXPECT_CALL(*mock, action_prof_member_delete(act_prof_id, mbr_h_2));
-  status = mgr.action_profile_write(update);
-  ASSERT_EQ(status.code(), Code::OK);
+  EXPECT_EQ(delete_member(&member_2).code(), Code::OK);
 }
 
 TEST_F(ActionProfTest, CreateDupMemberId) {
@@ -1001,29 +1118,23 @@ TEST_F(ActionProfTest, CreateDupMemberId) {
   auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
   uint32_t member_id = 123;
   std::string adata(6, '\x00');
-  auto update = create_base_member_update(member_id, adata);
   EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _))
       .Times(AtLeast(1));
-  status = mgr.action_profile_write(update);
-  ASSERT_EQ(status.code(), Code::OK);
-  status = mgr.action_profile_write(update);
-  ASSERT_NE(status.code(), Code::OK);
+  auto member = make_member(member_id, adata);
+  EXPECT_EQ(create_member(&member).code(), Code::OK);
+  EXPECT_NE(create_member(&member).code(), Code::OK);
 }
 
 TEST_F(ActionProfTest, BadMemberId) {
   DeviceMgr::Status status;
   uint32_t member_id = 123;
   std::string adata(6, '\x00');
-  auto update = create_base_member_update(member_id, adata);
   // in this test we do not expect any call to a mock method
+  auto member = make_member(member_id, adata);
   // try to modify a member id which does not exist
-  update.set_type(p4::ActionProfileUpdate_Type_MODIFY);
-  status = mgr.action_profile_write(update);
-  ASSERT_NE(status.code(), Code::OK);
+  EXPECT_NE(modify_member(&member).code(), Code::OK);
   // try to delete a member id which does not exist
-  update.set_type(p4::ActionProfileUpdate_Type_DELETE);
-  status = mgr.action_profile_write(update);
-  ASSERT_NE(status.code(), Code::OK);
+  EXPECT_NE(delete_member(&member).code(), Code::OK);
 }
 
 TEST_F(ActionProfTest, Group) {
@@ -1036,58 +1147,47 @@ TEST_F(ActionProfTest, Group) {
   std::string adata(6, '\x00');
   EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _))
       .Times(2);
-  create_member(member_id_1, adata);
+  auto member_1 = make_member(member_id_1, adata);
+  EXPECT_EQ(create_member(&member_1).code(), Code::OK);
   auto mbr_h_1 = mock->get_action_prof_handle();
-  create_member(member_id_2, adata);
+  auto member_2 = make_member(member_id_2, adata);
+  EXPECT_EQ(create_member(&member_2).code(), Code::OK);
   auto mbr_h_2 = mock->get_action_prof_handle();
 
   // create group with one member
-  p4::ActionProfileUpdate update;
-  update.set_type(p4::ActionProfileUpdate_Type_CREATE);
-  auto entry = update.mutable_action_profile_entry();
-  entry->set_action_profile_id(act_prof_id);
-  auto group = entry->mutable_group();
-  group->set_group_id(group_id);
-  add_member_to_group(group, member_id_1);
+  auto group = make_group(group_id);
+  add_member_to_group(&group, member_id_1);
   EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, _, _));
   EXPECT_CALL(*mock, action_prof_group_add_member(act_prof_id, _, mbr_h_1));
-  status = mgr.action_profile_write(update);
-  ASSERT_EQ(status.code(), Code::OK);
+  ASSERT_EQ(create_group(&group).code(), Code::OK);
   auto grp_h = mock->get_action_prof_handle();
 
   // add the same member, expect no call but valid operation
-  update.set_type(p4::ActionProfileUpdate_Type_MODIFY);
   EXPECT_CALL(*mock, action_prof_group_add_member(_, _, _)).Times(0);
-  status = mgr.action_profile_write(update);
-  ASSERT_EQ(status.code(), Code::OK);
+  ASSERT_EQ(modify_group(&group).code(), Code::OK);
 
   // add a second member
-  add_member_to_group(group, member_id_2);
+  add_member_to_group(&group, member_id_2);
   EXPECT_CALL(*mock, action_prof_group_add_member(act_prof_id, grp_h, mbr_h_2));
-  status = mgr.action_profile_write(update);
-  ASSERT_EQ(status.code(), Code::OK);
+  ASSERT_EQ(modify_group(&group).code(), Code::OK);
 
   // remove one member
-  group->clear_members();
-  add_member_to_group(group, member_id_2);
+  group.clear_members();
+  add_member_to_group(&group, member_id_2);
   EXPECT_CALL(*mock,
               action_prof_group_remove_member(act_prof_id, grp_h, mbr_h_1));
-  status = mgr.action_profile_write(update);
-  ASSERT_EQ(status.code(), Code::OK);
+  ASSERT_EQ(modify_group(&group).code(), Code::OK);
 
   // delete group, which has one remaining member
-  update.set_type(p4::ActionProfileUpdate_Type_DELETE);
-  group->clear_members();  // not needed
+  group.clear_members();  // not needed
   EXPECT_CALL(*mock, action_prof_group_delete(act_prof_id, grp_h));
   // we do not expect a call to remove_member, the target is supposed to be able
   // to handle removing non-empty groups
   EXPECT_CALL(*mock, action_prof_group_remove_member(_, _, _)).Times(0);
-  status = mgr.action_profile_write(update);
-  ASSERT_EQ(status.code(), Code::OK);
+  ASSERT_EQ(delete_group(&group).code(), Code::OK);
 }
 
 TEST_F(ActionProfTest, Read) {
-  DeviceMgr::Status status;
   auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
   uint32_t group_id = 1000;
   uint32_t member_id_1 = 1;
@@ -1095,120 +1195,169 @@ TEST_F(ActionProfTest, Read) {
   // create 1 member
   std::string adata(6, '\x00');
   EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _));
-  auto update_mbr = create_base_member_update(member_id_1, adata);
-  status = mgr.action_profile_write(update_mbr);
-  ASSERT_EQ(status.code(), Code::OK);
-  // create_member(member_id_1, adata);
+  auto member_1 = make_member(member_id_1, adata);
+  EXPECT_EQ(create_member(&member_1).code(), Code::OK);
+
   auto mbr_h_1 = mock->get_action_prof_handle();
 
   // create group with one member
-  p4::ActionProfileUpdate update_grp;
-  update_grp.set_type(p4::ActionProfileUpdate_Type_CREATE);
-  auto entry = update_grp.mutable_action_profile_entry();
-  entry->set_action_profile_id(act_prof_id);
-  auto group = entry->mutable_group();
-  group->set_group_id(group_id);
-  add_member_to_group(group, member_id_1);
+  auto group = make_group(group_id);
+  add_member_to_group(&group, member_id_1);
   EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, _, _));
   EXPECT_CALL(*mock, action_prof_group_add_member(act_prof_id, _, mbr_h_1));
-  status = mgr.action_profile_write(update_grp);
-  ASSERT_EQ(status.code(), Code::OK);
+  ASSERT_EQ(create_group(&group).code(), Code::OK);
 
+#ifdef NEW_P4RUNTIME
+  EXPECT_CALL(*mock, action_prof_entries_fetch(act_prof_id, _)).Times(2);
+  p4::ReadResponse response;
+  p4::ReadRequest request;
+  {
+    auto entity = request.add_entities();
+    auto member = entity->mutable_action_profile_member();
+    member->set_action_profile_id(act_prof_id);
+  }
+  {
+    auto entity = request.add_entities();
+    auto group = entity->mutable_action_profile_group();
+    group->set_action_profile_id(act_prof_id);
+  }
+  ASSERT_EQ(mgr.read(request, &response).code(), Code::OK);
+  const auto &entities = response.entities();
+  ASSERT_EQ(2, entities.size());
+  ASSERT_TRUE(MessageDifferencer::Equals(
+      member_1, entities.Get(0).action_profile_member()));
+#else
   EXPECT_CALL(*mock, action_prof_entries_fetch(act_prof_id, _));
   std::vector<p4::ActionProfileEntry> entries;
-  status = mgr.action_profile_read(act_prof_id, &entries);
-  ASSERT_EQ(status.code(), Code::OK);
+  {
+    auto status = mgr.action_profile_read(act_prof_id, &entries);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
   ASSERT_EQ(2u, entries.size());  // 1 member + 1 group
-  ASSERT_TRUE(MessageDifferencer::Equals(
-      update_mbr.action_profile_entry(), entries.at(0)));
-  ASSERT_TRUE(MessageDifferencer::Equals(
-      update_grp.action_profile_entry(), entries.at(1)));
+  ASSERT_TRUE(MessageDifferencer::Equals(member_1, entries.at(0).member()));
+  ASSERT_TRUE(MessageDifferencer::Equals(group, entries.at(1).group()));
+#endif
 }
 
 TEST_F(ActionProfTest, CreateDupGroupId) {
   DeviceMgr::Status status;
   auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
   uint32_t group_id = 1000;
-  auto update = create_base_group_update(group_id);
+  auto group = make_group(group_id);
   EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, _, _))
       .Times(AtLeast(1));
-  status = mgr.action_profile_write(update);
-  ASSERT_EQ(status.code(), Code::OK);
-  status = mgr.action_profile_write(update);
-  ASSERT_NE(status.code(), Code::OK);
+  EXPECT_EQ(create_group(&group).code(), Code::OK);
+  EXPECT_NE(create_group(&group).code(), Code::OK);
 }
 
 TEST_F(ActionProfTest, BadGroupId) {
   DeviceMgr::Status status;
   uint32_t group_id = 1000;
-  auto update = create_base_group_update(group_id);
+  auto group = make_group(group_id);
   // in this test we do not expect any call to a mock method
   // try to modify a group id which does not exist
-  update.set_type(p4::ActionProfileUpdate_Type_MODIFY);
-  status = mgr.action_profile_write(update);
-  ASSERT_NE(status.code(), Code::OK);
+  EXPECT_NE(modify_group(&group).code(), Code::OK);
   // try to delete a group id which does not exist
-  update.set_type(p4::ActionProfileUpdate_Type_DELETE);
-  status = mgr.action_profile_write(update);
-  ASSERT_NE(status.code(), Code::OK);
+  EXPECT_NE(delete_group(&group).code(), Code::OK);
 }
 
 TEST_F(ActionProfTest, AddBadMemberIdToGroup) {
   DeviceMgr::Status status;
   uint32_t group_id = 1000;
   uint32_t bad_member_id = 123;
-  auto update = create_base_group_update(group_id);
-  auto entry = update.mutable_action_profile_entry();
-  auto group = entry->mutable_group();
-  add_member_to_group(group, bad_member_id);
+  auto group = make_group(group_id);
+  add_member_to_group(&group, bad_member_id);
   EXPECT_CALL(*mock, action_prof_group_create(_, _, _));
   EXPECT_CALL(*mock, action_prof_group_add_member(_, _, _)).Times(0);
-  status = mgr.action_profile_write(update);
-  ASSERT_NE(status.code(), Code::OK);
+  EXPECT_NE(create_group(&group).code(), Code::OK);
 }
 
 
 class MatchTableIndirectTest : public DeviceMgrTest {
  protected:
-  void create_member(uint32_t member_id, const std::string &param_v) {
-    p4::ActionProfileUpdate update;
-    update.set_type(p4::ActionProfileUpdate_Type_CREATE);
-    auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
+  void set_action(p4::Action *action, const std::string &param_v) {
     auto a_id = pi_p4info_action_id_from_name(p4info, "actionA");
-    auto entry = update.mutable_action_profile_entry();
-    entry->set_action_profile_id(act_prof_id);
-    auto member = entry->mutable_member();
-    member->set_member_id(member_id);
-    auto action = member->mutable_action();
     action->set_action_id(a_id);
     auto param = action->add_params();
     param->set_param_id(
         pi_p4info_action_param_id_from_name(p4info, a_id, "param"));
     param->set_value(param_v);
+  }
+
+  p4::ActionProfileMember make_member(uint32_t member_id,
+                                      const std::string &param_v = "") {
+    p4::ActionProfileMember member;
+    auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
+    member.set_action_profile_id(act_prof_id);
+    member.set_member_id(member_id);
+    set_action(member.mutable_action(), param_v);
+    return member;
+  }
+
+  void create_member(uint32_t member_id, const std::string &param_v) {
+    auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
     EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _));
+    auto member = make_member(member_id, param_v);
+#ifdef NEW_P4RUNTIME
+    p4::WriteRequest request;
+    auto update = request.add_updates();
+    update->set_type(p4::Update_Type_INSERT);
+    auto entity = update->mutable_entity();
+    entity->set_allocated_action_profile_member(&member);
+    auto status = mgr.write(request);
+    entity->release_action_profile_member();
+#else
+    p4::ActionProfileUpdate update;
+    update.set_type(p4::ActionProfileUpdate_Type_CREATE);
+    auto entry = update.mutable_action_profile_entry();
+    entry->set_action_profile_id(act_prof_id);
+    entry->set_allocated_member(&member);
     auto status = mgr.action_profile_write(update);
-    ASSERT_EQ(status.code(), Code::OK);
+    entry->release_member();
+#endif
+    EXPECT_EQ(status.code(), Code::OK);
+  }
+
+  template <typename It>
+  p4::ActionProfileGroup make_group(uint32_t group_id,
+                                    It members_begin, It members_end) {
+    p4::ActionProfileGroup group;
+    auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
+    group.set_action_profile_id(act_prof_id);
+    group.set_group_id(group_id);
+    for (auto it = members_begin; it != members_end; ++it) {
+      auto member = group.add_members();
+      member->set_member_id(*it);
+    }
+    return group;
   }
 
   // create a group which includes the provided members
   template <typename It>
-  void create_group(uint32_t group_id, It first, It last) {
-    p4::ActionProfileUpdate update;
-    update.set_type(p4::ActionProfileUpdate_Type_CREATE);
+  void create_group(uint32_t group_id, It members_begin, It members_end) {
     auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
-    auto entry = update.mutable_action_profile_entry();
-    entry->set_action_profile_id(act_prof_id);
-    auto group = entry->mutable_group();
-    group->set_group_id(group_id);
-    for (auto it = first; it != last; ++it) {
-      auto member = group->add_members();
-      member->set_member_id(*it);
-    }
     EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, _, _));
     EXPECT_CALL(*mock, action_prof_group_add_member(act_prof_id, _, _))
-        .Times(std::distance(first, last));
+        .Times(std::distance(members_begin, members_end));
+    auto group = make_group(group_id, members_begin, members_end);
+#ifdef NEW_P4RUNTIME
+    p4::WriteRequest request;
+    auto update = request.add_updates();
+    update->set_type(p4::Update_Type_INSERT);
+    auto entity = update->mutable_entity();
+    entity->set_allocated_action_profile_group(&group);
+    auto status = mgr.write(request);
+    entity->release_action_profile_group();
+#else
+    p4::ActionProfileUpdate update;
+    update.set_type(p4::ActionProfileUpdate_Type_CREATE);
+    auto entry = update.mutable_action_profile_entry();
+    entry->set_action_profile_id(act_prof_id);
+    entry->set_allocated_group(&group);
     auto status = mgr.action_profile_write(update);
-    ASSERT_EQ(status.code(), Code::OK);
+    entry->release_group();
+#endif
+    EXPECT_EQ(status.code(), Code::OK);
   }
 
   void create_group(uint32_t group_id, uint32_t member_id) {
@@ -1226,11 +1375,21 @@ class MatchTableIndirectTest : public DeviceMgrTest {
   }
 
   DeviceMgr::Status add_indirect_entry(p4::TableEntry *entry) {
+#ifdef NEW_P4RUNTIME
+    p4::WriteRequest request;
+    auto update = request.add_updates();
+    update->set_type(p4::Update_Type_INSERT);
+    auto entity = update->mutable_entity();
+    entity->set_allocated_table_entry(entry);
+    auto status = mgr.write(request);
+    entity->release_table_entry();
+#else
     p4::TableUpdate update;
     update.set_type(p4::TableUpdate_Type_INSERT);
     update.set_allocated_table_entry(entry);
     auto status = mgr.table_write(update);
     update.release_table_entry();
+#endif
     return status;
   }
 
@@ -1270,11 +1429,23 @@ TEST_F(MatchTableIndirectTest, Member) {
   ASSERT_EQ(status.code(), Code::OK);
 
   EXPECT_CALL(*mock, table_entries_fetch(t_id, _));
+#ifdef NEW_P4RUNTIME
+  p4::ReadResponse response;
+  p4::Entity entity;
+  auto table_entry = entity.mutable_table_entry();
+  table_entry->set_table_id(t_id);
+  status = mgr.read_one(entity, &response);
+  ASSERT_EQ(status.code(), Code::OK);
+  const auto &entities = response.entities();
+  ASSERT_EQ(1, entities.size());
+  ASSERT_TRUE(MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
+#else
   std::vector<p4::TableEntry> entries;
   status = mgr.table_read(t_id, &entries);
   ASSERT_EQ(status.code(), Code::OK);
   ASSERT_EQ(1u, entries.size());
   ASSERT_TRUE(MessageDifferencer::Equals(entry, entries.at(0)));
+#endif
 }
 
 TEST_F(MatchTableIndirectTest, Group) {
@@ -1294,11 +1465,23 @@ TEST_F(MatchTableIndirectTest, Group) {
   ASSERT_EQ(status.code(), Code::OK);
 
   EXPECT_CALL(*mock, table_entries_fetch(t_id, _));
+#ifdef NEW_P4RUNTIME
+  p4::ReadResponse response;
+  p4::Entity entity;
+  auto table_entry = entity.mutable_table_entry();
+  table_entry->set_table_id(t_id);
+  status = mgr.read_one(entity, &response);
+  ASSERT_EQ(status.code(), Code::OK);
+  const auto &entities = response.entities();
+  ASSERT_EQ(1, entities.size());
+  ASSERT_TRUE(MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
+#else
   std::vector<p4::TableEntry> entries;
   status = mgr.table_read(t_id, &entries);
   ASSERT_EQ(status.code(), Code::OK);
   ASSERT_EQ(1u, entries.size());
   ASSERT_TRUE(MessageDifferencer::Equals(entry, entries.at(0)));
+#endif
 }
 
 }  // namespace
