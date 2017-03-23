@@ -32,13 +32,21 @@ namespace proto {
 namespace common {
 
 struct SessionTemp {
-  SessionTemp() { pi_session_init(&sess); }
+  explicit SessionTemp(bool batch = false)
+      : batch(batch) {
+    pi_session_init(&sess);
+    if (batch) pi_batch_begin(sess);
+  }
 
-  ~SessionTemp() { pi_session_cleanup(sess); }
+  ~SessionTemp() {
+    if (batch) pi_batch_end(sess, false  /* hw_sync */);
+    pi_session_cleanup(sess);
+  }
 
   pi_session_handle_t get() const { return sess; }
 
   pi_session_handle_t sess;
+  bool batch;
 };
 
 }  // namespace common

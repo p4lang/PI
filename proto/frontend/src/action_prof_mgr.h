@@ -119,21 +119,28 @@ class ActionProfMgr {
  public:
   using Id = ActionProfBiMap::Id;
   using Status = ::google::rpc::Status;
+  using SessionTemp = common::SessionTemp;
 
   ActionProfMgr(pi_dev_tgt_t device_tgt, pi_p4_id_t act_prof_id,
                 pi_p4info_t *p4info);
 
-  Status member_create(const p4::ActionProfileMember &member);
+  Status member_create(const p4::ActionProfileMember &member,
+                       const SessionTemp &session);
 
-  Status group_create(const p4::ActionProfileGroup &group);
+  Status group_create(const p4::ActionProfileGroup &group,
+                      const SessionTemp &session);
 
-  Status member_modify(const p4::ActionProfileMember &member);
+  Status member_modify(const p4::ActionProfileMember &member,
+                       const SessionTemp &session);
 
-  Status group_modify(const p4::ActionProfileGroup &group);
+  Status group_modify(const p4::ActionProfileGroup &group,
+                      const SessionTemp &session);
 
-  Status member_delete(const p4::ActionProfileMember &member);
+  Status member_delete(const p4::ActionProfileMember &member,
+                       const SessionTemp &session);
 
-  Status group_delete(const p4::ActionProfileGroup &group);
+  Status group_delete(const p4::ActionProfileGroup &group,
+                      const SessionTemp &session);
 
   // returns nullptr if no matching id
   const pi_indirect_handle_t *retrieve_member_handle(const Id &member_id);
