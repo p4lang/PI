@@ -662,8 +662,18 @@ class DeviceMgrTest : public ::testing::Test {
   }
 
   void SetUp() override {
+#ifdef NEW_P4RUNTIME
+    p4::ForwardingPipelineConfig config;
+    config.set_allocated_p4info(&p4info_proto);
+    auto status = mgr.config_set(
+        p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT,
+        config);
+    ASSERT_EQ(status.code(), Code::OK);
+    config.release_p4info();
+#else
     p4::tmp::DeviceAssignRequest_Extras extras;
-    mgr.init(p4info_proto, extras);
+    ASSERT_EQ(mgr.init(p4info_proto, extras).code(), Code::OK);
+#endif
   }
 
   void TearDown() override { }
