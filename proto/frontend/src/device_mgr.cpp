@@ -32,6 +32,8 @@
 #include "common.h"
 #include "p4info_to_and_from_proto.h"  // for p4info_proto_reader
 
+#include "p4/tmp/p4config.pb.h"
+
 namespace pi {
 
 namespace fe {
@@ -87,6 +89,83 @@ class DeviceMgrImp {
     // we do this last, so that the ActProfMgr instances never point to an
     // invalid p4info, even though this is not strictly required here
     p4info.reset(p4info_new);
+  }
+
+  // TODO(antonin):
+  // we assume that VERIFY_AND_COMMIT is use for the first config_set, when no
+  // config has been pushed to the switch; while VERIFY_AND_SAVE & COMMIT are
+  // used for config update. This is just temporary.
+  Status config_set(p4::SetForwardingPipelineConfigRequest_Action a,
+                    const p4::ForwardingPipelineConfig &config) {
+    Status status;
+    pi_status_t pi_status;
+    status.set_code(Code::OK);
+    if (a == p4::SetForwardingPipelineConfigRequest_Action_UNSPECIFIED) {
+      status.set_code(Code::INVALID_ARGUMENT);
+      return status;
+    }
+    pi_p4info_t *p4info_tmp = nullptr;
+    if (a == p4::SetForwardingPipelineConfigRequest_Action_VERIFY ||
+        a == p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_SAVE ||
+        a == p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT) {
+      if (!pi::p4info::p4info_proto_reader(config.p4info(), &p4info_tmp)) {
+        status.set_code(Code::UNKNOWN);
+        return status;
+      }
+    }
+
+    if (a == p4::SetForwardingPipelineConfigRequest_Action_VERIFY)
+      return status;
+
+    p4::tmp::P4DeviceConfig p4_device_config;
+    if (!p4_device_config.ParseFromString(config.p4_device_config())) {
+      status.set_code(Code::INVALID_ARGUMENT);
+      return status;
+    }
+
+    if (a == p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT) {
+      p4_change(p4info_tmp);
+      std::vector<pi_assign_extra_t> assign_options;
+      for (const auto &p : p4_device_config.extras().kv()) {
+        pi_assign_extra_t e;
+        e.key = p.first.c_str();
+        e.v = p.second.c_str();
+        e.end_of_extras = 0;
+        assign_options.push_back(e);
+      }
+      assign_options.push_back({1, NULL, NULL});
+      pi_status = pi_assign_device(device_id, p4info.get(),
+                                   assign_options.data());
+      if (pi_status != PI_STATUS_SUCCESS) status.set_code(Code::UNKNOWN);
+      return status;
+    }
+
+    if (a == p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_SAVE) {
+      const auto &device_data = p4_device_config.device_data();
+      pi_status = pi_update_device_start(device_id, p4info_tmp,
+                                         device_data.data(),
+                                         device_data.size());
+      if (pi_status != PI_STATUS_SUCCESS) {
+        status.set_code(Code::UNKNOWN);
+        pi_destroy_config(p4info_tmp);
+        return status;
+      }
+      p4_change(p4info_tmp);
+      return status;
+    }
+
+    assert(a == p4::SetForwardingPipelineConfigRequest_Action_COMMIT);
+    pi_status = pi_update_device_end(device_id);
+    if (pi_status != PI_STATUS_SUCCESS) status.set_code(Code::UNKNOWN);
+
+    return status;
+  }
+
+  Status config_get(p4::ForwardingPipelineConfig *config) {
+    (void) config;
+    Status status;
+    status.set_code(Code::UNIMPLEMENTED);
+    return status;
   }
 
   Status init(const p4::config::P4Info &p4info_proto,
@@ -1057,6 +1136,17 @@ DeviceMgr::DeviceMgr(device_id_t device_id) {
 DeviceMgr::~DeviceMgr() { }
 
 // PIMPL forwarding
+
+Status
+DeviceMgr::config_set(p4::SetForwardingPipelineConfigRequest_Action action,
+                      const p4::ForwardingPipelineConfig &config) {
+  return pimp->config_set(action, config);
+}
+
+Status
+DeviceMgr::config_get(p4::ForwardingPipelineConfig *config) {
+  return pimp->config_get(config);
+}
 
 Status
 DeviceMgr::init(const p4::config::P4Info &p4info,
