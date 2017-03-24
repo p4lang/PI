@@ -49,7 +49,7 @@ using grpc::ServerAsyncReaderWriter;
 
 using pi::fe::proto::DeviceMgr;
 
-// #define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 #define ENABLE_SIMPLELOG true
@@ -147,7 +147,7 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
     SIMPLELOG << "P4Runtime SetForwardingPipelineConfig\n";
     (void) rep;
     for (const auto &config : request->configs()) {
-      device_mgr = new DeviceMgr(config.device_id());
+      if (device_mgr == nullptr) device_mgr = new DeviceMgr(config.device_id());
       auto status = device_mgr->config_set(request->action(), config);
       // TODO(antonin): report errors
       (void) status;

@@ -104,6 +104,7 @@ class DeviceMgrImp {
       status.set_code(Code::INVALID_ARGUMENT);
       return status;
     }
+
     pi_p4info_t *p4info_tmp = nullptr;
     if (a == p4::SetForwardingPipelineConfigRequest_Action_VERIFY ||
         a == p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_SAVE ||

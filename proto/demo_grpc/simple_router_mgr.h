@@ -27,7 +27,6 @@
 #include <grpc++/grpc++.h>
 
 #include "p4/p4runtime.grpc.pb.h"
-#include "p4/tmp/device.grpc.pb.h"
 
 #include <iostream>
 #include <cstring>
@@ -161,7 +160,6 @@ class SimpleRouterMgr {
   int dev_id;
   pi_p4info_t *p4info{nullptr};
   boost::asio::io_service &io_service;
-  std::unique_ptr<p4::tmp::Device::Stub> device_stub_;
   std::unique_ptr<p4::P4Runtime::Stub> pi_stub_;
   std::unique_ptr<StreamChannelSyncClient> packet_io_client;
 };
