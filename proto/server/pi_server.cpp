@@ -115,6 +115,66 @@ class DeviceService : public p4::tmp::Device::Service {
 
 class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
  private:
+  Status Write(ServerContext *context,
+               const p4::WriteRequest *request,
+               p4::WriteResponse *rep) override {
+    SIMPLELOG << "P4Runtime Write\n";
+    SIMPLELOG << request->DebugString();
+    (void) rep;
+    auto status = device_mgr->write(*request);
+    // TODO(antonin): report errors
+    (void) status;
+    return Status::OK;
+  }
+
+  Status Read(ServerContext *context,
+              const p4::ReadRequest *request,
+              ServerWriter<p4::ReadResponse> *writer) override {
+    SIMPLELOG << "P4Runtime Read\n";
+    SIMPLELOG << request->DebugString();
+    p4::ReadResponse response;
+    auto status = device_mgr->read(*request, &response);
+    // TODO(antonin): report errors
+    (void) status;
+    writer->Write(response);
+    return Status::OK;
+  }
+
+  Status SetForwardingPipelineConfig(
+      ServerContext *context,
+      const p4::SetForwardingPipelineConfigRequest *request,
+      p4::SetForwardingPipelineConfigResponse *rep) override {
+    SIMPLELOG << "P4Runtime SetForwardingPipelineConfig\n";
+    (void) rep;
+    for (const auto &config : request->configs()) {
+      device_mgr = new DeviceMgr(config.device_id());
+      auto status = device_mgr->config_set(request->action(), config);
+      // TODO(antonin): report errors
+      (void) status;
+      device_mgr->packet_in_register_cb(::packet_in_cb,
+                                        static_cast<void *>(packet_in_mgr));
+      // TODO(antonin): multi-device support
+      break;
+    }
+    return Status::OK;
+  }
+
+  Status GetForwardingPipelineConfig(
+      ServerContext *context,
+      const p4::GetForwardingPipelineConfigRequest *request,
+      p4::GetForwardingPipelineConfigResponse *rep) override {
+    SIMPLELOG << "P4Runtime GetForwardingPipelineConfig\n";
+    for (const auto device_id : request->device_ids()) {
+      (void) device_id;
+      auto status = device_mgr->config_get(rep->add_configs());
+      // TODO(antonin): report errors
+      (void) status;
+      // TODO(antonin): multi-device support
+      break;
+    }
+    return Status::OK;
+  }
+
   Status TableWrite(ServerContext *context,
                     const p4::TableWriteRequest *request,
                     p4::TableWriteResponse *rep) override {
