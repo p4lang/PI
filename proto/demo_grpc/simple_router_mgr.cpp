@@ -22,8 +22,9 @@
 
 #include <arpa/inet.h>
 
-// #include <functional>
 #include <boost/bind.hpp>
+
+#include "p4/tmp/p4config.grpc.pb.h"
 
 #include <future>
 #include <limits>
@@ -221,7 +222,6 @@ SimpleRouterMgr::SimpleRouterMgr(int dev_id, pi_p4info_t *p4info,
                                  boost::asio::io_service &io_service,
                                  std::shared_ptr<Channel> channel)
     : dev_id(dev_id), p4info(p4info), io_service(io_service),
-      device_stub_(p4::tmp::Device::NewStub(channel)),
       pi_stub_(p4::P4Runtime::NewStub(channel)),
       packet_io_client(new StreamChannelSyncClient(this, channel)) {
 }
@@ -232,26 +232,31 @@ SimpleRouterMgr::~SimpleRouterMgr() {
 int
 SimpleRouterMgr::assign() {
   if (assigned) return 0;
-  p4::tmp::DeviceAssignRequest request;
-  request.set_device_id(dev_id);
+  p4::SetForwardingPipelineConfigRequest request;
+  request.set_action(
+      p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT);
+  auto config = request.add_configs();
+  config->set_device_id(dev_id);
   auto p4info_proto = pi::p4info::p4info_serialize_to_proto(p4info);
-  request.set_allocated_p4info(&p4info_proto);
-  auto extras = request.mutable_extras();
+  config->set_allocated_p4info(&p4info_proto);
+  p4::tmp::P4DeviceConfig device_config;
+  auto extras = device_config.mutable_extras();
   auto kv = extras->mutable_kv();
   (*kv)["port"] = "9090";
   (*kv)["notifications"] = "ipc:///tmp/bmv2-0-notifications.ipc";
   (*kv)["cpu_iface"] = "veth251";
+  device_config.SerializeToString(config->mutable_p4_device_config());
 
-  ::google::rpc::Status rep;
+  p4::SetForwardingPipelineConfigResponse rep;
   ClientContext context;
-  Status status = device_stub_->DeviceAssign(&context, request, &rep);
-  request.release_p4info();
+  auto status = pi_stub_->SetForwardingPipelineConfig(&context, request, &rep);
+  config->release_p4info();
   assert(status.ok());
 
   packet_io_client->send_init(dev_id);
   packet_io_client->recv_packet_in();
 
-  return rep.code();
+  return 0;
 }
 
 namespace {
@@ -274,20 +279,21 @@ std::string uint_to_string<uint32_t>(uint32_t i) {
 
 int
 SimpleRouterMgr::add_one_entry(p4::TableEntry *match_action_entry) {
-  p4::TableWriteRequest request;
+  p4::WriteRequest request;
   request.set_device_id(dev_id);
   auto update = request.add_updates();
-  update->set_type(p4::TableUpdate_Type_INSERT);
-  update->set_allocated_table_entry(match_action_entry);
+  update->set_type(p4::Update_Type_INSERT);
+  auto entity = update->mutable_entity();
+  entity->set_allocated_table_entry(match_action_entry);
 
-  p4::TableWriteResponse rep;
+  p4::WriteResponse rep;
   ClientContext context;
-  Status status = pi_stub_->TableWrite(&context, request, &rep);
+  Status status = pi_stub_->Write(&context, request, &rep);
   assert(status.ok());
 
-  update->release_table_entry();
+  entity->release_table_entry();
 
-  return rep.errors().size();
+  return 0;
 }
 
 int
@@ -626,26 +632,27 @@ SimpleRouterMgr::query_counter_(const std::string &counter_name, size_t index,
     return 1;
   }
 
-  p4::CounterReadRequest request;
+  p4::ReadRequest request;
   request.set_device_id(dev_id);
-  auto entry = request.add_counters();
-  entry->set_counter_id(counter_id);
-  auto cell = entry->add_cells();
-  cell->set_index(index);
-  p4::CounterReadResponse rep;
+  auto entity = request.add_entities();
+  auto counter_entry = entity->mutable_counter_entry();
+  counter_entry->set_counter_id(counter_id);
+  counter_entry->set_index(index);
+
+  p4::ReadResponse rep;
   ClientContext context;
-  auto reader = pi_stub_->CounterRead(&context, request);
+  auto reader = pi_stub_->Read(&context, request);
   while (reader->Read(&rep)) {
-    const auto &rep_entry = rep.counter_entry();
-    if (rep_entry.counter_id() == entry->counter_id()) {
-      for (const auto &rep_cell : rep_entry.cells()) {
-        if (rep_cell.index() == cell->index()) {
-          counter_data->CopyFrom(rep_cell.data());
-          return 0;
-        }
+    for (const auto &entity : rep.entities()) {
+      const auto &rep_entry = entity.counter_entry();
+      if (rep_entry.counter_id() == counter_id &&
+          static_cast<size_t>(rep_entry.index()) == index) {
+        counter_data->CopyFrom(rep_entry.data());
+        return 0;
       }
     }
   }
+
   std::cout << "Error when trying to read counter.\n";
   return 1;
 }
@@ -669,22 +676,23 @@ SimpleRouterMgr::update_config_(const std::string &config_buffer) {
   p4info = p4info_new;
   pi_destroy_config(p4info_prev);
 
-  ::google::rpc::Status rep;
-
   {
-    ClientContext context;
-    p4::tmp::DeviceUpdateStartRequest request;
-    request.set_device_id(dev_id);
+    p4::SetForwardingPipelineConfigRequest request;
+    request.set_action(
+        p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_SAVE);
+    auto config = request.add_configs();
+    config->set_device_id(dev_id);
     auto p4info_proto = pi::p4info::p4info_serialize_to_proto(p4info);
-    request.set_allocated_p4info(&p4info_proto);
-    request.set_device_data(config_buffer);
-    Status status = device_stub_->DeviceUpdateStart(&context, request, &rep);
-    request.release_p4info();
+    config->set_allocated_p4info(&p4info_proto);
+    p4::tmp::P4DeviceConfig device_config;
+    device_config.set_device_data(config_buffer);
+    device_config.SerializeToString(config->mutable_p4_device_config());
+    p4::SetForwardingPipelineConfigResponse rep;
+    ClientContext context;
+    auto status = pi_stub_->SetForwardingPipelineConfig(
+        &context, request, &rep);
+    config->release_p4info();
     assert(status.ok());
-    if (rep.code() != ::google::rpc::Code::OK) {
-      std::cout << "Error when initiating config update\n";
-      return 1;
-    }
   }
 
   set_default_entries();
@@ -693,15 +701,16 @@ SimpleRouterMgr::update_config_(const std::string &config_buffer) {
   // static_config_(UpdateMode::CONTROLLER_STATE);
 
   {
+    p4::SetForwardingPipelineConfigRequest request;
+    request.set_action(p4::SetForwardingPipelineConfigRequest_Action_COMMIT);
+    auto config = request.add_configs();
+    config->set_device_id(dev_id);
+    p4::SetForwardingPipelineConfigResponse rep;
     ClientContext context;
-    p4::tmp::DeviceUpdateEndRequest request;
-    request.set_device_id(dev_id);
-    Status status = device_stub_->DeviceUpdateEnd(&context, request, &rep);
+    auto status = pi_stub_->SetForwardingPipelineConfig(
+        &context, request, &rep);
+    config->release_p4info();
     assert(status.ok());
-    if (rep.code() != ::google::rpc::Code::OK) {
-      std::cout << "Error when initiating config update\n";
-      return 1;
-    }
   }
 
   return 0;
