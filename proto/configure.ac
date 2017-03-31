@@ -17,6 +17,9 @@ AC_LANG_PUSH(C++)
 
 AX_CXX_COMPILE_STDCXX_11([noext],[mandatory])
 
+AM_PATH_PYTHON([2.7],, [:])
+AM_CONDITIONAL([HAVE_PYTHON], [test "$PYTHON" != :])
+
 PKG_CHECK_MODULES([PROTOBUF], [protobuf >= 3.0.0])
 dnl Not necessary for recent autoconf versions but I think it makes things more
 dnl readable
@@ -34,6 +37,13 @@ AC_PATH_PROG([GRPC_CPP_PLUGIN], [grpc_cpp_plugin])
 AS_IF([test "x$GRPC_CPP_PLUGIN" = x], [
     AC_MSG_ERROR([grpc_cpp_plugin not found])
 ])
+AS_IF([test "$PYTHON" != :], [
+    AC_PATH_PROG([GRPC_PY_PLUGIN], [grpc_python_plugin])
+    AS_IF([test "x$GRPC_PY_PLUGIN" = x], [
+        AC_MSG_WARN([grpc_python_plugin not found, Python code won't be generated])
+    ])
+])
+AM_CONDITIONAL([HAVE_GRPC_PY_PLUGIN], [test "x$GRPC_PY_PLUGIN" != x])
 
 want_bmv2=no
 AC_ARG_WITH([bmv2],
