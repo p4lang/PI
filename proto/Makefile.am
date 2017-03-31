@@ -92,6 +92,42 @@ AM_CPPFLAGS = -Icpp_out -Igrpc_out \
 
 BUILT_SOURCES = $(proto_cpp_files) $(proto_grpc_files)
 
+if HAVE_GRPC_PY_PLUGIN
+p4pydir = $(pythondir)/p4
+nodist_p4py_PYTHON = \
+py_out/p4/p4runtime_pb2.py \
+py_out/p4/__init__.py
+
+p4configpydir = $(pythondir)/p4/config
+nodist_p4configpy_PYTHON = \
+py_out/p4/config/p4info_pb2.py \
+py_out/p4/config/__init__.py
+
+# this one is temporary
+p4tmppydir = $(pythondir)/p4/tmp
+nodist_p4tmppy_PYTHON = \
+py_out/p4/tmp/device_pb2.py \
+py_out/p4/tmp/p4config_pb2.py \
+py_out/p4/tmp/__init__.py
+
+googlepydir = $(pythondir)/google
+nodist_googlepy_PYTHON = \
+py_out/google/__init__.py
+
+googlerpcpydir = $(pythondir)/google/rpc
+nodist_googlerpcpy_PYTHON = \
+py_out/google/rpc/code_pb2.py \
+py_out/google/rpc/status_pb2.py \
+py_out/google/rpc/__init__.py
+
+BUILT_SOURCES += \
+$(nodist_p4py_PYTHON) \
+$(nodist_p4configpy_PYTHON) \
+$(nodist_p4tmppy_PYTHON) \
+$(nodist_googlepy_PYTHON) \
+$(nodist_googlerpcpy_PYTHON)
+endif
+
 # See http://www.gnu.org/software/automake/manual/html_node/Multiple-Outputs.html
 
 # Is there any issue with running protoc only once, instead of once per proto?
@@ -102,6 +138,16 @@ proto_files.ts: $(protos)
 	@mkdir -p $(builddir)/grpc_out
 	$(PROTOC) $^ --cpp_out $(builddir)/cpp_out $(PROTOFLAGS)
 	$(PROTOC) $^ --grpc_out $(builddir)/grpc_out --plugin=protoc-gen-grpc=$(GRPC_CPP_PLUGIN) $(PROTOFLAGS)
+if HAVE_GRPC_PY_PLUGIN
+	@mkdir -p $(builddir)/py_out
+# With the Python plugin, it seems that I need to use a single command for proto
+# + grpc and that the output directory needs to be the same (because the grpc
+# plugin inserts code into the proto-generated files). But maybe I am just using
+# an old version of the Python plugin.
+	$(PROTOC) $^ --python_out $(builddir)/py_out $(PROTOFLAGS) --grpc_out $(builddir)/py_out --plugin=protoc-gen-grpc=$(GRPC_PY_PLUGIN)
+	@touch $(builddir)/py_out/p4/__init__.py $(builddir)/py_out/p4/config/__init__.py $(builddir)/py_out/p4/tmp/__init__.py
+	@touch $(builddir)/py_out/google/__init__.py $(builddir)/py_out/google/rpc/__init__.py
+endif
 	@mv -f proto_files.tmp $@
 
 $(BUILT_SOURCES): proto_files.ts
