@@ -125,6 +125,12 @@ class DeviceMgrImp {
     }
 
     if (a == p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT) {
+      // this is temporary, until I can implement this method properly
+      if (p4info) {
+        pi_remove_device(device_id);
+        action_profs.clear();
+      }
+
       p4_change(p4info_tmp);
       std::vector<pi_assign_extra_t> assign_options;
       for (const auto &p : p4_device_config.extras().kv()) {
