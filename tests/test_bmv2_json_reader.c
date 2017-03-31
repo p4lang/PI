@@ -168,7 +168,7 @@ TEST(IdAssignment, Pragmas) {
   pi_p4_id_t action_id = (PI_ACTION_ID << 24) | 8;
   TEST_ASSERT_EQUAL_UINT(action_id, pi_p4info_action_id_from_name(p4info, "a"));
   TEST_ASSERT_EQUAL_UINT(
-      0, pi_p4info_action_param_id_from_name(p4info, action_id, "ap"));
+      1, pi_p4info_action_param_id_from_name(p4info, action_id, "ap"));
 
   TEST_ASSERT_EQUAL_UINT((PI_TABLE_ID << 24) | 9,
                          pi_p4info_table_id_from_name(p4info, "t"));
