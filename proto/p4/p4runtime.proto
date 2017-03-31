@@ -14,6 +14,7 @@
 
 syntax = "proto3";
 
+import "google/protobuf/any.proto";
 import "google/rpc/status.proto";
 import "p4/config/p4info.proto";
 
@@ -114,12 +115,22 @@ message Update {
 
 message Entity {
   oneof entity {
-    TableEntry table_entry = 1;
-    ActionProfileMember action_profile_member = 2;
-    ActionProfileGroup action_profile_group = 3;
-    MeterEntry meter_entry = 4;
-    CounterEntry counter_entry = 5;
+    ExternEntry extern_entry = 1;
+    TableEntry table_entry = 2;
+    ActionProfileMember action_profile_member = 3;
+    ActionProfileGroup action_profile_group = 4;
+    MeterEntry meter_entry = 5;
+    CounterEntry counter_entry = 6;
   }
+}
+
+message ExternEntry {
+  // the extern_type_id is assigned during compilation. It is likely that this
+  // id will in fact come from a P4 annotation to the extern declaration and
+  // that each vendor will receive a prefix to avoid collisions.
+  uint32 extern_type_id = 1;
+  uint32 extern_id = 2;  // id of the instance
+  google.protobuf.Any entry = 3;
 }
 
 // From Section 11 of P4_14 spec:

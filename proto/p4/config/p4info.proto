@@ -21,14 +21,12 @@ import "google/protobuf/any.proto";
 package p4.config;
 
 message P4Info {
-  repeated Table tables = 1;
-  repeated Action actions = 2;
-  repeated ActionProfile action_profiles = 3;
-  repeated Counter counters = 4;
-  repeated Meter meters = 5;
-
-  // for extern?
-  repeated google.protobuf.Any externs = 100;
+  repeated Extern externs = 1;
+  repeated Table tables = 2;
+  repeated Action actions = 3;
+  repeated ActionProfile action_profiles = 4;
+  repeated Counter counters = 5;
+  repeated Meter meters = 6;
 }
 
 message Preamble {
@@ -53,6 +51,23 @@ message Preamble {
   // application should be able to indiscriminately use the name or the alias.
   string alias = 3;
   repeated string annotations = 4;
+}
+
+// used to group all extern instances of the same type in one message
+message Extern {
+  // the extern_type_id is assigned during compilation. It is likely that this
+  // id will in fact come from a P4 annotation to the extern declaration and
+  // that each vendor will receive a prefix to avoid collisions.
+  uint32 extern_type_id = 1;
+  string extern_type_name = 2;
+  repeated ExternInstance instances = 3;
+}
+
+message ExternInstance {
+  Preamble preamble = 1;
+  // specific to the extern type, declared in a separate vendor-specific proto
+  // file
+  google.protobuf.Any info = 2;
 }
 
 // TODO(antonin): define inside the Table message?
