@@ -279,7 +279,7 @@ static pi_status_t read_actions(reader_state_t *state, cJSON *root,
     PI_LOG_DEBUG("Adding action '%s'\n", name);
     pi_p4info_action_add(p4info, pi_id, name, num_params);
 
-    int param_index = 0;
+    int param_index = 1;
     cJSON *param;
     cJSON_ArrayForEach(param, params) {
       item = cJSON_GetObjectItem(param, "name");
@@ -510,7 +510,7 @@ static pi_status_t read_tables(reader_state_t *state, cJSON *root,
     import_pragmas(table, p4info, pi_id);
 
     cJSON *match_field;
-    int match_field_index = 0;
+    int match_field_index = 1;
     cJSON_ArrayForEach(match_field, json_match_key) {
       item = cJSON_GetObjectItem(match_field, "match_type");
       if (!item) return PI_STATUS_CONFIG_READER_ERROR;
