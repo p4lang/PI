@@ -91,12 +91,12 @@ class DeviceMgrImp {
     p4info.reset(p4info_new);
   }
 
-  // TODO(antonin):
-  // we assume that VERIFY_AND_COMMIT is use for the first config_set, when no
-  // config has been pushed to the switch; while VERIFY_AND_SAVE & COMMIT are
-  // used for config update. This is just temporary.
-  Status config_set(p4::SetForwardingPipelineConfigRequest_Action a,
-                    const p4::ForwardingPipelineConfig &config) {
+  // TODO(antonin): we assume that VERIFY_AND_COMMIT is use for the first
+  // pipeline_config_set, when no config has been pushed to the switch; while
+  // VERIFY_AND_SAVE & COMMIT are used for config update. This is just
+  // temporary.
+  Status pipeline_config_set(p4::SetForwardingPipelineConfigRequest_Action a,
+                             const p4::ForwardingPipelineConfig &config) {
     Status status;
     pi_status_t pi_status;
     status.set_code(Code::OK);
@@ -168,7 +168,8 @@ class DeviceMgrImp {
     return status;
   }
 
-  Status config_get(p4::ForwardingPipelineConfig *config) {
+  // TODO(antonin)
+  Status pipeline_config_get(p4::ForwardingPipelineConfig *config) {
     (void) config;
     Status status;
     status.set_code(Code::UNIMPLEMENTED);
@@ -1145,14 +1146,15 @@ DeviceMgr::~DeviceMgr() { }
 // PIMPL forwarding
 
 Status
-DeviceMgr::config_set(p4::SetForwardingPipelineConfigRequest_Action action,
-                      const p4::ForwardingPipelineConfig &config) {
-  return pimp->config_set(action, config);
+DeviceMgr::pipeline_config_set(
+    p4::SetForwardingPipelineConfigRequest_Action action,
+    const p4::ForwardingPipelineConfig &config) {
+  return pimp->pipeline_config_set(action, config);
 }
 
 Status
-DeviceMgr::config_get(p4::ForwardingPipelineConfig *config) {
-  return pimp->config_get(config);
+DeviceMgr::pipeline_config_get(p4::ForwardingPipelineConfig *config) {
+  return pimp->pipeline_config_get(config);
 }
 
 Status

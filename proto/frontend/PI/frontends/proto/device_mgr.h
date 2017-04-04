@@ -54,12 +54,13 @@ class DeviceMgr {
 
   ~DeviceMgr();
 
-  // New config_set and config_get methods to replace init, update_start and
-  // update_end
-  Status config_set(p4::SetForwardingPipelineConfigRequest_Action action,
-                    const p4::ForwardingPipelineConfig &config);
+  // New pipeline_config_set and pipeline_config_get methods to replace init,
+  // update_start and update_end
+  Status pipeline_config_set(
+      p4::SetForwardingPipelineConfigRequest_Action action,
+      const p4::ForwardingPipelineConfig &config);
 
-  Status config_get(p4::ForwardingPipelineConfig *config);
+  Status pipeline_config_get(p4::ForwardingPipelineConfig *config);
 
   // 3 temporary methods to manage a device, will be replaced by permanent
   // solution ASAP

@@ -148,7 +148,7 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
     (void) rep;
     for (const auto &config : request->configs()) {
       if (device_mgr == nullptr) device_mgr = new DeviceMgr(config.device_id());
-      auto status = device_mgr->config_set(request->action(), config);
+      auto status = device_mgr->pipeline_config_set(request->action(), config);
       // TODO(antonin): report errors
       (void) status;
       device_mgr->packet_in_register_cb(::packet_in_cb,
@@ -166,7 +166,7 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
     SIMPLELOG << "P4Runtime GetForwardingPipelineConfig\n";
     for (const auto device_id : request->device_ids()) {
       (void) device_id;
-      auto status = device_mgr->config_get(rep->add_configs());
+      auto status = device_mgr->pipeline_config_get(rep->add_configs());
       // TODO(antonin): report errors
       (void) status;
       // TODO(antonin): multi-device support
