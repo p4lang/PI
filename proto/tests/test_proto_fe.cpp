@@ -665,7 +665,7 @@ class DeviceMgrTest : public ::testing::Test {
 #ifdef NEW_P4RUNTIME
     p4::ForwardingPipelineConfig config;
     config.set_allocated_p4info(&p4info_proto);
-    auto status = mgr.config_set(
+    auto status = mgr.pipeline_config_set(
         p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT,
         config);
     ASSERT_EQ(status.code(), Code::OK);
