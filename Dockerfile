@@ -23,6 +23,7 @@ ENV PI_DEPS automake \
             libboost-dev \
             libboost-system-dev \
             libtool \
+            libtool-bin \
             pkg-config \
             python2.7 \
             libjudy-dev \
