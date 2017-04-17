@@ -73,12 +73,6 @@ service P4Runtime {
   rpc ActionProfileRead(ActionProfileReadRequest)
       returns (stream ActionProfileReadResponse) {
   }
-  // Modifies 'CounterEntry's.
-  rpc CounterWrite(CounterWriteRequest) returns (stream CounterWriteResponse) {
-  }
-  // Reads 'CounterEntry's.
-  rpc CounterRead(CounterReadRequest) returns (stream CounterReadResponse) {
-  }
 }
 
 //------------------------------------------------------------------------------
@@ -120,7 +114,9 @@ message Entity {
     ActionProfileMember action_profile_member = 3;
     ActionProfileGroup action_profile_group = 4;
     MeterEntry meter_entry = 5;
-    CounterEntry counter_entry = 6;
+    DirectMeterEntry direct_meter_entry = 6;
+    CounterEntry counter_entry = 7;
+    DirectCounterEntry direct_counter_entry = 8;
   }
 }
 
@@ -135,8 +131,8 @@ message ExternEntry {
 
 // From Section 11 of P4_14 spec:
 // At run time, the table entry insert operation (not part of P4) must specify:
-// – Values for each field specified in the reads entry.
-// – The name of the action from the action_specification or the
+// - Values for each field specified in the reads entry.
+// - The name of the action from the action_specification or the
 //   action_profile_specification and the parameters to be passed to the action
 //   function when it is called.
 message TableEntry {
@@ -230,18 +226,27 @@ message ActionProfileGroup {
 //  - DELETE: Delete the meter cell (i.e. reset the meter configuration)
 // For ReadRequest, the scope is defined as follows:
 // - All meter cells for all meters if meter_id = 0 (default).
-// - Indirect: All meter cells for given meter_id if index = 0 (default).
-// - Direct: All meter cells for given meter_id if table_entry.match is empty.
+// - All meter cells for given meter_id if index = 0 (default).
 message MeterEntry {
   uint32 meter_id = 1;
-  oneof type {
-    // For indirect meter
-    int64 index = 2;
-    // For direct meter, the associated table entry match.
-    // table_entry.action is ignored. Other fields specify the match.
-    TableEntry table_entry = 3;
-  }
-  MeterConfig config = 4;
+  int64 index = 2;
+  MeterConfig config = 3;
+}
+
+//------------------------------------------------------------------------------
+// For WriteRequest, Update.Type has following semantics:
+//  - INSERT: Insert the cell in the meter array (with given configuration)
+//  - MODIFY: Modify the meter cell configuration
+//  - DELETE: Delete the meter cell (i.e. reset the meter configuration)
+// For ReadRequest, the scope is defined as follows:
+// - All meter cells for all meters if meter_id = 0 (default).
+// - All meter cells for given meter_id if table_entry.match is empty.
+message DirectMeterEntry {
+  uint32 meter_id = 1;
+  // The associated table entry match.
+  // table_entry.action is ignored. Other fields specify the match.
+  TableEntry table_entry = 2;
+  MeterConfig config = 3;
 }
 
 // Modeled as RFC 2698: A Two Rate Three Color Marker (trTCM)
@@ -270,22 +275,27 @@ message MeterConfig {
 //  - DELETE: Delete the counter cell (i.e. reset the counter data)
 // For ReadRequest, the scope is defined as follows:
 // - All counter cells for all meters if counter_id = 0 (default).
-// - Indirect: All counter cells for given counter_id if index = 0 (default).
-// - Direct: All counter cells for given counter_id if table_entry.match is
-//   empty.
+// - All counter cells for given counter_id if index = 0 (default).
 message CounterEntry {
   uint32 counter_id = 1;
-  oneof type {
-    // For indirect counter
-    int64 index = 2;
-    // For direct counter, the associated table entry match.
-    // table_entry.action is ignored. Other fields specify the match.
-    TableEntry table_entry = 3;
-  }
-  CounterData data = 4;
+  int64 index = 2;
+  CounterData data = 3;
+}
 
-  // TODO(wmohsin) Remove once partners have moved to new API.
-  repeated CounterCell cells = 5;
+//------------------------------------------------------------------------------
+// For WriteRequest, Update.Type has following semantics:
+//  - INSERT: Insert a cell in the counter array (with given data)
+//  - MODIFY: Modify the counter cell data
+//  - DELETE: Delete the counter cell (i.e. reset the counter data)
+// For ReadRequest, the scope is defined as follows:
+// - All counter cells for all meters if counter_id = 0 (default).
+// - All counter cells for given counter_id if table_entry.match is empty.
+message DirectCounterEntry {
+  uint32 counter_id = 1;
+  // The associated table entry match.
+  // table_entry.action is ignored. Other fields specify the match.
+  TableEntry table_entry = 2;
+  CounterData data = 3;
 }
 
 message CounterData {
@@ -459,42 +469,4 @@ message ActionProfileEntry {
     ActionProfileMember member = 2;
     ActionProfileGroup group = 3;
   }
-}
-
-//------------------------------------------------------------------------------
-message CounterWriteRequest {
-  uint64 device_id = 1;
-  repeated CounterEntry updates = 2;
-}
-
-message CounterWriteResponse {
-  // Corresponds one-to-one to request.updates, and populated only
-  // if one or more updates didn't succeed.
-  repeated .google.rpc.Status errors = 1;
-}
-
-message CounterReadRequest {
-  uint64 device_id = 1;
-  // Read all counters if empty.
-  // Read all cells of counter.counter_id if counter.cells is empty.
-  // 'CounterEntry' is shared between request and response messages. For
-  // the request, counters.cells.data need not be populated, and is ignored.
-  repeated CounterEntry counters = 2;
-}
-
-message CounterReadResponse {
-  CounterEntry counter_entry = 1;
-  // Set to true if no responses will follow this one.
-  bool complete = 2;
-}
-
-message CounterCell {
-  oneof type {
-    // For indirect counter
-    int64 index = 1;
-    // For direct counter, the associated table entry match.
-    // table_entry.action is ignored. Other fields specify the match.
-    TableEntry table_entry = 2;
-  }
-  CounterData data = 3;
 }
