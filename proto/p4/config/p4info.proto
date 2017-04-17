@@ -26,7 +26,9 @@ message P4Info {
   repeated Action actions = 3;
   repeated ActionProfile action_profiles = 4;
   repeated Counter counters = 5;
-  repeated Meter meters = 6;
+  repeated DirectCounter direct_counters = 6;
+  repeated Meter meters = 7;
+  repeated DirectMeter direct_meters = 8;
 }
 
 message Preamble {
@@ -134,44 +136,57 @@ message ActionProfile {
   int64 size = 4;  // max number of entries in action profile
 }
 
-message Counter {
-  Preamble preamble = 1;
-  // 0 (default value) if the counter is not direct, the id of the table to
-  // which the counter is attached otherwise
-  uint32 direct_table_id = 2;
-  // in the current P4 spec the attribute is called 'type', I believe 'unit' is
-  // more appropriate for this and I hope to see the spec updated
+message CounterSpec {
+  // Corresponds to 'type' attribute for counter in P4 spec.
   enum Unit {
     UNSPECIFIED = 0;
     BYTES = 1;
     PACKETS = 2;
     BOTH = 3;  // not part of the P4 spec yet but will be in the future
   }
-  Unit unit = 3;
-  // number of entries in the counter array, for direct counters this is equal
-  // to the corresponding table's size
-  int64 size = 4;
+  Unit unit = 1;
 }
 
-message Meter {
+message Counter {
   Preamble preamble = 1;
-  // 0 (default value) if the meter is not direct, the id of the table to which
-  // the meter is attached otherwise
-  uint32 direct_table_id = 2;
-  // in the current P4 spec the attribute is called 'type', I believe 'unit' is
-  // more appropriate for this and I hope to see the spec updated
+  CounterSpec spec = 2;
+  // number of entries in the counter array
+  int64 size = 3;
+}
+
+message DirectCounter {
+  Preamble preamble = 1;
+  CounterSpec spec = 2;
+  // the id of the table to which the counter is attached
+  uint32 direct_table_id = 3;
+}
+
+message MeterSpec {
+  // Corresponds to 'type' attribute for meter in P4 spec.
   enum Unit {
     UNSPECIFIED = 0;
     BYTES = 1;
     PACKETS = 2;
   }
-  Unit unit = 3;
-  enum Type {  // not part of the P4 spec yet but will be in the future
+  // Not part of the P4 spec yet but will be in the future.
+  enum Type {
     COLOR_UNAWARE = 0;  // default value
     COLOR_AWARE = 1;
   }
-  Type type = 4;
-  // number of entries in the meter array, for direct meters this is equal to
-  // the corresponding table's size
-  int64 size = 5;
+  Unit unit = 1;
+  Type type = 2;
+}
+
+message Meter {
+  Preamble preamble = 1;
+  MeterSpec spec = 2;
+  // number of entries in the meter array
+  int64 size = 3;
+}
+
+message DirectMeter {
+  Preamble preamble = 1;
+  MeterSpec spec = 2;
+  // the id of the table to which the meter is attached
+  uint32 direct_table_id = 3;
 }
