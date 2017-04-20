@@ -256,47 +256,6 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
     }
     return Status::OK;
   }
-
-  Status CounterRead(ServerContext *context,
-                     const p4::CounterReadRequest *request,
-                     ServerWriter<p4::CounterReadResponse> *writer) override {
-    SIMPLELOG << "P4Runtime CounterRead\n";
-    SIMPLELOG << request->DebugString();
-    if (request->counters().empty()) {
-      // read all counters
-      for (auto it = device_mgr->counter_read_begin();
-           it != device_mgr->counter_read_end();
-           it++) {
-        p4::CounterReadResponse response;
-        response.set_complete(it == device_mgr->counter_read_end());
-        auto entry = &(*it);
-        response.set_allocated_counter_entry(entry);
-        writer->Write(response);
-        response.release_counter_entry();
-      }
-    } else {
-      const auto &counters = request->counters();
-      for (auto it = counters.begin(); it != counters.end(); it++) {
-        p4::CounterReadResponse response;
-        response.set_complete(it == counters.end());
-        auto entry = response.mutable_counter_entry();
-        entry->CopyFrom(*it);  // copy CounterEntry from request
-        device_mgr->counter_read(entry);
-        writer->Write(response);
-      }
-    }
-    return Status::OK;
-  }
-
-  // TODO(antonin)
-  Status CounterWrite(ServerContext *context,
-                      const p4::CounterWriteRequest *request,
-                      ServerWriter<p4::CounterWriteResponse> *writer) override {
-    SIMPLELOG << "P4Runtime CounterWrite\n";
-    // SIMPLELOG << request->DebugString();
-    (void) context; (void) request; (void) writer;
-    return Status::CANCELLED;
-  }
 };
 
 using P4RuntimeHybridService =
