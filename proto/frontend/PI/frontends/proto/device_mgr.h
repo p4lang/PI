@@ -108,14 +108,6 @@ class DeviceMgr {
 
   void packet_in_register_cb(PacketInCb cb, void *cookie);
 
-  Status counter_write(const p4::CounterEntry &entry);
-
-  Status counter_read(p4::CounterEntry *entry) const;
-
-  class counter_iterator;
-  counter_iterator counter_read_begin() const;
-  counter_iterator counter_read_end() const;
-
   static void init(size_t max_devices);
 
   static void destroy();
@@ -123,33 +115,6 @@ class DeviceMgr {
  private:
   // PIMPL design
   std::unique_ptr<DeviceMgrImp> pimp;
-};
-
-class DeviceMgr::counter_iterator
-    : public std::iterator<std::forward_iterator_tag, p4::CounterEntry> {
- public:
-  enum class InitState { BEGIN, END };
-
-  counter_iterator(const DeviceMgrImp *device_mgr, InitState init);
-
-  p4::CounterEntry &operator*() const;
-
-  p4::CounterEntry *operator->() const;
-
-  bool operator==(const counter_iterator &other) const;
-
-  bool operator!=(const counter_iterator &other) const;
-
-  counter_iterator &operator++();
-
-  const counter_iterator operator++(int);
-
- private:
-  void counter_read();
-
-  const DeviceMgrImp *device_mgr;
-  p4_id_t counter_id;
-  std::shared_ptr<p4::CounterEntry> entry;
 };
 
 }  // namespace proto

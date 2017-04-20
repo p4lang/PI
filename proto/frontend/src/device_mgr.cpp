@@ -63,8 +63,6 @@ using P4InfoWrapper = std::unique_ptr<pi_p4info_t, decltype(p4info_deleter)>;
 
 class DeviceMgrImp {
  public:
-  friend class DeviceMgr::counter_iterator;
-
   explicit DeviceMgrImp(device_id_t device_id)
       : device_id(device_id),
         device_tgt({static_cast<pi_dev_id_t>(device_id), 0xffff}) { }
@@ -258,7 +256,13 @@ class DeviceMgrImp {
         case p4::Entity::kMeterEntry:
           status.set_code(Code::UNIMPLEMENTED);
           break;
+        case p4::Entity::kDirectMeterEntry:
+          status.set_code(Code::UNIMPLEMENTED);
+          break;
         case p4::Entity::kCounterEntry:
+          status.set_code(Code::UNIMPLEMENTED);
+          break;
+        case p4::Entity::kDirectCounterEntry:
           status.set_code(Code::UNIMPLEMENTED);
           break;
         default:
@@ -300,8 +304,14 @@ class DeviceMgrImp {
       case p4::Entity::kMeterEntry:
         status.set_code(Code::UNIMPLEMENTED);
         break;
+      case p4::Entity::kDirectMeterEntry:
+        status.set_code(Code::UNIMPLEMENTED);
+        break;
       case p4::Entity::kCounterEntry:
         status = counter_read_2(entity.counter_entry(), session, response);
+        break;
+      case p4::Entity::kDirectCounterEntry:
+        status.set_code(Code::UNIMPLEMENTED);
         break;
       default:
         status.set_code(Code::UNKNOWN);
@@ -779,46 +789,6 @@ class DeviceMgrImp {
                             static_cast<void *>(this));
   }
 
-  // TODO(antonin)
-  Status counter_write(const p4::CounterEntry &entry) {
-    (void) entry;
-    return Status();
-  }
-
-  Status counter_read(p4::CounterEntry *entry) const {
-    Status status;
-    auto counter_id = entry->counter_id();
-    auto is_direct = (pi_p4info_counter_get_direct(p4info.get(), counter_id)
-                      != PI_INVALID_ID);
-    if (is_direct) {  // TODO(antonin)
-      status.set_code(Code::UNIMPLEMENTED);
-      return status;
-    }
-    SessionTemp session;
-    if (entry->cells().empty()) {
-      auto counter_size = pi_p4info_counter_get_size(p4info.get(), counter_id);
-      for (size_t index = 0; index < counter_size; index++) {
-        auto cell = entry->add_cells();
-        cell->set_index(index);
-        auto code = counter_read_one_index(session, counter_id, cell);
-        if (code != Code::OK) {
-          status.set_code(code);
-          return status;
-        }
-      }
-    } else {
-      for (auto &cell : *entry->mutable_cells()) {
-        auto code = counter_read_one_index(session, counter_id, &cell);
-        if (code != Code::OK) {
-          status.set_code(code);
-          return status;
-        }
-      }
-    }
-    status.set_code(Code::OK);
-    return status;
-  }
-
   Status counter_read_one_2(p4_id_t counter_id,
                             const p4::CounterEntry &counter_entry,
                             const SessionTemp &session,
@@ -827,22 +797,15 @@ class DeviceMgrImp {
     status.set_code(Code::OK);
     auto is_direct = (pi_p4info_counter_get_direct(p4info.get(), counter_id)
                       != PI_INVALID_ID);
-    if (is_direct) {  // TODO(antonin)
-      status.set_code(Code::UNIMPLEMENTED);
-      return status;
-    }
-    if (counter_entry.type_case() == p4::CounterEntry::kTableEntry) {
-      status.set_code(Code::INVALID_ARGUMENT);
-      return status;
-    }
-    if (counter_entry.type_case() == p4::CounterEntry::kIndex) {
+    assert(!is_direct);
+    if (counter_entry.index() != 0) {
       auto entry = response->add_entities()->mutable_counter_entry();
       entry->CopyFrom(counter_entry);
       auto code = counter_read_one_index(session, counter_id, entry);
       if (code != Code::OK) status.set_code(code);
       return status;
     }
-    // no index, read all
+    // default index, read all
     auto counter_size = pi_p4info_counter_get_size(p4info.get(), counter_id);
     for (size_t index = 0; index < counter_size; index++) {
       auto entry = response->add_entities()->mutable_counter_entry();
@@ -865,6 +828,8 @@ class DeviceMgrImp {
       for (auto c_id = pi_p4info_counter_begin(p4info.get());
            c_id != pi_p4info_counter_end(p4info.get());
            c_id = pi_p4info_counter_next(p4info.get(), c_id)) {
+        if (pi_p4info_counter_get_direct(p4info.get(), c_id) != PI_INVALID_ID)
+          continue;
         status = counter_read_one_2(c_id, counter_entry, session, response);
         if (status.code() != Code::OK) break;
       }
@@ -1236,16 +1201,6 @@ DeviceMgr::packet_in_register_cb(PacketInCb cb, void *cookie) {
   return pimp->packet_in_register_cb(cb, cookie);
 }
 
-Status
-DeviceMgr::counter_write(const p4::CounterEntry &entry) {
-  return pimp->counter_write(entry);
-}
-
-Status
-DeviceMgr::counter_read(p4::CounterEntry *entry) const {
-  return pimp->counter_read(entry);
-}
-
 void
 DeviceMgr::init(size_t max_devices) {
   DeviceMgrImp::init(max_devices);
@@ -1254,80 +1209,6 @@ DeviceMgr::init(size_t max_devices) {
 void
 DeviceMgr::destroy() {
   DeviceMgrImp::destroy();
-}
-
-DeviceMgr::counter_iterator
-DeviceMgr::counter_read_begin() const {
-  return counter_iterator(pimp.get(), counter_iterator::InitState::BEGIN);
-}
-
-DeviceMgr::counter_iterator
-DeviceMgr::counter_read_end() const {
-  return counter_iterator(pimp.get(), counter_iterator::InitState::END);
-}
-
-
-void
-DeviceMgr::counter_iterator::counter_read() {
-  auto p4info = device_mgr->p4info.get();
-  if (counter_id == pi_p4info_counter_end(p4info)) {
-    entry = nullptr;
-    return;
-  }
-  entry->set_counter_id(counter_id);
-  entry->clear_cells();
-  auto status = device_mgr->counter_read(entry.get());
-  assert(status.code() == Code::OK);
-}
-
-DeviceMgr::counter_iterator::counter_iterator(const DeviceMgrImp *device_mgr,
-                                              InitState init)
-    : device_mgr(device_mgr), counter_id(PI_INVALID_ID), entry(nullptr) {
-  if (init == InitState::BEGIN) {
-    entry = std::make_shared<p4::CounterEntry>();
-    auto p4info = device_mgr->p4info.get();
-    counter_id = pi_p4info_counter_begin(p4info);
-    counter_read();
-  }
-}
-
-p4::CounterEntry &
-DeviceMgr::counter_iterator::operator*() const {
-  assert(entry != nullptr && "Invalid iterator dereference.");
-  return *entry.get();
-}
-
-p4::CounterEntry *
-DeviceMgr::counter_iterator::operator->() const {
-  assert(entry != nullptr && "Invalid iterator dereference.");
-  return entry.get();
-}
-
-bool
-DeviceMgr::counter_iterator::operator==(const counter_iterator &other) const {
-  return (device_mgr == other.device_mgr) && (counter_id == other.counter_id);
-}
-
-bool
-DeviceMgr::counter_iterator::operator!=(const counter_iterator &other) const {
-  return !(*this == other);
-}
-
-DeviceMgr::counter_iterator &
-DeviceMgr::counter_iterator::operator++() {
-  assert(entry != nullptr && "Out-of-bounds iterator increment.");
-  auto p4info = device_mgr->p4info.get();
-  counter_id = pi_p4info_counter_next(p4info, counter_id);
-  counter_read();
-  return *this;
-}
-
-const DeviceMgr::counter_iterator
-DeviceMgr::counter_iterator::operator++(int) {  // NOLINT(readability/function)
-  // Use operator++()
-  const counter_iterator old(*this);
-  ++(*this);
-  return old;
 }
 
 }  // namespace proto

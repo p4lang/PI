@@ -153,62 +153,79 @@ void read_act_profs(const p4::config::P4Info &p4info_proto,
 void read_counters(const p4::config::P4Info &p4info_proto,
                    pi_p4info_t *p4info) {
   const auto &counters = p4info_proto.counters();
-  pi_p4info_counter_init(p4info, counters.size());
+  const auto &direct_counters = p4info_proto.direct_counters();
+
+  auto unit_convert = [](const p4::config::CounterSpec &spec) {
+    switch (spec.unit()) {
+      case p4::config::CounterSpec_Unit_BYTES:
+        return PI_P4INFO_COUNTER_UNIT_BYTES;
+      case p4::config::CounterSpec_Unit_PACKETS:
+        return PI_P4INFO_COUNTER_UNIT_PACKETS;
+      case p4::config::CounterSpec_Unit_BOTH:
+        return PI_P4INFO_COUNTER_UNIT_BOTH;
+      default:  // invalid
+        throw read_proto_exception("Invalid counter unit");
+    }
+  };
+
+  pi_p4info_counter_init(p4info, counters.size() + direct_counters.size());
   for (const auto &counter : counters) {
     const auto &pre = counter.preamble();
-    auto unit_convert = [&counter]() {
-      switch (counter.unit()) {
-        case p4::config::Counter_Unit_BYTES:
-          return PI_P4INFO_COUNTER_UNIT_BYTES;
-        case p4::config::Counter_Unit_PACKETS:
-          return PI_P4INFO_COUNTER_UNIT_PACKETS;
-        case p4::config::Counter_Unit_BOTH:
-          return PI_P4INFO_COUNTER_UNIT_BOTH;
-        default:  // invalid
-          throw read_proto_exception("Invalid counter unit");
-      }
-    };
-    pi_p4info_counter_add(p4info, pre.id(), pre.name().c_str(), unit_convert(),
-                          counter.size());
-    if (counter.direct_table_id() != PI_INVALID_ID) {
-      pi_p4info_counter_make_direct(p4info, pre.id(),
-                                    counter.direct_table_id());
-    }
+    pi_p4info_counter_add(p4info, pre.id(), pre.name().c_str(),
+                          unit_convert(counter.spec()), counter.size());
+    import_common(pre, p4info);
+  }
+  for (const auto &counter : direct_counters) {
+    const auto &pre = counter.preamble();
+    // TODO(antonin): use actual table size instead of 0?
+    pi_p4info_counter_add(p4info, pre.id(), pre.name().c_str(),
+                          unit_convert(counter.spec()), 0  /* size */);
+    pi_p4info_counter_make_direct(p4info, pre.id(), counter.direct_table_id());
     import_common(pre, p4info);
   }
 }
 
 void read_meters(const p4::config::P4Info &p4info_proto, pi_p4info_t *p4info) {
   const auto &meters = p4info_proto.meters();
-  pi_p4info_meter_init(p4info, meters.size());
+  const auto &direct_meters = p4info_proto.direct_meters();
+
+  auto unit_convert = [](const p4::config::MeterSpec &spec) {
+    switch (spec.unit()) {
+      case p4::config::MeterSpec_Unit_BYTES:
+        return PI_P4INFO_METER_UNIT_BYTES;
+      case p4::config::MeterSpec_Unit_PACKETS:
+        return PI_P4INFO_METER_UNIT_PACKETS;
+      default:  // invalid
+        throw read_proto_exception("Invalid meter unit");
+    }
+  };
+
+  auto type_convert = [](const p4::config::MeterSpec &spec) {
+    switch (spec.type()) {
+      case p4::config::MeterSpec_Type_COLOR_AWARE:
+        return PI_P4INFO_METER_TYPE_COLOR_AWARE;
+      case p4::config::MeterSpec_Type_COLOR_UNAWARE:
+        return PI_P4INFO_METER_TYPE_COLOR_UNAWARE;
+      default:  // invalid
+        throw read_proto_exception("Invalid meter type");
+    }
+  };
+
+  pi_p4info_meter_init(p4info, meters.size() + direct_meters.size());
   for (const auto &meter : meters) {
     const auto &pre = meter.preamble();
-    auto unit_convert = [&meter]() {
-      switch (meter.unit()) {
-        case p4::config::Meter_Unit_BYTES:
-          return PI_P4INFO_METER_UNIT_BYTES;
-        case p4::config::Meter_Unit_PACKETS:
-          return PI_P4INFO_METER_UNIT_PACKETS;
-        default:  // invalid
-          throw read_proto_exception("Invalid meter unit");
-      }
-    };
-    auto type_convert = [&meter]() {
-      switch (meter.type()) {
-        case p4::config::Meter_Type_COLOR_AWARE:
-          return PI_P4INFO_METER_TYPE_COLOR_AWARE;
-        case p4::config::Meter_Type_COLOR_UNAWARE:
-          return PI_P4INFO_METER_TYPE_COLOR_UNAWARE;
-        default:  // invalid
-          throw read_proto_exception("Invalid meter type");
-      }
-    };
-    pi_p4info_meter_add(p4info, pre.id(), pre.name().c_str(), unit_convert(),
-                        type_convert(), meter.size());
-    if (meter.direct_table_id() != PI_INVALID_ID) {
-      pi_p4info_meter_make_direct(p4info, pre.id(),
-                                    meter.direct_table_id());
-    }
+    pi_p4info_meter_add(p4info, pre.id(), pre.name().c_str(),
+                        unit_convert(meter.spec()), type_convert(meter.spec()),
+                        meter.size());
+    import_common(pre, p4info);
+  }
+  for (const auto &meter : direct_meters) {
+    const auto &pre = meter.preamble();
+    // TODO(antonin): use actual table size instead of 0?
+    pi_p4info_meter_add(p4info, pre.id(), pre.name().c_str(),
+                        unit_convert(meter.spec()), type_convert(meter.spec()),
+                        0  /* size */);
+    pi_p4info_meter_make_direct(p4info, pre.id(), meter.direct_table_id());
     import_common(pre, p4info);
   }
 }
@@ -356,65 +373,88 @@ void p4info_serialize_act_profs(const pi_p4info_t *p4info,
 
 void p4info_serialize_counters(const pi_p4info_t *p4info,
                                p4::config::P4Info *p4info_proto) {
+  auto unit_convert = [](pi_p4info_counter_unit_t unit) {
+    switch (unit) {
+      case PI_P4INFO_COUNTER_UNIT_BYTES:
+        return p4::config::CounterSpec_Unit_BYTES;
+      case PI_P4INFO_COUNTER_UNIT_PACKETS:
+        return p4::config::CounterSpec_Unit_PACKETS;
+      case PI_P4INFO_COUNTER_UNIT_BOTH:
+        return p4::config::CounterSpec_Unit_BOTH;
+      default:  // invalid
+        return p4::config::CounterSpec_Unit_UNSPECIFIED;
+    }
+  };
+
   for (auto id = pi_p4info_counter_begin(p4info);
        id != pi_p4info_counter_end(p4info);
        id = pi_p4info_counter_next(p4info, id)) {
-    auto counter = p4info_proto->add_counters();
     auto name = pi_p4info_counter_name_from_id(p4info, id);
-    set_preamble(counter, id, name, p4info);
-    counter->set_direct_table_id(pi_p4info_counter_get_direct(p4info, id));
-    auto unit = pi_p4info_counter_get_unit(p4info, id);
-    auto unit_convert = [&unit]() {
-      switch (unit) {
-        case PI_P4INFO_COUNTER_UNIT_BYTES:
-          return p4::config::Counter_Unit_BYTES;
-        case PI_P4INFO_COUNTER_UNIT_PACKETS:
-          return p4::config::Counter_Unit_PACKETS;
-        case PI_P4INFO_COUNTER_UNIT_BOTH:
-          return p4::config::Counter_Unit_BOTH;
-        default:  // invalid
-          return p4::config::Counter_Unit_UNSPECIFIED;
-      }
+    auto t_id = pi_p4info_counter_get_direct(p4info, id);
+    auto set_spec = [p4info, id, &unit_convert](p4::config::CounterSpec *spec) {
+      auto unit = pi_p4info_counter_get_unit(p4info, id);
+      spec->set_unit(unit_convert(unit));
     };
-    counter->set_unit(unit_convert());
-    counter->set_size(pi_p4info_counter_get_size(p4info, id));
+    if (t_id == PI_INVALID_ID) {  // indirect
+      auto counter = p4info_proto->add_counters();
+      set_preamble(counter, id, name, p4info);
+      counter->set_size(pi_p4info_counter_get_size(p4info, id));
+      set_spec(counter->mutable_spec());
+    } else {  // direct
+      auto counter = p4info_proto->add_direct_counters();
+      set_preamble(counter, id, name, p4info);
+      counter->set_direct_table_id(t_id);
+      set_spec(counter->mutable_spec());
+    }
   }
 }
 
 void p4info_serialize_meters(const pi_p4info_t *p4info,
                              p4::config::P4Info *p4info_proto) {
+  auto unit_convert = [](pi_p4info_meter_unit_t unit) {
+    switch (unit) {
+      case PI_P4INFO_METER_UNIT_BYTES:
+        return p4::config::MeterSpec_Unit_BYTES;
+      case PI_P4INFO_METER_UNIT_PACKETS:
+        return p4::config::MeterSpec_Unit_PACKETS;
+      default:  // invalid
+        return p4::config::MeterSpec_Unit_UNSPECIFIED;
+    }
+  };
+  auto type_convert = [](pi_p4info_meter_type_t type) {
+    switch (type) {
+      case PI_P4INFO_METER_TYPE_COLOR_AWARE:
+        return p4::config::MeterSpec_Type_COLOR_AWARE;
+      case PI_P4INFO_METER_TYPE_COLOR_UNAWARE:
+        return p4::config::MeterSpec_Type_COLOR_UNAWARE;
+      default:  // invalid
+        return p4::config::MeterSpec_Type_COLOR_AWARE;
+    }
+  };
+
   for (auto id = pi_p4info_meter_begin(p4info);
        id != pi_p4info_meter_end(p4info);
        id = pi_p4info_meter_next(p4info, id)) {
-    auto meter = p4info_proto->add_meters();
     auto name = pi_p4info_meter_name_from_id(p4info, id);
-    set_preamble(meter, id, name, p4info);
-    meter->set_direct_table_id(pi_p4info_meter_get_direct(p4info, id));
-    auto unit = pi_p4info_meter_get_unit(p4info, id);
-    auto unit_convert = [&unit]() {
-      switch (unit) {
-        case PI_P4INFO_METER_UNIT_BYTES:
-          return p4::config::Meter_Unit_BYTES;
-        case PI_P4INFO_METER_UNIT_PACKETS:
-          return p4::config::Meter_Unit_PACKETS;
-        default:  // invalid
-          return p4::config::Meter_Unit_UNSPECIFIED;
-      }
+    auto t_id = pi_p4info_meter_get_direct(p4info, id);
+    auto set_spec = [p4info, id, &unit_convert, &type_convert](
+        p4::config::MeterSpec *spec) {
+      auto unit = pi_p4info_meter_get_unit(p4info, id);
+      spec->set_unit(unit_convert(unit));
+      auto type = pi_p4info_meter_get_type(p4info, id);
+      spec->set_type(type_convert(type));
     };
-    meter->set_unit(unit_convert());
-    auto type = pi_p4info_meter_get_type(p4info, id);
-    auto type_convert = [&type]() {
-      switch (type) {
-        case PI_P4INFO_METER_TYPE_COLOR_AWARE:
-          return p4::config::Meter_Type_COLOR_AWARE;
-        case PI_P4INFO_METER_TYPE_COLOR_UNAWARE:
-          return p4::config::Meter_Type_COLOR_UNAWARE;
-        default:  // invalid
-          return p4::config::Meter_Type_COLOR_AWARE;
-      }
-    };
-    meter->set_type(type_convert());
-    meter->set_size(pi_p4info_meter_get_size(p4info, id));
+    if (t_id == PI_INVALID_ID) {  // indirect
+      auto meter = p4info_proto->add_meters();
+      set_preamble(meter, id, name, p4info);
+      meter->set_size(pi_p4info_meter_get_size(p4info, id));
+      set_spec(meter->mutable_spec());
+    } else {  // direct
+      auto meter = p4info_proto->add_direct_meters();
+      set_preamble(meter, id, name, p4info);
+      meter->set_direct_table_id(t_id);
+      set_spec(meter->mutable_spec());
+    }
   }
 }
 
