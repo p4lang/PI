@@ -36,6 +36,20 @@ static void import_annotations(cJSON *object, pi_p4info_t *p4info,
   }
 }
 
+static void import_aliases(cJSON *object, pi_p4info_t *p4info, pi_p4_id_t id) {
+  cJSON *aliases = cJSON_GetObjectItem(object, "aliases");
+  if (!aliases) return;
+  cJSON *alias;
+  cJSON_ArrayForEach(alias, aliases) {
+    pi_p4info_add_alias(p4info, id, alias->valuestring);
+  }
+}
+
+static void import_common(cJSON *object, pi_p4info_t *p4info, pi_p4_id_t id) {
+  import_annotations(object, p4info, id);
+  import_aliases(object, p4info, id);
+}
+
 static pi_status_t read_actions(cJSON *root, pi_p4info_t *p4info) {
   assert(root);
   cJSON *actions = cJSON_GetObjectItem(root, "actions");
@@ -75,7 +89,7 @@ static pi_status_t read_actions(cJSON *root, pi_p4info_t *p4info) {
       pi_p4info_action_add_param(p4info, pi_id, id, param_name, param_bitwidth);
     }
 
-    import_annotations(action, p4info, pi_id);
+    import_common(action, p4info, pi_id);
   }
 
   return PI_STATUS_SUCCESS;
@@ -110,7 +124,7 @@ static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
     pi_p4info_table_add(p4info, pi_id, name, num_match_fields, num_actions,
                         max_size);
 
-    import_annotations(table, p4info, pi_id);
+    import_common(table, p4info, pi_id);
 
     cJSON *match_field;
     cJSON_ArrayForEach(match_field, match_fields) {
@@ -193,7 +207,7 @@ static pi_status_t read_act_profs(cJSON *root, pi_p4info_t *p4info) {
 
     pi_p4info_act_prof_add(p4info, pi_id, name, with_selector, max_size);
 
-    import_annotations(act_prof, p4info, pi_id);
+    import_common(act_prof, p4info, pi_id);
 
     item = cJSON_GetObjectItem(act_prof, "tables");
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
@@ -235,7 +249,7 @@ static pi_status_t read_counters(cJSON *root, pi_p4info_t *p4info) {
 
     pi_p4info_counter_add(p4info, pi_id, name, counter_unit, size);
 
-    import_annotations(counter, p4info, pi_id);
+    import_common(counter, p4info, pi_id);
 
     if (direct_tid != PI_INVALID_ID)
       pi_p4info_counter_make_direct(p4info, pi_id, direct_tid);
@@ -275,7 +289,7 @@ static pi_status_t read_meters(cJSON *root, pi_p4info_t *p4info) {
 
     pi_p4info_meter_add(p4info, pi_id, name, meter_unit, meter_type, size);
 
-    import_annotations(meter, p4info, pi_id);
+    import_common(meter, p4info, pi_id);
 
     if (direct_tid != PI_INVALID_ID)
       pi_p4info_meter_make_direct(p4info, pi_id, direct_tid);
