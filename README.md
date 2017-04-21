@@ -1,12 +1,11 @@
 # PI LIBRARY REPOSITORY
 
-[![Build Status](https://travis-ci.org/p4lang/PI.svg?branch=master)]
-(https://travis-ci.org/p4lang/PI)
+[![Build Status](https://travis-ci.org/p4lang/PI.svg?branch=master)](https://travis-ci.org/p4lang/PI)
 
 **This repository has submodules; after cloning it you should run `git submodule
   update --init --recursive`.**
 
-See [examples] (examples/) for how to use the PI.
+See [examples](examples/) for how to use the PI.
 
 ## Dependencies
 
