@@ -93,8 +93,10 @@ message Table {
   Preamble preamble = 1;
   repeated MatchField match_fields = 2;
   // even when the table is indirect (see implementation_id) below, this field
-  // includes all possible actions for the table
-  repeated uint32 action_ids = 3;
+  // includes all possible actions for the table; by using ActionRef instead of
+  // a repeated field of action ids, each action reference in a P4 table is able
+  // to have its own annotations
+  repeated ActionRef action_refs = 3;
   // 0 (default value) means that the table does not have a const default action
   uint32 const_default_action_id = 4;
   // a table may have a const default action, whose action parameter values can
@@ -113,6 +115,12 @@ message Table {
   repeated uint32 direct_resource_ids = 7;
   int64 size = 8;  // max number of entries in table
   bool with_entry_timeout = 9;  // entry ageing is enabled for table
+}
+
+// used to list all possible actions in a Table
+message ActionRef {
+  uint32 id = 1;
+  repeated string annotations = 2;
 }
 
 message Action {
