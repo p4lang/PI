@@ -88,7 +88,7 @@ void read_tables(const p4::config::P4Info &p4info_proto, pi_p4info_t *p4info) {
   for (const auto &table : tables) {
     const auto &pre = table.preamble();
     pi_p4info_table_add(p4info, pre.id(), pre.name().c_str(),
-                        table.match_fields().size(), table.action_ids().size(),
+                        table.match_fields().size(), table.action_refs().size(),
                         table.size());
 
     for (const auto &mf : table.match_fields()) {
@@ -114,8 +114,10 @@ void read_tables(const p4::config::P4Info &p4info_proto, pi_p4info_t *p4info) {
           mf.bitwidth());
     }
 
-    for (const auto action_id : table.action_ids())
-      pi_p4info_table_add_action(p4info, pre.id(), action_id);
+    for (const auto &action_ref : table.action_refs()) {
+      pi_p4info_table_add_action(p4info, pre.id(), action_ref.id());
+      // TODO(antonin): ignoring action ref annotations
+    }
 
     if (table.const_default_action_id() != PI_INVALID_ID) {
       pi_p4info_table_set_const_default_action(
@@ -331,8 +333,11 @@ void p4info_serialize_tables(const pi_p4info_t *p4info,
 
     size_t num_actions;
     auto action_ids = pi_p4info_table_get_actions(p4info, id, &num_actions);
-    for (size_t i = 0; i < num_actions; i++)
-      table->add_action_ids(action_ids[i]);
+    for (size_t i = 0; i < num_actions; i++) {
+      auto action_ref = table->add_action_refs();
+      action_ref->set_id(action_ids[i]);
+      // TODO(antonin): p4info C struct does not store action ref annotations
+    }
 
     bool has_mutable_action_params;
     auto const_default_action_id = pi_p4info_table_get_const_default_action(
