@@ -97,6 +97,8 @@ message Table {
   // a repeated field of action ids, each action reference in a P4 table is able
   // to have its own annotations
   repeated ActionRef action_refs = 3;
+  // TODO(antonin): remove when implementations have transitioned to ActionRef
+  repeated uint32 action_ids = 999;
   // 0 (default value) means that the table does not have a const default action
   uint32 const_default_action_id = 4;
   // a table may have a const default action, whose action parameter values can
