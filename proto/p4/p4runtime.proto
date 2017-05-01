@@ -53,26 +53,6 @@ service P4Runtime {
   rpc StreamChannel(stream StreamMessageRequest)
       returns (stream StreamMessageResponse) {
   }
-
-  //----------------------------------------------------------------------------
-  // Old API (RPCs) below.
-  // TODO(wmohsin) Remove once partners have moved to new API.
-  //----------------------------------------------------------------------------
-
-  // Modifies the P4 tables containing 'TableEntry's.
-  rpc TableWrite(TableWriteRequest) returns (TableWriteResponse) {
-  }
-  // Reads the P4 tables containing 'TableEntry's.
-  rpc TableRead(TableReadRequest) returns (stream TableReadResponse) {
-  }
-  // Modifies 'ActionProfileEntry's.
-  rpc ActionProfileWrite(ActionProfileWriteRequest)
-      returns (ActionProfileWriteResponse) {
-  }
-  // Reads 'ActionProfileEntry's.
-  rpc ActionProfileRead(ActionProfileReadRequest)
-      returns (stream ActionProfileReadResponse) {
-  }
 }
 
 //------------------------------------------------------------------------------
@@ -388,85 +368,4 @@ message GetForwardingPipelineConfigRequest {
 
 message GetForwardingPipelineConfigResponse {
   repeated ForwardingPipelineConfig configs = 1;
-}
-
-//------------------------------------------------------------------------------
-// Messages corresponding to old API.
-// TODO(wmohsin) Remove once partners have moved to new API.
-//------------------------------------------------------------------------------
-message TableWriteRequest {
-  uint64 device_id = 1;
-  repeated TableUpdate updates = 2;
-}
-
-message TableWriteResponse {
-  // Corresponds one-to-one to request.updates, and populated only if one or
-  // more updates didn't succeed. errors.size == 0 implies success.
-  repeated .google.rpc.Status errors = 1;
-}
-
-message TableReadRequest {
-  uint64 device_id = 1;
-  // Read all if empty.
-  repeated uint32 table_ids = 2;
-}
-
-message TableReadResponse {
-  TableEntry table_entry = 1;
-  // Set to true if no responses will follow this one.
-  bool complete = 2;
-}
-
-message TableUpdate {
-  enum Type {
-    UNSPECIFIED = 0;
-    INSERT = 1;
-    MODIFY = 2;
-    DELETE = 3;
-  }
-  Type type = 1;
-  TableEntry table_entry = 2;
-}
-
-//------------------------------------------------------------------------------
-message ActionProfileWriteRequest {
-  uint64 device_id = 1;
-  repeated ActionProfileUpdate updates = 2;
-}
-
-message ActionProfileWriteResponse {
-  // Corresponds one-to-one to request.updates, and populated only if one or
-  // more updates didn't succeed. errors.size == 0 implies success.
-  repeated .google.rpc.Status errors = 1;
-}
-
-message ActionProfileReadRequest {
-  uint64 device_id = 1;
-  // Read all if empty.
-  repeated uint32 action_profile_ids = 2;
-}
-
-message ActionProfileReadResponse {
-  ActionProfileEntry action_profile_entry = 1;
-  // Set to true if no responses will follow this one.
-  bool complete = 2;
-}
-
-message ActionProfileUpdate {
-  enum Type {
-    UNSPECIFIED = 0;
-    CREATE = 1;
-    MODIFY = 2;
-    DELETE = 3;
-  }
-  Type type = 1;
-  ActionProfileEntry action_profile_entry = 2;
-}
-
-message ActionProfileEntry {
-  uint32 action_profile_id = 1;
-  oneof type {
-    ActionProfileMember member = 2;
-    ActionProfileGroup group = 3;
-  }
 }

@@ -662,7 +662,6 @@ class DeviceMgrTest : public ::testing::Test {
   }
 
   void SetUp() override {
-#ifdef NEW_P4RUNTIME
     p4::ForwardingPipelineConfig config;
     config.set_allocated_p4info(&p4info_proto);
     auto status = mgr.pipeline_config_set(
@@ -670,10 +669,6 @@ class DeviceMgrTest : public ::testing::Test {
         config);
     ASSERT_EQ(status.code(), Code::OK);
     config.release_p4info();
-#else
-    p4::tmp::DeviceAssignRequest_Extras extras;
-    ASSERT_EQ(mgr.init(p4info_proto, extras).code(), Code::OK);
-#endif
   }
 
   void TearDown() override { }
@@ -780,7 +775,6 @@ class MatchTableTest
 
 DeviceMgr::Status
 MatchTableTest::add_one(p4::TableEntry *entry) {
-#ifdef NEW_P4RUNTIME
   p4::WriteRequest request;
   auto update = request.add_updates();
   update->set_type(p4::Update_Type_INSERT);
@@ -788,13 +782,6 @@ MatchTableTest::add_one(p4::TableEntry *entry) {
   entity->set_allocated_table_entry(entry);
   auto status = mgr.write(request);
   entity->release_table_entry();
-#else
-  p4::TableUpdate update;
-  update.set_type(p4::TableUpdate_Type_INSERT);
-  update.set_allocated_table_entry(entry);
-  auto status = mgr.table_write(update);
-  update.release_table_entry();
-#endif
   return status;
 }
 
@@ -901,7 +888,6 @@ TEST_P(MatchTableTest, AddAndRead) {
   ASSERT_NE(status.code(), Code::OK);
 
   EXPECT_CALL(*mock, table_entries_fetch(t_id, _));
-#ifdef NEW_P4RUNTIME
   p4::ReadResponse response;
   p4::Entity entity;
   auto table_entry = entity.mutable_table_entry();
@@ -911,13 +897,6 @@ TEST_P(MatchTableTest, AddAndRead) {
   const auto &entities = response.entities();
   ASSERT_EQ(1, entities.size());
   ASSERT_TRUE(MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
-#else
-  std::vector<p4::TableEntry> entries;
-  status = mgr.table_read(t_id, &entries);
-  ASSERT_EQ(status.code(), Code::OK);
-  ASSERT_EQ(1u, entries.size());
-  ASSERT_TRUE(MessageDifferencer::Equals(entry, entries.at(0)));
-#endif
 }
 
 #define MK std::string("\xaa\xbb\xcc\xdd", 4)
@@ -958,7 +937,6 @@ class ActionProfTest : public DeviceMgrTest {
 
   template <typename T>
   DeviceMgr::Status write_member(T type, p4::ActionProfileMember *member) {
-#ifdef NEW_P4RUNTIME
     p4::WriteRequest request;
     auto update = request.add_updates();
     update->set_type(type);
@@ -966,54 +944,19 @@ class ActionProfTest : public DeviceMgrTest {
     entity->set_allocated_action_profile_member(member);
     auto status = mgr.write(request);
     entity->release_action_profile_member();
-#else
-    p4::ActionProfileUpdate update;
-    update.set_type(type);
-    auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
-    auto entry = update.mutable_action_profile_entry();
-    entry->set_action_profile_id(act_prof_id);
-    entry->set_allocated_member(member);
-    auto status = mgr.action_profile_write(update);
-    entry->release_member();
-#endif
     return status;
   }
 
   DeviceMgr::Status create_member(p4::ActionProfileMember *member) {
-#ifdef NEW_P4RUNTIME
     return write_member(p4::Update_Type_INSERT, member);
-#else
-    return write_member(p4::ActionProfileUpdate_Type_CREATE, member);
-#endif
   }
 
   DeviceMgr::Status modify_member(p4::ActionProfileMember *member) {
-#ifdef NEW_P4RUNTIME
     return write_member(p4::Update_Type_MODIFY, member);
-#else
-    return write_member(p4::ActionProfileUpdate_Type_MODIFY, member);
-#endif
   }
 
   DeviceMgr::Status delete_member(p4::ActionProfileMember *member) {
-#ifdef NEW_P4RUNTIME
     return write_member(p4::Update_Type_DELETE, member);
-#else
-    return write_member(p4::ActionProfileUpdate_Type_DELETE, member);
-#endif
-  }
-
-  // create empty group
-  p4::ActionProfileUpdate create_base_group_update(uint32_t group_id) {
-    p4::ActionProfileUpdate update;
-    update.set_type(p4::ActionProfileUpdate_Type_CREATE);
-    auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
-    auto entry = update.mutable_action_profile_entry();
-    entry->set_action_profile_id(act_prof_id);
-    auto group = entry->mutable_group();
-    group->set_action_profile_id(act_prof_id);
-    group->set_group_id(group_id);
-    return update;
   }
 
   void add_member_to_group(p4::ActionProfileGroup *group, uint32_t member_id) {
@@ -1042,7 +985,6 @@ class ActionProfTest : public DeviceMgrTest {
 
   template <typename T>
   DeviceMgr::Status write_group(T type, p4::ActionProfileGroup *group) {
-#ifdef NEW_P4RUNTIME
     p4::WriteRequest request;
     auto update = request.add_updates();
     update->set_type(type);
@@ -1050,41 +992,19 @@ class ActionProfTest : public DeviceMgrTest {
     entity->set_allocated_action_profile_group(group);
     auto status = mgr.write(request);
     entity->release_action_profile_group();
-#else
-    p4::ActionProfileUpdate update;
-    update.set_type(type);
-    auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
-    auto entry = update.mutable_action_profile_entry();
-    entry->set_action_profile_id(act_prof_id);
-    entry->set_allocated_group(group);
-    auto status = mgr.action_profile_write(update);
-    entry->release_group();
-#endif
     return status;
   }
 
   DeviceMgr::Status create_group(p4::ActionProfileGroup *group) {
-#ifdef NEW_P4RUNTIME
     return write_group(p4::Update_Type_INSERT, group);
-#else
-    return write_group(p4::ActionProfileUpdate_Type_CREATE, group);
-#endif
   }
 
   DeviceMgr::Status modify_group(p4::ActionProfileGroup *group) {
-#ifdef NEW_P4RUNTIME
     return write_group(p4::Update_Type_MODIFY, group);
-#else
-    return write_group(p4::ActionProfileUpdate_Type_MODIFY, group);
-#endif
   }
 
   DeviceMgr::Status delete_group(p4::ActionProfileGroup *group) {
-#ifdef NEW_P4RUNTIME
     return write_group(p4::Update_Type_DELETE, group);
-#else
-    return write_group(p4::ActionProfileUpdate_Type_DELETE, group);
-#endif
   }
 };
 
@@ -1217,7 +1137,6 @@ TEST_F(ActionProfTest, Read) {
   EXPECT_CALL(*mock, action_prof_group_add_member(act_prof_id, _, mbr_h_1));
   ASSERT_EQ(create_group(&group).code(), Code::OK);
 
-#ifdef NEW_P4RUNTIME
   EXPECT_CALL(*mock, action_prof_entries_fetch(act_prof_id, _)).Times(2);
   p4::ReadResponse response;
   p4::ReadRequest request;
@@ -1236,17 +1155,6 @@ TEST_F(ActionProfTest, Read) {
   ASSERT_EQ(2, entities.size());
   ASSERT_TRUE(MessageDifferencer::Equals(
       member_1, entities.Get(0).action_profile_member()));
-#else
-  EXPECT_CALL(*mock, action_prof_entries_fetch(act_prof_id, _));
-  std::vector<p4::ActionProfileEntry> entries;
-  {
-    auto status = mgr.action_profile_read(act_prof_id, &entries);
-    ASSERT_EQ(status.code(), Code::OK);
-  }
-  ASSERT_EQ(2u, entries.size());  // 1 member + 1 group
-  ASSERT_TRUE(MessageDifferencer::Equals(member_1, entries.at(0).member()));
-  ASSERT_TRUE(MessageDifferencer::Equals(group, entries.at(1).group()));
-#endif
 }
 
 TEST_F(ActionProfTest, CreateDupGroupId) {
@@ -1308,7 +1216,6 @@ class MatchTableIndirectTest : public DeviceMgrTest {
     auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
     EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _));
     auto member = make_member(member_id, param_v);
-#ifdef NEW_P4RUNTIME
     p4::WriteRequest request;
     auto update = request.add_updates();
     update->set_type(p4::Update_Type_INSERT);
@@ -1316,15 +1223,6 @@ class MatchTableIndirectTest : public DeviceMgrTest {
     entity->set_allocated_action_profile_member(&member);
     auto status = mgr.write(request);
     entity->release_action_profile_member();
-#else
-    p4::ActionProfileUpdate update;
-    update.set_type(p4::ActionProfileUpdate_Type_CREATE);
-    auto entry = update.mutable_action_profile_entry();
-    entry->set_action_profile_id(act_prof_id);
-    entry->set_allocated_member(&member);
-    auto status = mgr.action_profile_write(update);
-    entry->release_member();
-#endif
     EXPECT_EQ(status.code(), Code::OK);
   }
 
@@ -1350,7 +1248,6 @@ class MatchTableIndirectTest : public DeviceMgrTest {
     EXPECT_CALL(*mock, action_prof_group_add_member(act_prof_id, _, _))
         .Times(std::distance(members_begin, members_end));
     auto group = make_group(group_id, members_begin, members_end);
-#ifdef NEW_P4RUNTIME
     p4::WriteRequest request;
     auto update = request.add_updates();
     update->set_type(p4::Update_Type_INSERT);
@@ -1358,15 +1255,6 @@ class MatchTableIndirectTest : public DeviceMgrTest {
     entity->set_allocated_action_profile_group(&group);
     auto status = mgr.write(request);
     entity->release_action_profile_group();
-#else
-    p4::ActionProfileUpdate update;
-    update.set_type(p4::ActionProfileUpdate_Type_CREATE);
-    auto entry = update.mutable_action_profile_entry();
-    entry->set_action_profile_id(act_prof_id);
-    entry->set_allocated_group(&group);
-    auto status = mgr.action_profile_write(update);
-    entry->release_group();
-#endif
     EXPECT_EQ(status.code(), Code::OK);
   }
 
@@ -1385,7 +1273,6 @@ class MatchTableIndirectTest : public DeviceMgrTest {
   }
 
   DeviceMgr::Status add_indirect_entry(p4::TableEntry *entry) {
-#ifdef NEW_P4RUNTIME
     p4::WriteRequest request;
     auto update = request.add_updates();
     update->set_type(p4::Update_Type_INSERT);
@@ -1393,13 +1280,6 @@ class MatchTableIndirectTest : public DeviceMgrTest {
     entity->set_allocated_table_entry(entry);
     auto status = mgr.write(request);
     entity->release_table_entry();
-#else
-    p4::TableUpdate update;
-    update.set_type(p4::TableUpdate_Type_INSERT);
-    update.set_allocated_table_entry(entry);
-    auto status = mgr.table_write(update);
-    update.release_table_entry();
-#endif
     return status;
   }
 
@@ -1439,7 +1319,6 @@ TEST_F(MatchTableIndirectTest, Member) {
   ASSERT_EQ(status.code(), Code::OK);
 
   EXPECT_CALL(*mock, table_entries_fetch(t_id, _));
-#ifdef NEW_P4RUNTIME
   p4::ReadResponse response;
   p4::Entity entity;
   auto table_entry = entity.mutable_table_entry();
@@ -1449,13 +1328,6 @@ TEST_F(MatchTableIndirectTest, Member) {
   const auto &entities = response.entities();
   ASSERT_EQ(1, entities.size());
   ASSERT_TRUE(MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
-#else
-  std::vector<p4::TableEntry> entries;
-  status = mgr.table_read(t_id, &entries);
-  ASSERT_EQ(status.code(), Code::OK);
-  ASSERT_EQ(1u, entries.size());
-  ASSERT_TRUE(MessageDifferencer::Equals(entry, entries.at(0)));
-#endif
 }
 
 TEST_F(MatchTableIndirectTest, Group) {
@@ -1475,7 +1347,6 @@ TEST_F(MatchTableIndirectTest, Group) {
   ASSERT_EQ(status.code(), Code::OK);
 
   EXPECT_CALL(*mock, table_entries_fetch(t_id, _));
-#ifdef NEW_P4RUNTIME
   p4::ReadResponse response;
   p4::Entity entity;
   auto table_entry = entity.mutable_table_entry();
@@ -1485,13 +1356,6 @@ TEST_F(MatchTableIndirectTest, Group) {
   const auto &entities = response.entities();
   ASSERT_EQ(1, entities.size());
   ASSERT_TRUE(MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
-#else
-  std::vector<p4::TableEntry> entries;
-  status = mgr.table_read(t_id, &entries);
-  ASSERT_EQ(status.code(), Code::OK);
-  ASSERT_EQ(1u, entries.size());
-  ASSERT_TRUE(MessageDifferencer::Equals(entry, entries.at(0)));
-#endif
 }
 
 }  // namespace

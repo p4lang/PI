@@ -123,12 +123,12 @@ class P4RuntimeClient {
   P4RuntimeClient(std::shared_ptr<Channel> channel)
       : stub_(p4::P4Runtime::NewStub(channel)) { }
 
-  int table_write(const p4::TableWriteRequest &request) {
-    p4::TableWriteResponse rep;
+  int write(const p4::WriteRequest &request) {
+    p4::WriteResponse rep;
     ClientContext context;
-    Status status = stub_->TableWrite(&context, request, &rep);
+    Status status = stub_->Write(&context, request, &rep);
     assert(status.ok());
-    return rep.errors().size();
+    return 0;
   }
 
  private:
@@ -236,12 +236,13 @@ class Tester {
         // Arena arena;
         // p4::TableWriteRequest *request =
         //     Arena::CreateMessage<p4::TableWriteRequest>(&arena);
-        p4::TableWriteRequest request;
+        p4::WriteRequest request;
         request.set_device_id(device_id);
         for (size_t j = 0; j < batch_size; j++) {
           auto update = request.add_updates();
-          update->set_type(p4::TableUpdate_Type_INSERT);
-          auto table_entry = update->mutable_table_entry();
+          update->set_type(p4::Update_Type_INSERT);
+          auto entity = update->mutable_entity();
+          auto table_entry = entity->mutable_table_entry();
           table_entry->set_table_id(t_id);
           auto mf = table_entry->add_match();
           mf->set_field_id(pi_p4info_table_match_field_id_from_name(
@@ -269,7 +270,7 @@ class Tester {
         }
         // for 1000 routes, this is 61,000 bytes
         // std::cout << request->ByteSize() << "\n";
-        assert(!pi_client.table_write(request));
+        assert(!pi_client.write(request));
       }
     };
     std::thread t1(add_entries, iterations);
