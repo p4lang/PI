@@ -33,7 +33,6 @@
 #include <grpc++/grpc++.h>
 
 #include "p4/p4runtime.grpc.pb.h"
-#include "p4/tmp/device.grpc.pb.h"
 #include "google/rpc/code.pb.h"
 
 using grpc::Server;
@@ -69,49 +68,6 @@ StreamChannelClientMgr *packet_in_mgr;
 
 void packet_in_cb(DeviceMgr::device_id_t device_id, std::string packet,
                   void *cookie);
-
-class DeviceService : public p4::tmp::Device::Service {
- private:
-  Status DeviceAssign(ServerContext *context,
-                      const p4::tmp::DeviceAssignRequest *request,
-                      ::google::rpc::Status *rep) override {
-    SIMPLELOG << "P4Runtime DeviceAssign\n";
-    SIMPLELOG << request->DebugString();
-    device_mgr = new DeviceMgr(request->device_id());
-    *rep = device_mgr->init(request->p4info(), request->extras());
-    device_mgr->packet_in_register_cb(::packet_in_cb,
-                                      static_cast<void *>(packet_in_mgr));
-    return Status::OK;
-  }
-
-  Status DeviceRemove(ServerContext *context,
-                      const p4::tmp::DeviceRemoveRequest *request,
-                      ::google::rpc::Status *rep) override {
-    SIMPLELOG << "P4Runtime DeviceRemove\n";
-    SIMPLELOG << request->DebugString();
-    delete device_mgr;
-    *rep = ::google::rpc::Status();
-    return Status::OK;
-  }
-
-  Status DeviceUpdateStart(ServerContext *context,
-                           const p4::tmp::DeviceUpdateStartRequest *request,
-                           ::google::rpc::Status *rep) override {
-    SIMPLELOG << "P4Runtime DeviceUpdateStart\n";
-    SIMPLELOG << request->DebugString();
-    *rep = device_mgr->update_start(request->p4info(), request->device_data());
-    return Status::OK;
-  }
-
-  Status DeviceUpdateEnd(ServerContext *context,
-                         const p4::tmp::DeviceUpdateEndRequest *request,
-                         ::google::rpc::Status *rep) override {
-    SIMPLELOG << "P4Runtime DeviceUpdateEnd\n";
-    SIMPLELOG << request->DebugString();
-    *rep = device_mgr->update_end();
-    return Status::OK;
-  }
-};
 
 class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
  private:
@@ -382,7 +338,6 @@ struct PacketInGenerator {
 
 struct ServerData {
   std::string server_address;
-  DeviceService device_service;
   P4RuntimeHybridService pi_service;
   ServerBuilder builder;
   std::unique_ptr<Server> server;
@@ -403,7 +358,6 @@ void PIGrpcServerRunAddr(const char *server_address) {
   auto &builder = server_data->builder;
   builder.AddListeningPort(
     server_data->server_address, grpc::InsecureServerCredentials());
-  builder.RegisterService(&server_data->device_service);
   builder.RegisterService(&server_data->pi_service);
   server_data->cq_ = builder.AddCompletionQueue();
 

@@ -29,7 +29,6 @@
 #include "google/rpc/status.pb.h"
 #include "p4/config/p4info.pb.h"
 #include "p4/p4runtime.pb.h"
-#include "p4/tmp/device.pb.h"
 
 namespace pi {
 
@@ -61,16 +60,6 @@ class DeviceMgr {
       const p4::ForwardingPipelineConfig &config);
 
   Status pipeline_config_get(p4::ForwardingPipelineConfig *config);
-
-  // 3 temporary methods to manage a device, will be replaced by permanent
-  // solution ASAP
-  Status init(const p4::config::P4Info &p4info,
-              const p4::tmp::DeviceAssignRequest_Extras &extras);
-
-  Status update_start(const p4::config::P4Info &p4info,
-                      const std::string &device_data);
-
-  Status update_end();
 
   // New write and read methods, meant to replace all the methods below
   Status write(const p4::WriteRequest &request);

@@ -10,11 +10,9 @@ AM_CPPFLAGS = \
 
 AM_CXXFLAGS = -Wall -Werror
 
-noinst_PROGRAMS = test_client controller pi_server_dummy test_perf
+noinst_PROGRAMS = controller pi_server_dummy test_perf
 
 pi_server_dummy_SOURCES = pi_server_main.cpp
-
-test_client_SOURCES = test_client.cpp
 
 test_perf_SOURCES = test_perf.cpp
 
@@ -44,12 +42,6 @@ endif  # WITH_BMV2
 pi_server_dummy_LDADD = \
 $(COMMON_SERVER_LIBS) \
 $(top_builddir)/../targets/dummy/libpi_dummy.la
-
-test_client_LDADD = \
-$(top_builddir)/../src/libpip4info.la \
-$(top_builddir)/libpiproto.la \
-$(top_builddir)/p4info/libpiconvertproto.la \
-$(PROTOBUF_LIBS) $(GRPC_LIBS)
 
 test_perf_LDADD = \
 $(top_builddir)/../src/libpip4info.la \
