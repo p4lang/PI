@@ -22,7 +22,6 @@ $(abs_srcdir)/p4/p4runtime.proto \
 $(abs_srcdir)/p4/config/p4info.proto \
 $(abs_srcdir)/google/rpc/status.proto \
 $(abs_srcdir)/google/rpc/code.proto \
-$(abs_srcdir)/p4/tmp/device.proto \
 $(abs_srcdir)/p4/tmp/p4config.proto
 
 # Somehow, using an absolute path above prevents me from using EXTRA_DIST =
@@ -32,7 +31,6 @@ p4/p4runtime.proto \
 p4/config/p4info.proto \
 google/rpc/status.proto \
 google/rpc/code.proto \
-p4/tmp/device.proto \
 p4/tmp/p4config.proto
 
 proto_cpp_files = \
@@ -44,8 +42,6 @@ cpp_out/google/rpc/status.pb.cc \
 cpp_out/google/rpc/status.pb.h \
 cpp_out/google/rpc/code.pb.cc \
 cpp_out/google/rpc/code.pb.h \
-cpp_out/p4/tmp/device.pb.cc \
-cpp_out/p4/tmp/device.pb.h \
 cpp_out/p4/tmp/p4config.pb.cc \
 cpp_out/p4/tmp/p4config.pb.h
 
@@ -58,8 +54,6 @@ grpc_out/google/rpc/status.grpc.pb.cc \
 grpc_out/google/rpc/status.grpc.pb.h \
 grpc_out/google/rpc/code.grpc.pb.cc \
 grpc_out/google/rpc/code.grpc.pb.h \
-grpc_out/p4/tmp/device.grpc.pb.cc \
-grpc_out/p4/tmp/device.grpc.pb.h \
 grpc_out/p4/tmp/p4config.grpc.pb.cc \
 grpc_out/p4/tmp/p4config.grpc.pb.h
 
@@ -75,8 +69,6 @@ grpc_out/p4/config/p4info.grpc.pb.h
 
 includep4tmpdir = $(includedir)/p4/tmp/
 nodist_includep4tmp_HEADERS = \
-cpp_out/p4/tmp/device.pb.h \
-grpc_out/p4/tmp/device.grpc.pb.h \
 cpp_out/p4/tmp/p4config.pb.h \
 grpc_out/p4/tmp/p4config.grpc.pb.h
 
@@ -106,7 +98,6 @@ py_out/p4/config/__init__.py
 # this one is temporary
 p4tmppydir = $(pythondir)/p4/tmp
 nodist_p4tmppy_PYTHON = \
-py_out/p4/tmp/device_pb2.py \
 py_out/p4/tmp/p4config_pb2.py \
 py_out/p4/tmp/__init__.py
 

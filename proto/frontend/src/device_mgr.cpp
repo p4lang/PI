@@ -174,67 +174,6 @@ class DeviceMgrImp {
     return status;
   }
 
-  Status init(const p4::config::P4Info &p4info_proto,
-              const p4::tmp::DeviceAssignRequest_Extras &extras) {
-    Status status;
-    pi_status_t pi_status;
-    std::vector<pi_assign_extra_t> assign_options;
-    for (const auto &p : extras.kv()) {
-      pi_assign_extra_t e;
-      e.key = p.first.c_str();
-      e.v = p.second.c_str();
-      e.end_of_extras = 0;
-      assign_options.push_back(e);
-    }
-    assign_options.push_back({1, NULL, NULL});
-    pi_p4info_t *p4info_tmp = nullptr;
-    if (!pi::p4info::p4info_proto_reader(p4info_proto, &p4info_tmp)) {
-      status.set_code(Code::UNKNOWN);
-      return status;
-    }
-    p4_change(p4info_tmp);
-    pi_status = pi_assign_device(device_id, p4info.get(),
-                                 assign_options.data());
-    if (pi_status != PI_STATUS_SUCCESS) {
-      status.set_code(Code::UNKNOWN);
-      return status;
-    }
-    status.set_code(Code::OK);
-    return status;
-  }
-
-  Status update_start(const p4::config::P4Info &p4info_proto,
-                      const std::string &device_data) {
-    Status status;
-    pi_status_t pi_status;
-    pi_p4info_t *p4info_tmp = nullptr;
-    if (!pi::p4info::p4info_proto_reader(p4info_proto, &p4info_tmp)) {
-      status.set_code(Code::UNKNOWN);
-      return status;
-    }
-    pi_status = pi_update_device_start(device_id, p4info_tmp,
-                                       device_data.data(), device_data.size());
-    if (pi_status != PI_STATUS_SUCCESS) {
-      status.set_code(Code::UNKNOWN);
-      pi_destroy_config(p4info_tmp);
-      return status;
-    }
-    p4_change(p4info_tmp);
-    status.set_code(Code::OK);
-    return status;
-  }
-
-  Status update_end() {
-    Status status;
-    auto pi_status = pi_update_device_end(device_id);
-    if (pi_status != PI_STATUS_SUCCESS) {
-      status.set_code(Code::UNKNOWN);
-      return status;
-    }
-    status.set_code(Code::OK);
-    return status;
-  }
-
   Status write(const p4::WriteRequest &request) {
     Status status;
     status.set_code(Code::OK);
@@ -985,23 +924,6 @@ DeviceMgr::pipeline_config_set(
 Status
 DeviceMgr::pipeline_config_get(p4::ForwardingPipelineConfig *config) {
   return pimp->pipeline_config_get(config);
-}
-
-Status
-DeviceMgr::init(const p4::config::P4Info &p4info,
-                const p4::tmp::DeviceAssignRequest_Extras &extras) {
-  return pimp->init(p4info, extras);
-}
-
-Status
-DeviceMgr::update_start(const p4::config::P4Info &p4info,
-                        const std::string &device_data) {
-  return pimp->update_start(p4info, device_data);
-}
-
-Status
-DeviceMgr::update_end() {
-  return pimp->update_end();
 }
 
 Status

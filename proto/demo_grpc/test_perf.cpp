@@ -18,7 +18,6 @@
 #include "p4info_to_and_from_proto.h"  // for p4info_serialize_to_proto
 
 #include "p4/p4runtime.grpc.pb.h"
-#include "p4/tmp/device.grpc.pb.h"
 
 using grpc::Channel;
 using grpc::ClientContext;
@@ -86,38 +85,6 @@ int parse_opts(int argc, char *const argv[]) {
   return 0;
 }
 
-class DeviceClient {
- public:
-  DeviceClient(std::shared_ptr<Channel> channel)
-      : stub_(p4::tmp::Device::NewStub(channel)) { }
-
-  int assign_device(int device_id, const pi_p4info_t *p4info) {
-    p4::tmp::DeviceAssignRequest request;
-    request.set_device_id(device_id);
-    auto p4info_proto = pi::p4info::p4info_serialize_to_proto(p4info);
-    request.set_allocated_p4info(&p4info_proto);
-    ::google::rpc::Status rep;
-    ClientContext context;
-    Status status = stub_->DeviceAssign(&context, request, &rep);
-    request.release_p4info();
-    assert(status.ok());
-    return rep.code();
-  }
-
-  int remove_device(int device_id) {
-    p4::tmp::DeviceRemoveRequest request;
-    request.set_device_id(device_id);
-    ::google::rpc::Status rep;
-    ClientContext context;
-    Status status = stub_->DeviceRemove(&context, request, &rep);
-    assert(status.ok());
-    return rep.code();
-  }
-
- private:
-  std::unique_ptr<p4::tmp::Device::Stub> stub_;
-};
-
 class P4RuntimeClient {
  public:
   P4RuntimeClient(std::shared_ptr<Channel> channel)
@@ -126,7 +93,22 @@ class P4RuntimeClient {
   int write(const p4::WriteRequest &request) {
     p4::WriteResponse rep;
     ClientContext context;
-    Status status = stub_->Write(&context, request, &rep);
+    auto status = stub_->Write(&context, request, &rep);
+    assert(status.ok());
+    return 0;
+  }
+
+  int assign_device(int device_id, const pi_p4info_t *p4info) {
+    p4::SetForwardingPipelineConfigRequest request;
+    request.set_action(
+        p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT);
+    auto config = request.add_configs();
+    auto p4info_proto = pi::p4info::p4info_serialize_to_proto(p4info);
+    config->set_allocated_p4info(&p4info_proto);
+    p4::SetForwardingPipelineConfigResponse rep;
+    ClientContext context;
+    auto status = stub_->SetForwardingPipelineConfig(&context, request, &rep);
+    config->release_p4info();
     assert(status.ok());
     return 0;
   }
@@ -221,12 +203,12 @@ class Tester {
   Tester(int device_id, const pi_p4info_t *p4info,
          std::shared_ptr<Channel> channel)
       : device_id(device_id), p4info(p4info),
-        device_client(channel), pi_client(channel),
+        pi_client(channel),
         packet_recv(channel) { }
 
   uint64_t run_table_write_test(size_t iterations, size_t batch_size) {
     MeasureTime mt;
-    assert(!device_client.assign_device(0, p4info));
+    assert(!pi_client.assign_device(0, p4info));
     pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, "ipv4_lpm");
     pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, "set_nhop");
     auto add_entries = [this, t_id, a_id, batch_size](size_t iters) {
@@ -277,7 +259,6 @@ class Tester {
     // std::thread t2(add_entries, iterations / 2);
     t1.join();
     // t2.join();
-    assert(!device_client.remove_device(0));
     auto us = mt.elapsed<std::chrono::microseconds>();
     std::cout << us << "\n";
     return us;
@@ -318,7 +299,6 @@ class Tester {
  private:
   int device_id;
   const pi_p4info_t *p4info;
-  DeviceClient device_client;
   P4RuntimeClient pi_client;
   StreamChannelSync packet_recv;
 };
