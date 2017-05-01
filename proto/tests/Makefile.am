@@ -11,8 +11,7 @@ AM_CPPFLAGS = \
 
 TESTS = \
 test_p4info_convert \
-test_proto_fe \
-test_proto_fe_new
+test_proto_fe
 
 common_source = main.cpp
 
@@ -29,15 +28,7 @@ $(top_builddir)/libpiproto.la \
 $(top_builddir)/../src/libpip4info.la \
 $(common_libs)
 
-# TODO(antonin): we temporarily compile test_proto_fe.cpp twice, with and
-# without the NEW_P4RUNTIME preprocessor flag. This way we can test both the old
-# and the new DeviceMgr interface until we remove the old one.
-
 test_proto_fe_SOURCES = $(common_source) test_proto_fe.cpp
-test_proto_fe_new_SOURCES = $(common_source) test_proto_fe.cpp
-
-test_proto_fe_CPPFLAGS = $(AM_CPPFLAGS)
-test_proto_fe_new_CPPFLAGS = $(AM_CPPFLAGS) -DNEW_P4RUNTIME
 
 # this is an awful hack and a big time saver :)
 # thanks to this, I do not need to implement all of the _pi_* functions, only
@@ -53,10 +44,6 @@ $(top_builddir)/../src/libpiall.la \
 $(top_builddir)/../src/libpip4info.la \
 $(common_libs)
 
-test_proto_fe_new_LDFLAGS = $(test_proto_fe_LDFLAGS)
-test_proto_fe_new_LDADD = $(test_proto_fe_LDADD)
-
 check_PROGRAMS = \
 test_p4info_convert \
-test_proto_fe \
-test_proto_fe_new
+test_proto_fe

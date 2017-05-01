@@ -78,29 +78,6 @@ class DeviceMgr {
   Status read(const p4::ReadRequest &request, p4::ReadResponse *response) const;
   Status read_one(const p4::Entity &entity, p4::ReadResponse *response) const;
 
-  // should we use ::google::rpc::Status or should we just return an error code
-  // that the gRPC server can then wrap in a Status message
-  Status table_write(const p4::TableUpdate &table_update);
-
-  Status table_read(p4_id_t table_id,
-                    std::vector<p4::TableEntry> *entries) const;
-
-  // this is likely to be temporary, we may not want to hold all the entries in
-  // memory at once; could be replaced by an iterator of some sort
-  Status table_read_all(std::vector<p4::TableEntry> *entries) const;
-
-  Status action_profile_write(
-      const p4::ActionProfileUpdate &action_profile_update);
-
-  Status action_profile_read(
-      p4_id_t action_profile_id,
-      std::vector<p4::ActionProfileEntry> *entries) const;
-
-  // this is likely to be temporary, we may not want to hold all the entries in
-  // memory at once; could be replaced by an iterator of some sort
-  Status action_profile_read_all(
-      std::vector<p4::ActionProfileEntry> *entries) const;
-
   // from the perspective of P4, a punted packet is just bytes. Either the
   // controller is responsible for encapsulating the packet in the appropriate
   // header, or the gRPC server is.
