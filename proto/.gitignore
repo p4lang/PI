@@ -1,3 +1,4 @@
 cpp_out
 grpc_out
 proto_files.ts
+gnmi/gnmi.proto
