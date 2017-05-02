@@ -9,7 +9,7 @@ endif
 
 SUBDIRS = . p4info frontend server $(MAYBE_PROTO_DEMO) tests
 
-PROTOFLAGS = -I$(abs_srcdir)
+PROTOFLAGS = -I$(abs_srcdir) -I$(abs_builddir)
 
 # This makefile relies on the symbolic link that we create google ->
 # googleapis/google. Without it, we run into some issues with `protoc`. An
@@ -31,7 +31,8 @@ p4/p4runtime.proto \
 p4/config/p4info.proto \
 google/rpc/status.proto \
 google/rpc/code.proto \
-p4/tmp/p4config.proto
+p4/tmp/p4config.proto \
+openconfig/reference/rpc/gnmi/gnmi.proto
 
 proto_cpp_files = \
 cpp_out/p4/p4runtime.pb.cc \
@@ -43,7 +44,9 @@ cpp_out/google/rpc/status.pb.h \
 cpp_out/google/rpc/code.pb.cc \
 cpp_out/google/rpc/code.pb.h \
 cpp_out/p4/tmp/p4config.pb.cc \
-cpp_out/p4/tmp/p4config.pb.h
+cpp_out/p4/tmp/p4config.pb.h \
+cpp_out/gnmi/gnmi.pb.cc \
+cpp_out/gnmi/gnmi.pb.h
 
 proto_grpc_files = \
 grpc_out/p4/p4runtime.grpc.pb.cc \
@@ -55,7 +58,9 @@ grpc_out/google/rpc/status.grpc.pb.h \
 grpc_out/google/rpc/code.grpc.pb.cc \
 grpc_out/google/rpc/code.grpc.pb.h \
 grpc_out/p4/tmp/p4config.grpc.pb.cc \
-grpc_out/p4/tmp/p4config.grpc.pb.h
+grpc_out/p4/tmp/p4config.grpc.pb.h \
+grpc_out/gnmi/gnmi.grpc.pb.cc \
+grpc_out/gnmi/gnmi.grpc.pb.h
 
 includep4dir = $(includedir)/p4/
 nodist_includep4_HEADERS = \
@@ -78,6 +83,11 @@ cpp_out/google/rpc/status.pb.h \
 cpp_out/google/rpc/code.pb.h \
 grpc_out/google/rpc/status.grpc.pb.h \
 grpc_out/google/rpc/code.grpc.pb.h
+
+includegnmidir = $(includedir)/gnmi/
+nodist_includegnmi_HEADERS = \
+cpp_out/gnmi/gnmi.pb.h \
+grpc_out/gnmi/gnmi.grpc.pb.h
 
 AM_CPPFLAGS = -Icpp_out -Igrpc_out \
 -I$(top_srcdir)/../include
@@ -111,18 +121,30 @@ py_out/google/rpc/code_pb2.py \
 py_out/google/rpc/status_pb2.py \
 py_out/google/rpc/__init__.py
 
+gnmipydir = $(pythondir)/gnmi
+nodist_gnmipy_PYTHON = \
+py_out/gnmi/__init__.py \
+py_out/gnmi/gnmi_pb2.py
+
 BUILT_SOURCES += \
 $(nodist_p4py_PYTHON) \
 $(nodist_p4configpy_PYTHON) \
 $(nodist_p4tmppy_PYTHON) \
 $(nodist_googlepy_PYTHON) \
-$(nodist_googlerpcpy_PYTHON)
+$(nodist_googlerpcpy_PYTHON) \
+$(nodist_gnmipy_PYTHON)
 endif
+
+$(abs_builddir)/gnmi/gnmi.proto : $(abs_srcdir)/openconfig/reference/rpc/gnmi/gnmi.proto
+	@mkdir -p $(builddir)/gnmi
+	$(SED) 's;github.com/golang/protobuf/ptypes/any/any.proto;google/protobuf/any.proto;g' $^ > gnmi.proto.tmp
+	$(SED) 's;github.com/google/protobuf/src/google/protobuf/descriptor.proto;google/protobuf/descriptor.proto;g' gnmi.proto.tmp > $@
+	@rm gnmi.proto.tmp
 
 # See http://www.gnu.org/software/automake/manual/html_node/Multiple-Outputs.html
 
 # Is there any issue with running protoc only once, instead of once per proto?
-proto_files.ts: $(protos)
+proto_files.ts: $(protos) $(abs_builddir)/gnmi/gnmi.proto
 	@rm -f proto_files.tmp
 	@touch proto_files.tmp
 	@mkdir -p $(builddir)/cpp_out
@@ -137,7 +159,7 @@ if HAVE_GRPC_PY_PLUGIN
 # an old version of the Python plugin.
 	$(PROTOC) $^ --python_out $(builddir)/py_out $(PROTOFLAGS) --grpc_out $(builddir)/py_out --plugin=protoc-gen-grpc=$(GRPC_PY_PLUGIN)
 	@touch $(builddir)/py_out/p4/__init__.py $(builddir)/py_out/p4/config/__init__.py $(builddir)/py_out/p4/tmp/__init__.py
-	@touch $(builddir)/py_out/google/__init__.py $(builddir)/py_out/google/rpc/__init__.py
+	@touch $(builddir)/py_out/google/__init__.py $(builddir)/py_out/google/rpc/__init__.py $(builddir)/py_out/gnmi/__init__.py
 endif
 	@mv -f proto_files.tmp $@
 
@@ -179,4 +201,4 @@ libpiproto_la_LIBADD = $(PROTOBUF_LIBS) $(GRPC_LIBS)
 nobase_include_HEADERS = \
 PI/proto/util.h
 
-CLEANFILES = $(BUILT_SOURCES) proto_files.ts
+CLEANFILES = $(BUILT_SOURCES) proto_files.ts gnmi/gnmi.proto
