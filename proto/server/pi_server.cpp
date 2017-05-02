@@ -18,6 +18,7 @@
  *
  */
 
+#include <PI/frontends/proto/gnmi_mgr.h>
 #include <PI/frontends/proto/device_mgr.h>
 
 #include <PI/proto/pi_server.h>
@@ -33,8 +34,9 @@
 #include <grpc++/grpc++.h>
 // #include <grpc++/support/error_details.h>
 
-#include "p4/p4runtime.grpc.pb.h"
+#include "gnmi/gnmi.grpc.pb.h"
 #include "google/rpc/code.pb.h"
+#include "p4/p4runtime.grpc.pb.h"
 
 using grpc::Server;
 using grpc::ServerBuilder;
@@ -43,10 +45,12 @@ using grpc::ServerReader;
 using grpc::ServerWriter;
 using grpc::ServerReaderWriter;
 using grpc::Status;
+using grpc::StatusCode;
 using grpc::CompletionQueue;
 using grpc::ServerCompletionQueue;
 using grpc::ServerAsyncReaderWriter;
 
+using pi::fe::proto::GnmiMgr;
 using pi::fe::proto::DeviceMgr;
 
 #define DEBUG
@@ -61,9 +65,56 @@ using pi::fe::proto::DeviceMgr;
 
 namespace {
 
-class StreamChannelClientMgr;
+class ConfigMgrInstance {
+ public:
+  static GnmiMgr *get() {
+    static GnmiMgr mgr;
+    return &mgr;
+  }
+};
 
 DeviceMgr *device_mgr = nullptr;
+
+class gNMIServiceImpl : public gnmi::gNMI::Service {
+ private:
+  Status Capabilities(ServerContext *context,
+                      const gnmi::CapabilityRequest *request,
+                      gnmi::CapabilityResponse *response) override {
+    (void) request; (void) response;
+    SIMPLELOG << "gNMI Capabilities\n";
+    SIMPLELOG << request->DebugString();
+    return Status(StatusCode::UNIMPLEMENTED, "not implemented yet");
+  }
+
+  Status Get(ServerContext *context, const gnmi::GetRequest *request,
+             gnmi::GetResponse *response) override {
+    SIMPLELOG << "gNMI Get\n";
+    SIMPLELOG << request->DebugString();
+    auto status = ConfigMgrInstance::get()->config_get(*request, response);
+    (void) status;
+    return Status::OK;
+  }
+
+  Status Set(ServerContext *context, const gnmi::SetRequest *request,
+             gnmi::SetResponse *response) override {
+    SIMPLELOG << "gNMI Set\n";
+    SIMPLELOG << request->DebugString();
+    auto status = ConfigMgrInstance::get()->config_set(*request, response);
+    (void) status;
+    return Status::OK;
+  }
+
+  Status Subscribe(
+      ServerContext *context,
+      ServerReaderWriter<gnmi::SubscribeResponse,
+                         gnmi::SubscribeRequest> *stream) override {
+    (void) stream;
+    SIMPLELOG << "gNMI Subscribe\n";
+    return Status(StatusCode::UNIMPLEMENTED, "not implemented yet");
+  }
+};
+
+class StreamChannelClientMgr;
 
 StreamChannelClientMgr *packet_in_mgr;
 
@@ -363,6 +414,7 @@ struct PacketInGenerator {
 struct ServerData {
   std::string server_address;
   P4RuntimeHybridService pi_service;
+  gNMIServiceImpl gnmi_service;
   ServerBuilder builder;
   std::unique_ptr<Server> server;
   std::thread packetin_thread;
@@ -383,6 +435,7 @@ void PIGrpcServerRunAddr(const char *server_address) {
   builder.AddListeningPort(
     server_data->server_address, grpc::InsecureServerCredentials());
   builder.RegisterService(&server_data->pi_service);
+  builder.RegisterService(&server_data->gnmi_service);
   server_data->cq_ = builder.AddCompletionQueue();
 
   server_data->server = builder.BuildAndStart();

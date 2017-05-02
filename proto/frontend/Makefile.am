@@ -30,6 +30,7 @@ $(top_builddir)/libpiprotobuf.la \
 $(top_builddir)/../src/libpip4info.la
 
 nobase_include_HEADERS = \
-PI/frontends/proto/device_mgr.h
+PI/frontends/proto/device_mgr.h \
+PI/frontends/proto/gnmi_mgr.h
 
 lib_LTLIBRARIES = libpifeproto.la
