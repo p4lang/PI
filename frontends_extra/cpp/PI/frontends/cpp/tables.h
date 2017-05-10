@@ -56,6 +56,9 @@ class MatchKeyReader {
 
 class MatchKey {
   friend class MatchTable;
+  friend struct MatchKeyHash;
+  friend struct MatchKeyEq;
+
  public:
   MatchKey(const pi_p4info_t *p4info, pi_p4_id_t table_id);
   ~MatchKey();
@@ -94,6 +97,11 @@ class MatchKey {
   error_code_t set_valid(pi_p4_id_t f_id, bool key);
   error_code_t get_valid(pi_p4_id_t f_id, bool *key) const;
 
+  MatchKey(const MatchKey &other);
+  MatchKey &operator=(const MatchKey &other);
+  MatchKey(MatchKey &&other) = default;
+  MatchKey &operator=(MatchKey &&other) = default;
+
  private:
   template <typename T>
   error_code_t format(pi_p4_id_t f_id, T v, size_t offset, size_t *written);
@@ -111,6 +119,18 @@ class MatchKey {
   std::vector<char> _data;
   pi_match_key_t *match_key;
   MatchKeyReader reader;
+};
+
+// MatchKeyHash and MatchKeyEq can be used to store MatchKey objects into an
+// unordered_map. They take into account the table id and the match key data
+// (including the priority).
+
+struct MatchKeyHash {
+  size_t operator()(const MatchKey &mk) const;
+};
+
+struct MatchKeyEq {
+  bool operator()(const MatchKey &mk1, const MatchKey &mk2) const;
 };
 
 class ActionDataReader {

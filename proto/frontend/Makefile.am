@@ -14,6 +14,8 @@ libpifeproto_la_SOURCES = \
 src/device_mgr.cpp \
 src/action_prof_mgr.h \
 src/action_prof_mgr.cpp \
+src/table_info_store.h \
+src/table_info_store.cpp \
 src/common.h
 
 libpifeproto_la_LIBADD = \
