@@ -239,13 +239,13 @@ message DirectMeterEntry {
 // TODO: This is not metering protocol-independent!
 message MeterConfig {
   // Committed information rate (units per sec)
-  int64 cir = 4;
+  int64 cir = 1;
   // Committed burst size
-  int64 cburst = 5;
+  int64 cburst = 2;
   // Peak information rate (units per sec)
-  int64 pir = 6;
+  int64 pir = 3;
   // Peak burst size
-  int64 pburst = 7;
+  int64 pburst = 4;
 }
 
 //------------------------------------------------------------------------------
