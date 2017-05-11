@@ -358,6 +358,48 @@ MatchKey::get_valid(pi_p4_id_t f_id, bool *key) const {
   return reader.get_valid(f_id, key);
 }
 
+MatchKey::MatchKey(const MatchKey &other)
+    : p4info(other.p4info),
+      table_id(other.table_id),
+      nset(other.nset),
+      mk_size(other.mk_size),
+      _data(other._data),
+      match_key(reinterpret_cast<decltype(match_key)>(_data.data())),
+      reader(match_key) {
+  match_key->data = _data.data() + sizeof(*match_key);
+}
+
+MatchKey &
+MatchKey::operator=(const MatchKey &other) {
+  MatchKey tmp(other);  // re-use copy-constructor
+  *this = std::move(tmp);  // re-use move-assignment
+  return *this;
+}
+
+size_t
+MatchKeyHash::operator()(const MatchKey &mk) const {
+  // compute Jenkins hash
+  // see https://en.wikipedia.org/wiki/Jenkins_hash_function
+  // "seed", maybe not the best choice...
+  uint32_t hash = mk.table_id ^ mk.match_key->priority;
+  for (size_t i = 0; i < mk.mk_size; i++) {
+    hash += mk.match_key->data[i];
+    hash += hash << 10;
+    hash ^= hash >> 6;
+  }
+  hash += hash << 3;
+  hash ^= hash >> 11;
+  hash += hash << 15;
+  return static_cast<size_t>(hash);
+}
+
+bool
+MatchKeyEq::operator()(const MatchKey &mk1, const MatchKey &mk2) const {
+  return (mk1.table_id == mk2.table_id)
+      && (mk1.match_key->priority == mk2.match_key->priority)
+      && (!std::memcmp(mk1.match_key->data, mk2.match_key->data, mk1.mk_size));
+}
+
 ActionDataReader::ActionDataReader(const pi_action_data_t *action_data)
     : action_data(action_data) { }
 

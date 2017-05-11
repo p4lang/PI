@@ -164,12 +164,26 @@ class DummyTableEntry {
 
 class DummyTable {
  public:
+  struct Entry {
+    // NOLINTNEXTLINE
+    Entry(DummyMatchKey &&mk, DummyTableEntry &&entry)
+        : mk(mk), entry(entry) { }
+
+    DummyMatchKey mk;
+    DummyTableEntry entry;
+  };
+
   pi_status_t entry_add(const pi_match_key_t *match_key,
-                        const pi_table_entry_t *table_entry) {
-    auto r = entries.emplace(DummyMatchKey(match_key),
-                             DummyTableEntry(table_entry));
+                        const pi_table_entry_t *table_entry,
+                        pi_entry_handle_t *entry_handle) {
+    auto r = key_to_handle.emplace(DummyMatchKey(match_key), entry_counter);
     // TODO(antonin): we need a better error code for duplicate entry
-    return r.second ? PI_STATUS_SUCCESS : PI_STATUS_TARGET_ERROR;
+    if (!r.second) return PI_STATUS_TARGET_ERROR;
+    entries.emplace(
+        entry_counter,
+        Entry(DummyMatchKey(match_key), DummyTableEntry(table_entry)));
+    *entry_handle = entry_counter++;
+    return PI_STATUS_SUCCESS;
   }
 
   pi_status_t entries_fetch(pi_table_fetch_res_t *res) {
@@ -179,12 +193,11 @@ class DummyTable {
     res->mkey_nbytes = 0;
     char *buf = new char[16384];  // should be large enough for testing
     char *buf_ptr = buf;
-    size_t count = 0;
     for (const auto &p : entries) {
-      buf_ptr += emit_entry_handle(buf_ptr, count++);
-      res->mkey_nbytes = p.first.nbytes();
-      buf_ptr += p.first.emit(buf_ptr);
-      buf_ptr += p.second.emit(buf_ptr);
+      buf_ptr += emit_entry_handle(buf_ptr, p.first);
+      res->mkey_nbytes = p.second.mk.nbytes();
+      buf_ptr += p.second.mk.emit(buf_ptr);
+      buf_ptr += p.second.entry.emit(buf_ptr);
       buf_ptr += emit_uint32(buf_ptr, 0);  // direct resources
     }
     res->entries = buf;
@@ -193,7 +206,10 @@ class DummyTable {
   }
 
  private:
-  std::unordered_map<DummyMatchKey, DummyTableEntry, DummyMatchKeyHash> entries;
+  std::unordered_map<pi_entry_handle_t, Entry> entries{};
+  std::unordered_map<DummyMatchKey, pi_entry_handle_t, DummyMatchKeyHash>
+  key_to_handle{};
+  size_t entry_counter{0};
 };
 
 class DummyActionProf {
@@ -290,6 +306,17 @@ class DummyActionProf {
   size_t group_counter{1 << 24};
 };
 
+class DummyMeter {
+ public:
+  // TODO(antonin): store meter_spec for read API
+  template <typename T>
+  pi_status_t set(T index, const pi_meter_spec_t *meter_spec) {
+    (void) index;
+    (void) meter_spec;
+    return PI_STATUS_SUCCESS;
+  }
+};
+
 class DummySwitch {
  public:
   explicit DummySwitch(device_id_t device_id)
@@ -297,9 +324,10 @@ class DummySwitch {
 
   pi_status_t table_entry_add(pi_p4_id_t table_id,
                               const pi_match_key_t *match_key,
-                              const pi_table_entry_t *table_entry) {
+                              const pi_table_entry_t *table_entry,
+                              pi_entry_handle_t *entry_handle) {
     // constructs DummyTable if not already in map
-    return tables[table_id].entry_add(match_key, table_entry);
+    return tables[table_id].entry_add(match_key, table_entry, entry_handle);
   }
 
   pi_status_t table_entries_fetch(pi_p4_id_t table_id,
@@ -354,9 +382,21 @@ class DummySwitch {
     return action_profs[act_prof_id].entries_fetch(res);
   }
 
+  pi_status_t meter_set(pi_p4_id_t meter_id, size_t index,
+                        const pi_meter_spec_t *meter_spec) {
+    return meters[meter_id].set(index, meter_spec);
+  }
+
+  pi_status_t meter_set_direct(pi_p4_id_t meter_id,
+                               pi_entry_handle_t entry_handle,
+                               const pi_meter_spec_t *meter_spec) {
+    return meters[meter_id].set(entry_handle, meter_spec);
+  }
+
  private:
   std::unordered_map<pi_p4_id_t, DummyTable> tables{};
   std::unordered_map<pi_p4_id_t, DummyActionProf> action_profs{};
+  std::unordered_map<pi_p4_id_t, DummyMeter> meters{};
 #ifdef __clang__
   __attribute__((unused))
 #endif
@@ -375,8 +415,12 @@ class DummySwitchMock : public DummySwitch {
   explicit DummySwitchMock(device_id_t device_id)
       : DummySwitch(device_id), sw(device_id) {
     // delegate calls to real object
-    ON_CALL(*this, table_entry_add(_, _, _))
-        .WillByDefault(Invoke(&sw, &DummySwitch::table_entry_add));
+
+    // cannot use DoAll to combine 2 actions here (call to real object + handle
+    // capture), because the handle needs to be captured after the delegated
+    // call, but the delegated call is the one which needs to return the status
+    ON_CALL(*this, table_entry_add(_, _, _, _))
+        .WillByDefault(Invoke(this, &DummySwitchMock::_table_entry_add));
     ON_CALL(*this, table_entries_fetch(_, _))
         .WillByDefault(Invoke(&sw, &DummySwitch::table_entries_fetch));
 
@@ -403,6 +447,25 @@ class DummySwitchMock : public DummySwitch {
             Invoke(&sw, &DummySwitch::action_prof_group_remove_member));
     ON_CALL(*this, action_prof_entries_fetch(_, _))
         .WillByDefault(Invoke(&sw, &DummySwitch::action_prof_entries_fetch));
+
+    ON_CALL(*this, meter_set(_, _, _))
+        .WillByDefault(Invoke(&sw, &DummySwitch::meter_set));
+    ON_CALL(*this, meter_set_direct(_, _, _))
+        .WillByDefault(Invoke(&sw, &DummySwitch::meter_set_direct));
+  }
+
+  // used to capture entry handles
+  pi_status_t _table_entry_add(pi_p4_id_t table_id,
+                               const pi_match_key_t *match_key,
+                               const pi_table_entry_t *table_entry,
+                               pi_entry_handle_t *h) {
+    auto r = sw.table_entry_add(table_id, match_key, table_entry, h);
+    if (r == PI_STATUS_SUCCESS) table_h = *h;
+    return r;
+  }
+
+  pi_entry_handle_t get_table_entry_handle() const {
+    return table_h;
   }
 
   // used to capture handle for members
@@ -426,9 +489,9 @@ class DummySwitchMock : public DummySwitch {
     return action_prof_h;
   }
 
-  MOCK_METHOD3(table_entry_add,
+  MOCK_METHOD4(table_entry_add,
                pi_status_t(pi_p4_id_t, const pi_match_key_t *,
-                           const pi_table_entry_t *));
+                           const pi_table_entry_t *, pi_entry_handle_t *));
   MOCK_METHOD2(table_entries_fetch,
                pi_status_t(pi_p4_id_t, pi_table_fetch_res_t *));
 
@@ -453,9 +516,16 @@ class DummySwitchMock : public DummySwitch {
   MOCK_METHOD2(action_prof_entries_fetch,
                pi_status_t(pi_p4_id_t, pi_act_prof_fetch_res_t *));
 
+  MOCK_METHOD3(meter_set,
+               pi_status_t(pi_p4_id_t, size_t, const pi_meter_spec_t *));
+  MOCK_METHOD3(meter_set_direct,
+               pi_status_t(pi_p4_id_t, pi_entry_handle_t,
+                           const pi_meter_spec_t *));
+
  private:
   DummySwitch sw;
   pi_indirect_handle_t action_prof_h;
+  pi_entry_handle_t table_h;
 };
 
 // used to map device ids to DummySwitchMock instances; thread safe in case we
@@ -549,10 +619,10 @@ pi_status_t _pi_table_entry_add(pi_session_handle_t,
                                 const pi_match_key_t *match_key,
                                 const pi_table_entry_t *table_entry,
                                 int overwrite,
-                                pi_entry_handle_t *) {
+                                pi_entry_handle_t *entry_handle) {
   (void)overwrite;
   return DeviceResolver::get_switch(dev_tgt.dev_id)->table_entry_add(
-      table_id, match_key, table_entry);
+      table_id, match_key, table_entry, entry_handle);
 }
 
 pi_status_t _pi_table_entries_fetch(pi_session_handle_t,
@@ -638,6 +708,21 @@ pi_status_t _pi_act_prof_entries_fetch_done(pi_session_handle_t,
   delete[] res->entries_groups;
   delete[] res->mbr_handles;
   return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_meter_set(pi_session_handle_t,
+                          pi_dev_tgt_t dev_tgt, pi_p4_id_t meter_id,
+                          size_t index, const pi_meter_spec_t *meter_spec) {
+  return DeviceResolver::get_switch(dev_tgt.dev_id)->meter_set(
+      meter_id, index, meter_spec);
+}
+
+pi_status_t _pi_meter_set_direct(pi_session_handle_t,
+                                 pi_dev_tgt_t dev_tgt, pi_p4_id_t meter_id,
+                                 pi_entry_handle_t entry_handle,
+                                 const pi_meter_spec_t *meter_spec) {
+  return DeviceResolver::get_switch(dev_tgt.dev_id)->meter_set_direct(
+      meter_id, entry_handle, meter_spec);
 }
 
 }
@@ -877,7 +962,7 @@ TEST_P(MatchTableTest, AddAndRead) {
   auto mk_input = std::get<1>(GetParam());
   auto mk_matcher = Truly(MatchKeyMatcher(t_id, mk_input.get_match_key()));
   auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
-  EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher))
+  EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _))
       .Times(2);
   DeviceMgr::Status status;
   auto entry = generic_make(t_id, mk_input.get_proto(mf_id), adata);
@@ -1313,7 +1398,7 @@ TEST_F(MatchTableIndirectTest, Member) {
   auto mbr_h = mock->get_action_prof_handle();
   auto mk_matcher = Truly(MatchKeyMatcher(t_id, mf));
   auto entry_matcher = Truly(TableEntryMatcher_Indirect(mbr_h));
-  EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher));
+  EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
   auto entry = make_indirect_entry_to_member(mf, member_id);
   auto status = add_indirect_entry(&entry);
   ASSERT_EQ(status.code(), Code::OK);
@@ -1341,7 +1426,7 @@ TEST_F(MatchTableIndirectTest, Group) {
   auto grp_h = mock->get_action_prof_handle();
   auto mk_matcher = Truly(MatchKeyMatcher(t_id, mf));
   auto entry_matcher = Truly(TableEntryMatcher_Indirect(grp_h));
-  EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher));
+  EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
   auto entry = make_indirect_entry_to_group(mf, group_id);
   auto status = add_indirect_entry(&entry);
   ASSERT_EQ(status.code(), Code::OK);
@@ -1356,6 +1441,115 @@ TEST_F(MatchTableIndirectTest, Group) {
   const auto &entities = response.entities();
   ASSERT_EQ(1, entities.size());
   ASSERT_TRUE(MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
+}
+
+
+class DirectMeterTest : public DeviceMgrTest {
+ protected:
+  DirectMeterTest() {
+    t_id = pi_p4info_table_id_from_name(p4info, "ExactOne");
+    a_id = pi_p4info_action_id_from_name(p4info, "actionA");
+    m_id = pi_p4info_meter_id_from_name(p4info, "ExactOne_meter");
+  }
+
+  DeviceMgr::Status add_entry(p4::TableEntry *entry) {
+    p4::WriteRequest request;
+    auto update = request.add_updates();
+    update->set_type(p4::Update_Type_INSERT);
+    auto entity = update->mutable_entity();
+    entity->set_allocated_table_entry(entry);
+    auto status = mgr.write(request);
+    entity->release_table_entry();
+    return status;
+  }
+
+  DeviceMgr::Status set_meter(p4::TableEntry *entry, p4::MeterConfig *config) {
+    p4::WriteRequest request;
+    auto update = request.add_updates();
+    update->set_type(p4::Update_Type_INSERT);
+    auto entity = update->mutable_entity();
+    auto direct_meter_entry = entity->mutable_direct_meter_entry();
+    direct_meter_entry->set_meter_id(m_id);
+    direct_meter_entry->set_allocated_table_entry(entry);
+    direct_meter_entry->set_allocated_config(config);
+    auto status = mgr.write(request);
+    direct_meter_entry->release_table_entry();
+    direct_meter_entry->release_config();
+    return status;
+  }
+
+  p4::TableEntry make_entry(const std::string &mf_v,
+                            const std::string &param_v) {
+    p4::TableEntry table_entry;
+    table_entry.set_table_id(t_id);
+    auto mf = table_entry.add_match();
+    mf->set_field_id(pi_p4info_table_match_field_id_from_name(
+        p4info, t_id, "header_test.field32"));
+    auto mf_exact = mf->mutable_exact();
+    mf_exact->set_value(mf_v);
+    auto entry = table_entry.mutable_action();
+    auto action = entry->mutable_action();
+
+    action->set_action_id(a_id);
+    auto param = action->add_params();
+    param->set_param_id(
+        pi_p4info_action_param_id_from_name(p4info, a_id, "param"));
+    param->set_value(param_v);
+    return table_entry;
+  }
+
+  pi_p4_id_t t_id;
+  pi_p4_id_t a_id;
+  pi_p4_id_t m_id;
+};
+
+struct MeterSpecMatcher {
+ public:
+  MeterSpecMatcher(const p4::MeterConfig &config,
+                   pi_meter_unit_t meter_unit, pi_meter_type_t meter_type)
+      : config(config), meter_unit(meter_unit), meter_type(meter_type) { }
+
+  bool operator()(const pi_meter_spec_t *spec) const {
+    return (spec->cir == static_cast<uint64_t>(config.cir()))
+        && (spec->cburst == static_cast<uint32_t>(config.cburst()))
+        && (spec->pir == static_cast<uint64_t>(config.pir()))
+        && (spec->pburst == static_cast<uint32_t>(config.pburst()))
+        && (spec->meter_unit == meter_unit)
+        && (spec->meter_type == meter_type);
+  }
+
+ private:
+  p4::MeterConfig config;
+  pi_meter_unit_t meter_unit;
+  pi_meter_type_t meter_type;
+};
+
+TEST_F(DirectMeterTest, SetConfig) {
+  std::string mf("\xaa\xbb\xcc\xdd", 4);
+  std::string adata(6, '\x00');
+  auto entry = make_entry(mf, adata);
+  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mf));
+  auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
+  EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
+  {
+    auto status = add_entry(&entry);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+  auto entry_h = mock->get_table_entry_handle();
+
+  p4::MeterConfig config;
+  config.set_cir(10);
+  config.set_cburst(5);
+  config.set_pir(100);
+  config.set_pburst(250);
+  // as per the P4 program
+  auto meter_spec_matcher = Truly(MeterSpecMatcher(
+      config, PI_METER_UNIT_BYTES, PI_METER_TYPE_COLOR_UNAWARE));
+  EXPECT_CALL(*mock, meter_set_direct(m_id, entry_h, meter_spec_matcher));
+  {
+    auto status = set_meter(&entry, &config);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
 }
 
 }  // namespace

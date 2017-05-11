@@ -31,6 +31,7 @@
 #include "action_prof_mgr.h"
 #include "common.h"
 #include "p4info_to_and_from_proto.h"  // for p4info_proto_reader
+#include "table_info_store.h"
 
 #include "p4/tmp/p4config.pb.h"
 
@@ -59,6 +60,17 @@ auto p4info_deleter = [](pi_p4info_t *p4info) {
 };
 using P4InfoWrapper = std::unique_ptr<pi_p4info_t, decltype(p4info_deleter)>;
 
+pi_meter_spec_t meter_spec_proto_to_pi(const p4::MeterConfig &config) {
+  pi_meter_spec_t pi_meter_spec;
+  pi_meter_spec.cir = static_cast<uint64_t>(config.cir());
+  pi_meter_spec.cburst = static_cast<uint32_t>(config.cburst());
+  pi_meter_spec.pir = static_cast<uint64_t>(config.pir());
+  pi_meter_spec.pburst = static_cast<uint32_t>(config.pburst());
+  pi_meter_spec.meter_unit = PI_METER_UNIT_DEFAULT;
+  pi_meter_spec.meter_type = PI_METER_TYPE_DEFAULT;
+  return pi_meter_spec;
+}
+
 }  // namespace
 
 class DeviceMgrImp {
@@ -75,6 +87,13 @@ class DeviceMgrImp {
   // updates we do not do any locking; we assume that the client will not issue
   // table commands... while updating p4info
   void p4_change(pi_p4info_t *p4info_new) {
+    table_info_store.reset();
+    for (auto t_id = pi_p4info_table_begin(p4info_new);
+         t_id != pi_p4info_table_end(p4info_new);
+         t_id = pi_p4info_table_next(p4info_new, t_id)) {
+      table_info_store.add_table(t_id);
+    }
+
     action_profs.clear();
     for (auto act_prof_id = pi_p4info_act_prof_begin(p4info_new);
          act_prof_id != pi_p4info_act_prof_end(p4info_new);
@@ -126,6 +145,7 @@ class DeviceMgrImp {
       // this is temporary, until I can implement this method properly
       if (p4info) {
         pi_remove_device(device_id);
+        table_info_store.reset();
         action_profs.clear();
       }
 
@@ -193,10 +213,11 @@ class DeviceMgrImp {
               update.type(), entity.action_profile_group(), session);
           break;
         case p4::Entity::kMeterEntry:
-          status.set_code(Code::UNIMPLEMENTED);
+          status = meter_write(update.type(), entity.meter_entry(), session);
           break;
         case p4::Entity::kDirectMeterEntry:
-          status.set_code(Code::UNIMPLEMENTED);
+          status = direct_meter_write(
+              update.type(), entity.direct_meter_entry(), session);
           break;
         case p4::Entity::kCounterEntry:
           status.set_code(Code::UNIMPLEMENTED);
@@ -272,6 +293,110 @@ class DeviceMgrImp {
         return table_modify(table_entry, session);
       case p4::Update_Type_DELETE:
         return table_delete(table_entry, session);
+      default:
+        status.set_code(Code::INVALID_ARGUMENT);
+        break;
+    }
+    return status;
+  }
+
+  Status meter_write(p4::Update_Type update, const p4::MeterEntry &meter_entry,
+                     const SessionTemp &session) {
+    Status status;
+    status.set_code(Code::OK);
+    switch (update) {
+      case p4::Update_Type_UNSPECIFIED:
+        status.set_code(Code::INVALID_ARGUMENT);
+        break;
+      // TODO(antonin): should INSERT and MODIFY be treated the same way?
+      case p4::Update_Type_INSERT:
+      case p4::Update_Type_MODIFY:
+        {
+          auto pi_meter_spec = meter_spec_proto_to_pi(meter_entry.config());
+          auto pi_status = pi_meter_set(session.get(), device_tgt,
+                                        meter_entry.meter_id(),
+                                        meter_entry.index(),
+                                        &pi_meter_spec);
+          if (pi_status != PI_STATUS_SUCCESS)
+            status.set_code(Code::UNKNOWN);
+        }
+        break;
+      case p4::Update_Type_DELETE:
+        {
+          pi_meter_spec_t pi_meter_spec =
+              {0, 0, 0, 0, PI_METER_UNIT_DEFAULT, PI_METER_TYPE_DEFAULT};
+          auto pi_status = pi_meter_set(session.get(), device_tgt,
+                                        meter_entry.meter_id(),
+                                        meter_entry.index(),
+                                        &pi_meter_spec);
+          if (pi_status != PI_STATUS_SUCCESS)
+            status.set_code(Code::UNKNOWN);
+        }
+      default:
+        status.set_code(Code::INVALID_ARGUMENT);
+        break;
+    }
+    return status;
+  }
+
+  Code entry_handle_from_table_entry(const p4::TableEntry &table_entry,
+                                     pi_entry_handle_t *handle) const {
+    pi::MatchKey match_key(p4info.get(), table_entry.table_id());
+    {
+      auto code = construct_match_key(table_entry, &match_key);
+      if (code != Code::OK) return code;
+    }
+    auto entry_data = table_info_store.get_entry(
+        table_entry.table_id(), match_key);
+    if (entry_data.none) return Code::INVALID_ARGUMENT;
+    *handle = entry_data.handle;
+    return Code::OK;
+  }
+
+  Status direct_meter_write(p4::Update_Type update,
+                            const p4::DirectMeterEntry &meter_entry,
+                            const SessionTemp &session) {
+    Status status;
+    status.set_code(Code::OK);
+
+    pi_entry_handle_t entry_handle;
+    {
+      auto code = entry_handle_from_table_entry(meter_entry.table_entry(),
+                                                &entry_handle);
+      if (code != Code::OK) {
+        status.set_code(code);
+        return status;
+      }
+    }
+
+    switch (update) {
+      case p4::Update_Type_UNSPECIFIED:
+        status.set_code(Code::INVALID_ARGUMENT);
+        break;
+      // TODO(antonin): should INSERT and MODIFY be treated the same way?
+      case p4::Update_Type_INSERT:
+      case p4::Update_Type_MODIFY:
+        {
+          auto pi_meter_spec = meter_spec_proto_to_pi(meter_entry.config());
+          auto pi_status = pi_meter_set_direct(session.get(), device_tgt,
+                                               meter_entry.meter_id(),
+                                               entry_handle,
+                                               &pi_meter_spec);
+          if (pi_status != PI_STATUS_SUCCESS)
+            status.set_code(Code::UNKNOWN);
+        }
+        break;
+      case p4::Update_Type_DELETE:
+        {
+          pi_meter_spec_t pi_meter_spec =
+              {0, 0, 0, 0, PI_METER_UNIT_DEFAULT, PI_METER_TYPE_DEFAULT};
+          auto pi_status = pi_meter_set_direct(session.get(), device_tgt,
+                                               meter_entry.meter_id(),
+                                               entry_handle,
+                                               &pi_meter_spec);
+          if (pi_status != PI_STATUS_SUCCESS)
+            status.set_code(Code::UNKNOWN);
+        }
       default:
         status.set_code(Code::INVALID_ARGUMENT);
         break;
@@ -803,11 +928,11 @@ class DeviceMgrImp {
 
     pi::MatchTable mt(session.get(), device_tgt, p4info.get(), table_id);
     pi_status_t pi_status;
+    pi_entry_handle_t handle;
     // an empty match means default entry
     if (table_entry.match().empty()) {
       pi_status = mt.default_entry_set(action_entry);
     } else {
-      pi_entry_handle_t handle;
       pi_status = mt.entry_add(match_key, action_entry, false, &handle);
       // handle is not used as this frontend do all operations using match key
       (void) handle;
@@ -816,6 +941,9 @@ class DeviceMgrImp {
       status.set_code(Code::UNKNOWN);
       return status;
     }
+
+    table_info_store.add_entry(table_id, match_key,
+                               TableInfoStore::Data(handle));
 
     status.set_code(Code::OK);
     return status;
@@ -857,6 +985,8 @@ class DeviceMgrImp {
       status.set_code(Code::UNKNOWN);
       return status;
     }
+
+    table_info_store.remove_entry(table_id, match_key);
 
     status.set_code(Code::OK);
     return status;
@@ -904,6 +1034,8 @@ class DeviceMgrImp {
   // ActionProfMgr is not movable because of mutex
   std::unordered_map<pi_p4_id_t, std::unique_ptr<ActionProfMgr> >
   action_profs{};
+
+  TableInfoStore table_info_store;
 };
 
 DeviceMgr::DeviceMgr(device_id_t device_id) {
