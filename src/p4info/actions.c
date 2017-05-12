@@ -75,7 +75,8 @@ static _action_param_data_t *get_param_data(_action_data_t *action) {
 static _action_param_data_t *get_param_data_at(_action_data_t *action,
                                                pi_p4_id_t param_id) {
   _action_param_data_t *param_data = get_param_data(action);
-  for (size_t i = 0; i < action->num_params; i++) {
+  size_t i;
+  for (i = 0; i < action->num_params; i++) {
     if (param_data[i].param_id == param_id) return &param_data[i];
   }
   return NULL;
@@ -84,7 +85,8 @@ static _action_param_data_t *get_param_data_at(_action_data_t *action,
 static pi_p4_id_t get_param_id(_action_data_t *action, const char *name) {
   pi_p4_id_t *param_ids = get_param_ids(action);
   _action_param_data_t *param_data = get_param_data(action);
-  for (size_t i = 0; i < action->num_params; i++) {
+  size_t i;
+  for (i = 0; i < action->num_params; i++) {
     if (!strcmp(name, param_data[i].name)) return param_ids[i];
   }
   return PI_INVALID_ID;
@@ -104,7 +106,8 @@ static void free_action_data(void *data) {
   if (!action->name) return;
   free(action->name);
   _action_param_data_t *params = get_param_data(action);
-  for (size_t j = 0; j < action->num_params; j++) {
+  size_t j;
+  for (j = 0; j < action->num_params; j++) {
     _action_param_data_t *param = &params[j];
     if (!param->name) continue;
     free(param->name);
@@ -121,7 +124,9 @@ static void free_action_data(void *data) {
 void pi_p4info_action_serialize(cJSON *root, const pi_p4info_t *p4info) {
   cJSON *aArray = cJSON_CreateArray();
   const vector_t *actions = p4info->actions->vec;
-  for (size_t i = 0; i < vector_size(actions); i++) {
+  size_t i;
+  size_t j;
+  for (i = 0; i < vector_size(actions); i++) {
     _action_data_t *action = vector_at(actions, i);
     cJSON *aObject = cJSON_CreateObject();
 
@@ -130,7 +135,7 @@ void pi_p4info_action_serialize(cJSON *root, const pi_p4info_t *p4info) {
 
     cJSON *pArray = cJSON_CreateArray();
     _action_param_data_t *param_data = get_param_data(action);
-    for (size_t j = 0; j < action->num_params; j++) {
+    for (j = 0; j < action->num_params; j++) {
       cJSON *p = cJSON_CreateObject();
       cJSON_AddStringToObject(p, "name", param_data[j].name);
       cJSON_AddNumberToObject(p, "id", param_data[j].param_id);
@@ -232,7 +237,8 @@ size_t pi_p4info_action_param_index(const pi_p4info_t *p4info,
                                     pi_p4_id_t action_id, pi_p4_id_t param_id) {
   _action_data_t *action = get_action(p4info, action_id);
   pi_p4_id_t *param_ids = get_param_ids(action);
-  for (size_t i = 0; i < action->num_params; i++) {
+  size_t i;
+  for (i = 0; i < action->num_params; i++) {
     if (param_ids[i] == param_id) return i;
   }
   return (size_t)-1;

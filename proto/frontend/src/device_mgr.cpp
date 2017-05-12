@@ -766,9 +766,8 @@ class DeviceMgrImp {
                           p4::ReadResponse *response) const {
     Status status;
     status.set_code(Code::OK);
-    auto is_direct = (pi_p4info_counter_get_direct(p4info.get(), counter_id)
-                      != PI_INVALID_ID);
-    assert(!is_direct);
+    assert(!(pi_p4info_counter_get_direct(p4info.get(), counter_id)
+                      != PI_INVALID_ID));
     if (counter_entry.index() != 0) {
       auto entry = response->add_entities()->mutable_counter_entry();
       entry->CopyFrom(counter_entry);

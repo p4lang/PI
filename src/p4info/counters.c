@@ -59,7 +59,8 @@ static void free_counter_data(void *data) {
 void pi_p4info_counter_serialize(cJSON *root, const pi_p4info_t *p4info) {
   cJSON *cArray = cJSON_CreateArray();
   const vector_t *counters = p4info->counters->vec;
-  for (size_t i = 0; i < vector_size(counters); i++) {
+  size_t i;
+  for (i = 0; i < vector_size(counters); i++) {
     _counter_data_t *counter = vector_at(counters, i);
     cJSON *cObject = cJSON_CreateObject();
 

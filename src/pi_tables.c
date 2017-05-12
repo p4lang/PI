@@ -59,7 +59,8 @@ static bool check_direct_res_config(
     const pi_p4info_t *p4info, pi_p4_id_t table_id,
     const pi_direct_res_config_t *direct_res_config) {
   if (!direct_res_config) return true;
-  for (size_t i = 0; i < direct_res_config->num_configs; i++) {
+  size_t i;
+  for (i = 0; i < direct_res_config->num_configs; i++) {
     pi_p4_id_t res_id = direct_res_config->configs[0].res_id;
     if (!pi_p4info_table_is_direct_resource_of(p4info, table_id, res_id))
       return false;

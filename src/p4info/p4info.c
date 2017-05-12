@@ -87,8 +87,8 @@ pi_status_t pi_destroy_config(pi_p4info_t *p4info) {
 
 char *pi_serialize_config(const pi_p4info_t *p4info, int fmt) {
   cJSON *root = cJSON_CreateObject();
-
-  for (size_t i = 0;
+  size_t i;
+  for (i = 0;
        i < sizeof(p4info->resources) / sizeof(p4info->resources[0]); i++) {
     const pi_p4info_res_t *res = &p4info->resources[i];
     if (!res->is_init) continue;

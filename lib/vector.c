@@ -98,8 +98,9 @@ void vector_remove_e(vector_t *v, void *e) {
 }
 
 void vector_destroy(vector_t *v) {
+  size_t index;
   if (v->clean_fn) {
-    for (size_t index = 0; index < v->size; index++) {
+    for (index = 0; index < v->size; index++) {
       v->clean_fn(access(v, index));
     }
   }
