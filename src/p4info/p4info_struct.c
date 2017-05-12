@@ -38,8 +38,7 @@ void p4info_init_res(pi_p4info_t *p4info, pi_res_type_id_t res_type, size_t num,
 }
 
 void p4info_struct_destroy(pi_p4info_t *p4info) {
-  size_t i;
-  for (i = 0;
+  for (size_t i = 0;
        i < sizeof(p4info->resources) / sizeof(p4info->resources[0]); i++) {
     pi_p4info_res_t *res = &p4info->resources[i];
     if (!res->is_init) continue;

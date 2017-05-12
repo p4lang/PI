@@ -142,8 +142,7 @@ static void pre_reserve_ids(reader_state_t *state, pi_res_type_id_t type_id,
     if (num_ids == 0) continue;
     const cJSON *item = cJSON_GetObjectItem(object, "name");
     const char *name = item->valuestring;
-    size_t i;
-    for (i = 0; i < num_ids; i++) {
+    for (size_t i = 0; i < num_ids; i++) {
       pi_p4_id_t id = ids[i];
       pi_p4_id_t full_id = (type_id << 24) | id;
       if (id > 0xffff) {
@@ -203,8 +202,7 @@ static pi_p4_id_t request_id(reader_state_t *state, cJSON *object,
   find_annotation_id(object, ids, &num_ids);
   pi_p4_id_t id;
   if (num_ids != 0) {
-    size_t i;
-    for (i = 0; i < num_ids; i++) {
+    for (size_t i = 0; i < num_ids; i++) {
       id = (type_id << 24) | ids[i];
       assert(is_id_reserved(state, id));
       if (!is_id_allocated(state, id)) {
@@ -231,8 +229,7 @@ static void sort_json_array(cJSON *array) {
   assert(array->type == cJSON_Array);
   int size = cJSON_GetArraySize(array);
   const cJSON *item = NULL;
-  int i;
-  for (i = size - 1; i > 0; i--) {
+  for (int i = size - 1; i > 0; i--) {
     cJSON *object = array->child;
     cJSON *next_object = NULL;
     cJSON **prev_ptr = &(array->child);
@@ -456,8 +453,8 @@ static pi_status_t read_act_profs(reader_state_t *state, cJSON *root,
   if (!act_profs_vec) return PI_STATUS_CONFIG_READER_ERROR;
   size_t num_act_profs = vector_size(act_profs_vec);
   pi_p4info_act_prof_init(p4info, num_act_profs);
-  size_t i;
-  for (i = 0; i < num_act_profs; i++) {
+
+  for (size_t i = 0; i < num_act_profs; i++) {
     cJSON *act_prof = *(cJSON **)vector_at(act_profs_vec, i);
     const cJSON *item;
     item = cJSON_GetObjectItem(act_prof, "name");
@@ -485,8 +482,8 @@ static pi_status_t read_tables(reader_state_t *state, cJSON *root,
   if (!tables_vec) return PI_STATUS_CONFIG_READER_ERROR;
   size_t num_tables = vector_size(tables_vec);
   pi_p4info_table_init(p4info, num_tables);
-  size_t i;
-  for (i = 0; i < num_tables; i++) {
+
+  for (size_t i = 0; i < num_tables; i++) {
     cJSON *table = *(cJSON **)vector_at(tables_vec, i);
     const cJSON *item;
     item = cJSON_GetObjectItem(table, "name");

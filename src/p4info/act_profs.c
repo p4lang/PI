@@ -63,9 +63,7 @@ static void free_act_prof_data(void *data) {
 void pi_p4info_act_prof_serialize(cJSON *root, const pi_p4info_t *p4info) {
   cJSON *aArray = cJSON_CreateArray();
   const vector_t *act_profs = p4info->act_profs->vec;
-  size_t i;
-  size_t j;
-  for (i = 0; i < vector_size(act_profs); i++) {
+  for (size_t i = 0; i < vector_size(act_profs); i++) {
     _act_prof_data_t *act_prof = vector_at(act_profs, i);
     cJSON *aObject = cJSON_CreateObject();
 
@@ -73,7 +71,7 @@ void pi_p4info_act_prof_serialize(cJSON *root, const pi_p4info_t *p4info) {
     cJSON_AddNumberToObject(aObject, "id", act_prof->act_prof_id);
 
     cJSON *tablesArray = cJSON_CreateArray();
-    for (j = 0; j < act_prof->num_tables; j++) {
+    for (size_t j = 0; j < act_prof->num_tables; j++) {
       cJSON *table = cJSON_CreateNumber(act_prof->table_ids[j]);
       cJSON_AddItemToArray(tablesArray, table);
     }

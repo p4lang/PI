@@ -110,8 +110,7 @@ static const char *retrieve_name(const void *data) {
 static pi_p4_id_t get_match_field_id(_table_data_t *table, const char *name) {
   pi_p4_id_t *match_field_ids = get_match_field_ids(table);
   _match_field_data_t *match_field_data = get_match_field_data(table);
-  size_t i;
-  for (i = 0; i < table->num_match_fields; i++) {
+  for (size_t i = 0; i < table->num_match_fields; i++) {
     if (!strcmp(name, match_field_data[i].info.name)) return match_field_ids[i];
   }
   return PI_INVALID_ID;
@@ -119,8 +118,7 @@ static pi_p4_id_t get_match_field_id(_table_data_t *table, const char *name) {
 
 static const char *get_match_field_name(_table_data_t *table, pi_p4_id_t id) {
   _match_field_data_t *match_field_data = get_match_field_data(table);
-  size_t i;
-  for (i = 0; i < table->num_match_fields; i++) {
+  for (size_t i = 0; i < table->num_match_fields; i++) {
     if (match_field_data[i].info.mf_id == id)
       return match_field_data[i].info.name;
   }
@@ -132,8 +130,7 @@ static void free_table_data(void *data) {
   if (!table->name) return;
   free(table->name);
   _match_field_data_t *match_fields = get_match_field_data(table);
-  size_t j;
-  for (j = 0; j < table->num_match_fields; j++) {
+  for (size_t j = 0; j < table->num_match_fields; j++) {
     pi_p4info_match_field_info_t *mf_info = &match_fields[j].info;
     if (!mf_info->name) continue;
     free(mf_info->name);
@@ -154,9 +151,7 @@ static void free_table_data(void *data) {
 void pi_p4info_table_serialize(cJSON *root, const pi_p4info_t *p4info) {
   cJSON *tArray = cJSON_CreateArray();
   const vector_t *tables = p4info->tables->vec;
-  size_t i;
-  size_t j;
-  for (i = 0; i < vector_size(tables); i++) {
+  for (size_t i = 0; i < vector_size(tables); i++) {
     _table_data_t *table = vector_at(tables, i);
     cJSON *tObject = cJSON_CreateObject();
 
@@ -165,7 +160,7 @@ void pi_p4info_table_serialize(cJSON *root, const pi_p4info_t *p4info) {
 
     cJSON *mfArray = cJSON_CreateArray();
     _match_field_data_t *mf_data = get_match_field_data(table);
-    for (j = 0; j < table->num_match_fields; j++) {
+    for (size_t j = 0; j < table->num_match_fields; j++) {
       pi_p4info_match_field_info_t *mf_info = &mf_data[j].info;
       cJSON *mf = cJSON_CreateObject();
       cJSON_AddStringToObject(mf, "name", mf_info->name);
@@ -178,7 +173,7 @@ void pi_p4info_table_serialize(cJSON *root, const pi_p4info_t *p4info) {
 
     cJSON *actionsArray = cJSON_CreateArray();
     pi_p4_id_t *action_ids = get_action_ids(table);
-    for (j = 0; j < table->num_actions; j++) {
+    for (size_t j = 0; j < table->num_actions; j++) {
       cJSON *action = cJSON_CreateNumber(action_ids[j]);
       cJSON_AddItemToArray(actionsArray, action);
     }
@@ -193,7 +188,7 @@ void pi_p4info_table_serialize(cJSON *root, const pi_p4info_t *p4info) {
 
     cJSON *directresArray = cJSON_CreateArray();
     pi_p4_id_t *direct_res_ids = get_direct_resources(table);
-    for (j = 0; j < table->num_direct_resources; j++) {
+    for (size_t j = 0; j < table->num_direct_resources; j++) {
       cJSON *direct_res = cJSON_CreateNumber(direct_res_ids[j]);
       cJSON_AddItemToArray(directresArray, direct_res);
     }
@@ -335,8 +330,7 @@ bool pi_p4info_table_is_match_field_of(const pi_p4info_t *p4info,
                                        pi_p4_id_t table_id, pi_p4_id_t mf_id) {
   _table_data_t *table = get_table(p4info, table_id);
   pi_p4_id_t *ids = get_match_field_ids(table);
-  size_t i;
-  for (i = 0; i < table->num_match_fields; i++)
+  for (size_t i = 0; i < table->num_match_fields; i++)
     if (ids[i] == mf_id) return true;
   return false;
 }
@@ -360,8 +354,7 @@ size_t pi_p4info_table_match_field_index(const pi_p4info_t *p4info,
                                          pi_p4_id_t mf_id) {
   _table_data_t *table = get_table(p4info, table_id);
   pi_p4_id_t *ids = get_match_field_ids(table);
-  size_t i;
-  for (i = 0; i < table->num_match_fields; i++)
+  for (size_t i = 0; i < table->num_match_fields; i++)
     if (ids[i] == mf_id) return i;
   return (size_t)-1;
 }
@@ -416,8 +409,7 @@ bool pi_p4info_table_is_action_of(const pi_p4info_t *p4info,
                                   pi_p4_id_t table_id, pi_p4_id_t action_id) {
   _table_data_t *table = get_table(p4info, table_id);
   pi_p4_id_t *ids = get_action_ids(table);
-  size_t i;
-  for (i = 0; i < table->num_actions; i++)
+  for (size_t i = 0; i < table->num_actions; i++)
     if (ids[i] == action_id) return true;
   return false;
 }
@@ -456,8 +448,7 @@ bool pi_p4info_table_is_direct_resource_of(const pi_p4info_t *p4info,
                                            pi_p4_id_t direct_res_id) {
   _table_data_t *table = get_table(p4info, table_id);
   pi_p4_id_t *ids = get_direct_resources(table);
-  size_t i;
-  for (i = 0; i < table->num_direct_resources; i++)
+  for (size_t i = 0; i < table->num_direct_resources; i++)
     if (ids[i] == direct_res_id) return true;
   return false;
 }

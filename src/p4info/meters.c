@@ -62,8 +62,7 @@ static void free_meter_data(void *data) {
 void pi_p4info_meter_serialize(cJSON *root, const pi_p4info_t *p4info) {
   cJSON *mArray = cJSON_CreateArray();
   const vector_t *meters = p4info->meters->vec;
-  size_t i;
-  for (i = 0; i < vector_size(meters); i++) {
+  for (size_t i = 0; i < vector_size(meters); i++) {
     _meter_data_t *meter = vector_at(meters, i);
     cJSON *mObject = cJSON_CreateObject();
 
