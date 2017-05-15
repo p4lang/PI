@@ -25,6 +25,7 @@
 #include <PI/pi.h>
 
 #include <memory>
+#include <mutex>
 #include <unordered_map>
 
 namespace pi {
@@ -46,17 +47,24 @@ class TableInfoStore {
 
   // wish I could use boost::variant for these
   struct Data {
-    Data() : none(true), handle(0) { }
-    explicit Data(pi_entry_handle_t handle) : none(false), handle(handle) { }
+    Data(pi_entry_handle_t handle, uint64_t controller_metadata)
+        : handle(handle), controller_metadata(controller_metadata) { }
 
-    const bool none;
-    const pi_entry_handle_t handle;
-    // TODO(antonin): add support for controller metadata?
+    const pi_entry_handle_t handle{0};
+    uint64_t controller_metadata{0};
   };
+
+  using Mutex = std::mutex;
+  using Lock = std::unique_lock<Mutex>;
 
   TableInfoStore();
 
   ~TableInfoStore();
+
+  // Let the client (DeviceMgr) be responsible for locking the table
+  // state. This is the only way to guarantee that updates to the state are
+  // consistent with lower level driver operations.
+  Lock lock_table(pi_p4_id_t t_id);
 
   void add_table(pi_p4_id_t t_id);
 
@@ -64,9 +72,7 @@ class TableInfoStore {
 
   void remove_entry(pi_p4_id_t t_id, const MatchKey &mk);
 
-  // we assume that Data is going to remain very small and that it makes sense
-  // to return it by value (for the sake of thread-safety)
-  Data get_entry(pi_p4_id_t t_id, const MatchKey &mk) const;
+  Data *get_entry(pi_p4_id_t t_id, const MatchKey &mk) const;
 
   void reset();
 

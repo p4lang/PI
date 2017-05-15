@@ -22,7 +22,6 @@
 #include <PI/pi.h>
 
 #include <memory>
-#include <mutex>
 #include <sstream>
 #include <unordered_map>
 
@@ -36,28 +35,27 @@ namespace proto {
 
 using MatchKey = TableInfoStore::MatchKey;
 using Data = TableInfoStore::Data;
+using Mutex = TableInfoStore::Mutex;
+using Lock = TableInfoStore::Lock;
 
 class TableInfoStoreOne {
  public:
   void add_entry(const MatchKey &mk, const Data &data) {
-    Lock lock(mutex);
     data_map.emplace(mk, data);
   }
 
   void remove_entry(const MatchKey &mk) {
-    Lock lock(mutex);
     data_map.erase(mk);
   }
 
-  Data get_entry(const MatchKey &mk) {
+  Data *get_entry(const MatchKey &mk) {
     auto it = data_map.find(mk);
-    return (it == data_map.end()) ? Data() : it->second;
+    return (it == data_map.end()) ? nullptr : &it->second;
   }
 
- private:
-  using Mutex = std::mutex;
-  using Lock = std::lock_guard<Mutex>;
+  Lock lock() { return Lock(mutex); }
 
+ private:
   mutable Mutex mutex{};
   std::unordered_map<MatchKey, Data, pi::MatchKeyHash, pi::MatchKeyEq>
   data_map{};
@@ -65,6 +63,12 @@ class TableInfoStoreOne {
 
 TableInfoStore::TableInfoStore() = default;
 TableInfoStore::~TableInfoStore() = default;
+
+Lock
+TableInfoStore::lock_table(pi_p4_id_t t_id) {
+  auto &table = tables.at(t_id);
+  return table->lock();
+}
 
 void
 TableInfoStore::add_table(pi_p4_id_t t_id) {
@@ -85,7 +89,7 @@ TableInfoStore::remove_entry(pi_p4_id_t t_id, const MatchKey &mk) {
   table->remove_entry(mk);
 }
 
-Data
+Data *
 TableInfoStore::get_entry(pi_p4_id_t t_id, const MatchKey &mk) const {
   auto &table = tables.at(t_id);
   return table->get_entry(mk);
