@@ -211,7 +211,7 @@ message ActionProfileGroup {
     uint32 watch = 3;
   }
   repeated Member members = 4;
-  int32 max_size = 5;
+  int32 max_size = 5;  // cannot be modified after a group has been created
 }
 
 //------------------------------------------------------------------------------
