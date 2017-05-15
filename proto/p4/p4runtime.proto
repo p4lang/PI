@@ -119,8 +119,23 @@ message TableEntry {
   uint32 table_id = 1;
   repeated FieldMatch match = 2;
   TableAction action = 3;
-  int32 priority = 4;              // ignored unless match => TCAM
-  uint64 controller_metadata = 5;  // cookie
+  // Ignored unless match implies a TCAM lookup, i.e. at least one of the
+  // match fields is Ternary or Range.
+  // A higher number indicates higher priority.
+  // Only the highest priority entry that matches the packet must be selected.
+  // Given an existing entry with prority k, if the controller tries to insert
+  // or modify another entry with priority k such that a packet may match both
+  // entries, an error is returned. This will be the case if the overlap is
+  // strict (entries are identical) or not.
+  // In the future, if there is a use-case, a table-level annotation may be 
+  // introduced to make the overlap check non-strict. In that case, if there
+  // are multiple matching entries with the same highest priority, the selected
+  // entry will be explicitly undefined.
+  int32 priority = 4;
+  // Metadata (cookie) opaque to the target. There is no requirement of where
+  // this is stored, as long as it is returned with the rest of the entry in
+  // a Read RPC.
+  uint64 controller_metadata = 5;
 }
 
 // field_match_type ::= exact | ternary | lpm | range | valid
