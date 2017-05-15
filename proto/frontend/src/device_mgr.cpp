@@ -348,8 +348,8 @@ class DeviceMgrImp {
     }
     auto entry_data = table_info_store.get_entry(
         table_entry.table_id(), match_key);
-    if (entry_data.none) return Code::INVALID_ARGUMENT;
-    *handle = entry_data.handle;
+    if (entry_data == nullptr) return Code::INVALID_ARGUMENT;
+    *handle = entry_data->handle;
     return Code::OK;
   }
 
@@ -359,10 +359,12 @@ class DeviceMgrImp {
     Status status;
     status.set_code(Code::OK);
 
+    const auto &table_entry = meter_entry.table_entry();
+    auto table_lock = table_info_store.lock_table(table_entry.table_id());
+
     pi_entry_handle_t entry_handle;
     {
-      auto code = entry_handle_from_table_entry(meter_entry.table_entry(),
-                                                &entry_handle);
+      auto code = entry_handle_from_table_entry(table_entry, &entry_handle);
       if (code != Code::OK) {
         status.set_code(code);
         return status;
@@ -925,6 +927,8 @@ class DeviceMgrImp {
       return status;
     }
 
+    auto table_lock = table_info_store.lock_table(table_id);
+
     pi::MatchTable mt(session.get(), device_tgt, p4info.get(), table_id);
     pi_status_t pi_status;
     pi_entry_handle_t handle;
@@ -941,8 +945,9 @@ class DeviceMgrImp {
       return status;
     }
 
-    table_info_store.add_entry(table_id, match_key,
-                               TableInfoStore::Data(handle));
+    table_info_store.add_entry(
+        table_id, match_key,
+        TableInfoStore::Data(handle, table_entry.controller_metadata()));
 
     status.set_code(Code::OK);
     return status;
@@ -968,6 +973,8 @@ class DeviceMgrImp {
       status.set_code(code);
       return status;
     }
+
+    auto table_lock = table_info_store.lock_table(table_id);
 
     pi::MatchTable mt(session.get(), device_tgt, p4info.get(), table_id);
     pi_status_t pi_status;
