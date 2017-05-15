@@ -136,8 +136,7 @@ message Action {
 
 message ActionProfile {
   Preamble preamble = 1;
-  // the ids of the tables sharing this action profile; note that action profile
-  // sharing is not yet supported by the P4 software switch (bmv2)
+  // the ids of the tables sharing this action profile
   repeated uint32 table_ids = 2;
   // true iff the action profile used dynamic selection
   bool with_selector = 3;
