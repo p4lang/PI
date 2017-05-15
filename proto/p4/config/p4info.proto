@@ -140,7 +140,7 @@ message ActionProfile {
   repeated uint32 table_ids = 2;
   // true iff the action profile used dynamic selection
   bool with_selector = 3;
-  int64 size = 4;  // max number of entries in action profile
+  int64 size = 4;  // max number of member entries in action profile
 }
 
 message CounterSpec {
