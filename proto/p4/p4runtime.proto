@@ -119,8 +119,8 @@ message TableEntry {
   uint32 table_id = 1;
   repeated FieldMatch match = 2;
   TableAction action = 3;
-  // Ignored unless match implies a TCAM lookup, i.e. at least of the match
-  // fields is Ternary or Range.
+  // Ignored unless match implies a TCAM lookup, i.e. at least one of the
+  // match fields is Ternary or Range.
   // A higher number indicates higher priority.
   // Only the highest priority entry that matches the packet must be selected.
   // Given an existing entry with prority k, if the controller tries to insert
