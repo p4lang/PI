@@ -64,7 +64,7 @@ class TableInfoStore {
   // Let the client (DeviceMgr) be responsible for locking the table
   // state. This is the only way to guarantee that updates to the state are
   // consistent with lower level driver operations.
-  Lock lock_table(pi_p4_id_t t_id);
+  Lock lock_table(pi_p4_id_t t_id) const;
 
   void add_table(pi_p4_id_t t_id);
 

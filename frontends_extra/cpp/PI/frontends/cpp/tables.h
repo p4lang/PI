@@ -61,9 +61,13 @@ class MatchKey {
 
  public:
   MatchKey(const pi_p4info_t *p4info, pi_p4_id_t table_id);
+  explicit MatchKey(const pi_match_key_t *pi_match_key);  // performs a copy
   ~MatchKey();
 
   void reset();
+  // copies match key, but without memory allocation, table ids have to match
+  // (i.e. same match key format)
+  void from(const pi_match_key_t *pi_match_key);
 
   void set_priority(int priority);
 

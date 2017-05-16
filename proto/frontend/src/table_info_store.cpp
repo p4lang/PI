@@ -53,7 +53,7 @@ class TableInfoStoreOne {
     return (it == data_map.end()) ? nullptr : &it->second;
   }
 
-  Lock lock() { return Lock(mutex); }
+  Lock lock() const { return Lock(mutex); }
 
  private:
   mutable Mutex mutex{};
@@ -65,7 +65,7 @@ TableInfoStore::TableInfoStore() = default;
 TableInfoStore::~TableInfoStore() = default;
 
 Lock
-TableInfoStore::lock_table(pi_p4_id_t t_id) {
+TableInfoStore::lock_table(pi_p4_id_t t_id) const {
   auto &table = tables.at(t_id);
   return table->lock();
 }
