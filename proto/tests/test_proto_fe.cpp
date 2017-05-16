@@ -853,7 +853,8 @@ class MatchTableTest
       public WithParamInterface<std::tuple<const char *, MatchKeyInput> > {
  protected:
   p4::TableEntry generic_make(pi_p4_id_t t_id, const p4::FieldMatch &mf,
-                              const std::string &param_v);
+                              const std::string &param_v,
+                              uint64_t controller_metadata = 0);
 
   DeviceMgr::Status add_one(p4::TableEntry *entry);
 };
@@ -872,9 +873,11 @@ MatchTableTest::add_one(p4::TableEntry *entry) {
 
 p4::TableEntry
 MatchTableTest::generic_make(pi_p4_id_t t_id, const p4::FieldMatch &mf,
-                             const std::string &param_v) {
+                             const std::string &param_v,
+                             uint64_t controller_metadata) {
   p4::TableEntry table_entry;
   table_entry.set_table_id(t_id);
+  table_entry.set_controller_metadata(controller_metadata);
   auto mf_ptr = table_entry.add_match();
   *mf_ptr = mf;
   auto entry = table_entry.mutable_action();
@@ -965,7 +968,9 @@ TEST_P(MatchTableTest, AddAndRead) {
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _))
       .Times(2);
   DeviceMgr::Status status;
-  auto entry = generic_make(t_id, mk_input.get_proto(mf_id), adata);
+  uint64_t controller_metadata(0xab);
+  auto entry = generic_make(
+      t_id, mk_input.get_proto(mf_id), adata, controller_metadata);
   status = add_one(&entry);
   ASSERT_EQ(status.code(), Code::OK);
   // second is error because duplicate match key

@@ -506,6 +506,7 @@ class DeviceMgrImp {
                            T *entries, Accessor An) const {
     Status status;
     pi_table_fetch_res_t *res;
+    auto table_lock = table_info_store.lock_table(table_id);
     auto pi_status = pi_table_entries_fetch(session.get(), device_id,
                                             table_id, &res);
     if (pi_status != PI_STATUS_SUCCESS) {
@@ -516,6 +517,7 @@ class DeviceMgrImp {
     pi_table_ma_entry_t entry;
     pi_entry_handle_t entry_handle;
     Code code = Code::OK;
+    pi::MatchKey mk(p4info.get(), table_id);
     for (size_t i = 0; i < num_entries; i++) {
       pi_table_entries_next(res, &entry, &entry_handle);
       auto table_entry = An(entries);
@@ -524,6 +526,17 @@ class DeviceMgrImp {
       if (code != Code::OK) break;
       code = parse_action_entry(table_id, &entry.entry, table_entry);
       if (code != Code::OK) break;
+      // TODO(antonin): what I really want to do here is a heterogeneous lookup;
+      // instead I make a copy of the match key in the right format and I use
+      // this for the lookup. If this is a performance issue, we can find a
+      // better solution.
+      mk.from(entry.match_key);
+      auto entry_data = table_info_store.get_entry(table_id, mk);
+      // this would point to a serious bug in the implementation, and shoudn't
+      // occur given that we keep the local state in sync with lower level state
+      // thanks to our per-table lock.
+      assert(entry_data != nullptr);
+      table_entry->set_controller_metadata(entry_data->controller_metadata);
     }
 
     pi_table_entries_fetch_done(session.get(), res);

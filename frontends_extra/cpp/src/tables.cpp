@@ -169,12 +169,31 @@ MatchKey::MatchKey(const pi_p4info_t *p4info, pi_p4_id_t table_id)
   match_key->data = _data.data() + sizeof(*match_key);
 }
 
-MatchKey::~MatchKey() { }
+MatchKey::MatchKey(const pi_match_key_t *pi_match_key)
+    : p4info(pi_match_key->p4info), table_id(pi_match_key->table_id),
+      mk_size(pi_match_key->data_size),
+      _data(sizeof(*match_key) + mk_size),
+      match_key(reinterpret_cast<decltype(match_key)>(_data.data())),
+      reader(match_key) {
+  *match_key = *pi_match_key;
+  memcpy(_data.data(), pi_match_key->data, mk_size);
+}
+
+MatchKey::~MatchKey() = default;
 
 void
 MatchKey::reset() {
   nset = 0;
   match_key->priority = 0;
+}
+
+void
+MatchKey::from(const pi_match_key_t *pi_match_key) {
+  assert(p4info == pi_match_key->p4info);
+  assert(table_id == pi_match_key->table_id);
+  assert(mk_size == pi_match_key->data_size);
+  *match_key = *pi_match_key;
+  memcpy(_data.data(), pi_match_key->data, mk_size);
 }
 
 void
