@@ -201,6 +201,9 @@ class DeviceMgrImp {
     for (const auto &update : request.updates()) {
       const auto &entity = update.entity();
       switch (entity.entity_case()) {
+        case p4::Entity::kExternEntry:
+          status.set_code(Code::UNIMPLEMENTED);
+          break;
         case p4::Entity::kTableEntry:
           status = table_write(update.type(), entity.table_entry(), session);
           break;
@@ -968,10 +971,50 @@ class DeviceMgrImp {
 
   Status table_modify(const p4::TableEntry &table_entry,
                       const SessionTemp &session) {
-    (void) table_entry;
-    (void) session;
     Status status;
-    status.set_code(Code::UNIMPLEMENTED);
+    Code code;
+    const auto table_id = table_entry.table_id();
+    pi::MatchKey match_key(p4info.get(), table_id);
+    code = construct_match_key(table_entry, &match_key);
+    if (code != Code::OK) {
+      status.set_code(code);
+      return status;
+    }
+
+    pi::ActionEntry action_entry;
+    code = construct_action_entry(
+        table_id, table_entry.action(), &action_entry);
+    if (code != Code::OK) {
+      status.set_code(code);
+      return status;
+    }
+
+    auto table_lock = table_info_store.lock_table(table_id);
+
+    // we need this pointer to update the controller metadata if the modify
+    // operation is successful
+    auto entry_data = table_info_store.get_entry(table_id, match_key);
+    if (entry_data == nullptr) {
+      status.set_code(Code::INVALID_ARGUMENT);
+      return status;
+    }
+
+    pi::MatchTable mt(session.get(), device_tgt, p4info.get(), table_id);
+    pi_status_t pi_status;
+    // an empty match means default entry
+    if (table_entry.match().empty()) {
+      pi_status = mt.default_entry_set(action_entry);
+    } else {
+      pi_status = mt.entry_modify_wkey(match_key, action_entry);
+    }
+    if (pi_status != PI_STATUS_SUCCESS) {
+      status.set_code(Code::UNKNOWN);
+      return status;
+    }
+
+    entry_data->controller_metadata = table_entry.controller_metadata();
+
+    status.set_code(Code::OK);
     return status;
   }
 

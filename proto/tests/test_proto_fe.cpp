@@ -186,6 +186,25 @@ class DummyTable {
     return PI_STATUS_SUCCESS;
   }
 
+  pi_status_t entry_delete_wkey(const pi_match_key_t *match_key) {
+    auto it = key_to_handle.find(DummyMatchKey(match_key));
+    if (it == key_to_handle.end()) return PI_STATUS_TARGET_ERROR;
+    auto entry_handle = it->second;
+    assert(entries.erase(entry_handle) == 1);
+    key_to_handle.erase(it);
+    return PI_STATUS_SUCCESS;
+  }
+
+  pi_status_t entry_modify_wkey(const pi_match_key_t *match_key,
+                                const pi_table_entry_t *table_entry) {
+    auto it = key_to_handle.find(DummyMatchKey(match_key));
+    if (it == key_to_handle.end()) return PI_STATUS_TARGET_ERROR;
+    auto entry_handle = it->second;
+    auto &entry = entries.at(entry_handle);
+    entry.entry = DummyTableEntry(table_entry);
+    return PI_STATUS_SUCCESS;
+  }
+
   pi_status_t entries_fetch(pi_table_fetch_res_t *res) {
     res->num_entries = entries.size();
     // TODO(antonin): it does not make much sense to me anymore for it to be the
@@ -330,6 +349,17 @@ class DummySwitch {
     return tables[table_id].entry_add(match_key, table_entry, entry_handle);
   }
 
+  pi_status_t table_entry_delete_wkey(pi_p4_id_t table_id,
+                                      const pi_match_key_t *match_key) {
+    return tables[table_id].entry_delete_wkey(match_key);
+  }
+
+  pi_status_t table_entry_modify_wkey(pi_p4_id_t table_id,
+                                      const pi_match_key_t *match_key,
+                                      const pi_table_entry_t *table_entry) {
+    return tables[table_id].entry_modify_wkey(match_key, table_entry);
+  }
+
   pi_status_t table_entries_fetch(pi_p4_id_t table_id,
                                   pi_table_fetch_res_t *res) {
     return tables[table_id].entries_fetch(res);
@@ -410,10 +440,10 @@ using ::testing::Truly;
 using ::testing::Pointee;
 using ::testing::AtLeast;
 
-class DummySwitchMock : public DummySwitch {
+class DummySwitchMock {
  public:
   explicit DummySwitchMock(device_id_t device_id)
-      : DummySwitch(device_id), sw(device_id) {
+      : sw(device_id) {
     // delegate calls to real object
 
     // cannot use DoAll to combine 2 actions here (call to real object + handle
@@ -421,6 +451,10 @@ class DummySwitchMock : public DummySwitch {
     // call, but the delegated call is the one which needs to return the status
     ON_CALL(*this, table_entry_add(_, _, _, _))
         .WillByDefault(Invoke(this, &DummySwitchMock::_table_entry_add));
+    ON_CALL(*this, table_entry_delete_wkey(_, _))
+        .WillByDefault(Invoke(&sw, &DummySwitch::table_entry_delete_wkey));
+    ON_CALL(*this, table_entry_modify_wkey(_, _, _))
+        .WillByDefault(Invoke(&sw, &DummySwitch::table_entry_modify_wkey));
     ON_CALL(*this, table_entries_fetch(_, _))
         .WillByDefault(Invoke(&sw, &DummySwitch::table_entries_fetch));
 
@@ -492,6 +526,11 @@ class DummySwitchMock : public DummySwitch {
   MOCK_METHOD4(table_entry_add,
                pi_status_t(pi_p4_id_t, const pi_match_key_t *,
                            const pi_table_entry_t *, pi_entry_handle_t *));
+  MOCK_METHOD2(table_entry_delete_wkey,
+               pi_status_t(pi_p4_id_t, const pi_match_key_t *));
+  MOCK_METHOD3(table_entry_modify_wkey,
+               pi_status_t(pi_p4_id_t, const pi_match_key_t *,
+                           const pi_table_entry_t *));
   MOCK_METHOD2(table_entries_fetch,
                pi_status_t(pi_p4_id_t, pi_table_fetch_res_t *));
 
@@ -623,6 +662,21 @@ pi_status_t _pi_table_entry_add(pi_session_handle_t,
   (void)overwrite;
   return DeviceResolver::get_switch(dev_tgt.dev_id)->table_entry_add(
       table_id, match_key, table_entry, entry_handle);
+}
+
+pi_status_t _pi_table_entry_delete_wkey(pi_session_handle_t,
+                                        pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                        const pi_match_key_t *match_key) {
+  return DeviceResolver::get_switch(dev_id)->table_entry_delete_wkey(
+      table_id, match_key);
+}
+
+pi_status_t _pi_table_entry_modify_wkey(pi_session_handle_t,
+                                        pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                        const pi_match_key_t *match_key,
+                                        const pi_table_entry_t *table_entry) {
+  return DeviceResolver::get_switch(dev_id)->table_entry_modify_wkey(
+      table_id, match_key, table_entry);
 }
 
 pi_status_t _pi_table_entries_fetch(pi_session_handle_t,
@@ -852,23 +906,54 @@ class MatchTableTest
     : public DeviceMgrTest,
       public WithParamInterface<std::tuple<const char *, MatchKeyInput> > {
  protected:
+  MatchTableTest() {
+    t_id = pi_p4info_table_id_from_name(p4info, std::get<0>(GetParam()));
+    mf_id = pi_p4info_table_match_field_id_from_name(
+        p4info, t_id, "header_test.field32");
+    a_id = pi_p4info_action_id_from_name(p4info, "actionA");
+  }
+
   p4::TableEntry generic_make(pi_p4_id_t t_id, const p4::FieldMatch &mf,
                               const std::string &param_v,
                               uint64_t controller_metadata = 0);
 
+  DeviceMgr::Status generic_write(p4::Update_Type type, p4::TableEntry *entry);
   DeviceMgr::Status add_one(p4::TableEntry *entry);
+  DeviceMgr::Status remove(p4::TableEntry *entry);
+  DeviceMgr::Status modify(p4::TableEntry *entry);
+
+  pi_p4_id_t t_id = pi_p4info_table_id_from_name(
+      p4info, std::get<0>(GetParam()));
+  pi_p4_id_t mf_id = pi_p4info_table_match_field_id_from_name(
+      p4info, t_id, "header_test.field32");
+  pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, "actionA");
 };
 
 DeviceMgr::Status
-MatchTableTest::add_one(p4::TableEntry *entry) {
+MatchTableTest::generic_write(p4::Update_Type type, p4::TableEntry *entry) {
   p4::WriteRequest request;
   auto update = request.add_updates();
-  update->set_type(p4::Update_Type_INSERT);
+  update->set_type(type);
   auto entity = update->mutable_entity();
   entity->set_allocated_table_entry(entry);
   auto status = mgr.write(request);
   entity->release_table_entry();
   return status;
+}
+
+DeviceMgr::Status
+MatchTableTest::add_one(p4::TableEntry *entry) {
+  return generic_write(p4::Update_Type_INSERT, entry);
+}
+
+DeviceMgr::Status
+MatchTableTest::remove(p4::TableEntry *entry) {
+  return generic_write(p4::Update_Type_DELETE, entry);
+}
+
+DeviceMgr::Status
+MatchTableTest::modify(p4::TableEntry *entry) {
+  return generic_write(p4::Update_Type_MODIFY, entry);
 }
 
 p4::TableEntry
@@ -957,10 +1042,6 @@ struct TableEntryMatcher_Indirect {
 };
 
 TEST_P(MatchTableTest, AddAndRead) {
-  auto t_id = pi_p4info_table_id_from_name(p4info, std::get<0>(GetParam()));
-  auto mf_id = pi_p4info_table_match_field_id_from_name(
-      p4info, t_id, "header_test.field32");
-  auto a_id = pi_p4info_action_id_from_name(p4info, "actionA");
   std::string adata(6, '\x00');
   auto mk_input = std::get<1>(GetParam());
   auto mk_matcher = Truly(MatchKeyMatcher(t_id, mk_input.get_match_key()));
@@ -987,6 +1068,44 @@ TEST_P(MatchTableTest, AddAndRead) {
   const auto &entities = response.entities();
   ASSERT_EQ(1, entities.size());
   ASSERT_TRUE(MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
+}
+
+TEST_P(MatchTableTest, AddAndDelete) {
+  std::string adata(6, '\x00');
+  auto mk_input = std::get<1>(GetParam());
+  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mk_input.get_match_key()));
+  auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
+  EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
+  DeviceMgr::Status status;
+  auto entry = generic_make(t_id, mk_input.get_proto(mf_id), adata);
+  status = add_one(&entry);
+  ASSERT_EQ(status.code(), Code::OK);
+
+  EXPECT_CALL(*mock, table_entry_delete_wkey(t_id, mk_matcher)).Times(2);
+  status = remove(&entry);
+  EXPECT_EQ(status.code(), Code::OK);
+  // second call is error because match key has been removed already
+  status = remove(&entry);
+  EXPECT_NE(status.code(), Code::OK);
+}
+
+TEST_P(MatchTableTest, AddAndModify) {
+  std::string adata(6, '\x00');
+  auto mk_input = std::get<1>(GetParam());
+  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mk_input.get_match_key()));
+  auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
+  EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
+  DeviceMgr::Status status;
+  auto entry = generic_make(t_id, mk_input.get_proto(mf_id), adata);
+  status = add_one(&entry);
+  ASSERT_EQ(status.code(), Code::OK);
+
+  std::string new_adata(6, '\xaa');
+  auto new_entry_matcher = Truly(TableEntryMatcher_Direct(a_id, new_adata));
+  auto new_entry = generic_make(t_id, mk_input.get_proto(mf_id), adata);
+  EXPECT_CALL(*mock, table_entry_modify_wkey(t_id, mk_matcher, entry_matcher));
+  status = modify(&new_entry);
+  EXPECT_EQ(status.code(), Code::OK);
 }
 
 #define MK std::string("\xaa\xbb\xcc\xdd", 4)
@@ -1025,8 +1144,8 @@ class ActionProfTest : public DeviceMgrTest {
     return member;
   }
 
-  template <typename T>
-  DeviceMgr::Status write_member(T type, p4::ActionProfileMember *member) {
+  DeviceMgr::Status write_member(p4::Update_Type type,
+                                 p4::ActionProfileMember *member) {
     p4::WriteRequest request;
     auto update = request.add_updates();
     update->set_type(type);
@@ -1073,8 +1192,8 @@ class ActionProfTest : public DeviceMgrTest {
     return make_group(group_id, members.begin(), members.end());
   }
 
-  template <typename T>
-  DeviceMgr::Status write_group(T type, p4::ActionProfileGroup *group) {
+  DeviceMgr::Status write_group(p4::Update_Type type,
+                                p4::ActionProfileGroup *group) {
     p4::WriteRequest request;
     auto update = request.add_updates();
     update->set_type(type);
