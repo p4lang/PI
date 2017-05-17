@@ -262,6 +262,11 @@ class MatchTable {
   pi_status_t entry_delete(pi_entry_handle_t entry_handle);
   pi_status_t entry_delete_wkey(const MatchKey &match_key);
 
+  pi_status_t entry_modify(pi_entry_handle_t entry_handle,
+                           const ActionEntry &action_entry);
+  pi_status_t entry_modify_wkey(const MatchKey &match_key,
+                                const ActionEntry &action_entry);
+
   pi_status_t default_entry_set(const ActionEntry &action_entry);
 
   // these overloads are mostly for backward-compatibility, try not to use in
