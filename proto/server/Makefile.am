@@ -16,4 +16,5 @@ nobase_include_HEADERS = PI/proto/pi_server.h
 libpigrpcserver_la_LIBADD = \
 $(top_builddir)/frontend/libpifeproto.la \
 $(top_builddir)/libpiproto.la \
-$(PROTOBUF_LIBS) $(GRPC_LIBS)
+$(PROTOBUF_LIBS) $(GRPC_LIBS) \
+-lgrpc++_error_details

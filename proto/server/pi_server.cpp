@@ -31,6 +31,7 @@
 #include <csignal>
 
 #include <grpc++/grpc++.h>
+#include <grpc++/support/error_details.h>
 
 #include "p4/p4runtime.grpc.pb.h"
 #include "google/rpc/code.pb.h"
@@ -69,6 +70,17 @@ StreamChannelClientMgr *packet_in_mgr;
 void packet_in_cb(DeviceMgr::device_id_t device_id, std::string packet,
                   void *cookie);
 
+
+// DeviceMgr::Status == google::rpc::Status
+grpc::Status to_grpc_status(const DeviceMgr::Status &from) {
+  grpc::Status to;
+  auto conversion_status = grpc::SetErrorDetails(from, &to);
+  // This can only fail if the second argument to SetErrorDetails is a nullptr,
+  // which cannot be the case here
+  assert(conversion_status.ok());
+  return to;
+}
+
 class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
  private:
   Status Write(ServerContext *context,
@@ -78,9 +90,7 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
     SIMPLELOG << request->DebugString();
     (void) rep;
     auto status = device_mgr->write(*request);
-    // TODO(antonin): report errors
-    (void) status;
-    return Status::OK;
+    return to_grpc_status(status);
   }
 
   Status Read(ServerContext *context,
@@ -90,10 +100,8 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
     SIMPLELOG << request->DebugString();
     p4::ReadResponse response;
     auto status = device_mgr->read(*request, &response);
-    // TODO(antonin): report errors
-    (void) status;
     writer->Write(response);
-    return Status::OK;
+    return to_grpc_status(status);
   }
 
   Status SetForwardingPipelineConfig(
@@ -105,12 +113,10 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
     for (const auto &config : request->configs()) {
       if (device_mgr == nullptr) device_mgr = new DeviceMgr(config.device_id());
       auto status = device_mgr->pipeline_config_set(request->action(), config);
-      // TODO(antonin): report errors
-      (void) status;
       device_mgr->packet_in_register_cb(::packet_in_cb,
                                         static_cast<void *>(packet_in_mgr));
       // TODO(antonin): multi-device support
-      break;
+      return to_grpc_status(status);
     }
     return Status::OK;
   }
@@ -123,10 +129,8 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
     for (const auto device_id : request->device_ids()) {
       (void) device_id;
       auto status = device_mgr->pipeline_config_get(rep->add_configs());
-      // TODO(antonin): report errors
-      (void) status;
       // TODO(antonin): multi-device support
-      break;
+      return to_grpc_status(status);
     }
     return Status::OK;
   }
