@@ -176,7 +176,8 @@ MatchKey::MatchKey(const pi_match_key_t *pi_match_key)
       match_key(reinterpret_cast<decltype(match_key)>(_data.data())),
       reader(match_key) {
   *match_key = *pi_match_key;
-  memcpy(_data.data(), pi_match_key->data, mk_size);
+  match_key->data = _data.data() + sizeof(*match_key);
+  memcpy(match_key->data, pi_match_key->data, mk_size);
 }
 
 MatchKey::~MatchKey() = default;
@@ -193,7 +194,8 @@ MatchKey::from(const pi_match_key_t *pi_match_key) {
   assert(table_id == pi_match_key->table_id);
   assert(mk_size == pi_match_key->data_size);
   *match_key = *pi_match_key;
-  memcpy(_data.data(), pi_match_key->data, mk_size);
+  match_key->data = _data.data() + sizeof(*match_key);
+  memcpy(match_key->data, pi_match_key->data, mk_size);
 }
 
 void
