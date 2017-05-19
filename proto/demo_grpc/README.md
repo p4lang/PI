@@ -2,13 +2,13 @@
 
 ## Dependencies
 
-- [bmv2] (https://github.com/p4lang/behavioral-model) and all its
+- [bmv2](https://github.com/p4lang/behavioral-model) and all its
   dependencies. We use bmv2 to simulate the P4 dataplane.
-- [gRPC] (https://github.com/grpc/grpc)
-- [libmicrohttpd] (https://www.gnu.org/software/libmicrohttpd). We use it to
+- [gRPC](https://github.com/grpc/grpc)
+- [libmicrohttpd](https://www.gnu.org/software/libmicrohttpd). We use it to
   access some of the controller functions through a web page. In Ubuntu, you can
   install it with ` sudo apt-get install libmicrohttpd-dev`.
-- [Boost.Asio] (http://www.boost.org/doc/libs/1_62_0/doc/html/boost_asio.html).
+- [Boost.Asio](http://www.boost.org/doc/libs/1_62_0/doc/html/boost_asio.html).
   We use it to handle events asynchronously in the controller.
 
 ## Building the demo
@@ -49,14 +49,15 @@ query a counter.
 
 ## Source code description
 
-- [pi_server.cpp] (pi_server.cpp): the gRPC server which implements the PI
-  service handlers. This code translates the Protobuf messages into PI library
-  calls.
-- [simple_router_mgr.h] (simple_router_mgr.h) and [simple_router_mgr.cpp]
-  (simple_router_mgr.cpp): they define the `SimpleRouterMgr` class, in charge of
-  managing one switch instance in the context of the controller.
-- [web_server.h] (web_server.h) and [web_server.cpp] (web_server.cpp): they
-  define the `WebServer` class, which exposes a web interface into the
-  controller.
-- [app.cpp] (app.cpp): the controller itself, instantiates `SimpleRouterMgr`
+- [pi_server.cpp](pi_server.cpp): the gRPC server which implements the PI
+  service handlers. This code translates the Protobuf messages into calls to the
+  PI proto frontend (`DeviceMgr`). This frontend will then call into the PI C
+  library.
+- [simple_router_mgr.h](simple_router_mgr.h) and
+  [simple_router_mgr.cpp](simple_router_mgr.cpp): they define the
+  `SimpleRouterMgr` class, in charge of managing one switch instance in the
+  context of the controller.
+- [web_server.h](web_server.h) and [web_server.cpp](web_server.cpp): they define
+  the `WebServer` class, which exposes a web interface into the controller.
+- [app.cpp](app.cpp): the controller itself, instantiates `SimpleRouterMgr`
   appropriately and starts the web server.
