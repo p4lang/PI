@@ -24,7 +24,7 @@ test_p4info_convert_SOURCES = $(common_source) test_p4info_convert.cpp
 
 test_p4info_convert_LDADD = \
 $(top_builddir)/p4info/libpiconvertproto.la \
-$(top_builddir)/libpiproto.la \
+$(top_builddir)/libpiprotobuf.la \
 $(top_builddir)/../src/libpip4info.la \
 $(common_libs)
 
@@ -39,7 +39,7 @@ test_proto_fe_LDADD = \
 $(top_builddir)/p4info/libpiconvertproto.la \
 $(top_builddir)/frontend/libpifeproto.la \
 $(top_builddir)/../frontends_extra/cpp/libpifecpp.la \
-$(top_builddir)/libpiproto.la \
+$(top_builddir)/libpiprotobuf.la \
 $(top_builddir)/../src/libpiall.la \
 $(top_builddir)/../src/libpip4info.la \
 $(common_libs)
