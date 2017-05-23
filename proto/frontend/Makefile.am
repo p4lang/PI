@@ -21,7 +21,7 @@ src/common.h
 libpifeproto_la_LIBADD = \
 $(top_builddir)/../frontends_extra/cpp/libpifecpp.la \
 $(top_builddir)/p4info/libpiconvertproto.la \
-$(top_builddir)/libpiproto.la \
+$(top_builddir)/libpiprotobuf.la \
 $(top_builddir)/../src/libpip4info.la
 
 nobase_include_HEADERS = \
