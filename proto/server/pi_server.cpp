@@ -31,7 +31,7 @@
 #include <csignal>
 
 #include <grpc++/grpc++.h>
-#include <grpc++/support/error_details.h>
+// #include <grpc++/support/error_details.h>
 
 #include "p4/p4runtime.grpc.pb.h"
 #include "google/rpc/code.pb.h"
@@ -70,11 +70,30 @@ StreamChannelClientMgr *packet_in_mgr;
 void packet_in_cb(DeviceMgr::device_id_t device_id, std::string packet,
                   void *cookie);
 
+// Copied from
+// https://github.com/grpc/grpc/blob/master/src/cpp/util/error_details.cc
+// Cannot use libgrpc++_error_details, as the library includes
+// generated code for google.rpc.Status which clashes with libpiproto
+// TODO(unknown): find a solution
+Status SetErrorDetails(const ::google::rpc::Status& from, grpc::Status* to) {
+  using grpc::Status;
+  using grpc::StatusCode;
+  if (to == nullptr) {
+    return Status(StatusCode::FAILED_PRECONDITION, "");
+  }
+  StatusCode code = StatusCode::UNKNOWN;
+  if (from.code() >= StatusCode::OK && from.code() <= StatusCode::DATA_LOSS) {
+    code = static_cast<StatusCode>(from.code());
+  }
+  *to = Status(code, from.message(), from.SerializeAsString());
+  return Status::OK;
+}
 
 // DeviceMgr::Status == google::rpc::Status
 grpc::Status to_grpc_status(const DeviceMgr::Status &from) {
   grpc::Status to;
-  auto conversion_status = grpc::SetErrorDetails(from, &to);
+  // auto conversion_status = grpc::SetErrorDetails(from, &to);
+  auto conversion_status = ::SetErrorDetails(from, &to);
   // This can only fail if the second argument to SetErrorDetails is a nullptr,
   // which cannot be the case here
   assert(conversion_status.ok());
