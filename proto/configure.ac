@@ -28,7 +28,7 @@ AC_SUBST([PROTOBUF_LIBS])
 
 dnl we need >= 1.3.0 so that binary error details (libgrpc++_error_details) are
 dnl available
-PKG_CHECK_MODULES([GRPC], [grpc >= 1.3.0 grpc++ >= 1.3.0])
+PKG_CHECK_MODULES([GRPC], [grpc++ >= 1.3.0 grpc >= 3.0.0])
 AC_SUBST([GRPC_CFLAGS])
 AC_SUBST([GRPC_LIBS])
 

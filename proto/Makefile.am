@@ -160,19 +160,24 @@ $(BUILT_SOURCES): proto_files.ts
 	  fi; \
 	fi
 
-# is this the best name for this library, or is this too generic?
-lib_LTLIBRARIES = libpiproto.la
+noinst_LTLIBRARIES = libpiprotobuf.la libpigrpc.la
 
 # generated source should not be distributed
-nodist_libpiproto_la_SOURCES = \
-$(proto_cpp_files) $(proto_grpc_files)
+nodist_libpiprotobuf_la_SOURCES = $(proto_cpp_files)
+nodist_libpigrpc_la_SOURCES = $(proto_grpc_files)
+
+libpiprotobuf_la_LIBADD = $(PROTOBUF_LIBS)
+libpigrpc_la_LIBADD = $(PROTOBUF_LIBS) $(GRPC_LIBS)
+
+# is this the best name for this library, or is this too generic?
+lib_LTLIBRARIES = libpiproto.la
 
 libpiproto_la_SOURCES = \
 src/util.cpp
 
+libpiproto_la_LIBADD = libpiprotobuf.la libpigrpc.la
+
 nobase_include_HEADERS = \
 PI/proto/util.h
-
-libpiproto_la_LIBADD = $(PROTOBUF_LIBS) $(GRPC_LIBS)
 
 CLEANFILES = $(BUILT_SOURCES) proto_files.ts

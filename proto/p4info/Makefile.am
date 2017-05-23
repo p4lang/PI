@@ -20,6 +20,6 @@ convert_p4info.cpp
 
 pi_convert_p4info_LDADD = \
 $(builddir)/libpiconvertproto.la \
-$(top_builddir)/libpiproto.la \
+$(top_builddir)/libpiprotobuf.la \
 $(top_builddir)/../src/libpip4info.la \
 $(PROTOBUF_LIBS)
