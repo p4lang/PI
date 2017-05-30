@@ -45,6 +45,9 @@ class MatchKeyReader {
   error_code_t get_ternary(pi_p4_id_t f_id, std::string *key,
                            std::string *mask) const;
 
+  error_code_t get_range(pi_p4_id_t f_id, std::string *start,
+                         std::string *end) const;
+
   error_code_t get_valid(pi_p4_id_t f_id, bool *key) const;
 
   int get_priority() const;
@@ -97,6 +100,15 @@ class MatchKey {
 
   error_code_t get_ternary(pi_p4_id_t f_id, std::string *key,
                            std::string *mask) const;
+
+  template <typename T>
+  typename std::enable_if<std::is_integral<T>::value, error_code_t>::type
+  set_range(pi_p4_id_t f_id, T start, T end);
+  error_code_t
+  set_range(pi_p4_id_t f_id, const char *start, const char *end, size_t s);
+
+  error_code_t get_range(pi_p4_id_t f_id, std::string *start,
+                         std::string *end) const;
 
   error_code_t set_valid(pi_p4_id_t f_id, bool key);
   error_code_t get_valid(pi_p4_id_t f_id, bool *key) const;

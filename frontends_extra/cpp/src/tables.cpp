@@ -141,6 +141,12 @@ MatchKeyReader::get_ternary(pi_p4_id_t f_id, std::string *key,
 }
 
 error_code_t
+MatchKeyReader::get_range(pi_p4_id_t f_id, std::string *start,
+                          std::string *end) const {
+  return get_ternary(f_id, start, end);
+}
+
+error_code_t
 MatchKeyReader::get_valid(pi_p4_id_t f_id, bool *key) const {
   size_t offset = pi_p4info_table_match_field_offset(
       match_key->p4info, match_key->table_id, f_id);
@@ -364,6 +370,41 @@ error_code_t
 MatchKey::get_ternary(pi_p4_id_t f_id, std::string *key,
                       std::string *mask) const {
   return reader.get_ternary(f_id, key, mask);
+}
+
+template <typename T>
+typename std::enable_if<std::is_integral<T>::value, error_code_t>::type
+MatchKey::set_range(pi_p4_id_t f_id, T start, T end) {
+  return set_ternary(f_id, start, end);
+}
+
+template error_code_t MatchKey::set_range<uint8_t>(pi_p4_id_t, uint8_t,
+                                                   uint8_t);
+template error_code_t MatchKey::set_range<uint16_t>(pi_p4_id_t, uint16_t,
+                                                    uint16_t);
+template error_code_t MatchKey::set_range<uint32_t>(pi_p4_id_t, uint32_t,
+                                                    uint32_t);
+template error_code_t MatchKey::set_range<uint64_t>(pi_p4_id_t, uint64_t,
+                                                    uint64_t);
+template error_code_t MatchKey::set_range<int8_t>(pi_p4_id_t, int8_t,
+                                                  int8_t);
+template error_code_t MatchKey::set_range<int16_t>(pi_p4_id_t, int16_t,
+                                                   int16_t);
+template error_code_t MatchKey::set_range<int32_t>(pi_p4_id_t, int32_t,
+                                                   int32_t);
+template error_code_t MatchKey::set_range<int64_t>(pi_p4_id_t, int64_t,
+                                                   int64_t);
+
+error_code_t
+MatchKey::set_range(pi_p4_id_t f_id, const char *start, const char *end,
+                    size_t s) {
+  return set_ternary(f_id, start, end, s);
+}
+
+error_code_t
+MatchKey::get_range(pi_p4_id_t f_id, std::string *start,
+                    std::string *end) const {
+  return reader.get_range(f_id, start, end);
 }
 
 error_code_t

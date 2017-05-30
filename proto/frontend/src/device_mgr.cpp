@@ -451,7 +451,12 @@ class DeviceMgrImp {
           }
           break;
         case PI_P4INFO_MATCH_TYPE_RANGE:
-          return Code::UNIMPLEMENTED;
+          {
+            auto range = mf->mutable_range();
+            mk_reader.get_range(finfo->mf_id, range->mutable_low(),
+                                range->mutable_high());
+          }
+          break;
         default:
           return Code::UNKNOWN;
       }
@@ -860,7 +865,12 @@ class DeviceMgrImp {
           match_key->set_valid(mf.field_id(), mf.valid().value());
           break;
         case p4::FieldMatch::kRange:
-          return Code::UNIMPLEMENTED;
+          if (mf.range().low().size() != mf.range().high().size())
+            return Code::INVALID_ARGUMENT;
+          match_key->set_range(mf.field_id(), mf.range().low().data(),
+                               mf.range().high().data(),
+                               mf.range().low().size());
+          break;
         default:
           return Code::INVALID_ARGUMENT;
       }
