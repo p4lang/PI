@@ -848,13 +848,25 @@ using ::testing::Combine;
 
 class MatchKeyInput {
  public:
-  explicit MatchKeyInput(const std::string &mf_v) : mf(mf_v) { }
-  MatchKeyInput(const std::string &mf_v, const std::string &mask_v)
-      : mf(mf_v), mask(mask_v) { }
-  MatchKeyInput(const std::string &mf_v, const std::string &mask_v, int pri)
-      : mf(mf_v), mask(mask_v), priority(pri) { }
-  MatchKeyInput(const std::string &mf_v, unsigned int pLen)
-      : mf(mf_v), pLen(pLen) { }
+  static MatchKeyInput make_exact(const std::string &mf_v) {
+    return MatchKeyInput(Type::EXACT, mf_v, "", 0, 0);
+  }
+
+  static MatchKeyInput make_lpm(const std::string &mf_v, unsigned int pLen) {
+    return MatchKeyInput(Type::LPM, mf_v, "", pLen, 0);
+  }
+
+  static MatchKeyInput make_ternary(const std::string &mf_v,
+                                    const std::string &mask_v,
+                                    int priority) {
+    return MatchKeyInput(Type::TERNARY, mf_v, mask_v, 0, priority);
+  }
+
+  static MatchKeyInput make_range(const std::string &start_v,
+                                  const std::string &end_v,
+                                  int priority) {
+    return MatchKeyInput(Type::RANGE, start_v, end_v, 0, priority);
+  }
 
   std::string get_match_key() const {
     std::string mk(mf);
@@ -870,17 +882,34 @@ class MatchKeyInput {
   p4::FieldMatch get_proto(pi_p4_id_t f_id) const {
     p4::FieldMatch fm;
     fm.set_field_id(f_id);
-    if (mask != "") {
-      auto ternary = fm.mutable_ternary();
-      ternary->set_value(mf);
-      ternary->set_mask(mask);
-    } else if (pLen > 0) {
-      auto lpm = fm.mutable_lpm();
-      lpm->set_value(mf);
-      lpm->set_prefix_len(pLen);
-    } else {
-      auto exact = fm.mutable_exact();
-      exact->set_value(mf);
+    switch (type) {
+      case Type::EXACT:
+        {
+          auto exact = fm.mutable_exact();
+          exact->set_value(mf);
+          break;
+        }
+      case Type::LPM:
+        {
+          auto lpm = fm.mutable_lpm();
+          lpm->set_value(mf);
+          lpm->set_prefix_len(pLen);
+          break;
+        }
+      case Type::TERNARY:
+        {
+          auto ternary = fm.mutable_ternary();
+          ternary->set_value(mf);
+          ternary->set_mask(mask);
+          break;
+        }
+      case Type::RANGE:
+        {
+          auto range = fm.mutable_range();
+          range->set_low(mf);
+          range->set_high(mask);
+          break;
+        }
     }
     return fm;
   }
@@ -896,10 +925,19 @@ class MatchKeyInput {
   }
 
  private:
+  enum class Type {
+    EXACT, LPM, TERNARY, RANGE
+  };
+
+  MatchKeyInput(Type type, const std::string &mf_v, const std::string &mask_v,
+                unsigned int pLen, int pri)
+      : type(type), mf(mf_v), mask(mask_v), pLen(pLen), priority(pri) { }
+
+  Type type;
   std::string mf;
-  std::string mask{""};
-  unsigned int pLen{0};
-  int priority{0};
+  std::string mask;
+  unsigned int pLen;
+  int priority;
 };
 
 class MatchTableTest
@@ -1111,12 +1149,16 @@ TEST_P(MatchTableTest, AddAndModify) {
 #define MK std::string("\xaa\xbb\xcc\xdd", 4)
 #define MASK std::string("\xff\x01\xf0\x0f", 4)
 #define PREF_LEN 12
+#define PRIORITY 77
 
 INSTANTIATE_TEST_CASE_P(
     MatchTableTypes, MatchTableTest,
-    Values(std::make_tuple("ExactOne", MatchKeyInput(MK)),
-           std::make_tuple("LpmOne", MatchKeyInput(MK, PREF_LEN)),
-           std::make_tuple("TernaryOne", MatchKeyInput(MK, MASK))));
+    Values(std::make_tuple("ExactOne", MatchKeyInput::make_exact(MK)),
+           std::make_tuple("LpmOne", MatchKeyInput::make_lpm(MK, PREF_LEN)),
+           std::make_tuple("TernaryOne",
+                           MatchKeyInput::make_ternary(MK, MASK, PRIORITY)),
+           std::make_tuple("RangeOne",
+                           MatchKeyInput::make_range(MK, MASK, PRIORITY))));
 
 #undef MK
 #undef MASK

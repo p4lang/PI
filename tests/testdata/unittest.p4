@@ -80,6 +80,16 @@ table TernaryOne {
     size: 512;
 }
 
+table RangeOne {
+    reads {
+        header_test.field32 : range;
+    }
+    actions {
+        actionA;
+    }
+    size: 512;
+}
+
 table MixMany {
     reads {
         header_test.field32 : exact;
@@ -130,6 +140,7 @@ control ingress {
     apply(ExactOne);
     apply(LpmOne);
     apply(TernaryOne);
+    apply(RangeOne);
     apply(MixMany);
     apply(IndirectWS);
 }

@@ -2,8 +2,9 @@
     "__meta__": {
         "version": [
             2,
-            0
-        ]
+            5
+        ],
+        "compiler": "https://github.com/p4lang/p4c-bm"
     },
     "header_types": [
         {
@@ -156,37 +157,8 @@
     ],
     "actions": [
         {
-            "name": "actionA",
-            "id": 0,
-            "runtime_data": [
-                {
-                    "name": "param",
-                    "bitwidth": 48
-                }
-            ],
-            "primitives": [
-                {
-                    "op": "modify_field",
-                    "parameters": [
-                        {
-                            "type": "field",
-                            "value": [
-                                "header_test",
-                                "field48"
-                            ]
-                        },
-                        {
-                            "type": "runtime_data",
-                            "value": 0
-                        }
-                    ]
-                }
-            ],
-            "pragmas": []
-        },
-        {
             "name": "actionB",
-            "id": 1,
+            "id": 0,
             "runtime_data": [
                 {
                     "name": "param",
@@ -202,6 +174,35 @@
                             "value": [
                                 "header_test",
                                 "field8"
+                            ]
+                        },
+                        {
+                            "type": "runtime_data",
+                            "value": 0
+                        }
+                    ]
+                }
+            ],
+            "pragmas": []
+        },
+        {
+            "name": "actionA",
+            "id": 1,
+            "runtime_data": [
+                {
+                    "name": "param",
+                    "bitwidth": 48
+                }
+            ],
+            "primitives": [
+                {
+                    "op": "modify_field",
+                    "parameters": [
+                        {
+                            "type": "field",
+                            "value": [
+                                "header_test",
+                                "field48"
                             ]
                         },
                         {
@@ -301,6 +302,34 @@
                         "actionA"
                     ],
                     "next_tables": {
+                        "actionA": "RangeOne"
+                    },
+                    "base_default_next": "RangeOne",
+                    "pragmas": []
+                },
+                {
+                    "name": "RangeOne",
+                    "id": 3,
+                    "match_type": "range",
+                    "type": "simple",
+                    "max_size": 512,
+                    "with_counters": false,
+                    "direct_meters": null,
+                    "support_timeout": false,
+                    "key": [
+                        {
+                            "match_type": "range",
+                            "target": [
+                                "header_test",
+                                "field32"
+                            ],
+                            "mask": null
+                        }
+                    ],
+                    "actions": [
+                        "actionA"
+                    ],
+                    "next_tables": {
                         "actionA": "MixMany"
                     },
                     "base_default_next": "MixMany",
@@ -308,7 +337,7 @@
                 },
                 {
                     "name": "MixMany",
-                    "id": 3,
+                    "id": 4,
                     "match_type": "ternary",
                     "type": "simple",
                     "max_size": 512,
@@ -357,7 +386,7 @@
                 },
                 {
                     "name": "IndirectWS",
-                    "id": 4,
+                    "id": 5,
                     "match_type": "exact",
                     "type": "indirect_ws",
                     "action_profile": "ActProfWS",
@@ -417,7 +446,8 @@
                                 ]
                             }
                         ]
-                    }
+                    },
+                    "pragmas": []
                 }
             ],
             "conditionals": []
