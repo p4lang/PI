@@ -142,6 +142,8 @@ message TableEntry {
 message FieldMatch {
   uint32 field_id = 1;
 
+  // Matches can be performed on arbitrarily-large inputs; the protobuf type
+  // 'bytes' is used to model arbitrarily-large values.
   message Exact {
     bytes value = 1;
   }
@@ -153,9 +155,11 @@ message FieldMatch {
     bytes value = 1;
     int32 prefix_len = 2;  // in bits
   }
+  // A Range is logically a set that contains all values numerically between
+  // 'low' and 'high' inclusively.
   message Range {
-    int32 low = 1;
-    int32 high = 2;
+    bytes low = 1;
+    bytes high = 2;
   }
   message Valid {
     bool value = 1;
