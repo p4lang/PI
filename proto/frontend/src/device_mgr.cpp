@@ -71,6 +71,23 @@ pi_meter_spec_t meter_spec_proto_to_pi(const p4::MeterConfig &config) {
   return pi_meter_spec;
 }
 
+uint8_t clz(uint8_t b) {
+  static constexpr uint8_t clz_table_hb[16] =
+      {4, 3, 2, 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0};
+  uint8_t hb0 = b >> 4;
+  uint8_t hb1 = b & 0x0f;
+  return (hb0 == 0) ? (4 + clz_table_hb[hb1]) : clz_table_hb[hb0];
+}
+
+Code check_proto_bytestring(const std::string &str, size_t nbits) {
+  size_t nbytes = (nbits + 7) / 8;
+  if (str.size() != nbytes) return Code::INVALID_ARGUMENT;
+  size_t zero_nbits = (nbytes * 8) - nbits;
+  auto not_zero_pos = static_cast<size_t>(clz(static_cast<uint8_t>(str[0])));
+  if (not_zero_pos < zero_nbits) return Code::INVALID_ARGUMENT;
+  return Code::OK;
+}
+
 }  // namespace
 
 class DeviceMgrImp {
@@ -842,8 +859,56 @@ class DeviceMgrImp {
   }
 
  private:
+  Code check_mf_bytestring(p4_id_t t_id, p4_id_t mf_id,
+                           const std::string &str) const {
+    auto not_found = static_cast<size_t>(-1);
+    size_t bitwidth = pi_p4info_table_match_field_bitwidth(
+        p4info.get(), t_id, mf_id);
+    if (bitwidth == not_found) return Code::INVALID_ARGUMENT;
+    return check_proto_bytestring(str, bitwidth);
+  }
+
+  Code validate_match_key(const p4::TableEntry &entry) const {
+    Code code;
+    auto t_id = entry.table_id();
+    size_t exp_mk_size = pi_p4info_table_num_match_fields(p4info.get(), t_id);
+    if (static_cast<size_t>(entry.match().size()) != exp_mk_size)
+      return Code::INVALID_ARGUMENT;
+    for (const auto &mf : entry.match()) {
+      switch (mf.field_match_type_case()) {
+        case p4::FieldMatch::kExact:
+          code = check_mf_bytestring(t_id, mf.field_id(), mf.exact().value());
+          if (code != Code::OK) return code;
+          break;
+        case p4::FieldMatch::kLpm:
+          code = check_mf_bytestring(t_id, mf.field_id(), mf.lpm().value());
+          if (code != Code::OK) return code;
+          break;
+        case p4::FieldMatch::kTernary:
+          code = check_mf_bytestring(t_id, mf.field_id(), mf.ternary().value());
+          if (code != Code::OK) return code;
+          code = check_mf_bytestring(t_id, mf.field_id(), mf.ternary().mask());
+          if (code != Code::OK) return code;
+          break;
+        case p4::FieldMatch::kValid:
+          break;
+        case p4::FieldMatch::kRange:
+          code = check_mf_bytestring(t_id, mf.field_id(), mf.range().low());
+          if (code != Code::OK) return code;
+          code = check_mf_bytestring(t_id, mf.field_id(), mf.range().high());
+          if (code != Code::OK) return code;
+          break;
+        default:
+          return Code::INVALID_ARGUMENT;
+      }
+    }
+    return Code::OK;
+  }
+
   Code construct_match_key(const p4::TableEntry &entry,
                            pi::MatchKey *match_key) const {
+    auto code = validate_match_key(entry);
+    if (code != Code::OK) return code;
     for (const auto &mf : entry.match()) {
       switch (mf.field_match_type_case()) {
         case p4::FieldMatch::kExact:
@@ -855,8 +920,8 @@ class DeviceMgrImp {
                              mf.lpm().value().size(), mf.lpm().prefix_len());
           break;
         case p4::FieldMatch::kTernary:
-          if (mf.ternary().value().size() != mf.ternary().mask().size())
-            return Code::INVALID_ARGUMENT;
+          // if (mf.ternary().value().size() != mf.ternary().mask().size())
+          //   return Code::INVALID_ARGUMENT;
           match_key->set_ternary(mf.field_id(), mf.ternary().value().data(),
                                  mf.ternary().mask().data(),
                                  mf.ternary().value().size());
@@ -865,8 +930,8 @@ class DeviceMgrImp {
           match_key->set_valid(mf.field_id(), mf.valid().value());
           break;
         case p4::FieldMatch::kRange:
-          if (mf.range().low().size() != mf.range().high().size())
-            return Code::INVALID_ARGUMENT;
+          // if (mf.range().low().size() != mf.range().high().size())
+          //   return Code::INVALID_ARGUMENT;
           match_key->set_range(mf.field_id(), mf.range().low().data(),
                                mf.range().high().data(),
                                mf.range().low().size());
@@ -878,8 +943,27 @@ class DeviceMgrImp {
     return Code::OK;
   }
 
+  Code validate_action_data(const p4::Action &action) const {
+    Code code;
+    size_t exp_num_params = pi_p4info_action_num_params(
+        p4info.get(), action.action_id());
+    if (static_cast<size_t>(action.params().size()) != exp_num_params)
+      return Code::INVALID_ARGUMENT;
+    for (const auto &p : action.params()) {
+      auto not_found = static_cast<size_t>(-1);
+      size_t bitwidth = pi_p4info_action_param_bitwidth(
+          p4info.get(), action.action_id(), p.param_id());
+      if (bitwidth == not_found) return Code::INVALID_ARGUMENT;
+      if ((code = check_proto_bytestring(p.value(), bitwidth)) != Code::OK)
+        return code;
+    }
+    return Code::OK;
+  }
+
   Code construct_action_data(const p4::Action &action,
-                             pi::ActionEntry *action_entry) {
+                             pi::ActionEntry *action_entry) const {
+    auto code = validate_action_data(action);
+    if (code != Code::OK) return code;
     action_entry->init_action_data(p4info.get(), action.action_id());
     auto action_data = action_entry->mutable_action_data();
     for (const auto &p : action.params()) {

@@ -371,7 +371,9 @@ size_t pi_p4info_table_match_field_offset(const pi_p4info_t *p4info,
 size_t pi_p4info_table_match_field_bitwidth(const pi_p4info_t *p4info,
                                             pi_p4_id_t table_id,
                                             pi_p4_id_t mf_id) {
+  size_t invalid = (size_t)-1;
   size_t index = pi_p4info_table_match_field_index(p4info, table_id, mf_id);
+  if (invalid == index) return invalid;
   _table_data_t *table = get_table(p4info, table_id);
   _match_field_data_t *data = &get_match_field_data(table)[index];
   return data->info.bitwidth;
