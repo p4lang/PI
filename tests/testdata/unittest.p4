@@ -22,6 +22,8 @@ header_type header_test_t {
         field32 : 32;
         field48 : 48;
         field64 : 64;
+        field12 : 12;
+        field4 : 4;
     }
 }
 
@@ -136,6 +138,16 @@ field_list_calculation SelectorHash {
     output_width : 16;
 }
 
+table ExactOneNonAligned {
+    reads {
+        header_test.field12 : exact;
+    }
+    actions {
+        actionA; actionB;
+    }
+    size: 512;
+}
+
 control ingress {
     apply(ExactOne);
     apply(LpmOne);
@@ -143,6 +155,7 @@ control ingress {
     apply(RangeOne);
     apply(MixMany);
     apply(IndirectWS);
+    apply(ExactOneNonAligned);
 }
 
 control egress { }

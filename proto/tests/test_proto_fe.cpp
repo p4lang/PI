@@ -1610,12 +1610,12 @@ TEST_F(MatchTableIndirectTest, Group) {
 }
 
 
-class DirectMeterTest : public DeviceMgrTest {
+class ExactOneTest : public DeviceMgrTest {
  protected:
-  DirectMeterTest() {
-    t_id = pi_p4info_table_id_from_name(p4info, "ExactOne");
+  ExactOneTest(const std::string &t_name, const std::string &f_name)
+      : f_name(f_name) {
+    t_id = pi_p4info_table_id_from_name(p4info, t_name.c_str());
     a_id = pi_p4info_action_id_from_name(p4info, "actionA");
-    m_id = pi_p4info_meter_id_from_name(p4info, "ExactOne_meter");
   }
 
   DeviceMgr::Status add_entry(p4::TableEntry *entry) {
@@ -1627,6 +1627,39 @@ class DirectMeterTest : public DeviceMgrTest {
     auto status = mgr.write(request);
     entity->release_table_entry();
     return status;
+  }
+
+  p4::TableEntry make_entry(const std::string &mf_v,
+                            const std::string &param_v) {
+    p4::TableEntry table_entry;
+    table_entry.set_table_id(t_id);
+    auto mf = table_entry.add_match();
+    mf->set_field_id(pi_p4info_table_match_field_id_from_name(
+        p4info, t_id, f_name.c_str()));
+    auto mf_exact = mf->mutable_exact();
+    mf_exact->set_value(mf_v);
+    auto entry = table_entry.mutable_action();
+    auto action = entry->mutable_action();
+
+    action->set_action_id(a_id);
+    auto param = action->add_params();
+    param->set_param_id(
+        pi_p4info_action_param_id_from_name(p4info, a_id, "param"));
+    param->set_value(param_v);
+    return table_entry;
+  }
+
+  const std::string f_name;
+  pi_p4_id_t t_id;
+  pi_p4_id_t a_id;
+};
+
+
+class DirectMeterTest : public ExactOneTest {
+ protected:
+  DirectMeterTest()
+      : ExactOneTest("ExactOne", "header_test.field32") {
+    m_id = pi_p4info_meter_id_from_name(p4info, "ExactOne_meter");
   }
 
   DeviceMgr::Status set_meter(p4::TableEntry *entry, p4::MeterConfig *config) {
@@ -1644,28 +1677,6 @@ class DirectMeterTest : public DeviceMgrTest {
     return status;
   }
 
-  p4::TableEntry make_entry(const std::string &mf_v,
-                            const std::string &param_v) {
-    p4::TableEntry table_entry;
-    table_entry.set_table_id(t_id);
-    auto mf = table_entry.add_match();
-    mf->set_field_id(pi_p4info_table_match_field_id_from_name(
-        p4info, t_id, "header_test.field32"));
-    auto mf_exact = mf->mutable_exact();
-    mf_exact->set_value(mf_v);
-    auto entry = table_entry.mutable_action();
-    auto action = entry->mutable_action();
-
-    action->set_action_id(a_id);
-    auto param = action->add_params();
-    param->set_param_id(
-        pi_p4info_action_param_id_from_name(p4info, a_id, "param"));
-    param->set_value(param_v);
-    return table_entry;
-  }
-
-  pi_p4_id_t t_id;
-  pi_p4_id_t a_id;
   pi_p4_id_t m_id;
 };
 
@@ -1716,6 +1727,95 @@ TEST_F(DirectMeterTest, SetConfig) {
     auto status = set_meter(&entry, &config);
     ASSERT_EQ(status.code(), Code::OK);
   }
+}
+
+
+// Only testing for exact match tables for now, there is not much code variation
+// between different table types.
+class MatchKeyFormatTest : public ExactOneTest {
+ protected:
+  MatchKeyFormatTest()
+      : ExactOneTest("ExactOneNonAligned", "header_test.field12") { }
+
+  p4::TableEntry make_entry_no_mk() {
+    p4::TableEntry table_entry;
+    table_entry.set_table_id(t_id);
+    auto entry = table_entry.mutable_action();
+    auto action = entry->mutable_action();
+
+    action->set_action_id(a_id);
+    auto param = action->add_params();
+    param->set_param_id(
+        pi_p4info_action_param_id_from_name(p4info, a_id, "param"));
+    std::string adata(6, '\x00');
+    param->set_value(adata);
+    return table_entry;
+  }
+
+  void add_one_mf(p4::TableEntry *entry, const std::string &mf_v) {
+    auto mf = entry->add_match();
+    mf->set_field_id(pi_p4info_table_match_field_id_from_name(
+        p4info, t_id, "header_test.field12"));
+    auto mf_exact = mf->mutable_exact();
+    mf_exact->set_value(mf_v);
+  }
+};
+
+TEST_F(MatchKeyFormatTest, Good1) {
+  EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
+  auto entry = make_entry_no_mk();
+  std::string mf_v("\x0f\xbb", 2);
+  add_one_mf(&entry, mf_v);
+  auto status = add_entry(&entry);
+  ASSERT_EQ(status.code(), Code::OK);
+}
+
+TEST_F(MatchKeyFormatTest, Good2) {
+  EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
+  auto entry = make_entry_no_mk();
+  std::string mf_v("\x00\x00", 2);
+  add_one_mf(&entry, mf_v);
+  auto status = add_entry(&entry);
+  ASSERT_EQ(status.code(), Code::OK);
+}
+
+TEST_F(MatchKeyFormatTest, MkTooShort) {
+  auto entry = make_entry_no_mk();
+  auto status = add_entry(&entry);
+  ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
+}
+
+TEST_F(MatchKeyFormatTest, MkTooLong) {
+  auto entry = make_entry_no_mk();
+  std::string mf_v("\x0a\xbb", 2);
+  add_one_mf(&entry, mf_v);
+  add_one_mf(&entry, mf_v);
+  auto status = add_entry(&entry);
+  ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
+}
+
+TEST_F(MatchKeyFormatTest, FieldTooShort) {
+  auto entry = make_entry_no_mk();
+  std::string mf_v("\x0a", 1);
+  add_one_mf(&entry, mf_v);
+  auto status = add_entry(&entry);
+  ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
+}
+
+TEST_F(MatchKeyFormatTest, FieldTooLong) {
+  auto entry = make_entry_no_mk();
+  std::string mf_v("\xaa\xbb\xcc", 3);
+  add_one_mf(&entry, mf_v);
+  auto status = add_entry(&entry);
+  ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
+}
+
+TEST_F(MatchKeyFormatTest, BadLeadingZeros) {
+  auto entry = make_entry_no_mk();
+  std::string mf_v("\x10\xbb", 2);
+  add_one_mf(&entry, mf_v);
+  auto status = add_entry(&entry);
+  ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
 }
 
 }  // namespace

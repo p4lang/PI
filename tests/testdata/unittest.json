@@ -81,6 +81,14 @@
                     64
                 ],
                 [
+                    "field12",
+                    12
+                ],
+                [
+                    "field4",
+                    4
+                ],
+                [
                     "_padding",
                     4
                 ]
@@ -157,37 +165,8 @@
     ],
     "actions": [
         {
-            "name": "actionB",
-            "id": 0,
-            "runtime_data": [
-                {
-                    "name": "param",
-                    "bitwidth": 8
-                }
-            ],
-            "primitives": [
-                {
-                    "op": "modify_field",
-                    "parameters": [
-                        {
-                            "type": "field",
-                            "value": [
-                                "header_test",
-                                "field8"
-                            ]
-                        },
-                        {
-                            "type": "runtime_data",
-                            "value": 0
-                        }
-                    ]
-                }
-            ],
-            "pragmas": []
-        },
-        {
             "name": "actionA",
-            "id": 1,
+            "id": 0,
             "runtime_data": [
                 {
                     "name": "param",
@@ -203,6 +182,35 @@
                             "value": [
                                 "header_test",
                                 "field48"
+                            ]
+                        },
+                        {
+                            "type": "runtime_data",
+                            "value": 0
+                        }
+                    ]
+                }
+            ],
+            "pragmas": []
+        },
+        {
+            "name": "actionB",
+            "id": 1,
+            "runtime_data": [
+                {
+                    "name": "param",
+                    "bitwidth": 8
+                }
+            ],
+            "primitives": [
+                {
+                    "op": "modify_field",
+                    "parameters": [
+                        {
+                            "type": "field",
+                            "value": [
+                                "header_test",
+                                "field8"
                             ]
                         },
                         {
@@ -400,6 +408,36 @@
                             "target": [
                                 "header_test",
                                 "field32"
+                            ],
+                            "mask": null
+                        }
+                    ],
+                    "actions": [
+                        "actionA",
+                        "actionB"
+                    ],
+                    "next_tables": {
+                        "actionA": "ExactOneNonAligned",
+                        "actionB": "ExactOneNonAligned"
+                    },
+                    "base_default_next": "ExactOneNonAligned",
+                    "pragmas": []
+                },
+                {
+                    "name": "ExactOneNonAligned",
+                    "id": 6,
+                    "match_type": "exact",
+                    "type": "simple",
+                    "max_size": 512,
+                    "with_counters": false,
+                    "direct_meters": null,
+                    "support_timeout": false,
+                    "key": [
+                        {
+                            "match_type": "exact",
+                            "target": [
+                                "header_test",
+                                "field12"
                             ],
                             "mask": null
                         }
