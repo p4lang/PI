@@ -128,6 +128,15 @@ pi_p4_id_t pi_p4info_any_id_from_name(const pi_p4info_t *p4info,
   return p4info_name_map_get(&res->name_map, name);
 }
 
+bool pi_p4info_is_valid_id(const pi_p4info_t *p4info, pi_p4_id_t id) {
+  const pi_p4info_res_t *res = &p4info->resources[PI_GET_TYPE_ID(id)];
+  if (!res->is_init) return false;
+  PWord_t PValue;
+  Word_t index = id & 0xFFFFFF;
+  JLG(PValue, res->id_map, index);
+  return (PValue != NULL);
+}
+
 pi_status_t pi_p4info_add_alias(pi_p4info_t *p4info, pi_p4_id_t id,
                                 const char *alias) {
   pi_p4info_res_t *res = &p4info->resources[PI_GET_TYPE_ID(id)];
