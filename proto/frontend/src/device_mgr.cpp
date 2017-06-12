@@ -21,6 +21,7 @@
 #include <PI/frontends/cpp/tables.h>
 #include <PI/frontends/proto/device_mgr.h>
 #include <PI/pi.h>
+#include <PI/proto/util.h>
 
 #include <memory>
 #include <string>
@@ -47,6 +48,7 @@ using Status = DeviceMgr::Status;
 using PacketInCb = DeviceMgr::PacketInCb;
 using Code = ::google::rpc::Code;
 using common::SessionTemp;
+using pi::proto::util::P4ResourceType;
 
 // We don't yet have a mapping from PI error codes to ::google::rpc::Code
 // values, so for now we almost always return UNKNOWN. It is likely that we will
@@ -86,6 +88,13 @@ Code check_proto_bytestring(const std::string &str, size_t nbits) {
   auto not_zero_pos = static_cast<size_t>(clz(static_cast<uint8_t>(str[0])));
   if (not_zero_pos < zero_nbits) return Code::INVALID_ARGUMENT;
   return Code::OK;
+}
+
+Status make_invalid_p4_id_status() {
+  Status status;
+  status.set_code(Code::INVALID_ARGUMENT);
+  status.set_message("Invalid P4 id");
+  return status;
 }
 
 }  // namespace
@@ -267,7 +276,6 @@ class DeviceMgrImp {
 
   Status read_one(const p4::Entity &entity, p4::ReadResponse *response) const {
     Status status;
-    status.set_code(Code::OK);
     SessionTemp session(false  /* = batch */);
     switch (entity.entity_case()) {
       case p4::Entity::kTableEntry:
@@ -303,6 +311,8 @@ class DeviceMgrImp {
   Status table_write(p4::Update_Type update, const p4::TableEntry &table_entry,
                      const SessionTemp &session) {
     Status status;
+    if (!check_p4_id(table_entry.table_id(), P4ResourceType::TABLE))
+      return make_invalid_p4_id_status();
     switch (update) {
       case p4::Update_Type_UNSPECIFIED:
         status.set_code(Code::INVALID_ARGUMENT);
@@ -323,7 +333,8 @@ class DeviceMgrImp {
   Status meter_write(p4::Update_Type update, const p4::MeterEntry &meter_entry,
                      const SessionTemp &session) {
     Status status;
-    status.set_code(Code::OK);
+    if (!check_p4_id(meter_entry.meter_id(), P4ResourceType::METER))
+      return make_invalid_p4_id_status();
     switch (update) {
       case p4::Update_Type_UNSPECIFIED:
         status.set_code(Code::INVALID_ARGUMENT);
@@ -377,7 +388,8 @@ class DeviceMgrImp {
                             const p4::DirectMeterEntry &meter_entry,
                             const SessionTemp &session) {
     Status status;
-    status.set_code(Code::OK);
+    if (!check_p4_id(meter_entry.meter_id(), P4ResourceType::METER))
+      return make_invalid_p4_id_status();
 
     const auto &table_entry = meter_entry.table_entry();
     auto table_lock = table_info_store.lock_table(table_entry.table_id());
@@ -584,7 +596,6 @@ class DeviceMgrImp {
                     const SessionTemp &session,
                     p4::ReadResponse *response) const {
     Status status;
-    status.set_code(Code::OK);
     if (table_entry.table_id() == 0) {  // read all entries for all tables
       for (auto t_id = pi_p4info_table_begin(p4info.get());
            t_id != pi_p4info_table_end(p4info.get());
@@ -593,6 +604,8 @@ class DeviceMgrImp {
         if (status.code() != Code::OK) break;
       }
     } else {  // read for a single table
+      if (!check_p4_id(table_entry.table_id(), P4ResourceType::TABLE))
+        return make_invalid_p4_id_status();
       status = table_read_one(table_entry.table_id(), session, response);
     }
     return status;
@@ -602,6 +615,9 @@ class DeviceMgrImp {
                                      const p4::ActionProfileMember &member,
                                      const SessionTemp &session) {
     Status status;
+    if (!check_p4_id(member.action_profile_id(),
+                     P4ResourceType::ACTION_PROFILE))
+      return make_invalid_p4_id_status();
     auto action_prof_mgr = get_action_prof_mgr(member.action_profile_id());
     if (action_prof_mgr == nullptr) {
       status.set_code(Code::INVALID_ARGUMENT);
@@ -628,6 +644,8 @@ class DeviceMgrImp {
                                     const p4::ActionProfileGroup &group,
                                     const SessionTemp &session) {
     Status status;
+    if (!check_p4_id(group.action_profile_id(), P4ResourceType::ACTION_PROFILE))
+      return make_invalid_p4_id_status();
     auto action_prof_mgr = get_action_prof_mgr(group.action_profile_id());
     if (action_prof_mgr == nullptr) {
       status.set_code(Code::INVALID_ARGUMENT);
@@ -746,6 +764,9 @@ class DeviceMgrImp {
         if (status.code() != Code::OK) break;
       }
     } else {
+      if (!check_p4_id(member.action_profile_id(),
+                       P4ResourceType::ACTION_PROFILE))
+        return make_invalid_p4_id_status();
       status = action_profile_member_read_one(
           member.action_profile_id(), session, response);
     }
@@ -777,6 +798,9 @@ class DeviceMgrImp {
         if (status.code() != Code::OK) break;
       }
     } else {
+      if (!check_p4_id(group.action_profile_id(),
+                       P4ResourceType::ACTION_PROFILE))
+        return make_invalid_p4_id_status();
       status = action_profile_group_read_one(
           group.action_profile_id(), session, response);
     }
@@ -844,6 +868,8 @@ class DeviceMgrImp {
         if (status.code() != Code::OK) break;
       }
     } else {  // read for a single counter
+      if (!check_p4_id(counter_entry.counter_id(), P4ResourceType::COUNTER))
+        return make_invalid_p4_id_status();
       status = counter_read_one(counter_entry.counter_id(), counter_entry,
                                 session, response);
     }
@@ -859,6 +885,11 @@ class DeviceMgrImp {
   }
 
  private:
+  bool check_p4_id(p4_id_t p4_id, P4ResourceType expected_type) const {
+    return (pi::proto::util::resource_type_from_id(p4_id) == expected_type)
+        && pi_p4info_is_valid_id(p4info.get(), p4_id);
+  }
+
   Code check_mf_bytestring(p4_id_t t_id, p4_id_t mf_id,
                            const std::string &str) const {
     auto not_found = static_cast<size_t>(-1);

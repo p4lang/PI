@@ -815,6 +815,7 @@ class DeviceMgrTest : public ::testing::Test {
   static constexpr const char *input_path = TESTDATADIR "/" "unittest.json";
   static pi_p4info_t *p4info;
   static p4::config::P4Info p4info_proto;
+  static constexpr const char *invalid_p4_id_error_str = "Invalid P4 id";
 
   DummySwitchWrapper wrapper{};
   DummySwitchMock *mock;
@@ -824,6 +825,7 @@ class DeviceMgrTest : public ::testing::Test {
 
 pi_p4info_t *DeviceMgrTest::p4info = nullptr;
 p4::config::P4Info DeviceMgrTest::p4info_proto;
+constexpr const char *DeviceMgrTest::invalid_p4_id_error_str;
 
 TEST_F(DeviceMgrTest, ResourceTypeFromId) {
   using Type = pi::proto::util::P4ResourceType;
@@ -1146,6 +1148,43 @@ TEST_P(MatchTableTest, AddAndModify) {
   EXPECT_EQ(status.code(), Code::OK);
 }
 
+TEST_P(MatchTableTest, InvalidTableId) {
+  // build valid table entry, then modify the table id
+  std::string adata(6, '\x00');
+  auto mk_input = std::get<1>(GetParam());
+  auto entry = generic_make(t_id, mk_input.get_proto(mf_id), adata);
+  auto check_bad_status_write = [this, &entry](pi_p4_id_t bad_id) {
+    entry.set_table_id(bad_id);
+    auto status = add_one(&entry);
+    ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
+    EXPECT_EQ(status.message(), invalid_p4_id_error_str);
+  };
+  auto check_bad_status_read = [this](pi_p4_id_t bad_id) {
+    p4::ReadResponse response;
+    p4::Entity entity;
+    auto table_entry = entity.mutable_table_entry();
+    table_entry->set_table_id(bad_id);
+    auto status = mgr.read_one(entity, &response);
+    ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
+    EXPECT_EQ(status.message(), invalid_p4_id_error_str);
+  };
+  // 0, aka missing id
+  check_bad_status_write(0);
+  // correct resource type id, bad index
+  {
+    auto bad_id = pi_make_table_id(0);
+    while (pi_p4info_is_valid_id(p4info, bad_id)) bad_id++;
+    check_bad_status_write(bad_id);
+    check_bad_status_read(bad_id);
+  }
+  // invalid resource type id
+  {
+    auto bad_id = static_cast<pi_p4_id_t>(0xff << 24);
+    check_bad_status_write(bad_id);
+    check_bad_status_read(bad_id);
+  }
+}
+
 #define MK std::string("\xaa\xbb\xcc\xdd", 4)
 #define MASK std::string("\xff\x01\xf0\x0f", 4)
 #define PREF_LEN 12
@@ -1441,6 +1480,43 @@ TEST_F(ActionProfTest, AddBadMemberIdToGroup) {
   EXPECT_NE(create_group(&group).code(), Code::OK);
 }
 
+TEST_F(ActionProfTest, InvalidActionProfId) {
+  DeviceMgr::Status status;
+  uint32_t member_id = 123;
+  std::string adata(6, '\x00');
+  auto member = make_member(member_id, adata);
+  auto check_bad_status_write = [this, &member](pi_p4_id_t bad_id) {
+    member.set_action_profile_id(bad_id);
+    auto status = create_member(&member);
+    ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
+    EXPECT_EQ(status.message(), invalid_p4_id_error_str);
+  };
+  auto check_bad_status_read = [this](pi_p4_id_t bad_id) {
+    p4::ReadResponse response;
+    p4::Entity entity;
+    auto member = entity.mutable_action_profile_member();
+    member->set_action_profile_id(bad_id);
+    auto status = mgr.read_one(entity, &response);
+    ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
+    EXPECT_EQ(status.message(), invalid_p4_id_error_str);
+  };
+  // 0, aka missing id
+  check_bad_status_write(0);
+  // correct resource type id, bad index
+  {
+    auto bad_id = pi_make_act_prof_id(0);
+    while (pi_p4info_is_valid_id(p4info, bad_id)) bad_id++;
+    check_bad_status_write(bad_id);
+    check_bad_status_read(bad_id);
+  }
+  // invalid resource type id
+  {
+    auto bad_id = static_cast<pi_p4_id_t>(0xff << 24);
+    check_bad_status_write(bad_id);
+    check_bad_status_read(bad_id);
+  }
+}
+
 
 class MatchTableIndirectTest : public DeviceMgrTest {
  protected:
@@ -1662,19 +1738,33 @@ class DirectMeterTest : public ExactOneTest {
     m_id = pi_p4info_meter_id_from_name(p4info, "ExactOne_meter");
   }
 
-  DeviceMgr::Status set_meter(p4::TableEntry *entry, p4::MeterConfig *config) {
+  DeviceMgr::Status set_meter(p4::DirectMeterEntry *direct_meter_entry) {
     p4::WriteRequest request;
     auto update = request.add_updates();
     update->set_type(p4::Update_Type_INSERT);
     auto entity = update->mutable_entity();
-    auto direct_meter_entry = entity->mutable_direct_meter_entry();
-    direct_meter_entry->set_meter_id(m_id);
-    direct_meter_entry->set_allocated_table_entry(entry);
-    direct_meter_entry->set_allocated_config(config);
+    entity->set_allocated_direct_meter_entry(direct_meter_entry);
     auto status = mgr.write(request);
-    direct_meter_entry->release_table_entry();
-    direct_meter_entry->release_config();
+    entity->release_direct_meter_entry();
     return status;
+  }
+
+  p4::DirectMeterEntry make_meter_entry(const p4::TableEntry &entry,
+                                        const p4::MeterConfig &config) {
+    p4::DirectMeterEntry direct_meter_entry;
+    direct_meter_entry.set_meter_id(m_id);
+    direct_meter_entry.mutable_table_entry()->CopyFrom(entry);
+    direct_meter_entry.mutable_config()->CopyFrom(config);
+    return direct_meter_entry;
+  }
+
+  p4::MeterConfig make_meter_config() const {
+    p4::MeterConfig config;
+    config.set_cir(10);
+    config.set_cburst(5);
+    config.set_pir(100);
+    config.set_pburst(250);
+    return config;
   }
 
   pi_p4_id_t m_id;
@@ -1714,18 +1804,62 @@ TEST_F(DirectMeterTest, SetConfig) {
   }
   auto entry_h = mock->get_table_entry_handle();
 
-  p4::MeterConfig config;
-  config.set_cir(10);
-  config.set_cburst(5);
-  config.set_pir(100);
-  config.set_pburst(250);
+  auto config = make_meter_config();
+  auto meter_entry = make_meter_entry(entry, config);
   // as per the P4 program
   auto meter_spec_matcher = Truly(MeterSpecMatcher(
       config, PI_METER_UNIT_BYTES, PI_METER_TYPE_COLOR_UNAWARE));
   EXPECT_CALL(*mock, meter_set_direct(m_id, entry_h, meter_spec_matcher));
   {
-    auto status = set_meter(&entry, &config);
+    auto status = set_meter(&meter_entry);
     ASSERT_EQ(status.code(), Code::OK);
+  }
+}
+
+TEST_F(DirectMeterTest, InvalidTableEntry) {
+  std::string adata(6, '\x00');
+  std::string mf_1("\xaa\xbb\xcc\xdd", 4);
+  auto entry_1 = make_entry(mf_1, adata);
+  EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
+  {
+    auto status = add_entry(&entry_1);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+
+  std::string mf_2("\xaa\xbb\xcc\xee", 4);
+  auto entry_2 = make_entry(mf_2, adata);
+  auto config = make_meter_config();
+  auto meter_entry = make_meter_entry(entry_2, config);
+  {
+    auto status = set_meter(&meter_entry);
+    ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
+  }
+}
+
+TEST_F(DirectMeterTest, InvalidMeterId) {
+  std::string mf("\xaa\xbb\xcc\xdd", 4);
+  std::string adata(6, '\x00');
+  auto entry = make_entry(mf, adata);
+  auto config = make_meter_config();
+  auto meter_entry = make_meter_entry(entry, config);
+  auto check_bad_status_write = [this, &meter_entry](pi_p4_id_t bad_id) {
+    meter_entry.set_meter_id(bad_id);
+    auto status = set_meter(&meter_entry);
+    ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
+    EXPECT_EQ(status.message(), invalid_p4_id_error_str);
+  };
+  // 0, aka missing id
+  check_bad_status_write(0);
+  // correct resource type id, bad index
+  {
+    auto bad_id = pi_make_meter_id(0);
+    while (pi_p4info_is_valid_id(p4info, bad_id)) bad_id++;
+    check_bad_status_write(bad_id);
+  }
+  // invalid resource type id
+  {
+    auto bad_id = static_cast<pi_p4_id_t>(0xff << 24);
+    check_bad_status_write(bad_id);
   }
 }
 
