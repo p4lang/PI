@@ -18,15 +18,18 @@
  *
  */
 
-#ifndef SRC_COMMON_H_
-#define SRC_COMMON_H_
+#ifndef SRC_ACTION_HELPERS_H_
+#define SRC_ACTION_HELPERS_H_
 
 #include <PI/pi.h>
 
-#include <string>
-
-#include "google/rpc/code.pb.h"
 #include "google/rpc/status.pb.h"
+
+namespace p4 {
+
+class Action;
+
+}  // namespace p4
 
 namespace pi {
 
@@ -34,39 +37,9 @@ namespace fe {
 
 namespace proto {
 
-using Code = ::google::rpc::Code;
 using Status = ::google::rpc::Status;
 
-namespace common {
-
-struct SessionTemp {
-  explicit SessionTemp(bool batch = false)
-      : batch(batch) {
-    pi_session_init(&sess);
-    if (batch) pi_batch_begin(sess);
-  }
-
-  ~SessionTemp() {
-    if (batch) pi_batch_end(sess, false  /* hw_sync */);
-    pi_session_cleanup(sess);
-  }
-
-  pi_session_handle_t get() const { return sess; }
-
-  pi_session_handle_t sess;
-  bool batch;
-};
-
-Code check_proto_bytestring(const std::string &str, size_t nbits);
-
-inline Status make_invalid_p4_id_status() {
-  Status status;
-  status.set_code(Code::INVALID_ARGUMENT);
-  status.set_message("Invalid P4 id");
-  return status;
-}
-
-}  // namespace common
+Status validate_action_data(pi_p4info_t *p4info, const p4::Action &action);
 
 }  // namespace proto
 
@@ -74,4 +47,4 @@ inline Status make_invalid_p4_id_status() {
 
 }  // namespace pi
 
-#endif  // SRC_COMMON_H_
+#endif  // SRC_ACTION_HELPERS_H_

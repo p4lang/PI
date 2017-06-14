@@ -150,6 +150,9 @@ class ActionProfMgr {
   const Id *retrieve_group_id(pi_indirect_handle_t h);
 
  private:
+  bool check_p4_action_id(pi_p4_id_t p4_id) const;
+
+  Status validate_action(const p4::Action &action);
   pi::ActionData construct_action_data(const p4::Action &action);
 
   // using RepeatedMembers = decltype(

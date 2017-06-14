@@ -47,6 +47,10 @@ const pi_p4_id_t *pi_p4info_act_prof_get_actions(const pi_p4info_t *p4info,
                                                  pi_p4_id_t act_prof_id,
                                                  size_t *num_actions);
 
+bool pi_p4info_act_prof_is_action_of(const pi_p4info_t *p4info,
+                                     pi_p4_id_t act_prof_id,
+                                     pi_p4_id_t action_id);
+
 size_t pi_p4info_act_prof_max_size(const pi_p4info_t *p4info,
                                    pi_p4_id_t act_prof_id);
 

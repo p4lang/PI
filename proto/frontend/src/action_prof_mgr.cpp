@@ -18,6 +18,8 @@
  *
  */
 
+#include <PI/proto/util.h>
+
 #include <algorithm>
 #include <set>
 #include <unordered_map>
@@ -25,6 +27,7 @@
 
 #include "google/rpc/code.pb.h"
 
+#include "action_helpers.h"
 #include "action_prof_mgr.h"
 #include "common.h"
 
@@ -36,6 +39,7 @@ namespace proto {
 
 using Id = ActionProfBiMap::Id;
 using common::SessionTemp;
+using common::make_invalid_p4_id_status;
 
 void
 ActionProfBiMap::add(const Id &id, pi_indirect_handle_t h) {
@@ -104,6 +108,8 @@ Status
 ActionProfMgr::member_create(const p4::ActionProfileMember &member,
                              const SessionTemp &session) {
   Status status;
+  status = validate_action(member.action());
+  if (status.code() != Code::OK) return status;
   auto action_data = construct_action_data(member.action());
   // TODO(antonin): weight / watch?
   Lock lock(mutex);
@@ -152,6 +158,8 @@ Status
 ActionProfMgr::member_modify(const p4::ActionProfileMember &member,
                              const SessionTemp &session) {
   Status status;
+  status = validate_action(member.action());
+  if (status.code() != Code::OK) return status;
   auto action_data = construct_action_data(member.action());
   // TODO(antonin): weight / watch?
   Lock lock(mutex);
@@ -233,6 +241,14 @@ ActionProfMgr::group_delete(const p4::ActionProfileGroup &group,
   return status;
 }
 
+bool
+ActionProfMgr::check_p4_action_id(pi_p4_id_t p4_id) const {
+  using pi::proto::util::P4ResourceType;
+  using pi::proto::util::resource_type_from_id;
+  return (resource_type_from_id(p4_id) == P4ResourceType::ACTION)
+      && pi_p4info_is_valid_id(p4info, p4_id);
+}
+
 pi::ActionData
 ActionProfMgr::construct_action_data(const p4::Action &action) {
   pi::ActionData action_data(p4info, action.action_id());
@@ -240,6 +256,20 @@ ActionProfMgr::construct_action_data(const p4::Action &action) {
     action_data.set_arg(p.param_id(), p.value().data(), p.value().size());
   }
   return action_data;
+}
+
+Status
+ActionProfMgr::validate_action(const p4::Action &action) {
+  auto action_id = action.action_id();
+  if (!check_p4_action_id(action_id))
+    return make_invalid_p4_id_status();
+  if (!pi_p4info_act_prof_is_action_of(p4info, act_prof_id, action_id)) {
+    Status status;
+    status.set_code(Code::INVALID_ARGUMENT);
+    status.set_message("Invalid action for action profile");
+    return status;
+  }
+  return validate_action_data(p4info, action);
 }
 
 void

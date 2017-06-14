@@ -150,6 +150,16 @@ const pi_p4_id_t *pi_p4info_act_prof_get_actions(const pi_p4info_t *p4info,
   return pi_p4info_table_get_actions(p4info, one_t_id, num_actions);
 }
 
+bool pi_p4info_act_prof_is_action_of(const pi_p4info_t *p4info,
+                                     pi_p4_id_t act_prof_id,
+                                     pi_p4_id_t action_id) {
+  _act_prof_data_t *act_prof = get_act_prof(p4info, act_prof_id);
+  if (act_prof->num_tables == 0) return false;
+  pi_p4_id_t one_t_id = act_prof->table_ids[0];
+  // we assume all tables sharing the action profile have the same actions
+  return pi_p4info_table_is_action_of(p4info, one_t_id, action_id);
+}
+
 size_t pi_p4info_act_prof_max_size(const pi_p4info_t *p4info,
                                    pi_p4_id_t act_prof_id) {
   _act_prof_data_t *act_prof = get_act_prof(p4info, act_prof_id);

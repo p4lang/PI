@@ -29,6 +29,7 @@
 
 #include "google/rpc/code.pb.h"
 
+#include "action_helpers.h"
 #include "action_prof_mgr.h"
 #include "common.h"
 #include "p4info_to_and_from_proto.h"  // for p4info_proto_reader
@@ -48,6 +49,8 @@ using Status = DeviceMgr::Status;
 using PacketInCb = DeviceMgr::PacketInCb;
 using Code = ::google::rpc::Code;
 using common::SessionTemp;
+using common::check_proto_bytestring;
+using common::make_invalid_p4_id_status;
 using pi::proto::util::P4ResourceType;
 
 // We don't yet have a mapping from PI error codes to ::google::rpc::Code
@@ -71,30 +74,6 @@ pi_meter_spec_t meter_spec_proto_to_pi(const p4::MeterConfig &config) {
   pi_meter_spec.meter_unit = PI_METER_UNIT_DEFAULT;
   pi_meter_spec.meter_type = PI_METER_TYPE_DEFAULT;
   return pi_meter_spec;
-}
-
-uint8_t clz(uint8_t b) {
-  static constexpr uint8_t clz_table_hb[16] =
-      {4, 3, 2, 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0};
-  uint8_t hb0 = b >> 4;
-  uint8_t hb1 = b & 0x0f;
-  return (hb0 == 0) ? (4 + clz_table_hb[hb1]) : clz_table_hb[hb0];
-}
-
-Code check_proto_bytestring(const std::string &str, size_t nbits) {
-  size_t nbytes = (nbits + 7) / 8;
-  if (str.size() != nbytes) return Code::INVALID_ARGUMENT;
-  size_t zero_nbits = (nbytes * 8) - nbits;
-  auto not_zero_pos = static_cast<size_t>(clz(static_cast<uint8_t>(str[0])));
-  if (not_zero_pos < zero_nbits) return Code::INVALID_ARGUMENT;
-  return Code::OK;
-}
-
-Status make_invalid_p4_id_status() {
-  Status status;
-  status.set_code(Code::INVALID_ARGUMENT);
-  status.set_message("Invalid P4 id");
-  return status;
 }
 
 }  // namespace
@@ -974,42 +953,38 @@ class DeviceMgrImp {
     return Code::OK;
   }
 
-  Code validate_action_data(const p4::Action &action) const {
-    Code code;
-    size_t exp_num_params = pi_p4info_action_num_params(
-        p4info.get(), action.action_id());
-    if (static_cast<size_t>(action.params().size()) != exp_num_params)
-      return Code::INVALID_ARGUMENT;
-    for (const auto &p : action.params()) {
-      auto not_found = static_cast<size_t>(-1);
-      size_t bitwidth = pi_p4info_action_param_bitwidth(
-          p4info.get(), action.action_id(), p.param_id());
-      if (bitwidth == not_found) return Code::INVALID_ARGUMENT;
-      if ((code = check_proto_bytestring(p.value(), bitwidth)) != Code::OK)
-        return code;
+  Status construct_action_data(uint32_t table_id, const p4::Action &action,
+                               pi::ActionEntry *action_entry) const {
+    Status status;
+    auto action_id = action.action_id();
+    if (!check_p4_id(action_id, P4ResourceType::ACTION))
+      return make_invalid_p4_id_status();
+    if (!pi_p4info_table_is_action_of(p4info.get(), table_id, action_id)) {
+      status.set_code(Code::INVALID_ARGUMENT);
+      status.set_message("Invalid action for table");
+      return status;
     }
-    return Code::OK;
-  }
-
-  Code construct_action_data(const p4::Action &action,
-                             pi::ActionEntry *action_entry) const {
-    auto code = validate_action_data(action);
-    if (code != Code::OK) return code;
+    status = validate_action_data(p4info.get(), action);
+    if (status.code() != Code::OK) return status;
     action_entry->init_action_data(p4info.get(), action.action_id());
     auto action_data = action_entry->mutable_action_data();
     for (const auto &p : action.params()) {
       action_data->set_arg(p.param_id(), p.value().data(), p.value().size());
     }
-    return Code::OK;
+    return status;
   }
 
-  Code construct_action_entry_indirect(uint32_t table_id,
-                                       const p4::TableAction &table_action,
-                                       pi::ActionEntry *action_entry) {
+  Status construct_action_entry_indirect(uint32_t table_id,
+                                         const p4::TableAction &table_action,
+                                         pi::ActionEntry *action_entry) {
+    Status status;
     auto action_prof_id = pi_p4info_table_get_implementation(p4info.get(),
                                                              table_id);
     // check that table is indirect
-    if (action_prof_id == PI_INVALID_ID) return Code::INVALID_ARGUMENT;
+    if (action_prof_id == PI_INVALID_ID) {
+      status.set_code(Code::INVALID_ARGUMENT);
+      return status;
+    }
     auto action_prof_mgr = get_action_prof_mgr(action_prof_id);
     // cannot assert because the action prof id is provided by the PI
     assert(action_prof_mgr);
@@ -1027,24 +1002,30 @@ class DeviceMgrImp {
         assert(0);
     }
     // invalid member/group id
-    if (indirect_h == nullptr) return Code::INVALID_ARGUMENT;
+    if (indirect_h == nullptr) {
+      status.set_code(Code::INVALID_ARGUMENT);
+      return status;
+    }
     action_entry->init_indirect_handle(*indirect_h);
-    return Code::OK;
+    return status;
   }
 
   // the table_id is needed for indirect entries
-  Code construct_action_entry(uint32_t table_id,
-                              const p4::TableAction &table_action,
-                              pi::ActionEntry *action_entry) {
+  Status construct_action_entry(uint32_t table_id,
+                                const p4::TableAction &table_action,
+                                pi::ActionEntry *action_entry) {
+    Status status;
     switch (table_action.type_case()) {
       case p4::TableAction::kAction:
-        return construct_action_data(table_action.action(), action_entry);
+        return construct_action_data(table_id, table_action.action(),
+                                     action_entry);
       case p4::TableAction::kActionProfileMemberId:
       case p4::TableAction::kActionProfileGroupId:
         return construct_action_entry_indirect(table_id, table_action,
                                                action_entry);
       default:
-        return Code::INVALID_ARGUMENT;
+        status.set_code(Code::INVALID_ARGUMENT);
+        return status;
     }
   }
 
@@ -1061,12 +1042,9 @@ class DeviceMgrImp {
     }
 
     pi::ActionEntry action_entry;
-    code = construct_action_entry(
+    status = construct_action_entry(
         table_id, table_entry.action(), &action_entry);
-    if (code != Code::OK) {
-      status.set_code(code);
-      return status;
-    }
+    if (status.code() != Code::OK) return status;
 
     auto table_lock = table_info_store.lock_table(table_id);
 
@@ -1107,12 +1085,9 @@ class DeviceMgrImp {
     }
 
     pi::ActionEntry action_entry;
-    code = construct_action_entry(
+    status = construct_action_entry(
         table_id, table_entry.action(), &action_entry);
-    if (code != Code::OK) {
-      status.set_code(code);
-      return status;
-    }
+    if (status.code() != Code::OK) return status;
 
     auto table_lock = table_info_store.lock_table(table_id);
 

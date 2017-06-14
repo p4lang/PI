@@ -1185,6 +1185,38 @@ TEST_P(MatchTableTest, InvalidTableId) {
   }
 }
 
+TEST_P(MatchTableTest, InvalidActionId) {
+  // build valid table entry, then modify the action id
+  std::string adata(6, '\x00');
+  auto mk_input = std::get<1>(GetParam());
+  auto entry = generic_make(t_id, mk_input.get_proto(mf_id), adata);
+  auto check_bad_status_write = [this, &entry](
+      pi_p4_id_t bad_id, const char *msg = invalid_p4_id_error_str) {
+    auto action = entry.mutable_action()->mutable_action();
+    action->set_action_id(bad_id);
+    auto status = add_one(&entry);
+    ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
+    EXPECT_EQ(status.message(), msg);
+  };
+  // 0, aka missing id
+  check_bad_status_write(0);
+  // correct resource type id, bad index
+  {
+    auto bad_id = pi_make_action_id(0);
+    while (pi_p4info_is_valid_id(p4info, bad_id)) bad_id++;
+    check_bad_status_write(bad_id);
+  }
+  // invalid resource type id
+  {
+    auto bad_id = static_cast<pi_p4_id_t>(0xff << 24);
+    check_bad_status_write(bad_id);
+  }
+  {
+    auto bad_id = pi_p4info_action_id_from_name(p4info, "actionC");
+    check_bad_status_write(bad_id, "Invalid action for table");
+  }
+}
+
 #define MK std::string("\xaa\xbb\xcc\xdd", 4)
 #define MASK std::string("\xff\x01\xf0\x0f", 4)
 #define PREF_LEN 12
@@ -1514,6 +1546,37 @@ TEST_F(ActionProfTest, InvalidActionProfId) {
     auto bad_id = static_cast<pi_p4_id_t>(0xff << 24);
     check_bad_status_write(bad_id);
     check_bad_status_read(bad_id);
+  }
+}
+
+TEST_F(ActionProfTest, InvalidActionId) {
+  DeviceMgr::Status status;
+  uint32_t member_id = 123;
+  std::string adata(6, '\x00');
+  auto member = make_member(member_id, adata);
+  auto check_bad_status_write = [this, &member](
+      pi_p4_id_t bad_id, const char *msg = invalid_p4_id_error_str) {
+    auto action = member.mutable_action();
+    action->set_action_id(bad_id);
+    auto status = create_member(&member);
+    ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
+    EXPECT_EQ(status.message(), msg);
+  };
+  check_bad_status_write(0);
+  // correct resource type id, bad index
+  {
+    auto bad_id = pi_make_action_id(0);
+    while (pi_p4info_is_valid_id(p4info, bad_id)) bad_id++;
+    check_bad_status_write(bad_id);
+  }
+  // invalid resource type id
+  {
+    auto bad_id = static_cast<pi_p4_id_t>(0xff << 24);
+    check_bad_status_write(bad_id);
+  }
+  {
+    auto bad_id = pi_p4info_action_id_from_name(p4info, "actionC");
+    check_bad_status_write(bad_id, "Invalid action for action profile");
   }
 }
 
