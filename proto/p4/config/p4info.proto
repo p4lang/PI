@@ -29,6 +29,7 @@ message P4Info {
   repeated DirectCounter direct_counters = 6;
   repeated Meter meters = 7;
   repeated DirectMeter direct_meters = 8;
+  repeated ControllerPacketMetadata controller_packet_metadata = 9;
 }
 
 message Preamble {
@@ -196,4 +197,27 @@ message DirectMeter {
   MeterSpec spec = 2;
   // the id of the table to which the meter is attached
   uint32 direct_table_id = 3;
+}
+
+// Any metadata associated with controller Packet-IO (Packet-In or Packet-Out)
+// is modeled as P4 headers carrying special annotations
+// @controller_metadata("packet_out") and @controller_metadata("packet_in")
+// respectively. There can be at most one header each with these annotations.
+// This message captures the info contained within these special headers,
+// and used in p4runtime.proto to supply the metadata.
+message ControllerPacketMetadata {
+  // preamble.name and preamble.id will specify header type (“packet_out” or
+  // “packet_in” for now).
+  Preamble preamble = 1;
+  message Metadata {
+    uint32 id = 1;
+    // This is the name of the header field (not fully-qualified), similar
+    // to e.g. Action.Param.name.
+    string name = 2;
+    repeated string annotations = 3;
+    int32 bitwidth = 4;
+  }
+  // Ordered based on header layout.
+  // This is a constraint on the generator of this P4Info.
+  repeated Metadata metadata = 2;
 }
