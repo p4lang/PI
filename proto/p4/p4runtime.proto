@@ -313,12 +313,20 @@ message StreamMessageRequest {
 // Packet sent from the controller to the switch.
 message PacketOut {
   bytes payload = 1;
+  // This will be based on P4 header annotated as
+  // @controller_header("packet_out").
+  // At most one P4 header can have this annotation.
+  repeated PacketMetadata metadata = 2;
+
+  // TODO: Remove fields below once users of PacketOut have migrated to
+  // PacketMetadata.
   oneof pipeline {
-    uint32 egress_physical_port = 2;
-    IngressPipelineSpec ingress_pipeline_spec = 3;
+    uint32 egress_physical_port = 3;
+    IngressPipelineSpec ingress_pipeline_spec = 4;
   }
 }
 
+// TODO: Remove once users have migrated to PacketMetadata.
 message IngressPipelineSpec {
   // Ingress port to associate with the packet.
   uint32 ingress_port = 1;
@@ -334,8 +342,20 @@ message StreamMessageResponse {
 // Packet sent from the switch to the controller.
 message PacketIn {
   bytes payload = 1;
-  uint32 ingress_physical_port = 2;
-  uint32 ingress_logical_port = 3;
+  // This will be based on P4 header annotated as
+  // @controller_header("packet_in").
+  // At most one P4 header can have this annotation.
+  repeated PacketMetadata metadata = 2;
+
+  // TODO: Remove fields below once users of PacketIn have migrated to
+  // PacketMetadata.
+  uint32 ingress_physical_port = 3;
+  uint32 ingress_logical_port = 4;
+}
+
+message PacketMetadata {
+  uint32 metadata_id = 1;
+  bytes value = 2;
 }
 
 message MasterArbitrationUpdate {
