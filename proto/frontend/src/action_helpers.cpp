@@ -18,15 +18,12 @@
  *
  */
 
-#ifndef SRC_COMMON_H_
-#define SRC_COMMON_H_
-
-#include <PI/pi.h>
-
-#include <string>
+#include "action_helpers.h"
+#include "common.h"
 
 #include "google/rpc/code.pb.h"
 #include "google/rpc/status.pb.h"
+#include "p4/p4runtime.pb.h"
 
 namespace pi {
 
@@ -35,43 +32,35 @@ namespace fe {
 namespace proto {
 
 using Code = ::google::rpc::Code;
-using Status = ::google::rpc::Status;
+using common::check_proto_bytestring;
 
-namespace common {
-
-struct SessionTemp {
-  explicit SessionTemp(bool batch = false)
-      : batch(batch) {
-    pi_session_init(&sess);
-    if (batch) pi_batch_begin(sess);
-  }
-
-  ~SessionTemp() {
-    if (batch) pi_batch_end(sess, false  /* hw_sync */);
-    pi_session_cleanup(sess);
-  }
-
-  pi_session_handle_t get() const { return sess; }
-
-  pi_session_handle_t sess;
-  bool batch;
-};
-
-Code check_proto_bytestring(const std::string &str, size_t nbits);
-
-inline Status make_invalid_p4_id_status() {
+Status validate_action_data(pi_p4info_t *p4info, const p4::Action &action) {
   Status status;
-  status.set_code(Code::INVALID_ARGUMENT);
-  status.set_message("Invalid P4 id");
+  Code code;
+  size_t exp_num_params = pi_p4info_action_num_params(
+      p4info, action.action_id());
+  if (static_cast<size_t>(action.params().size()) != exp_num_params) {
+    status.set_code(Code::INVALID_ARGUMENT);
+    return status;
+  }
+  for (const auto &p : action.params()) {
+    auto not_found = static_cast<size_t>(-1);
+    size_t bitwidth = pi_p4info_action_param_bitwidth(
+        p4info, action.action_id(), p.param_id());
+    if (bitwidth == not_found) {
+      status.set_code(Code::INVALID_ARGUMENT);
+      return status;
+    }
+    if ((code = check_proto_bytestring(p.value(), bitwidth)) != Code::OK) {
+      status.set_code(code);
+      return status;
+    }
+  }
   return status;
 }
-
-}  // namespace common
 
 }  // namespace proto
 
 }  // namespace fe
 
 }  // namespace pi
-
-#endif  // SRC_COMMON_H_

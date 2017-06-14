@@ -41,6 +41,8 @@ action actionB(param) {
     modify_field(header_test.field8, param);
 }
 
+action actionC() { }
+
 table ExactOne {
     reads {
         header_test.field32 : exact;
@@ -100,7 +102,7 @@ table MixMany {
         header_test : valid;
     }
     actions {
-        actionA;
+        actionA; actionC;
     }
     size: 512;
 }

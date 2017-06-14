@@ -18,15 +18,9 @@
  *
  */
 
-#ifndef SRC_COMMON_H_
-#define SRC_COMMON_H_
-
-#include <PI/pi.h>
+#include "common.h"
 
 #include <string>
-
-#include "google/rpc/code.pb.h"
-#include "google/rpc/status.pb.h"
 
 namespace pi {
 
@@ -34,36 +28,27 @@ namespace fe {
 
 namespace proto {
 
-using Code = ::google::rpc::Code;
-using Status = ::google::rpc::Status;
-
 namespace common {
 
-struct SessionTemp {
-  explicit SessionTemp(bool batch = false)
-      : batch(batch) {
-    pi_session_init(&sess);
-    if (batch) pi_batch_begin(sess);
-  }
+namespace {
 
-  ~SessionTemp() {
-    if (batch) pi_batch_end(sess, false  /* hw_sync */);
-    pi_session_cleanup(sess);
-  }
+uint8_t clz(uint8_t b) {
+  static constexpr uint8_t clz_table_hb[16] =
+      {4, 3, 2, 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0};
+  uint8_t hb0 = b >> 4;
+  uint8_t hb1 = b & 0x0f;
+  return (hb0 == 0) ? (4 + clz_table_hb[hb1]) : clz_table_hb[hb0];
+}
 
-  pi_session_handle_t get() const { return sess; }
+}  // namespace
 
-  pi_session_handle_t sess;
-  bool batch;
-};
-
-Code check_proto_bytestring(const std::string &str, size_t nbits);
-
-inline Status make_invalid_p4_id_status() {
-  Status status;
-  status.set_code(Code::INVALID_ARGUMENT);
-  status.set_message("Invalid P4 id");
-  return status;
+Code check_proto_bytestring(const std::string &str, size_t nbits) {
+  size_t nbytes = (nbits + 7) / 8;
+  if (str.size() != nbytes) return Code::INVALID_ARGUMENT;
+  size_t zero_nbits = (nbytes * 8) - nbits;
+  auto not_zero_pos = static_cast<size_t>(clz(static_cast<uint8_t>(str[0])));
+  if (not_zero_pos < zero_nbits) return Code::INVALID_ARGUMENT;
+  return Code::OK;
 }
 
 }  // namespace common
@@ -73,5 +58,3 @@ inline Status make_invalid_p4_id_status() {
 }  // namespace fe
 
 }  // namespace pi
-
-#endif  // SRC_COMMON_H_

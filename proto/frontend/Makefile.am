@@ -16,7 +16,10 @@ src/action_prof_mgr.h \
 src/action_prof_mgr.cpp \
 src/table_info_store.h \
 src/table_info_store.cpp \
-src/common.h
+src/action_helpers.h \
+src/action_helpers.cpp \
+src/common.h \
+src/common.cpp
 
 libpifeproto_la_LIBADD = \
 $(top_builddir)/../frontends_extra/cpp/libpifecpp.la \

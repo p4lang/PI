@@ -165,8 +165,37 @@
     ],
     "actions": [
         {
-            "name": "actionA",
+            "name": "actionB",
             "id": 0,
+            "runtime_data": [
+                {
+                    "name": "param",
+                    "bitwidth": 8
+                }
+            ],
+            "primitives": [
+                {
+                    "op": "modify_field",
+                    "parameters": [
+                        {
+                            "type": "field",
+                            "value": [
+                                "header_test",
+                                "field8"
+                            ]
+                        },
+                        {
+                            "type": "runtime_data",
+                            "value": 0
+                        }
+                    ]
+                }
+            ],
+            "pragmas": []
+        },
+        {
+            "name": "actionA",
+            "id": 1,
             "runtime_data": [
                 {
                     "name": "param",
@@ -194,32 +223,10 @@
             "pragmas": []
         },
         {
-            "name": "actionB",
-            "id": 1,
-            "runtime_data": [
-                {
-                    "name": "param",
-                    "bitwidth": 8
-                }
-            ],
-            "primitives": [
-                {
-                    "op": "modify_field",
-                    "parameters": [
-                        {
-                            "type": "field",
-                            "value": [
-                                "header_test",
-                                "field8"
-                            ]
-                        },
-                        {
-                            "type": "runtime_data",
-                            "value": 0
-                        }
-                    ]
-                }
-            ],
+            "name": "actionC",
+            "id": 2,
+            "runtime_data": [],
+            "primitives": [],
             "pragmas": []
         }
     ],
@@ -384,10 +391,12 @@
                         }
                     ],
                     "actions": [
-                        "actionA"
+                        "actionA",
+                        "actionC"
                     ],
                     "next_tables": {
-                        "actionA": "IndirectWS"
+                        "actionA": "IndirectWS",
+                        "actionC": "IndirectWS"
                     },
                     "base_default_next": "IndirectWS",
                     "pragmas": []
