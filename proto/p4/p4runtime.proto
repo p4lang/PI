@@ -353,7 +353,13 @@ message PacketIn {
   uint32 ingress_logical_port = 4;
 }
 
+// Any metadata associated with Packet-IO (controller Packet-In or Packet-Out)
+// needs to be modeled as P4 headers carrying special annotations
+// @controller_metadata("packet_out") and @controller_metadata("packet_in")
+// respectively. There can be at most one header each with these annotations.
+// These special headers are captured in P4Info ControllerPacketMetadata.
 message PacketMetadata {
+  // This refers to Metadata.id coming from P4Info ControllerPacketMetadata.
   uint32 metadata_id = 1;
   bytes value = 2;
 }
