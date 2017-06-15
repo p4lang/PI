@@ -206,8 +206,8 @@ message DirectMeter {
 // This message captures the info contained within these special headers,
 // and used in p4runtime.proto to supply the metadata.
 message ControllerPacketMetadata {
-  // preamble.name and preamble.id will specify header type (“packet_out” or
-  // “packet_in” for now).
+  // preamble.name and preamble.id will specify header type ("packet_out" or
+  // "packet_in" for now).
   Preamble preamble = 1;
   message Metadata {
     uint32 id = 1;
