@@ -13,7 +13,7 @@ TESTS = \
 test_p4info_convert \
 test_proto_fe
 
-common_source = main.cpp
+common_source = main.cpp mock_switch.h mock_switch.cpp
 
 common_libs = \
 $(top_builddir)/../third_party/libgmock.la \
