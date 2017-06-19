@@ -33,6 +33,7 @@
 #include "action_prof_mgr.h"
 #include "common.h"
 #include "p4info_to_and_from_proto.h"  // for p4info_proto_reader
+#include "packet_io_mgr.h"
 #include "table_info_store.h"
 
 #include "p4/tmp/p4config.pb.h"
@@ -82,7 +83,8 @@ class DeviceMgrImp {
  public:
   explicit DeviceMgrImp(device_id_t device_id)
       : device_id(device_id),
-        device_tgt({static_cast<pi_dev_id_t>(device_id), 0xffff}) { }
+        device_tgt({static_cast<pi_dev_id_t>(device_id), 0xffff}),
+        packet_io(device_id) { }
 
   ~DeviceMgrImp() {
     pi_remove_device(device_id);
@@ -91,7 +93,8 @@ class DeviceMgrImp {
   // we assume that the DeviceMgr client is smart enough here: for p4info
   // updates we do not do any locking; we assume that the client will not issue
   // table commands... while updating p4info
-  void p4_change(pi_p4info_t *p4info_new) {
+  void p4_change(const p4::config::P4Info &p4info_proto_new,
+                 pi_p4info_t *p4info_new) {
     table_info_store.reset();
     for (auto t_id = pi_p4info_table_begin(p4info_new);
          t_id != pi_p4info_table_end(p4info_new);
@@ -108,9 +111,12 @@ class DeviceMgrImp {
       action_profs.emplace(act_prof_id, std::move(mgr));
     }
 
+    packet_io.p4_change(p4info_proto_new);
+
     // we do this last, so that the ActProfMgr instances never point to an
     // invalid p4info, even though this is not strictly required here
     p4info.reset(p4info_new);
+    p4info_proto.CopyFrom(p4info_proto_new);
   }
 
   // TODO(antonin): we assume that VERIFY_AND_COMMIT is use for the first
@@ -154,7 +160,7 @@ class DeviceMgrImp {
         action_profs.clear();
       }
 
-      p4_change(p4info_tmp);
+      p4_change(config.p4info(), p4info_tmp);
       std::vector<pi_assign_extra_t> assign_options;
       for (const auto &p : p4_device_config.extras().kv()) {
         pi_assign_extra_t e;
@@ -180,7 +186,7 @@ class DeviceMgrImp {
         pi_destroy_config(p4info_tmp);
         return status;
       }
-      p4_change(p4info_tmp);
+      p4_change(config.p4info(), p4info_tmp);
       return status;
     }
 
@@ -786,21 +792,12 @@ class DeviceMgrImp {
     return status;
   }
 
-  Status packet_out_send(const std::string &packet) const {
-    Status status;
-    auto pi_status = pi_packetout_send(device_id, packet.data(), packet.size());
-    if (pi_status != PI_STATUS_SUCCESS)
-      status.set_code(Code::UNKNOWN);
-    else
-      status.set_code(Code::OK);
-    return status;
+  Status packet_out_send(const p4::PacketOut &packet) const {
+    return packet_io.packet_out_send(packet);
   }
 
   void packet_in_register_cb(PacketInCb cb, void *cookie) {
-    cb_ = std::move(cb);
-    cookie_ = cookie;
-    pi_packetin_register_cb(device_id, &DeviceMgrImp::packet_in_cb,
-                            static_cast<void *>(this));
+    packet_io.packet_in_register_cb(std::move(cb), cookie);
   }
 
   Status counter_read_one(p4_id_t counter_id,
@@ -1177,21 +1174,14 @@ class DeviceMgrImp {
     return Code::OK;
   }
 
-  static void packet_in_cb(pi_dev_id_t dev_id, const char *pkt, size_t size,
-                           void *cookie) {
-    auto mgr = static_cast<DeviceMgrImp *>(cookie);
-    assert(dev_id == mgr->device_id);
-    mgr->cb_(mgr->device_id, std::string(pkt, size), mgr->cookie_);
-  }
-
   device_id_t device_id;
   // for now, we assume all possible pipes of device are programmed in the same
   // way
   pi_dev_tgt_t device_tgt;
+  p4::config::P4Info p4info_proto{};
   P4InfoWrapper p4info{nullptr, p4info_deleter};
 
-  PacketInCb cb_;
-  void *cookie_;
+  PacketIOMgr packet_io;
 
   // ActionProfMgr is not movable because of mutex
   std::unordered_map<pi_p4_id_t, std::unique_ptr<ActionProfMgr> >
@@ -1238,7 +1228,7 @@ DeviceMgr::read_one(const p4::Entity &entity,
 }
 
 Status
-DeviceMgr::packet_out_send(const std::string &packet) const {
+DeviceMgr::packet_out_send(const p4::PacketOut &packet) const {
   return pimp->packet_out_send(packet);
 }
 

@@ -25,6 +25,7 @@
 #include <boost/functional/hash.hpp>
 
 #include <algorithm>  // std::copy
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -33,6 +34,7 @@
 #include "PI/int/pi_int.h"
 #include "PI/int/serialize.h"
 #include "PI/pi.h"
+#include "PI/target/pi_imp.h"
 
 namespace pi {
 namespace proto {
@@ -410,13 +412,18 @@ class DummySwitch {
     return meters[meter_id].set(entry_handle, meter_spec);
   }
 
+  pi_status_t packetout_send(const char *, size_t) {
+    return PI_STATUS_SUCCESS;
+  }
+
+  pi_status_t packetin_inject(const std::string &packet) const {
+    return pi_packetin_receive(device_id, packet.data(), packet.size());
+  }
+
  private:
   std::unordered_map<pi_p4_id_t, DummyTable> tables{};
   std::unordered_map<pi_p4_id_t, DummyActionProf> action_profs{};
   std::unordered_map<pi_p4_id_t, DummyMeter> meters{};
-#ifdef __clang__
-  __attribute__((unused))
-#endif
   device_id_t device_id;
 };
 
@@ -465,6 +472,9 @@ DummySwitchMock::DummySwitchMock(device_id_t device_id)
       .WillByDefault(Invoke(sw_, &DummySwitch::meter_set));
   ON_CALL(*this, meter_set_direct(_, _, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::meter_set_direct));
+
+  ON_CALL(*this, packetout_send(_, _))
+      .WillByDefault(Invoke(sw_, &DummySwitch::packetout_send));
 }
 
 DummySwitchMock::~DummySwitchMock() = default;
@@ -505,6 +515,11 @@ DummySwitchMock::_action_prof_group_create(pi_p4_id_t act_prof_id,
 pi_indirect_handle_t
 DummySwitchMock::get_action_prof_handle() const {
   return action_prof_h;
+}
+
+pi_status_t
+DummySwitchMock::packetin_inject(const std::string &packet) const {
+  return sw->packetin_inject(packet);
 }
 
 namespace {
@@ -663,6 +678,11 @@ pi_status_t _pi_meter_set_direct(pi_session_handle_t,
                                  const pi_meter_spec_t *meter_spec) {
   return DeviceResolver::get_switch(dev_tgt.dev_id)->meter_set_direct(
       meter_id, entry_handle, meter_spec);
+}
+
+pi_status_t _pi_packetout_send(pi_dev_id_t dev_id, const char *pkt,
+                               size_t size) {
+  return DeviceResolver::get_switch(dev_id)->packetout_send(pkt, size);
 }
 
 }

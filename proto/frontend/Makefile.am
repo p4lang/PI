@@ -18,6 +18,8 @@ src/table_info_store.h \
 src/table_info_store.cpp \
 src/action_helpers.h \
 src/action_helpers.cpp \
+src/packet_io_mgr.h \
+src/packet_io_mgr.cpp \
 src/common.h \
 src/common.cpp
 
