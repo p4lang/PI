@@ -120,6 +120,13 @@ TEST_F(DeviceMgrTest, ResourceTypeFromId) {
             resource_type_from_id(pi::proto::util::invalid_id()));
 }
 
+TEST_F(DeviceMgrTest, PipelineConfigGet) {
+  p4::ForwardingPipelineConfig config;
+  auto status = mgr.pipeline_config_get(&config);
+  ASSERT_EQ(status.code(), Code::OK);
+  EXPECT_TRUE(MessageDifferencer::Equals(p4info_proto, config.p4info()));
+}
+
 using ::testing::WithParamInterface;
 using ::testing::Values;
 using ::testing::Combine;

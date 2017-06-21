@@ -197,11 +197,14 @@ class DeviceMgrImp {
     return status;
   }
 
-  // TODO(antonin)
   Status pipeline_config_get(p4::ForwardingPipelineConfig *config) {
-    (void) config;
     Status status;
-    status.set_code(Code::UNIMPLEMENTED);
+    config->set_device_id(device_id);
+    config->mutable_p4info()->CopyFrom(p4info_proto);
+    // TODO(antonin): we do not set the p4_device_config bytes field, as we do
+    // not have a local copy of it; if it is needed by the controller, we will
+    // find a way to return it as well.
+    status.set_code(Code::OK);
     return status;
   }
 
