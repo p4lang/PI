@@ -897,8 +897,11 @@ class DeviceMgrImp {
         case p4::FieldMatch::kTernary:
           code = check_mf_bytestring(t_id, mf.field_id(), mf.ternary().value());
           if (code != Code::OK) return code;
-          code = check_mf_bytestring(t_id, mf.field_id(), mf.ternary().mask());
-          if (code != Code::OK) return code;
+          if (!mf.ternary().mask().empty()) {
+            code = check_mf_bytestring(t_id, mf.field_id(),
+                                       mf.ternary().mask());
+            if (code != Code::OK) return code;
+          }
           break;
         case p4::FieldMatch::kValid:
           break;
@@ -930,18 +933,20 @@ class DeviceMgrImp {
                              mf.lpm().value().size(), mf.lpm().prefix_len());
           break;
         case p4::FieldMatch::kTernary:
-          // if (mf.ternary().value().size() != mf.ternary().mask().size())
-          //   return Code::INVALID_ARGUMENT;
-          match_key->set_ternary(mf.field_id(), mf.ternary().value().data(),
-                                 mf.ternary().mask().data(),
-                                 mf.ternary().value().size());
+          if (mf.ternary().mask().empty()) {
+            const std::string mask(mf.ternary().value().size(), '\x00');
+            match_key->set_ternary(mf.field_id(), mf.ternary().value().data(),
+                                   mask.data(), mf.ternary().value().size());
+          } else {
+            match_key->set_ternary(mf.field_id(), mf.ternary().value().data(),
+                                   mf.ternary().mask().data(),
+                                   mf.ternary().value().size());
+          }
           break;
         case p4::FieldMatch::kValid:
           match_key->set_valid(mf.field_id(), mf.valid().value());
           break;
         case p4::FieldMatch::kRange:
-          // if (mf.range().low().size() != mf.range().high().size())
-          //   return Code::INVALID_ARGUMENT;
           match_key->set_range(mf.field_id(), mf.range().low().data(),
                                mf.range().high().data(),
                                mf.range().low().size());

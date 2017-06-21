@@ -88,6 +88,17 @@ class DeviceMgrTest : public ::testing::Test {
 
   void TearDown() override { }
 
+  DeviceMgr::Status add_entry(p4::TableEntry *entry) {
+    p4::WriteRequest request;
+    auto update = request.add_updates();
+    update->set_type(p4::Update_Type_INSERT);
+    auto entity = update->mutable_entity();
+    entity->set_allocated_table_entry(entry);
+    auto status = mgr.write(request);
+    entity->release_table_entry();
+    return status;
+  }
+
   static constexpr const char *input_path = TESTDATADIR "/" "unittest.json";
   static pi_p4info_t *p4info;
   static p4::config::P4Info p4info_proto;
@@ -1040,17 +1051,6 @@ class ExactOneTest : public DeviceMgrTest {
     a_id = pi_p4info_action_id_from_name(p4info, "actionA");
   }
 
-  DeviceMgr::Status add_entry(p4::TableEntry *entry) {
-    p4::WriteRequest request;
-    auto update = request.add_updates();
-    update->set_type(p4::Update_Type_INSERT);
-    auto entity = update->mutable_entity();
-    entity->set_allocated_table_entry(entry);
-    auto status = mgr.write(request);
-    entity->release_table_entry();
-    return status;
-  }
-
   p4::TableEntry make_entry(const std::string &mf_v,
                             const std::string &param_v) {
     p4::TableEntry table_entry;
@@ -1296,6 +1296,54 @@ TEST_F(MatchKeyFormatTest, BadLeadingZeros) {
   add_one_mf(&entry, mf_v);
   auto status = add_entry(&entry);
   ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
+}
+
+class TernaryOneTest : public DeviceMgrTest {
+ protected:
+  TernaryOneTest() {
+    t_id = pi_p4info_table_id_from_name(p4info, "TernaryOne");
+    a_id = pi_p4info_action_id_from_name(p4info, "actionA");
+  }
+
+  p4::TableEntry make_entry(const std::string &mf_v,
+                            const std::string &mask_v,
+                            const std::string &param_v) {
+    p4::TableEntry table_entry;
+    table_entry.set_table_id(t_id);
+    auto mf = table_entry.add_match();
+    mf->set_field_id(pi_p4info_table_match_field_id_from_name(
+        p4info, t_id, "header_test.field32"));
+    auto mf_ternary = mf->mutable_ternary();
+    mf_ternary->set_value(mf_v);
+    mf_ternary->set_mask(mask_v);
+    auto entry = table_entry.mutable_action();
+    auto action = entry->mutable_action();
+
+    action->set_action_id(a_id);
+    auto param = action->add_params();
+    param->set_param_id(
+        pi_p4info_action_param_id_from_name(p4info, a_id, "param"));
+    param->set_value(param_v);
+    return table_entry;
+  }
+
+  const std::string f_name;
+  pi_p4_id_t t_id;
+  pi_p4_id_t a_id;
+};
+
+TEST_F(TernaryOneTest, MatchFieldNoMask) {
+  const std::string mf_v("\xaa\xbb\xcc\xdd", 4);
+  const std::string mask_v;
+  const std::string param_v(6, '\x00');
+  auto entry = make_entry(mf_v, mask_v, param_v);
+  const std::string mask_zeros(4, '\x00');
+  auto mk_input = MatchKeyInput::make_ternary(
+      mf_v, mask_zeros, 0  /* priority */);
+  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mk_input.get_match_key()));
+  EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, _, _));
+  auto status = add_entry(&entry);
+  ASSERT_EQ(status.code(), Code::OK);
 }
 
 }  // namespace
