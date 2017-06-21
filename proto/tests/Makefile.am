@@ -11,9 +11,10 @@ AM_CPPFLAGS = \
 
 TESTS = \
 test_p4info_convert \
-test_proto_fe
+test_proto_fe \
+test_proto_fe_packet_io
 
-common_source = main.cpp mock_switch.h mock_switch.cpp
+common_source = main.cpp
 
 common_libs = \
 $(top_builddir)/../third_party/libgmock.la \
@@ -28,14 +29,20 @@ $(top_builddir)/libpiprotobuf.la \
 $(top_builddir)/../src/libpip4info.la \
 $(common_libs)
 
-test_proto_fe_SOURCES = $(common_source) test_proto_fe.cpp
+proto_fe_common_source = $(common_source) mock_switch.h mock_switch.cpp
+
+test_proto_fe_SOURCES = $(proto_fe_common_source) test_proto_fe.cpp
+test_proto_fe_packet_io_SOURCES = $(proto_fe_common_source) \
+test_proto_fe_packet_io.cpp
 
 # this is an awful hack and a big time saver :)
 # thanks to this, I do not need to implement all of the _pi_* functions, only
 # the one I actually need for the tests. To me this is acceptable as I only use
 # this for unit tests
 test_proto_fe_LDFLAGS = $(LD_IGNORE_UNRESOLVED_SYMBOLS)
-test_proto_fe_LDADD = \
+test_proto_fe_packet_io_LDFLAGS = $(LD_IGNORE_UNRESOLVED_SYMBOLS)
+
+proto_fe_libs = \
 $(top_builddir)/p4info/libpiconvertproto.la \
 $(top_builddir)/frontend/libpifeproto.la \
 $(top_builddir)/../frontends_extra/cpp/libpifecpp.la \
@@ -44,6 +51,10 @@ $(top_builddir)/../src/libpiall.la \
 $(top_builddir)/../src/libpip4info.la \
 $(common_libs)
 
+test_proto_fe_LDADD = $(proto_fe_libs)
+test_proto_fe_packet_io_LDADD = $(proto_fe_libs)
+
 check_PROGRAMS = \
 test_p4info_convert \
-test_proto_fe
+test_proto_fe \
+test_proto_fe_packet_io

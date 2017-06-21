@@ -47,7 +47,7 @@ class DeviceMgr {
   // may change when we introduce specific error namespace
   using Status = ::google::rpc::Status;
   using PacketInCb =
-      std::function<void(device_id_t, std::string packet, void *cookie)>;
+      std::function<void(device_id_t, p4::PacketIn *packet, void *cookie)>;
 
   explicit DeviceMgr(device_id_t device_id);
 
@@ -67,10 +67,7 @@ class DeviceMgr {
   Status read(const p4::ReadRequest &request, p4::ReadResponse *response) const;
   Status read_one(const p4::Entity &entity, p4::ReadResponse *response) const;
 
-  // from the perspective of P4, a punted packet is just bytes. Either the
-  // controller is responsible for encapsulating the packet in the appropriate
-  // header, or the gRPC server is.
-  Status packet_out_send(const std::string &packet) const;
+  Status packet_out_send(const p4::PacketOut &packet) const;
 
   void packet_in_register_cb(PacketInCb cb, void *cookie);
 

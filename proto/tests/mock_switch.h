@@ -23,9 +23,10 @@
 
 #include <gmock/gmock.h>
 
+#include <map>
 #include <memory>
 #include <mutex>
-#include <unordered_map>
+#include <string>
 
 #include <cstdint>
 
@@ -63,6 +64,8 @@ class DummySwitchMock {
                                         pi_indirect_handle_t *h);
 
   pi_indirect_handle_t get_action_prof_handle() const;
+
+  pi_status_t packetin_inject(const std::string &packet) const;
 
   MOCK_METHOD4(table_entry_add,
                pi_status_t(pi_p4_id_t, const pi_match_key_t *,
@@ -102,6 +105,8 @@ class DummySwitchMock {
                pi_status_t(pi_p4_id_t, pi_entry_handle_t,
                            const pi_meter_spec_t *));
 
+  MOCK_METHOD2(packetout_send, pi_status_t(const char *, size_t));
+
  private:
   std::unique_ptr<DummySwitch> sw;
   pi_indirect_handle_t action_prof_h;
@@ -115,10 +120,16 @@ class DeviceResolver {
   static device_id_t new_switch() {
     auto r = DeviceResolver::get_instance();
     std::lock_guard<std::mutex> lock(r->m);
-    auto id = r->device_id++;
-    r->map.emplace(
-        id, std::unique_ptr<DummySwitchMock>(new DummySwitchMock(id)));
-    return id;
+    assert(r->map.size() < 256);
+    for (device_id_t id = 0; id < 256; id++) {
+      if (!r->map.count(id)) {
+        r->map.emplace(
+            id, std::unique_ptr<DummySwitchMock>(new DummySwitchMock(id)));
+        return id;
+      }
+    }
+    assert(0);
+    return 256;
   }
 
   static DummySwitchMock *get_switch(device_id_t device_id) {
@@ -140,8 +151,7 @@ class DeviceResolver {
   }
 
   mutable std::mutex m{};
-  std::unordered_map<device_id_t, std::unique_ptr<DummySwitchMock> > map{};
-  device_id_t device_id{0};
+  std::map<device_id_t, std::unique_ptr<DummySwitchMock> > map{};
 };
 
 class DummySwitchWrapper {

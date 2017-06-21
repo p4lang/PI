@@ -67,7 +67,7 @@ DeviceMgr *device_mgr = nullptr;
 
 StreamChannelClientMgr *packet_in_mgr;
 
-void packet_in_cb(DeviceMgr::device_id_t device_id, std::string packet,
+void packet_in_cb(DeviceMgr::device_id_t device_id, p4::PacketIn *packet,
                   void *cookie);
 
 // Copied from
@@ -197,7 +197,7 @@ class StreamChannelClientMgr {
             device_id = request.arbitration().device_id();
           break;
           case p4::StreamMessageRequest::kPacket:
-            device_mgr->packet_out_send(request.packet().payload());
+            device_mgr->packet_out_send(request.packet());
             break;
           default:
             assert(0);
@@ -227,16 +227,15 @@ class StreamChannelClientMgr {
       proceed();
     }
 
-    void send(DeviceMgr::device_id_t device_id, std::string bytes) {
+    void send(DeviceMgr::device_id_t device_id, p4::PacketIn *packet) {
       {
         std::unique_lock<std::mutex> L(m_);
         if (state != State::CAN_WRITE) return;
         state = State::MUST_WAIT;
       }
-      auto packet = response.mutable_packet();
-      packet->set_allocated_payload(&bytes);
+      response.set_allocated_packet(packet);
       stream.Write(response, this);
-      packet->release_payload();
+      response.release_packet();
     }
 
     void proceed(bool ok = true) override {
@@ -284,14 +283,14 @@ class StreamChannelClientMgr {
     return true;
   }
 
-  void notify_clients(DeviceMgr::device_id_t device_id, std::string bytes) {
+  void notify_clients(DeviceMgr::device_id_t device_id, p4::PacketIn *packet) {
     // SIMPLELOG << "NOTIFYING\n";
     std::vector<StreamChannelWriter *> clients_;
     {
       std::unique_lock<std::mutex> L(mgr_m_);
       clients_ = clients;
     }
-    for (auto c : clients_) c->send(device_id, std::move(bytes));
+    for (auto c : clients_) c->send(device_id, packet);
   }
 
  private:
@@ -319,10 +318,10 @@ class StreamChannelClientMgr {
   std::vector<StreamChannelWriter *> clients;
 };
 
-void packet_in_cb(DeviceMgr::device_id_t device_id, std::string packet,
+void packet_in_cb(DeviceMgr::device_id_t device_id, p4::PacketIn *packet,
                   void *cookie) {
   auto mgr = static_cast<StreamChannelClientMgr *>(cookie);
-  mgr->notify_clients(device_id, std::move(packet));
+  mgr->notify_clients(device_id, packet);
 }
 
 // void probe(StreamChannelClientMgr *mgr) {
@@ -343,7 +342,9 @@ struct PacketInGenerator {
     sender = std::thread([this]() {
       while (!stop_f) {
         // sending 1000 bytes packets
-        mgr->notify_clients(0, std::string(1000, '1'));
+        p4::PacketIn packet;
+        packet.set_payload(std::string(1000, '1'));
+        mgr->notify_clients(0, &packet);
       }
     });
   }
