@@ -188,7 +188,12 @@ struct ValueIterator {
     T current{};
   };
 
+// Bug with some older versions of GCC (e.g. 4.8.2); see
+// https://gcc.gnu.org/bugzilla/show_bug.cgi?id=36750
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
   iterator begin() const { return iterator(this); }
+#pragma GCC diagnostic pop
   iterator end() const { return iterator(this, bounds); }
 
   T bitwidths;
