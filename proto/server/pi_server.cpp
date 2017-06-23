@@ -65,62 +65,6 @@ using pi::fe::proto::DeviceMgr;
 
 namespace {
 
-class ConfigMgrInstance {
- public:
-  static GnmiMgr *get() {
-    static GnmiMgr mgr;
-    return &mgr;
-  }
-};
-
-DeviceMgr *device_mgr = nullptr;
-
-class gNMIServiceImpl : public gnmi::gNMI::Service {
- private:
-  Status Capabilities(ServerContext *context,
-                      const gnmi::CapabilityRequest *request,
-                      gnmi::CapabilityResponse *response) override {
-    (void) request; (void) response;
-    SIMPLELOG << "gNMI Capabilities\n";
-    SIMPLELOG << request->DebugString();
-    return Status(StatusCode::UNIMPLEMENTED, "not implemented yet");
-  }
-
-  Status Get(ServerContext *context, const gnmi::GetRequest *request,
-             gnmi::GetResponse *response) override {
-    SIMPLELOG << "gNMI Get\n";
-    SIMPLELOG << request->DebugString();
-    auto status = ConfigMgrInstance::get()->config_get(*request, response);
-    (void) status;
-    return Status::OK;
-  }
-
-  Status Set(ServerContext *context, const gnmi::SetRequest *request,
-             gnmi::SetResponse *response) override {
-    SIMPLELOG << "gNMI Set\n";
-    SIMPLELOG << request->DebugString();
-    auto status = ConfigMgrInstance::get()->config_set(*request, response);
-    (void) status;
-    return Status::OK;
-  }
-
-  Status Subscribe(
-      ServerContext *context,
-      ServerReaderWriter<gnmi::SubscribeResponse,
-                         gnmi::SubscribeRequest> *stream) override {
-    (void) stream;
-    SIMPLELOG << "gNMI Subscribe\n";
-    return Status(StatusCode::UNIMPLEMENTED, "not implemented yet");
-  }
-};
-
-class StreamChannelClientMgr;
-
-StreamChannelClientMgr *packet_in_mgr;
-
-void packet_in_cb(DeviceMgr::device_id_t device_id, p4::PacketIn *packet,
-                  void *cookie);
-
 // Copied from
 // https://github.com/grpc/grpc/blob/master/src/cpp/util/error_details.cc
 // Cannot use libgrpc++_error_details, as the library includes
@@ -150,6 +94,60 @@ grpc::Status to_grpc_status(const DeviceMgr::Status &from) {
   assert(conversion_status.ok());
   return to;
 }
+
+class ConfigMgrInstance {
+ public:
+  static GnmiMgr *get() {
+    static GnmiMgr mgr;
+    return &mgr;
+  }
+};
+
+DeviceMgr *device_mgr = nullptr;
+
+class gNMIServiceImpl : public gnmi::gNMI::Service {
+ private:
+  Status Capabilities(ServerContext *context,
+                      const gnmi::CapabilityRequest *request,
+                      gnmi::CapabilityResponse *response) override {
+    (void) request; (void) response;
+    SIMPLELOG << "gNMI Capabilities\n";
+    SIMPLELOG << request->DebugString();
+    return Status(StatusCode::UNIMPLEMENTED, "not implemented yet");
+  }
+
+  Status Get(ServerContext *context, const gnmi::GetRequest *request,
+             gnmi::GetResponse *response) override {
+    SIMPLELOG << "gNMI Get\n";
+    SIMPLELOG << request->DebugString();
+    auto status = ConfigMgrInstance::get()->config_get(*request, response);
+    return to_grpc_status(status);
+  }
+
+  Status Set(ServerContext *context, const gnmi::SetRequest *request,
+             gnmi::SetResponse *response) override {
+    SIMPLELOG << "gNMI Set\n";
+    SIMPLELOG << request->DebugString();
+    auto status = ConfigMgrInstance::get()->config_set(*request, response);
+    return to_grpc_status(status);
+  }
+
+  Status Subscribe(
+      ServerContext *context,
+      ServerReaderWriter<gnmi::SubscribeResponse,
+                         gnmi::SubscribeRequest> *stream) override {
+    (void) stream;
+    SIMPLELOG << "gNMI Subscribe\n";
+    return Status(StatusCode::UNIMPLEMENTED, "not implemented yet");
+  }
+};
+
+class StreamChannelClientMgr;
+
+StreamChannelClientMgr *packet_in_mgr;
+
+void packet_in_cb(DeviceMgr::device_id_t device_id, p4::PacketIn *packet,
+                  void *cookie);
 
 class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
  private:
