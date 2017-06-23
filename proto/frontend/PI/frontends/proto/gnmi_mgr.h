@@ -42,11 +42,11 @@ class GnmiMgr {
   GnmiMgr();
   ~GnmiMgr();
 
-  Status config_get(const gnmi::GetRequest &request,
-                    gnmi::GetResponse *response) const;
+  Status get(const gnmi::GetRequest &request,
+             gnmi::GetResponse *response) const;
 
-  Status config_set(const gnmi::SetRequest &request,
-                    gnmi::SetResponse *response);
+  Status set(const gnmi::SetRequest &request,
+             gnmi::SetResponse *response);
 
  private:
   // PIMPL design

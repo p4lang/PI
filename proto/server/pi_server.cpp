@@ -120,7 +120,7 @@ class gNMIServiceImpl : public gnmi::gNMI::Service {
              gnmi::GetResponse *response) override {
     SIMPLELOG << "gNMI Get\n";
     SIMPLELOG << request->DebugString();
-    auto status = ConfigMgrInstance::get()->config_get(*request, response);
+    auto status = ConfigMgrInstance::get()->get(*request, response);
     return to_grpc_status(status);
   }
 
@@ -128,7 +128,7 @@ class gNMIServiceImpl : public gnmi::gNMI::Service {
              gnmi::SetResponse *response) override {
     SIMPLELOG << "gNMI Set\n";
     SIMPLELOG << request->DebugString();
-    auto status = ConfigMgrInstance::get()->config_set(*request, response);
+    auto status = ConfigMgrInstance::get()->set(*request, response);
     return to_grpc_status(status);
   }
 

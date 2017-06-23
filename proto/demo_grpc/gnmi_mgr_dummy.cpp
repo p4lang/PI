@@ -33,15 +33,15 @@ namespace proto {
 
 class GnmiMgrImp {
  public:
-  Status config_get(const gnmi::GetRequest &request,
-                    gnmi::GetResponse *response) const {
+  Status get(const gnmi::GetRequest &request,
+             gnmi::GetResponse *response) const {
     Status status;
     status.set_code(Code::UNIMPLEMENTED);
     return status;
   }
 
-  Status config_set(const gnmi::SetRequest &request,
-                    gnmi::SetResponse *response) {
+  Status set(const gnmi::SetRequest &request,
+             gnmi::SetResponse *response) {
     Status status;
     status.set_code(Code::UNIMPLEMENTED);
     return status;
@@ -54,15 +54,15 @@ GnmiMgr::GnmiMgr()
 GnmiMgr::~GnmiMgr() = default;
 
 Status
-GnmiMgr::config_get(const gnmi::GetRequest &request,
-                          gnmi::GetResponse *response) const {
-  return pimp->config_get(request, response);
+GnmiMgr::get(const gnmi::GetRequest &request,
+             gnmi::GetResponse *response) const {
+  return pimp->get(request, response);
 }
 
 Status
-GnmiMgr::config_set(const gnmi::SetRequest &request,
-                          gnmi::SetResponse *response) {
-  return pimp->config_set(request, response);
+GnmiMgr::set(const gnmi::SetRequest &request,
+             gnmi::SetResponse *response) {
+  return pimp->set(request, response);
 }
 
 }  // namespace proto
