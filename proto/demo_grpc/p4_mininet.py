@@ -58,7 +58,6 @@ class P4Switch(Switch):
                   **kwargs ):
         Switch.__init__( self, name, **kwargs )
         assert(sw_path)
-        assert(json_path)
         self.sw_path = sw_path
         self.json_path = json_path
         self.verbose = verbose
@@ -101,7 +100,10 @@ class P4Switch(Switch):
             args.extend( ['--nanolog', self.nanomsg] )
         args.extend( ['--device-id', str(self.device_id)] )
         P4Switch.device_id += 1
-        args.append(self.json_path)
+        if self.json_path:
+            args.append(self.json_path)
+        else:
+            args.append("--no-p4")
         if self.enable_debugger:
             args.append("--debugger")
         args.append("-- --enable-swap")

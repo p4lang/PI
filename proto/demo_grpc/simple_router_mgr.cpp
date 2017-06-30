@@ -218,20 +218,22 @@ class StreamChannelSyncClient {
                                      p4::StreamMessageResponse> > stream;
 };
 
-SimpleRouterMgr::SimpleRouterMgr(int dev_id, pi_p4info_t *p4info,
+SimpleRouterMgr::SimpleRouterMgr(int dev_id,
                                  boost::asio::io_service &io_service,
                                  std::shared_ptr<Channel> channel)
-    : dev_id(dev_id), p4info(p4info), io_service(io_service),
+    : dev_id(dev_id), io_service(io_service),
       pi_stub_(p4::P4Runtime::NewStub(channel)),
       packet_io_client(new StreamChannelSyncClient(this, channel)) {
 }
 
-SimpleRouterMgr::~SimpleRouterMgr() {
-}
+SimpleRouterMgr::~SimpleRouterMgr() = default;
 
 int
-SimpleRouterMgr::assign() {
+SimpleRouterMgr::assign(const std::string &config_buffer) {
   if (assigned) return 0;
+
+  pi_add_config(config_buffer.c_str(), PI_CONFIG_TYPE_BMV2_JSON, &p4info);
+
   p4::SetForwardingPipelineConfigRequest request;
   request.set_action(
       p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT);
@@ -245,6 +247,8 @@ SimpleRouterMgr::assign() {
   (*kv)["port"] = "9090";
   (*kv)["notifications"] = "ipc:///tmp/bmv2-0-notifications.ipc";
   (*kv)["cpu_iface"] = "veth251";
+  device_config.set_reassign(true);
+  device_config.set_device_data(config_buffer);
   device_config.SerializeToString(config->mutable_p4_device_config());
 
   p4::SetForwardingPipelineConfigResponse rep;
@@ -674,7 +678,7 @@ SimpleRouterMgr::update_config_(const std::string &config_buffer) {
   pi_add_config(config_buffer.c_str(), PI_CONFIG_TYPE_BMV2_JSON, &p4info_new);
   pi_p4info_t *p4info_prev = p4info;
   p4info = p4info_new;
-  pi_destroy_config(p4info_prev);
+  if (p4info_prev) pi_destroy_config(p4info_prev);
 
   {
     p4::SetForwardingPipelineConfigRequest request;

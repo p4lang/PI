@@ -77,13 +77,13 @@ class SimpleRouterMgr {
 
   typedef std::vector<char> Packet;
 
-  SimpleRouterMgr(int dev_id, pi_p4info_t *p4info,
+  SimpleRouterMgr(int dev_id,
                   boost::asio::io_service &io_service,
                   std::shared_ptr<Channel> channel);
 
   ~SimpleRouterMgr();
 
-  int assign();
+  int assign(const std::string &config_buffer);
 
   int add_route(uint32_t prefix, int pLen, uint32_t nhop, uint16_t port);
 

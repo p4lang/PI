@@ -28,7 +28,7 @@ the switch. The gRPC server translates the protobuf messages into PI library
 calls (using the PI C++ frontend).
 
 To run the demo, you will need 3 terminal instances:
-- `sudo python 1sw_demo.py --json simple_router.json --cpu-port veth250`
+- `sudo python 1sw_demo.py --cpu-port veth250`
 - `sudo ./pi_grpc_server`
 - `sudo ./controller -c simple_router.json`
 

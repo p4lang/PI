@@ -212,12 +212,14 @@ static void __pi_assign_device(char *req) {
   }
 
   size_t p4info_size = strlen(req) + 1;
-  pi_p4info_t *p4info;
-  // TODO(antonin): when is this destroyed?
-  status = pi_add_config(req, PI_CONFIG_TYPE_NATIVE_JSON, &p4info);
-  if (status != PI_STATUS_SUCCESS) {
-    send_status(status);
-    return;
+  pi_p4info_t *p4info = NULL;
+  if (p4info_size > 1) {
+    // TODO(antonin): when is this destroyed?
+    status = pi_add_config(req, PI_CONFIG_TYPE_NATIVE_JSON, &p4info);
+    if (status != PI_STATUS_SUCCESS) {
+      send_status(status);
+      return;
+    }
   }
   req += p4info_size;
 

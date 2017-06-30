@@ -152,31 +152,39 @@ class DeviceMgrImp {
       return status;
     }
 
-    if (a == p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT) {
-      // this is temporary, until I can implement this method properly
-      if (p4info) {
+    // check that p4info => device assigned
+    assert(!p4info || pi_is_device_assigned(device_id));
+
+    // assign device if needed, i.e. if device hasn't been assigned yet or if
+    // the reassign flag is set
+    if (a == p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_SAVE ||
+        a == p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT) {
+      if (pi_is_device_assigned(device_id) && p4_device_config.reassign()) {
         pi_remove_device(device_id);
         table_info_store.reset();
         action_profs.clear();
+        p4info.reset(nullptr);
       }
-
-      p4_change(config.p4info(), p4info_tmp);
-      std::vector<pi_assign_extra_t> assign_options;
-      for (const auto &p : p4_device_config.extras().kv()) {
-        pi_assign_extra_t e;
-        e.key = p.first.c_str();
-        e.v = p.second.c_str();
-        e.end_of_extras = 0;
-        assign_options.push_back(e);
+      if (!pi_is_device_assigned(device_id)) {
+        std::vector<pi_assign_extra_t> assign_options;
+        for (const auto &p : p4_device_config.extras().kv()) {
+          pi_assign_extra_t e;
+          e.key = p.first.c_str();
+          e.v = p.second.c_str();
+          e.end_of_extras = 0;
+          assign_options.push_back(e);
+        }
+        assign_options.push_back({1, NULL, NULL});
+        pi_status = pi_assign_device(device_id, NULL, assign_options.data());
+        if (pi_status != PI_STATUS_SUCCESS) {
+          status.set_code(Code::UNKNOWN);
+          return status;
+        }
       }
-      assign_options.push_back({1, NULL, NULL});
-      pi_status = pi_assign_device(device_id, p4info.get(),
-                                   assign_options.data());
-      if (pi_status != PI_STATUS_SUCCESS) status.set_code(Code::UNKNOWN);
-      return status;
     }
 
-    if (a == p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_SAVE) {
+    if (a == p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_SAVE ||
+        a == p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT) {
       const auto &device_data = p4_device_config.device_data();
       pi_status = pi_update_device_start(device_id, p4info_tmp,
                                          device_data.data(),
@@ -187,12 +195,13 @@ class DeviceMgrImp {
         return status;
       }
       p4_change(config.p4info(), p4info_tmp);
-      return status;
     }
 
-    assert(a == p4::SetForwardingPipelineConfigRequest_Action_COMMIT);
-    pi_status = pi_update_device_end(device_id);
-    if (pi_status != PI_STATUS_SUCCESS) status.set_code(Code::UNKNOWN);
+    if (a == p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT ||
+        a == p4::SetForwardingPipelineConfigRequest_Action_COMMIT) {
+      pi_status = pi_update_device_end(device_id);
+      if (pi_status != PI_STATUS_SUCCESS) status.set_code(Code::UNKNOWN);
+    }
 
     return status;
   }

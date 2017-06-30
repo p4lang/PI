@@ -41,7 +41,7 @@ extern int is_device_selected;
 char assign_device_hs[] =
     "Assign a specific device, "
     "if no device selected currently, it will select the newly device: "
-    "assign_device <device_id> [p4_config_id] [-- [key=v;]*]";
+    "assign_device <device_id> p4_config_id [device_data_path] [-- [key=v;]*]";
 
 // returns 0 if success
 static int parse_extras(pi_assign_extra_t *extras) {
@@ -78,15 +78,17 @@ static int parse_extras(pi_assign_extra_t *extras) {
 }
 
 pi_cli_status_t do_assign_device(char *subcmd) {
-  const char *args[1];
+  const char *args[2];
   size_t num_args = sizeof(args) / sizeof(char *);
   if (parse_fixed_args(subcmd, args, num_args) < num_args)
     return PI_CLI_STATUS_TOO_FEW_ARGS;
   char *endptr;
   uint16_t device_id = strtol(args[0], &endptr, 0);
   if (*endptr != '\0') return PI_CLI_STATUS_INVALID_DEVICE_ID;
+  int p4_config_id = strtol(args[1], &endptr, 0);
+  if (*endptr != '\0') return PI_CLI_STATUS_INVALID_P4_CONFIG_ID;
 
-  int p4_config_id = -1;  // -1 means default
+  const char *device_data_path = NULL;
   pi_assign_extra_t extras[MAX_EXTRAS + 1];
   memset(extras, 0, sizeof(extras));
   // if no extras
@@ -104,22 +106,42 @@ pi_cli_status_t do_assign_device(char *subcmd) {
 
     if (count > 1) return PI_CLI_STATUS_INVALID_COMMAND_FORMAT;
 
-    p4_config_id = strtol(token, &endptr, 0);
-    if (*endptr != '\0') return PI_CLI_STATUS_INVALID_P4_CONFIG_ID;
+    device_data_path = token;
   }
 
-  pi_p4info_t *p4info = NULL;
-  if (p4_config_id == -1) {
-    p4info = p4_config_get_first();
-  } else {
-    p4info = p4_config_get(p4_config_id);
+  char *device_data = NULL;
+  if (device_data_path) {
+    device_data = read_file(device_data_path);
+    if (!device_data) return PI_CLI_STATUS_INVALID_FILE_NAME;
   }
+
+  pi_p4info_t *p4info = p4_config_get(p4_config_id);
   if (!p4info) return PI_CLI_STATUS_INVALID_P4_CONFIG_ID;
 
-  pi_status_t rc = pi_assign_device(device_id, p4info, extras);
+  pi_status_t rc;
+  if (device_data)
+    rc = pi_assign_device(device_id, NULL, extras);
+  else
+    rc = pi_assign_device(device_id, p4info, extras);
   if (rc != PI_STATUS_SUCCESS) {
     printf("Failed to assign device\n");
     return PI_CLI_STATUS_TARGET_ERROR;
+  }
+
+  if (device_data) {
+    size_t device_data_size = strlen(device_data);
+    rc = pi_update_device_start(dev_tgt.dev_id, p4info, device_data,
+                                device_data_size);
+    free(device_data);
+    if (rc != PI_STATUS_SUCCESS) {
+      printf("Failed to update device config\n");
+      return PI_CLI_STATUS_TARGET_ERROR;
+    }
+    rc = pi_update_device_end(dev_tgt.dev_id);
+    if (rc != PI_STATUS_SUCCESS) {
+      printf("Failed to update device config\n");
+      return PI_CLI_STATUS_TARGET_ERROR;
+    }
   }
 
   printf("Device assigned successfully.\n");

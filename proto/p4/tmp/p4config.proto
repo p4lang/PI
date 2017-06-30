@@ -23,6 +23,7 @@ message P4DeviceConfig {
   message Extras {
     map<string, string> kv = 1;
   }
-  Extras extras = 1;  
-  bytes device_data = 2;
+  bool reassign = 1;
+  Extras extras = 2;
+  bytes device_data = 3;
 };
