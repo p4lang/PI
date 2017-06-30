@@ -53,8 +53,8 @@ typedef struct {
 } pi_assign_extra_t;
 
 //! Assigns a P4 config to a device. Different targets may need different
-//! indormation at that stage, so arbitary parameters can be provided using \p
-//! extra.
+//! information at that stage, so arbitary parameters can be provided using \p
+//! extra. \p p4info is NULL except if the device is already configured.
 pi_status_t pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
                              pi_assign_extra_t *extra);
 

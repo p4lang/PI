@@ -536,6 +536,13 @@ pi_status_t _pi_assign_device(pi_dev_id_t, const pi_p4info_t *,
   return PI_STATUS_SUCCESS;
 }
 
+pi_status_t _pi_update_device_start(pi_dev_id_t, const pi_p4info_t *,
+                                    const char *, size_t) {
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_update_device_end(pi_dev_id_t) { return PI_STATUS_SUCCESS; }
+
 pi_status_t _pi_remove_device(pi_dev_id_t) { return PI_STATUS_SUCCESS; }
 
 pi_status_t _pi_session_init(pi_session_handle_t *) {

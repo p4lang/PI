@@ -28,9 +28,10 @@
 #include <ctype.h>
 #include <unistd.h>
 
+#include <fstream>
 #include <iostream>
+#include <streambuf>
 #include <thread>
-#include <chrono>
 
 #define PORT 8888
 
@@ -99,8 +100,6 @@ int parse_opts(int argc, char *const argv[]) {
 
 int main(int argc, char *argv[]) {
   if (parse_opts(argc, argv) != 0) return 1;
-  pi_p4info_t *p4info;
-  pi_add_config_from_file(opt_config_path, PI_CONFIG_TYPE_BMV2_JSON, &p4info);
 
   boost::asio::io_service io_service;
   boost::asio::io_service::work work(io_service);
@@ -109,8 +108,11 @@ int main(int argc, char *argv[]) {
       "localhost:50051", grpc::InsecureChannelCredentials());
 
   int dev_id = 0;
-  SimpleRouterMgr simple_router_mgr(dev_id, p4info, io_service, channel);
-  assert(!simple_router_mgr.assign());
+  SimpleRouterMgr simple_router_mgr(dev_id, io_service, channel);
+  std::ifstream istream(opt_config_path);
+  std::string config((std::istreambuf_iterator<char>(istream)),
+                      std::istreambuf_iterator<char>());
+  assert(!simple_router_mgr.assign(config));
   simple_router_mgr.set_default_entries();
   simple_router_mgr.static_config();
 

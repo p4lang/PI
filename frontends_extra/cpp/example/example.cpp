@@ -22,6 +22,9 @@
 
 #include <cassert>
 #include <cstring>
+#include <fstream>
+#include <streambuf>
+#include <string>
 
 // auto-generated #define's
 #include "pi_fe_defines_p4.h"
@@ -83,8 +86,10 @@ int add_route_fast(uint32_t prefix, int pLen, uint32_t nhop, uint16_t port,
 
 int main() {
   pi_init(256, NULL);  // 256 max devices
-  pi_add_config_from_file(TESTDATADIR "/" "simple_router.json",
-                          PI_CONFIG_TYPE_BMV2_JSON, &p4info);
+  std::ifstream istream(TESTDATADIR "/" "simple_router.json");
+  std::string config((std::istreambuf_iterator<char>(istream)),
+                     std::istreambuf_iterator<char>());
+  pi_add_config(config.c_str(), PI_CONFIG_TYPE_BMV2_JSON, &p4info);
 
   pi_assign_extra_t assign_options[2];
   memset(assign_options, 0, sizeof(assign_options));
@@ -92,7 +97,9 @@ int main() {
   rpc_port->key = "port";
   rpc_port->v = "9090";
   assign_options[1].end_of_extras = true;
-  pi_assign_device(0, p4info, assign_options);
+  pi_assign_device(0, NULL, assign_options);
+  pi_update_device_start(0, p4info, config.c_str(), config.size());
+  pi_update_device_end(0);
 
   pi_session_init(&sess);
 

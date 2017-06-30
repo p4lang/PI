@@ -33,7 +33,7 @@ parser.add_argument('--dev-id', help='Device id of switch',
 parser.add_argument('--num-hosts', help='Number of hosts to connect to switch',
                     type=int, action="store", default=2)
 parser.add_argument('--json', help='Path to JSON config file',
-                    type=str, action="store", required=True)
+                    type=str, action="store", required=False)
 parser.add_argument('--pcap-dump', help='Dump packets on interfaces to pcap files',
                     type=str, action="store", required=False, default=False)
 parser.add_argument('--cpu-port', help='An optional veth to use as the CPU port',
