@@ -212,7 +212,7 @@ class StreamChannelClientMgr {
   StreamChannelClientMgr(P4RuntimeHybridService *service,
                          ServerCompletionQueue* cq)
       : service_(service), cq_(cq) {
-    new StreamChannelWriter(this, service, cq);
+    new StreamChannelReader(this, service, cq);
   }
 
   using ReaderWriter = ServerAsyncReaderWriter<p4::StreamMessageResponse,
@@ -224,22 +224,69 @@ class StreamChannelClientMgr {
     virtual void proceed(bool ok = true) = 0;
   };
 
+  class StreamChannelWriter : public StreamChannelTag {
+   public:
+    StreamChannelWriter(ReaderWriter *stream)
+        : stream(stream), state(State::CREATE) { }
+
+    void send(DeviceMgr::device_id_t device_id, p4::PacketIn *packet) {
+      {
+        std::unique_lock<std::mutex> L(m_);
+        if (state != State::CAN_WRITE) return;
+        state = State::MUST_WAIT;
+      }
+      response.set_allocated_packet(packet);
+      stream->Write(response, this);
+      response.release_packet();
+    }
+
+    void proceed(bool ok = true) override {
+      if (!ok) return;
+      std::unique_lock<std::mutex> L(m_);
+      if (state == State::CREATE) {
+        // SIMPLELOG << "CREATE\n";
+        state = State::CAN_WRITE;
+      } else if (state == State::MUST_WAIT) {
+        // SIMPLELOG << "MUST_WAIT\n";
+        state = State::CAN_WRITE;
+      }
+    }
+
+   private:
+    ReaderWriter *stream;
+    p4::StreamMessageResponse response{};
+    mutable std::mutex m_;
+    enum class State { CREATE, CAN_WRITE, MUST_WAIT};
+    State state;  // The current serving state
+  };
+
   class StreamChannelReader : public StreamChannelTag {
    public:
-    StreamChannelReader(ReaderWriter *stream)
-        : stream(stream), state(State::CREATE) { }
+    StreamChannelReader(StreamChannelClientMgr *mgr,
+                        P4RuntimeHybridService *service,
+                        ServerCompletionQueue* cq)
+        : mgr_(mgr), service_(service), cq_(cq),
+          stream(&ctx), state(State::CREATE) {
+      proceed();
+    }
 
     void proceed(bool ok = true) override {
       if (state == State::FINISH) {
-        SIMPLELOG << "END!!!\n";
         delete this;
         return;
       }
       if (!ok) state = State::FINISH;
       if (state == State::CREATE) {
-        stream->Read(&request, this);
         state = State::PROCESS;
+        service_->RequestStreamChannel(&ctx, &stream, cq_, cq_, this);
       } else if (state == State::PROCESS) {
+        new StreamChannelReader(mgr_, service_, cq_);
+        writer.reset(new StreamChannelWriter(&stream));
+        writer->proceed();
+        mgr_->register_client(writer.get());
+        state = State::READ;
+        stream.Read(&request, this);
+      } else if (state == State::READ) {
         // SIMPLELOG << "PACKET OUT\n";
         switch (request.update_case()) {
           case p4::StreamMessageRequest::kArbitration:
@@ -251,77 +298,28 @@ class StreamChannelClientMgr {
           default:
             assert(0);
         }
-        stream->Read(&request, this);
+        stream.Read(&request, this);
       } else {
         assert(state == State::FINISH);
-        stream->Finish(Status::OK, this);
+        if (writer) {
+          SIMPLELOG << "Disconnect!!!\n";
+          mgr_->remove_client(writer.get());
+          stream.Finish(Status::OK, this);
+        }
       }
     }
 
    private:
     DeviceMgr::device_id_t device_id{};
     p4::StreamMessageRequest request{};
-    ReaderWriter *stream;
-    enum class State {CREATE, PROCESS, FINISH};
-    State state;
-  };
-
-  class StreamChannelWriter : public StreamChannelTag {
-   public:
-    StreamChannelWriter(StreamChannelClientMgr *mgr,
-                        P4RuntimeHybridService *service,
-                        ServerCompletionQueue* cq)
-        : mgr_(mgr), service_(service), cq_(cq),
-          stream(&ctx), state(State::CREATE) {
-      proceed();
-    }
-
-    void send(DeviceMgr::device_id_t device_id, p4::PacketIn *packet) {
-      {
-        std::unique_lock<std::mutex> L(m_);
-        if (state != State::CAN_WRITE) return;
-        state = State::MUST_WAIT;
-      }
-      response.set_allocated_packet(packet);
-      stream.Write(response, this);
-      response.release_packet();
-    }
-
-    void proceed(bool ok = true) override {
-      std::unique_lock<std::mutex> L(m_);
-      if (!ok) state = State::FINISH;
-      if (state == State::CREATE) {
-        // SIMPLELOG << "CREATE\n";
-        state = State::CAN_WRITE;
-        service_->RequestStreamChannel(&ctx, &stream, cq_, cq_, this);
-      } else if (state == State::CAN_WRITE) {
-        reader = new StreamChannelReader(&stream);
-        reader->proceed();
-        // SIMPLELOG << "WRITE\n";
-        new StreamChannelWriter(mgr_, service_, cq_);
-        mgr_->register_client(this);
-      } else if (state == State::MUST_WAIT) {
-        // SIMPLELOG << "MUST_WAIT\n";
-        state = State::CAN_WRITE;
-      } else {
-        assert(state == State::FINISH);
-        mgr_->remove_client(this);
-        delete this;
-      }
-    }
-
-   private:
     StreamChannelClientMgr *mgr_;
     P4RuntimeHybridService *service_;
     ServerCompletionQueue* cq_;
     ServerContext ctx{};
-    ServerAsyncReaderWriter<p4::StreamMessageResponse,
-                            p4::StreamMessageRequest> stream;
-    StreamChannelReader *reader = nullptr;
-    p4::StreamMessageResponse response{};
-    mutable std::mutex m_;
-    enum class State { CREATE, CAN_WRITE, MUST_WAIT, FINISH};
-    State state;  // The current serving state
+    ReaderWriter stream;
+    std::unique_ptr<StreamChannelWriter> writer{nullptr};
+    enum class State {CREATE, PROCESS, READ, FINISH};
+    State state;
   };
 
   bool next() {
