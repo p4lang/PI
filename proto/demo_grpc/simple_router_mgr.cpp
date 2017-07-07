@@ -293,7 +293,6 @@ SimpleRouterMgr::add_one_entry(p4::TableEntry *match_action_entry) {
   p4::WriteResponse rep;
   ClientContext context;
   Status status = pi_stub_->Write(&context, request, &rep);
-  assert(status.ok());
 
   entity->release_table_entry();
 
