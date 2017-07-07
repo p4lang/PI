@@ -34,7 +34,11 @@ void PIGrpcServerRunAddr(const char *server_address);
 // responsible for shutting down the server for this call to ever return.
 void PIGrpcServerWait();
 
+// Shutdown server but waits for all RPCs to finish
 void PIGrpcServerShutdown();
+
+// Force-shutdown server with a deadline for all RPCs to finish
+void PIGrpcServerForceShutdown(int deadline_seconds);
 
 // Once server has been shutdown, cleanup allocated resources.
 void PIGrpcServerCleanup();

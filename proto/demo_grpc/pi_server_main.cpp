@@ -43,7 +43,7 @@ int main(int argc, char** argv) {
 
   auto handler = [](int s) {
     std::cout << "Server shutting down\n";
-    PIGrpcServerShutdown();
+    PIGrpcServerForceShutdown(1);  // 1 second deadline
   };
 
   PIGrpcServerRunAddr(server_address);
