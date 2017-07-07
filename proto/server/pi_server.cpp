@@ -475,11 +475,19 @@ void PIGrpcServerWait() {
 
 void PIGrpcServerShutdown() {
   server_data->server->Shutdown();
+  server_data->cq_->Shutdown();
+  server_data->packetin_thread.join();
+}
+
+void PIGrpcServerForceShutdown(int deadline_seconds) {
+  using clock = std::chrono::system_clock;
+  auto deadline = clock::now() + std::chrono::seconds(deadline_seconds);
+  server_data->server->Shutdown(deadline);
+  server_data->cq_->Shutdown();
+  server_data->packetin_thread.join();
 }
 
 void PIGrpcServerCleanup() {
-  server_data->cq_->Shutdown();
-  server_data->packetin_thread.join();
   if (server_data->generator) delete server_data->generator;
   delete server_data;
 }
