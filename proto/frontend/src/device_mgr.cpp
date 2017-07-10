@@ -911,10 +911,8 @@ class DeviceMgrImp {
           case p4::FieldMatch::kTernary:
             code = check_proto_bytestring(mf.ternary().value(), bitwidth);
             if (code != Code::OK) return code;
-            if (!mf.ternary().mask().empty()) {
-              code = check_proto_bytestring(mf.ternary().mask(), bitwidth);
-              if (code != Code::OK) return code;
-            }
+            code = check_proto_bytestring(mf.ternary().mask(), bitwidth);
+            if (code != Code::OK) return code;
             break;
           case p4::FieldMatch::kValid:
             break;
@@ -951,15 +949,9 @@ class DeviceMgrImp {
                              mf.lpm().value().size(), mf.lpm().prefix_len());
           break;
         case p4::FieldMatch::kTernary:
-          if (mf.ternary().mask().empty()) {
-            const std::string mask(mf.ternary().value().size(), '\x00');
-            match_key->set_ternary(mf.field_id(), mf.ternary().value().data(),
-                                   mask.data(), mf.ternary().value().size());
-          } else {
-            match_key->set_ternary(mf.field_id(), mf.ternary().value().data(),
-                                   mf.ternary().mask().data(),
-                                   mf.ternary().value().size());
-          }
+          match_key->set_ternary(mf.field_id(), mf.ternary().value().data(),
+                                 mf.ternary().mask().data(),
+                                 mf.ternary().value().size());
           break;
         case p4::FieldMatch::kValid:
           match_key->set_valid(mf.field_id(), mf.valid().value());
