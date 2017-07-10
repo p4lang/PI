@@ -84,6 +84,17 @@ table TernaryOne {
     size: 512;
 }
 
+table TernaryTwo {
+    reads {
+        header_test.field32 : ternary;
+        header_test.field16 : ternary;
+    }
+    actions {
+        actionA;
+    }
+    size: 512;
+}
+
 table RangeOne {
     reads {
         header_test.field32 : range;
@@ -154,6 +165,7 @@ control ingress {
     apply(ExactOne);
     apply(LpmOne);
     apply(TernaryOne);
+    apply(TernaryTwo);
     apply(RangeOne);
     apply(MixMany);
     apply(IndirectWS);
