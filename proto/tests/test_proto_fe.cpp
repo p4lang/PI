@@ -1351,22 +1351,6 @@ class TernaryTwoTest : public DeviceMgrTest {
   pi_p4_id_t a_id;
 };
 
-TEST_F(TernaryTwoTest, MatchFieldNoMask) {
-  const std::string mf1_v("\xaa\xbb\xcc\xdd", 4);
-  const std::string mask1_v;
-  const std::string mf2_v("\xaa\xbb", 2);
-  const std::string mask2_v("\xff\xff", 2);
-  const std::string param_v(6, '\x00');
-  auto entry = make_entry(mf1_v, mask1_v, mf2_v, mask2_v, param_v);
-  const std::string mask_zeros(4, '\x00');
-  auto mk = make_match_key(mf1_v, std::string(4, '\x00'), mf2_v, mask2_v);
-  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mk));
-  EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, _, _));
-  auto status = add_entry(&entry);
-  ASSERT_EQ(status.code(), Code::OK);
-}
-
-
 // This test is the reason why we need 2 match fields in the table. If the macth
 // key is empty, the semantics of P4Runtime are different: it means "set the
 // default entry".
