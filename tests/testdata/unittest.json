@@ -317,6 +317,42 @@
                         "actionA"
                     ],
                     "next_tables": {
+                        "actionA": "TernaryTwo"
+                    },
+                    "base_default_next": "TernaryTwo",
+                    "pragmas": []
+                },
+                {
+                    "name": "TernaryTwo",
+                    "id": 3,
+                    "match_type": "ternary",
+                    "type": "simple",
+                    "max_size": 512,
+                    "with_counters": false,
+                    "direct_meters": null,
+                    "support_timeout": false,
+                    "key": [
+                        {
+                            "match_type": "ternary",
+                            "target": [
+                                "header_test",
+                                "field32"
+                            ],
+                            "mask": null
+                        },
+                        {
+                            "match_type": "ternary",
+                            "target": [
+                                "header_test",
+                                "field16"
+                            ],
+                            "mask": null
+                        }
+                    ],
+                    "actions": [
+                        "actionA"
+                    ],
+                    "next_tables": {
                         "actionA": "RangeOne"
                     },
                     "base_default_next": "RangeOne",
@@ -324,7 +360,7 @@
                 },
                 {
                     "name": "RangeOne",
-                    "id": 3,
+                    "id": 4,
                     "match_type": "range",
                     "type": "simple",
                     "max_size": 512,
@@ -352,7 +388,7 @@
                 },
                 {
                     "name": "MixMany",
-                    "id": 4,
+                    "id": 5,
                     "match_type": "ternary",
                     "type": "simple",
                     "max_size": 512,
@@ -403,7 +439,7 @@
                 },
                 {
                     "name": "IndirectWS",
-                    "id": 5,
+                    "id": 6,
                     "match_type": "exact",
                     "type": "indirect_ws",
                     "action_profile": "ActProfWS",
@@ -434,7 +470,7 @@
                 },
                 {
                     "name": "ExactOneNonAligned",
-                    "id": 6,
+                    "id": 7,
                     "match_type": "exact",
                     "type": "simple",
                     "max_size": 512,

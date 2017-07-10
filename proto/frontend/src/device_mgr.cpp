@@ -878,52 +878,61 @@ class DeviceMgrImp {
         && pi_p4info_is_valid_id(p4info.get(), p4_id);
   }
 
-  Code check_mf_bytestring(p4_id_t t_id, p4_id_t mf_id,
-                           const std::string &str) const {
-    auto not_found = static_cast<size_t>(-1);
-    size_t bitwidth = pi_p4info_table_match_field_bitwidth(
-        p4info.get(), t_id, mf_id);
-    if (bitwidth == not_found) return Code::INVALID_ARGUMENT;
-    return check_proto_bytestring(str, bitwidth);
-  }
-
   Code validate_match_key(const p4::TableEntry &entry) const {
     Code code;
     auto t_id = entry.table_id();
-    size_t exp_mk_size = pi_p4info_table_num_match_fields(p4info.get(), t_id);
-    if (static_cast<size_t>(entry.match().size()) != exp_mk_size)
+    size_t num_match_fields;
+    auto expected_mf_ids = pi_p4info_table_get_match_fields(
+        p4info.get(), t_id, &num_match_fields);
+    if (static_cast<size_t>(entry.match().size()) > num_match_fields)
       return Code::INVALID_ARGUMENT;
-    for (const auto &mf : entry.match()) {
-      switch (mf.field_match_type_case()) {
-        case p4::FieldMatch::kExact:
-          code = check_mf_bytestring(t_id, mf.field_id(), mf.exact().value());
-          if (code != Code::OK) return code;
-          break;
-        case p4::FieldMatch::kLpm:
-          code = check_mf_bytestring(t_id, mf.field_id(), mf.lpm().value());
-          if (code != Code::OK) return code;
-          break;
-        case p4::FieldMatch::kTernary:
-          code = check_mf_bytestring(t_id, mf.field_id(), mf.ternary().value());
-          if (code != Code::OK) return code;
-          if (!mf.ternary().mask().empty()) {
-            code = check_mf_bytestring(t_id, mf.field_id(),
-                                       mf.ternary().mask());
+
+    int num_mf_matched = 0;  // check if some extra fields in the match key
+    // the double loop is potentially too slow; refactor this code if it proves
+    // to be a bottleneck
+    for (size_t i = 0; i < num_match_fields; i++) {
+      auto mf_id = expected_mf_ids[i];
+      auto mf_info = pi_p4info_table_match_field_info(p4info.get(), t_id, i);
+      bool mf_is_missing = true;
+      for (const auto &mf : entry.match()) {
+        if (mf.field_id() != mf_id) continue;
+        mf_is_missing = false;
+        num_mf_matched++;
+        auto bitwidth = mf_info->bitwidth;
+        switch (mf.field_match_type_case()) {
+          case p4::FieldMatch::kExact:
+            code = check_proto_bytestring(mf.exact().value(), bitwidth);
             if (code != Code::OK) return code;
-          }
-          break;
-        case p4::FieldMatch::kValid:
-          break;
-        case p4::FieldMatch::kRange:
-          code = check_mf_bytestring(t_id, mf.field_id(), mf.range().low());
-          if (code != Code::OK) return code;
-          code = check_mf_bytestring(t_id, mf.field_id(), mf.range().high());
-          if (code != Code::OK) return code;
-          break;
-        default:
-          return Code::INVALID_ARGUMENT;
+            break;
+          case p4::FieldMatch::kLpm:
+            code = check_proto_bytestring(mf.lpm().value(), bitwidth);
+            if (code != Code::OK) return code;
+            break;
+          case p4::FieldMatch::kTernary:
+            code = check_proto_bytestring(mf.ternary().value(), bitwidth);
+            if (code != Code::OK) return code;
+            if (!mf.ternary().mask().empty()) {
+              code = check_proto_bytestring(mf.ternary().mask(), bitwidth);
+              if (code != Code::OK) return code;
+            }
+            break;
+          case p4::FieldMatch::kValid:
+            break;
+          case p4::FieldMatch::kRange:
+            code = check_proto_bytestring(mf.range().low(), bitwidth);
+            if (code != Code::OK) return code;
+            code = check_proto_bytestring(mf.range().high(), bitwidth);
+            if (code != Code::OK) return code;
+            break;
+          default:
+            return Code::INVALID_ARGUMENT;
+        }
       }
+      if (mf_is_missing && mf_info->match_type != PI_P4INFO_MATCH_TYPE_TERNARY)
+        return Code::INVALID_ARGUMENT;
     }
+    if (num_mf_matched != entry.match().size())
+      return Code::INVALID_ARGUMENT;
     return Code::OK;
   }
 

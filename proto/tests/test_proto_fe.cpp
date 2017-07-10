@@ -1298,24 +1298,36 @@ TEST_F(MatchKeyFormatTest, BadLeadingZeros) {
   ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
 }
 
-class TernaryOneTest : public DeviceMgrTest {
+class TernaryTwoTest : public DeviceMgrTest {
  protected:
-  TernaryOneTest() {
-    t_id = pi_p4info_table_id_from_name(p4info, "TernaryOne");
+  TernaryTwoTest() {
+    t_id = pi_p4info_table_id_from_name(p4info, "TernaryTwo");
     a_id = pi_p4info_action_id_from_name(p4info, "actionA");
   }
 
-  p4::TableEntry make_entry(const std::string &mf_v,
-                            const std::string &mask_v,
+  p4::TableEntry make_entry(const std::string &mf1_v,
+                            const std::string &mask1_v,
+                            const std::string &mf2_v,
+                            const std::string &mask2_v,
                             const std::string &param_v) {
     p4::TableEntry table_entry;
     table_entry.set_table_id(t_id);
-    auto mf = table_entry.add_match();
-    mf->set_field_id(pi_p4info_table_match_field_id_from_name(
-        p4info, t_id, "header_test.field32"));
-    auto mf_ternary = mf->mutable_ternary();
-    mf_ternary->set_value(mf_v);
-    mf_ternary->set_mask(mask_v);
+    if (!mf1_v.empty()) {
+      auto mf = table_entry.add_match();
+      mf->set_field_id(pi_p4info_table_match_field_id_from_name(
+          p4info, t_id, "header_test.field32"));
+      auto mf_ternary = mf->mutable_ternary();
+      mf_ternary->set_value(mf1_v);
+      mf_ternary->set_mask(mask1_v);
+    }
+    if (!mf2_v.empty()) {
+      auto mf = table_entry.add_match();
+      mf->set_field_id(pi_p4info_table_match_field_id_from_name(
+          p4info, t_id, "header_test.field16"));
+      auto mf_ternary = mf->mutable_ternary();
+      mf_ternary->set_value(mf2_v);
+      mf_ternary->set_mask(mask2_v);
+    }
     auto entry = table_entry.mutable_action();
     auto action = entry->mutable_action();
 
@@ -1327,20 +1339,47 @@ class TernaryOneTest : public DeviceMgrTest {
     return table_entry;
   }
 
+  std::string make_match_key(const std::string &mf1_v,
+                             const std::string &mask1_v,
+                             const std::string &mf2_v,
+                             const std::string &mask2_v) {
+    return mf1_v + mask1_v + mf2_v + mask2_v;
+  }
+
   const std::string f_name;
   pi_p4_id_t t_id;
   pi_p4_id_t a_id;
 };
 
-TEST_F(TernaryOneTest, MatchFieldNoMask) {
-  const std::string mf_v("\xaa\xbb\xcc\xdd", 4);
-  const std::string mask_v;
+TEST_F(TernaryTwoTest, MatchFieldNoMask) {
+  const std::string mf1_v("\xaa\xbb\xcc\xdd", 4);
+  const std::string mask1_v;
+  const std::string mf2_v("\xaa\xbb", 2);
+  const std::string mask2_v("\xff\xff", 2);
   const std::string param_v(6, '\x00');
-  auto entry = make_entry(mf_v, mask_v, param_v);
+  auto entry = make_entry(mf1_v, mask1_v, mf2_v, mask2_v, param_v);
   const std::string mask_zeros(4, '\x00');
-  auto mk_input = MatchKeyInput::make_ternary(
-      mf_v, mask_zeros, 0  /* priority */);
-  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mk_input.get_match_key()));
+  auto mk = make_match_key(mf1_v, std::string(4, '\x00'), mf2_v, mask2_v);
+  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mk));
+  EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, _, _));
+  auto status = add_entry(&entry);
+  ASSERT_EQ(status.code(), Code::OK);
+}
+
+
+// This test is the reason why we need 2 match fields in the table. If the macth
+// key is empty, the semantics of P4Runtime are different: it means "set the
+// default entry".
+TEST_F(TernaryTwoTest, MissingMatchField) {
+  const std::string mf1_v;
+  const std::string mask1_v;
+  const std::string mf2_v("\xaa\xbb", 2);
+  const std::string mask2_v("\xff\xff", 2);
+  const std::string param_v(6, '\x00');
+  auto entry = make_entry(mf1_v, mask1_v, mf2_v, mask2_v, param_v);
+  const std::string zeros(4, '\x00');
+  auto mk = make_match_key(zeros, zeros, mf2_v, mask2_v);
+  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mk));
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, _, _));
   auto status = add_entry(&entry);
   ASSERT_EQ(status.code(), Code::OK);
