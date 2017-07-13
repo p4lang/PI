@@ -26,6 +26,7 @@
 
 #include <cJSON/cJSON.h>
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -100,4 +101,23 @@ char *pi_serialize_config(const pi_p4info_t *p4info, int fmt) {
   char *str = (fmt) ? cJSON_Print(root) : cJSON_PrintUnformatted(root);
   cJSON_Delete(root);
   return str;
+}
+
+int pi_serialize_config_to_fd(const pi_p4info_t *p4info, int fd, int fmt) {
+  char *config = pi_serialize_config(p4info, fmt);
+  if (!config) return -1;
+  int bytes = dprintf(fd, "%s", config);
+  free(config);
+  return bytes;
+}
+
+int pi_serialize_config_to_file(const pi_p4info_t *p4info, const char *path,
+                                int fmt) {
+  char *config = pi_serialize_config(p4info, fmt);
+  FILE *f = fopen(path, "w");
+  if (!f) return -1;
+  int bytes = fprintf(f, "%s", config);
+  free(config);
+  fclose(f);
+  return bytes;
 }
