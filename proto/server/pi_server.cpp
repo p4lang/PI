@@ -432,6 +432,7 @@ void PIGrpcServerRunAddr(const char *server_address) {
     server_data->server_address, grpc::InsecureServerCredentials());
   builder.RegisterService(&server_data->pi_service);
   builder.RegisterService(&server_data->gnmi_service);
+  builder.SetMaxReceiveMessageSize(256*1024*1024);  // 256MB
   server_data->cq_ = builder.AddCompletionQueue();
 
   server_data->server = builder.BuildAndStart();
