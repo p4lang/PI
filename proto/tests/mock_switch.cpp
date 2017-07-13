@@ -23,6 +23,7 @@
 #include <gmock/gmock.h>
 
 #include <boost/functional/hash.hpp>
+#include <boost/optional.hpp>
 
 #include <algorithm>  // std::copy
 #include <string>
@@ -173,6 +174,18 @@ class DummyTable {
     return PI_STATUS_SUCCESS;
   }
 
+  pi_status_t default_action_set(const pi_table_entry_t *table_entry) {
+    default_entry.emplace(table_entry);
+    return PI_STATUS_SUCCESS;
+  }
+
+  // TOFO(antonin): implement
+  // TODO(antonin): support const default actions, how?
+  pi_status_t default_action_get(pi_table_entry_t *table_entry) {
+    (void) table_entry;
+    return PI_STATUS_SUCCESS;
+  }
+
   pi_status_t entry_delete_wkey(const pi_match_key_t *match_key) {
     auto it = key_to_handle.find(DummyMatchKey(match_key));
     if (it == key_to_handle.end()) return PI_STATUS_TARGET_ERROR;
@@ -215,6 +228,7 @@ class DummyTable {
   std::unordered_map<pi_entry_handle_t, Entry> entries{};
   std::unordered_map<DummyMatchKey, pi_entry_handle_t, DummyMatchKeyHash>
   key_to_handle{};
+  boost::optional<DummyTableEntry> default_entry;
   size_t entry_counter{0};
 };
 
@@ -338,6 +352,16 @@ class DummySwitch {
     return tables[table_id].entry_add(match_key, table_entry, entry_handle);
   }
 
+  pi_status_t table_default_action_set(pi_p4_id_t table_id,
+                                       const pi_table_entry_t *table_entry) {
+    return tables[table_id].default_action_set(table_entry);
+  }
+
+  pi_status_t table_default_action_get(pi_p4_id_t table_id,
+                                       pi_table_entry_t *table_entry) {
+    return tables[table_id].default_action_get(table_entry);
+  }
+
   pi_status_t table_entry_delete_wkey(pi_p4_id_t table_id,
                                       const pi_match_key_t *match_key) {
     return tables[table_id].entry_delete_wkey(match_key);
@@ -438,6 +462,10 @@ DummySwitchMock::DummySwitchMock(device_id_t device_id)
   // but the delegated call is the one which needs to return the status
   ON_CALL(*this, table_entry_add(_, _, _, _))
       .WillByDefault(Invoke(this, &DummySwitchMock::_table_entry_add));
+  ON_CALL(*this, table_default_action_set(_, _))
+      .WillByDefault(Invoke(sw_, &DummySwitch::table_default_action_set));
+  ON_CALL(*this, table_default_action_get(_, _))
+      .WillByDefault(Invoke(sw_, &DummySwitch::table_default_action_get));
   ON_CALL(*this, table_entry_delete_wkey(_, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::table_entry_delete_wkey));
   ON_CALL(*this, table_entry_modify_wkey(_, _, _))
@@ -570,6 +598,29 @@ pi_status_t _pi_table_entry_add(pi_session_handle_t,
   (void)overwrite;
   return DeviceResolver::get_switch(dev_tgt.dev_id)->table_entry_add(
       table_id, match_key, table_entry, entry_handle);
+}
+
+pi_status_t _pi_table_default_action_set(pi_session_handle_t,
+                                         pi_dev_tgt_t dev_tgt,
+                                         pi_p4_id_t table_id,
+                                         const pi_table_entry_t *table_entry) {
+  return DeviceResolver::get_switch(dev_tgt.dev_id)->table_default_action_set(
+      table_id, table_entry);
+}
+
+pi_status_t _pi_table_default_action_get(pi_session_handle_t,
+                                         pi_dev_id_t dev_id,
+                                         pi_p4_id_t table_id,
+                                         pi_table_entry_t *table_entry) {
+  return DeviceResolver::get_switch(dev_id)->table_default_action_get(
+      table_id, table_entry);
+}
+
+// TODO(antonin): implement when default_action_get is supported
+pi_status_t _pi_table_default_action_done(pi_session_handle_t,
+                                          pi_table_entry_t *table_entry) {
+  (void) table_entry;
+  return PI_STATUS_SUCCESS;
 }
 
 pi_status_t _pi_table_entry_delete_wkey(pi_session_handle_t,

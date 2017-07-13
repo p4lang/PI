@@ -70,6 +70,10 @@ class DummySwitchMock {
   MOCK_METHOD4(table_entry_add,
                pi_status_t(pi_p4_id_t, const pi_match_key_t *,
                            const pi_table_entry_t *, pi_entry_handle_t *));
+  MOCK_METHOD2(table_default_action_set,
+               pi_status_t(pi_p4_id_t, const pi_table_entry_t *));
+  MOCK_METHOD2(table_default_action_get,
+               pi_status_t(pi_p4_id_t, pi_table_entry_t *));
   MOCK_METHOD2(table_entry_delete_wkey,
                pi_status_t(pi_p4_id_t, const pi_match_key_t *));
   MOCK_METHOD3(table_entry_modify_wkey,
