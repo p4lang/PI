@@ -56,6 +56,17 @@ pi_status_t pi_destroy_config(pi_p4info_t *p4info);
 //! else formatted.
 char *pi_serialize_config(const pi_p4info_t *p4info, int fmt);
 
+//! Serialize p4info in native PI JSON format to specified file descriptor \p
+//! fd. Returns the number of bytes written on success, or -1 on failure. If \p
+//! fmt is 0, non-formatted, else formatted.
+int pi_serialize_config_to_fd(const pi_p4info_t *p4info, int fd, int fmt);
+
+//! Serialize p4info in native PI JSON format to specified filename \p
+//! path. Returns the number of bytes written on success, or -1 on failure. If
+//! \p fmt is 0, non-formatted, else formatted.
+int pi_serialize_config_to_file(const pi_p4info_t *p4info, const char *path,
+                                int fmt);
+
 // generic iterators, to iterate over all types of resources, still a work in
 // progress
 pi_p4_id_t pi_p4info_any_begin(const pi_p4info_t *p4info,

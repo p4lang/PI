@@ -112,7 +112,7 @@ AC_CHECK_HEADERS([stdlib.h string.h assert.h stdio.h stdint.h stdbool.h\
 
 AC_CHECK_FUNCS([malloc free strcmp strncmp strcpy strncpy strdup calloc \
                 sprintf snprintf printf fprintf memcpy])
-AC_CHECK_FUNCS([fopen fseek fread fputs])
+AC_CHECK_FUNCS([fopen fseek fread fputs fprintf dprintf])
 AC_CHECK_FUNCS([rand srand time atoi])
 AC_CHECK_FUNCS([ntohs htons ntohl htonl])
 AC_CHECK_FUNCS([getopt isprint abort exit])
