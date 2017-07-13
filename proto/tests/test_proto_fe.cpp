@@ -18,6 +18,8 @@
  *
  */
 
+#include <boost/optional.hpp>
+
 #include <gmock/gmock.h>
 
 #include <google/protobuf/util/message_differencer.h>
@@ -247,7 +249,8 @@ class MatchTableTest
     a_id = pi_p4info_action_id_from_name(p4info, "actionA");
   }
 
-  p4::TableEntry generic_make(pi_p4_id_t t_id, const p4::FieldMatch &mf,
+  p4::TableEntry generic_make(pi_p4_id_t t_id,
+                              boost::optional<p4::FieldMatch> mf,
                               const std::string &param_v,
                               uint64_t controller_metadata = 0);
 
@@ -291,14 +294,17 @@ MatchTableTest::modify(p4::TableEntry *entry) {
 }
 
 p4::TableEntry
-MatchTableTest::generic_make(pi_p4_id_t t_id, const p4::FieldMatch &mf,
+MatchTableTest::generic_make(pi_p4_id_t t_id,
+                             boost::optional<p4::FieldMatch> mf,
                              const std::string &param_v,
                              uint64_t controller_metadata) {
   p4::TableEntry table_entry;
   table_entry.set_table_id(t_id);
   table_entry.set_controller_metadata(controller_metadata);
-  auto mf_ptr = table_entry.add_match();
-  *mf_ptr = mf;
+  if (mf != boost::none) {
+    auto mf_ptr = table_entry.add_match();
+    *mf_ptr = mf.get();
+  }
   auto entry = table_entry.mutable_action();
   auto action = entry->mutable_action();
   auto a_id = pi_p4info_action_id_from_name(p4info, "actionA");
@@ -440,6 +446,16 @@ TEST_P(MatchTableTest, AddAndModify) {
   EXPECT_CALL(*mock, table_entry_modify_wkey(t_id, mk_matcher, entry_matcher));
   status = modify(&new_entry);
   EXPECT_EQ(status.code(), Code::OK);
+}
+
+TEST_P(MatchTableTest, SetDefault) {
+  std::string adata(6, '\x00');
+  auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
+  EXPECT_CALL(*mock, table_default_action_set(t_id, entry_matcher));
+  DeviceMgr::Status status;
+  auto entry = generic_make(t_id, boost::none, adata);
+  status = add_one(&entry);
+  ASSERT_EQ(status.code(), Code::OK);
 }
 
 TEST_P(MatchTableTest, InvalidTableId) {
@@ -1259,11 +1275,12 @@ TEST_F(MatchKeyFormatTest, Good2) {
   ASSERT_EQ(status.code(), Code::OK);
 }
 
-TEST_F(MatchKeyFormatTest, MkTooShort) {
-  auto entry = make_entry_no_mk();
-  auto status = add_entry(&entry);
-  ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
-}
+// Not a valid test: empty key means default action
+// TEST_F(MatchKeyFormatTest, MkTooShort) {
+//   auto entry = make_entry_no_mk();
+//   auto status = add_entry(&entry);
+//   ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
+// }
 
 TEST_F(MatchKeyFormatTest, MkTooLong) {
   auto entry = make_entry_no_mk();

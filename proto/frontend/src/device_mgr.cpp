@@ -958,6 +958,7 @@ class DeviceMgrImp {
 
   Code construct_match_key(const p4::TableEntry &entry,
                            pi::MatchKey *match_key) const {
+    if (entry.match().empty()) return Code::OK;
     auto code = validate_match_key(entry);
     if (code != Code::OK) return code;
     for (const auto &mf : entry.match()) {
