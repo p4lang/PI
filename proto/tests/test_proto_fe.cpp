@@ -301,7 +301,9 @@ MatchTableTest::generic_make(pi_p4_id_t t_id,
   p4::TableEntry table_entry;
   table_entry.set_table_id(t_id);
   table_entry.set_controller_metadata(controller_metadata);
-  if (mf != boost::none) {
+  // not supported by older versions of boost
+  // if (mf != boost::none) {
+  if (mf.is_initialized()) {
     auto mf_ptr = table_entry.add_match();
     *mf_ptr = mf.get();
   }
