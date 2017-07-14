@@ -317,19 +317,6 @@ message PacketOut {
   // @controller_header("packet_out").
   // At most one P4 header can have this annotation.
   repeated PacketMetadata metadata = 2;
-
-  // TODO: Remove fields below once users of PacketOut have migrated to
-  // PacketMetadata.
-  oneof pipeline {
-    uint32 egress_physical_port = 3;
-    IngressPipelineSpec ingress_pipeline_spec = 4;
-  }
-}
-
-// TODO: Remove once users have migrated to PacketMetadata.
-message IngressPipelineSpec {
-  // Ingress port to associate with the packet.
-  uint32 ingress_port = 1;
 }
 
 message StreamMessageResponse {
@@ -346,11 +333,6 @@ message PacketIn {
   // @controller_header("packet_in").
   // At most one P4 header can have this annotation.
   repeated PacketMetadata metadata = 2;
-
-  // TODO: Remove fields below once users of PacketIn have migrated to
-  // PacketMetadata.
-  uint32 ingress_physical_port = 3;
-  uint32 ingress_logical_port = 4;
 }
 
 // Any metadata associated with Packet-IO (controller Packet-In or Packet-Out)
