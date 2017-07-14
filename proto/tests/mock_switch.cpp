@@ -175,7 +175,10 @@ class DummyTable {
   }
 
   pi_status_t default_action_set(const pi_table_entry_t *table_entry) {
-    default_entry.emplace(table_entry);
+    // boost::optional::emplace is only available in "recent" versions of boost
+    // (>= 1.56.0); to avoid issues we use copy assignment
+    // default_entry.emplace(table_entry);
+    default_entry = DummyTableEntry(table_entry);
     return PI_STATUS_SUCCESS;
   }
 
