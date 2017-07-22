@@ -53,7 +53,7 @@ vector_t *vector_create(size_t e_size, size_t init_capacity) {
 
 static void vector_expand(vector_t *v) {
   v->capacity *= 2;
-  v->data = realloc(v, v->capacity * v->e_size);
+  v->data = realloc(v->data, v->capacity * v->e_size);
 }
 
 static void *access(const vector_t *v, size_t index) {
