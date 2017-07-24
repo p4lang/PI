@@ -227,7 +227,7 @@ def load_json(json_str):
             fid = j_key["id"]
             match_type = get_match_type(j_key["match_type"])
             # TODO(antonin): fix this when valid match handling is improved
-            field_name = j_key["name"].replace("_valid", "valid")
+            field_name = j_key["name"].replace("$valid$", "valid")
             bitwidth = j_key["bitwidth"]
             table.key += [(field_name, fid, match_type, bitwidth)]
         table.set_match_type()
