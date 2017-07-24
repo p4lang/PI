@@ -10,8 +10,8 @@ TABLE ENTRIES
 **********
 Dumping entry 0
 Match key:
-* ethernet._valid     : VALID     01
-* h1._valid           : VALID     00
+* ethernet.$valid$    : VALID     01
+* h1.$valid$          : VALID     00
 Action entry: noop - 
 ==========
 Dumping default entry

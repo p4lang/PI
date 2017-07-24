@@ -357,8 +357,8 @@ static pi_status_t read_fields(reader_state_t *state, cJSON *root) {
       if (exclude_field(suffix)) continue;
 
       //  just a safeguard, given how we handle validity
-      if (!strncmp("_valid", suffix, sizeof "_valid")) {
-        PI_LOG_ERROR("Fields cannot have name '_valid'");
+      if (!strncmp("$valid$", suffix, sizeof "$valid$")) {
+        PI_LOG_ERROR("Fields cannot have name '$valid$'");
         return PI_STATUS_CONFIG_READER_ERROR;
       }
 
@@ -374,7 +374,7 @@ static pi_status_t read_fields(reader_state_t *state, cJSON *root) {
     // Adding a field to represent validity, don't know how temporary this is
     {
       char fname[256];
-      int n = snprintf(fname, sizeof(fname), "%s._valid", header_name);
+      int n = snprintf(fname, sizeof(fname), "%s.$valid$", header_name);
       if (n <= 0 || (size_t)n >= sizeof(fname)) return PI_STATUS_BUFFER_ERROR;
 
       // 1 bit field
@@ -524,7 +524,7 @@ static pi_status_t read_tables(reader_state_t *state, cJSON *root,
       const char *suffix;
       if (match_type == PI_P4INFO_MATCH_TYPE_VALID) {
         header_name = target->valuestring;
-        suffix = "_valid";
+        suffix = "$valid$";
       } else {
         header_name = cJSON_GetArrayItem(target, 0)->valuestring;
         suffix = cJSON_GetArrayItem(target, 1)->valuestring;
