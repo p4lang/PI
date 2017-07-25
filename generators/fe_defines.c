@@ -93,9 +93,23 @@ static void to_upper(char *s) {
 }
 
 static void sanitize_name(char *s) {
+  char *valid_before = "$valid$";
+  char *valid_after = "valid";
+  char *valid_found = NULL;
+
+  while ((valid_found = strstr(s, valid_before)) != NULL) {
+    // overwrite $valid$ with valid, leave out '/0'
+    memcpy(valid_found, valid_after, strlen(valid_after));
+
+    // move over rest of string
+    char *src = &valid_found[strlen(valid_before)];
+    char *dest = &valid_found[strlen(valid_after)];
+    memmove(dest, src, strlen(src) + 1);
+  }
+
   for (; *s != '\0'; s++) {
     *s = toupper(*s);
-    if (*s == '.') *s = '_';
+    if (*s == '.' || *s == ']' || *s == '[') *s = '_';
   }
 }
 
