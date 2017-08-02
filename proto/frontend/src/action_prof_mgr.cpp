@@ -118,12 +118,15 @@ ActionProfMgr::member_create(const p4::ActionProfileMember &member,
   // we check if the member id already exists
   if (member_bimap.retrieve_handle(member.member_id()) != nullptr) {
     status.set_code(Code::INVALID_ARGUMENT);
+    status.set_message("Duplicate member id");
+    Logger::get()->error("Duplicate member id: {}", member.member_id());
     return status;
   }
   pi_indirect_handle_t member_h;
   auto pi_status = ap.member_create(action_data, &member_h);
   if (pi_status != PI_STATUS_SUCCESS) {
     status.set_code(Code::UNKNOWN);
+    Logger::get()->error("Error when creating member on target");
     return status;
   }
   member_bimap.add(member.member_id(), member_h);
@@ -140,12 +143,15 @@ ActionProfMgr::group_create(const p4::ActionProfileGroup &group,
   // we check if the group id already exists
   if (group_bimap.retrieve_handle(group.group_id()) != nullptr) {
     status.set_code(Code::INVALID_ARGUMENT);
+    status.set_message("Duplicate group id");
+    Logger::get()->error("Duplicate group id: {}", group.group_id());
     return status;
   }
   pi_indirect_handle_t group_h;
   auto pi_status = ap.group_create(group.max_size(), &group_h);
   if (pi_status != PI_STATUS_SUCCESS) {
     status.set_code(Code::UNKNOWN);
+    Logger::get()->error("Error when creating group on target");
     return status;
   }
   group_bimap.add(group.group_id(), group_h);
@@ -168,11 +174,14 @@ ActionProfMgr::member_modify(const p4::ActionProfileMember &member,
   auto member_h = member_bimap.retrieve_handle(member.member_id());
   if (member_h == nullptr) {
     status.set_code(Code::INVALID_ARGUMENT);
+    status.set_message("Member id does not exist");
+    Logger::get()->error("Member id does not exist: {}", member.member_id());
     return status;
   }
   auto pi_status = ap.member_modify(*member_h, action_data);
   if (pi_status != PI_STATUS_SUCCESS) {
     status.set_code(Code::UNKNOWN);
+    Logger::get()->error("Error when modifying member on target");
     return status;
   }
   status.set_code(Code::OK);
@@ -191,6 +200,8 @@ ActionProfMgr::group_modify(const p4::ActionProfileGroup &group,
   auto group_h = group_bimap.retrieve_handle(group_id);
   if (group_h == nullptr) {
     status.set_code(Code::INVALID_ARGUMENT);
+    status.set_message("Group id does not exist");
+    Logger::get()->error("Group id does not exist: {}", group.group_id());
     return status;
   }
   auto code = group_update_members(ap, group);
@@ -207,11 +218,14 @@ ActionProfMgr::member_delete(const p4::ActionProfileMember &member,
   auto member_h = member_bimap.retrieve_handle(member.member_id());
   if (member_h == nullptr) {
     status.set_code(Code::INVALID_ARGUMENT);
+    status.set_message("Member id does not exist: {}");
+    Logger::get()->error("Member id does not exist: {}", member.member_id());
     return status;
   }
   auto pi_status = ap.member_delete(*member_h);
   if (pi_status != PI_STATUS_SUCCESS) {
     status.set_code(Code::UNKNOWN);
+    Logger::get()->error("Error when deleting member on target");
     return status;
   }
   member_bimap.remove(member.member_id());
@@ -229,11 +243,14 @@ ActionProfMgr::group_delete(const p4::ActionProfileGroup &group,
   auto group_h = group_bimap.retrieve_handle(group.group_id());
   if (group_h == nullptr) {
     status.set_code(Code::INVALID_ARGUMENT);
+    status.set_message("Group id does not exist: {}");
+    Logger::get()->error("Group id does not exist: {}", group.group_id());
     return status;
   }
   auto pi_status = ap.group_delete(*group_h);
   if (pi_status != PI_STATUS_SUCCESS) {
     status.set_code(Code::UNKNOWN);
+    Logger::get()->error("Error when deleting group on target");
     return status;
   }
   group_bimap.remove(group.group_id());
@@ -268,6 +285,7 @@ ActionProfMgr::validate_action(const p4::Action &action) {
     Status status;
     status.set_code(Code::INVALID_ARGUMENT);
     status.set_message("Invalid action for action profile");
+    Logger::get()->error(status.message());
     return status;
   }
   return validate_action_data(p4info, action);
@@ -310,10 +328,12 @@ ActionProfMgr::group_add_member(pi::ActProf &ap, const Id &group_id,
   assert(group_h);
   auto member_h = member_bimap.retrieve_handle(member_id);
   if (member_h == nullptr) {  // the member does not exist
+    Logger::get()->error("Member id does not exist: {}", member_id);
     return Code::INVALID_ARGUMENT;
   }
   auto pi_status = ap.group_add_member(*group_h, *member_h);
   if (pi_status != PI_STATUS_SUCCESS) {
+    Logger::get()->error("Error when adding member to group on target");
     return Code::UNKNOWN;
   }
   membership.add_member(member_id);
@@ -328,10 +348,12 @@ ActionProfMgr::group_remove_member(pi::ActProf &ap, const Id &group_id,
   assert(group_h);
   auto member_h = member_bimap.retrieve_handle(member_id);
   if (member_h == nullptr) {  // the member does not exist
+    Logger::get()->error("Member id does not exist: {}", member_id);
     return Code::INVALID_ARGUMENT;
   }
   auto pi_status = ap.group_remove_member(*group_h, *member_h);
   if (pi_status != PI_STATUS_SUCCESS) {
+    Logger::get()->error("Error when removing member from group on target");
     return Code::UNKNOWN;
   }
   membership.remove_member(member_id);

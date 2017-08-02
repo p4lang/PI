@@ -135,6 +135,7 @@ class DeviceMgrImp {
         a == p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_SAVE ||
         a == p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT) {
       if (!pi::p4info::p4info_proto_reader(config.p4info(), &p4info_tmp)) {
+        Logger::get()->error("Error when importing p4info");
         status.set_code(Code::UNKNOWN);
         return status;
       }
@@ -145,6 +146,8 @@ class DeviceMgrImp {
 
     p4::tmp::P4DeviceConfig p4_device_config;
     if (!p4_device_config.ParseFromString(config.p4_device_config())) {
+      Logger::get()->error("Invalid 'p4_device_config', "
+                           "not an instance of p4::tmp::P4DeviceConfig");
       status.set_code(Code::INVALID_ARGUMENT);
       return status;
     }
@@ -199,6 +202,7 @@ class DeviceMgrImp {
         auto assign_options = make_assign_options();
         pi_status = pi_assign_device(device_id, NULL, assign_options.data());
         if (pi_status != PI_STATUS_SUCCESS) {
+          Logger::get()->error("Error when trying to assign device");
           status.set_code(Code::UNKNOWN);
           pi_destroy_config(p4info_tmp);
           return status;
@@ -213,6 +217,7 @@ class DeviceMgrImp {
                                          device_data.data(),
                                          device_data.size());
       if (pi_status != PI_STATUS_SUCCESS) {
+        Logger::get()->error("Error in first phase of device update");
         status.set_code(Code::UNKNOWN);
         pi_destroy_config(p4info_tmp);
         return status;
@@ -223,7 +228,10 @@ class DeviceMgrImp {
     if (a == p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT ||
         a == p4::SetForwardingPipelineConfigRequest_Action_COMMIT) {
       pi_status = pi_update_device_end(device_id);
-      if (pi_status != PI_STATUS_SUCCESS) status.set_code(Code::UNKNOWN);
+      if (pi_status != PI_STATUS_SUCCESS) {
+        Logger::get()->error("Error in second phase of device update");
+        status.set_code(Code::UNKNOWN);
+      }
     }
 
     return status;
@@ -248,6 +256,7 @@ class DeviceMgrImp {
       const auto &entity = update.entity();
       switch (entity.entity_case()) {
         case p4::Entity::kExternEntry:
+          Logger::get()->error("No extern support yet");
           status.set_code(Code::UNIMPLEMENTED);
           break;
         case p4::Entity::kTableEntry:
@@ -269,9 +278,12 @@ class DeviceMgrImp {
               update.type(), entity.direct_meter_entry(), session);
           break;
         case p4::Entity::kCounterEntry:
+          Logger::get()->error("Writing to counters is not supported yet");
           status.set_code(Code::UNIMPLEMENTED);
           break;
         case p4::Entity::kDirectCounterEntry:
+          Logger::get()->error(
+              "Writing to direct counters is not supported yet");
           status.set_code(Code::UNIMPLEMENTED);
           break;
         default:
@@ -310,15 +322,18 @@ class DeviceMgrImp {
             entity.action_profile_group(), session, response);
         break;
       case p4::Entity::kMeterEntry:
+        Logger::get()->error("Reading meter spec is not supported yet");
         status.set_code(Code::UNIMPLEMENTED);
         break;
       case p4::Entity::kDirectMeterEntry:
+        Logger::get()->error("Reading direct meter spec is not supported yet");
         status.set_code(Code::UNIMPLEMENTED);
         break;
       case p4::Entity::kCounterEntry:
         status = counter_read(entity.counter_entry(), session, response);
         break;
       case p4::Entity::kDirectCounterEntry:
+        Logger::get()->error("Reading direct counters is not supported yet");
         status.set_code(Code::UNIMPLEMENTED);
         break;
       default:
@@ -368,8 +383,10 @@ class DeviceMgrImp {
                                         meter_entry.meter_id(),
                                         meter_entry.index(),
                                         &pi_meter_spec);
-          if (pi_status != PI_STATUS_SUCCESS)
+          if (pi_status != PI_STATUS_SUCCESS) {
+            Logger::get()->error("Error when writing meter spec");
             status.set_code(Code::UNKNOWN);
+          }
         }
         break;
       case p4::Update_Type_DELETE:
@@ -380,8 +397,10 @@ class DeviceMgrImp {
                                         meter_entry.meter_id(),
                                         meter_entry.index(),
                                         &pi_meter_spec);
-          if (pi_status != PI_STATUS_SUCCESS)
+          if (pi_status != PI_STATUS_SUCCESS) {
+            Logger::get()->error("Error when writing meter spec");
             status.set_code(Code::UNKNOWN);
+          }
         }
       default:
         status.set_code(Code::INVALID_ARGUMENT);
@@ -399,7 +418,10 @@ class DeviceMgrImp {
     }
     auto entry_data = table_info_store.get_entry(
         table_entry.table_id(), match_key);
-    if (entry_data == nullptr) return Code::INVALID_ARGUMENT;
+    if (entry_data == nullptr) {
+      Logger::get()->error("Cannot map table entry to handle");
+      return Code::INVALID_ARGUMENT;
+    }
     *handle = entry_data->handle;
     return Code::OK;
   }
@@ -436,8 +458,10 @@ class DeviceMgrImp {
                                                meter_entry.meter_id(),
                                                entry_handle,
                                                &pi_meter_spec);
-          if (pi_status != PI_STATUS_SUCCESS)
+          if (pi_status != PI_STATUS_SUCCESS) {
+            Logger::get()->error("Error when writing direct meter spec");
             status.set_code(Code::UNKNOWN);
+          }
         }
         break;
       case p4::Update_Type_DELETE:
@@ -448,8 +472,10 @@ class DeviceMgrImp {
                                                meter_entry.meter_id(),
                                                entry_handle,
                                                &pi_meter_spec);
-          if (pi_status != PI_STATUS_SUCCESS)
+          if (pi_status != PI_STATUS_SUCCESS) {
+            Logger::get()->error("Error when writing direct meter spec");
             status.set_code(Code::UNKNOWN);
+          }
         }
       default:
         status.set_code(Code::INVALID_ARGUMENT);
@@ -567,6 +593,7 @@ class DeviceMgrImp {
     auto pi_status = pi_table_entries_fetch(session.get(), device_id,
                                             table_id, &res);
     if (pi_status != PI_STATUS_SUCCESS) {
+      Logger::get()->error("Error when fetching entries from target");
       status.set_code(Code::UNKNOWN);
       return status;
     }
@@ -592,7 +619,10 @@ class DeviceMgrImp {
       // this would point to a serious bug in the implementation, and shoudn't
       // occur given that we keep the local state in sync with lower level state
       // thanks to our per-table lock.
-      assert(entry_data != nullptr);
+      if (entry_data == nullptr) {
+        Logger::get()->critical("Table state out-of-sync with target");
+        assert(0 && "Invalid state");
+      }
       table_entry->set_controller_metadata(entry_data->controller_metadata);
     }
 
@@ -640,6 +670,8 @@ class DeviceMgrImp {
       return make_invalid_p4_id_status();
     auto action_prof_mgr = get_action_prof_mgr(member.action_profile_id());
     if (action_prof_mgr == nullptr) {
+      Logger::get()->error("Not a valid action profile id: {}",
+                           member.action_profile_id());
       status.set_code(Code::INVALID_ARGUMENT);
       return status;
     }
@@ -668,6 +700,8 @@ class DeviceMgrImp {
       return make_invalid_p4_id_status();
     auto action_prof_mgr = get_action_prof_mgr(group.action_profile_id());
     if (action_prof_mgr == nullptr) {
+      Logger::get()->error("Not a valid action profile id: {}",
+                           group.action_profile_id());
       status.set_code(Code::INVALID_ARGUMENT);
       return status;
     }
@@ -697,6 +731,8 @@ class DeviceMgrImp {
 
     auto action_prof_mgr = get_action_prof_mgr(action_profile_id);
     if (action_prof_mgr == nullptr) {
+      Logger::get()->error("Not a valid action profile id: {}",
+                           action_profile_id);
       status.set_code(Code::INVALID_ARGUMENT);
       return status;
     }
@@ -705,6 +741,8 @@ class DeviceMgrImp {
     auto pi_status = pi_act_prof_entries_fetch(session.get(), device_id,
                                                action_profile_id, &res);
     if (pi_status != PI_STATUS_SUCCESS) {
+      Logger::get()->error(
+          "Error when fetching action profile entries from target");
       status.set_code(Code::UNKNOWN);
       return status;
     }
@@ -721,6 +759,7 @@ class DeviceMgrImp {
       if (code != Code::OK) break;
       auto member_id = action_prof_mgr->retrieve_member_id(member_h);
       if (member_id == nullptr) {
+        Logger::get()->critical("Cannot map member handle to member id");
         code = Code::UNKNOWN;
         break;
       }
@@ -738,6 +777,7 @@ class DeviceMgrImp {
       pi_act_prof_grps_next(res, &members_h, &num, &group_h);
       auto group_id = action_prof_mgr->retrieve_group_id(group_h);
       if (group_id == nullptr) {
+        Logger::get()->critical("Cannot map group handle to group id");
         code = Code::UNKNOWN;
         break;
       }
@@ -745,6 +785,7 @@ class DeviceMgrImp {
       for (size_t j = 0; j < num; j++) {
         auto member_id = action_prof_mgr->retrieve_member_id(members_h[j]);
         if (member_id == nullptr) {
+          Logger::get()->critical("Cannot map member handle to member id");
           code = Code::UNKNOWN;
           break;
         }
@@ -907,8 +948,10 @@ class DeviceMgrImp {
     size_t num_match_fields;
     auto expected_mf_ids = pi_p4info_table_get_match_fields(
         p4info.get(), t_id, &num_match_fields);
-    if (static_cast<size_t>(entry.match().size()) > num_match_fields)
+    if (static_cast<size_t>(entry.match().size()) > num_match_fields) {
+      Logger::get()->error("Too many fields in match key");
       return Code::INVALID_ARGUMENT;
+    }
 
     int num_mf_matched = 0;  // check if some extra fields in the match key
     // the double loop is potentially too slow; refactor this code if it proves
@@ -925,35 +968,40 @@ class DeviceMgrImp {
         switch (mf.field_match_type_case()) {
           case p4::FieldMatch::kExact:
             code = check_proto_bytestring(mf.exact().value(), bitwidth);
-            if (code != Code::OK) return code;
             break;
           case p4::FieldMatch::kLpm:
             code = check_proto_bytestring(mf.lpm().value(), bitwidth);
-            if (code != Code::OK) return code;
             break;
           case p4::FieldMatch::kTernary:
             code = check_proto_bytestring(mf.ternary().value(), bitwidth);
-            if (code != Code::OK) return code;
+            if (code != Code::OK) break;
             code = check_proto_bytestring(mf.ternary().mask(), bitwidth);
-            if (code != Code::OK) return code;
             break;
           case p4::FieldMatch::kValid:
             break;
           case p4::FieldMatch::kRange:
             code = check_proto_bytestring(mf.range().low(), bitwidth);
-            if (code != Code::OK) return code;
+            if (code != Code::OK) break;
             code = check_proto_bytestring(mf.range().high(), bitwidth);
-            if (code != Code::OK) return code;
             break;
           default:
             return Code::INVALID_ARGUMENT;
         }
+        if (code != Code::OK) {
+          Logger::get()->error("Invalid bytestring format");
+          return code;
+        }
       }
-      if (mf_is_missing && mf_info->match_type != PI_P4INFO_MATCH_TYPE_TERNARY)
+      if (mf_is_missing
+          && mf_info->match_type != PI_P4INFO_MATCH_TYPE_TERNARY) {
+        Logger::get()->error("Missing non-ternary field in match key");
         return Code::INVALID_ARGUMENT;
+      }
     }
-    if (num_mf_matched != entry.match().size())
+    if (num_mf_matched != entry.match().size()) {
+      Logger::get()->error("Unknown field in match key");
       return Code::INVALID_ARGUMENT;
+    }
     return Code::OK;
   }
 
@@ -1001,6 +1049,7 @@ class DeviceMgrImp {
     if (!pi_p4info_table_is_action_of(p4info.get(), table_id, action_id)) {
       status.set_code(Code::INVALID_ARGUMENT);
       status.set_message("Invalid action for table");
+      Logger::get()->error(status.message());
       return status;
     }
     status = validate_action_data(p4info.get(), action);
@@ -1021,6 +1070,8 @@ class DeviceMgrImp {
                                                              table_id);
     // check that table is indirect
     if (action_prof_id == PI_INVALID_ID) {
+      Logger::get()->error("Expected indirect table but table {} is not",
+                           table_id);
       status.set_code(Code::INVALID_ARGUMENT);
       return status;
     }
@@ -1043,6 +1094,8 @@ class DeviceMgrImp {
     // invalid member/group id
     if (indirect_h == nullptr) {
       status.set_code(Code::INVALID_ARGUMENT);
+      status.set_message("Invalid member / group id");
+      Logger::get()->error(status.message());
       return status;
     }
     action_entry->init_indirect_handle(*indirect_h);
@@ -1077,13 +1130,18 @@ class DeviceMgrImp {
     code = construct_match_key(table_entry, &match_key);
     if (code != Code::OK) {
       status.set_code(code);
+      status.set_message("Invalid match key");
+      Logger::get()->error(status.message());
       return status;
     }
 
     pi::ActionEntry action_entry;
     status = construct_action_entry(
         table_id, table_entry.action(), &action_entry);
-    if (status.code() != Code::OK) return status;
+    if (status.code() != Code::OK) {
+      Logger::get()->error("Invalid action entry");
+      return status;
+    }
 
     auto table_lock = table_info_store.lock_table(table_id);
 
@@ -1100,6 +1158,8 @@ class DeviceMgrImp {
     }
     if (pi_status != PI_STATUS_SUCCESS) {
       status.set_code(Code::UNKNOWN);
+      status.set_message("Error when adding match entry to target");
+      Logger::get()->error(status.message());
       return status;
     }
 
@@ -1120,13 +1180,18 @@ class DeviceMgrImp {
     code = construct_match_key(table_entry, &match_key);
     if (code != Code::OK) {
       status.set_code(code);
+      status.set_message("Invalid match key");
+      Logger::get()->error(status.message());
       return status;
     }
 
     pi::ActionEntry action_entry;
     status = construct_action_entry(
         table_id, table_entry.action(), &action_entry);
-    if (status.code() != Code::OK) return status;
+    if (status.code() != Code::OK) {
+      Logger::get()->error("Invalid action entry");
+      return status;
+    }
 
     auto table_lock = table_info_store.lock_table(table_id);
 
@@ -1135,6 +1200,8 @@ class DeviceMgrImp {
     auto entry_data = table_info_store.get_entry(table_id, match_key);
     if (entry_data == nullptr) {
       status.set_code(Code::INVALID_ARGUMENT);
+      status.set_message("Cannot find match entry");
+      Logger::get()->error(status.message());
       return status;
     }
 
@@ -1148,6 +1215,8 @@ class DeviceMgrImp {
     }
     if (pi_status != PI_STATUS_SUCCESS) {
       status.set_code(Code::UNKNOWN);
+      status.set_message("Error when modifying match entry in target");
+      Logger::get()->error(status.message());
       return status;
     }
 
@@ -1166,6 +1235,8 @@ class DeviceMgrImp {
     code = construct_match_key(table_entry, &match_key);
     if (code != Code::OK) {
       status.set_code(code);
+      status.set_message("Invalid match key");
+      Logger::get()->error(status.message());
       return status;
     }
 
@@ -1177,6 +1248,7 @@ class DeviceMgrImp {
     if (table_entry.match().empty()) {
       // we do not yet have the ability to clear a default entry, which is not a
       // very interesting feature anyway
+      Logger::get()->warn("Resetting default entry not supported yet");
       status.set_code(Code::UNIMPLEMENTED);
       return status;
     } else {
@@ -1184,6 +1256,8 @@ class DeviceMgrImp {
     }
     if (pi_status != PI_STATUS_SUCCESS) {
       status.set_code(Code::UNKNOWN);
+      status.set_message("Error when deleting match entry in target");
+      Logger::get()->error(status.message());
       return status;
     }
 
@@ -1207,7 +1281,10 @@ class DeviceMgrImp {
     pi_status_t pi_status = pi_counter_read(session.get(), device_tgt,
                                             counter_id, index, flags,
                                             &counter_data);
-    if (pi_status != PI_STATUS_SUCCESS) return Code::UNKNOWN;
+    if (pi_status != PI_STATUS_SUCCESS) {
+      Logger::get()->error("Error when reading counter from target");
+      return Code::UNKNOWN;
+    }
     auto data = cell->mutable_data();
     if (counter_data.valid & PI_COUNTER_UNIT_PACKETS)
       data->set_packet_count(counter_data.packets);
