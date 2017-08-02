@@ -95,7 +95,8 @@ AC_CONFIG_FILES([Makefile
                  frontend/Makefile
                  server/Makefile
                  demo_grpc/Makefile
-                 tests/Makefile])
+                 tests/Makefile
+                 third_party/Makefile])
 
 AC_OUTPUT
 

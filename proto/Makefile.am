@@ -7,7 +7,7 @@ if WITH_PROTO_DEMO
 MAYBE_PROTO_DEMO = demo_grpc
 endif
 
-SUBDIRS = . p4info frontend server $(MAYBE_PROTO_DEMO) tests
+SUBDIRS = . third_party p4info frontend server $(MAYBE_PROTO_DEMO) tests
 
 PROTOFLAGS = -I$(abs_srcdir) -I$(abs_builddir)
 
