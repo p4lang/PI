@@ -32,6 +32,7 @@
 #include "action_helpers.h"
 #include "action_prof_mgr.h"
 #include "common.h"
+#include "logger.h"
 #include "p4info_to_and_from_proto.h"  // for p4info_proto_reader
 #include "packet_io_mgr.h"
 #include "table_info_store.h"

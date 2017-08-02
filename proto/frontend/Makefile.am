@@ -22,7 +22,9 @@ src/action_helpers.cpp \
 src/packet_io_mgr.h \
 src/packet_io_mgr.cpp \
 src/common.h \
-src/common.cpp
+src/common.cpp \
+src/logger.h \
+src/logging.cpp
 
 libpifeproto_la_LIBADD = \
 $(top_builddir)/../frontends_extra/cpp/libpifecpp.la \
@@ -33,6 +35,7 @@ $(top_builddir)/third_party/libfmt.la
 
 nobase_include_HEADERS = \
 PI/frontends/proto/device_mgr.h \
-PI/frontends/proto/gnmi_mgr.h
+PI/frontends/proto/gnmi_mgr.h \
+PI/frontends/proto/logging.h
 
 lib_LTLIBRARIES = libpifeproto.la

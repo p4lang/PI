@@ -30,6 +30,7 @@
 #include "action_helpers.h"
 #include "action_prof_mgr.h"
 #include "common.h"
+#include "logger.h"
 
 namespace pi {
 
