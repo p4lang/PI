@@ -227,10 +227,7 @@ message ActionProfileGroup {
 }
 
 //------------------------------------------------------------------------------
-// For WriteRequest, Update.Type has following semantics:
-//  - INSERT: Insert the cell in the meter array (with given configuration)
-//  - MODIFY: Modify the meter cell configuration
-//  - DELETE: Delete the meter cell (i.e. reset the meter configuration)
+// For WriteRequest, Update.Type must be MODIFY.
 // For ReadRequest, the scope is defined as follows:
 // - All meter cells for all meters if meter_id = 0 (default).
 // - All meter cells for given meter_id if index = 0 (default).
@@ -241,10 +238,7 @@ message MeterEntry {
 }
 
 //------------------------------------------------------------------------------
-// For WriteRequest, Update.Type has following semantics:
-//  - INSERT: Insert the cell in the meter array (with given configuration)
-//  - MODIFY: Modify the meter cell configuration
-//  - DELETE: Delete the meter cell (i.e. reset the meter configuration)
+// For WriteRequest, Update.Type must be MODIFY.
 // For ReadRequest, the scope is defined as follows:
 // - All meter cells for all meters if meter_id = 0 (default).
 // - All meter cells for given meter_id if table_entry.match is empty.
@@ -276,10 +270,7 @@ message MeterConfig {
 }
 
 //------------------------------------------------------------------------------
-// For WriteRequest, Update.Type has following semantics:
-//  - INSERT: Insert a cell in the counter array (with given data)
-//  - MODIFY: Modify the counter cell data
-//  - DELETE: Delete the counter cell (i.e. reset the counter data)
+// For WriteRequest, Update.Type must be MODIFY.
 // For ReadRequest, the scope is defined as follows:
 // - All counter cells for all meters if counter_id = 0 (default).
 // - All counter cells for given counter_id if index = 0 (default).
@@ -290,10 +281,7 @@ message CounterEntry {
 }
 
 //------------------------------------------------------------------------------
-// For WriteRequest, Update.Type has following semantics:
-//  - INSERT: Insert a cell in the counter array (with given data)
-//  - MODIFY: Modify the counter cell data
-//  - DELETE: Delete the counter cell (i.e. reset the counter data)
+// For WriteRequest, Update.Type must be MODIFY.
 // For ReadRequest, the scope is defined as follows:
 // - All counter cells for all meters if counter_id = 0 (default).
 // - All counter cells for given counter_id if table_entry.match is empty.
