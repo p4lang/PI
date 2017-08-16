@@ -136,6 +136,14 @@ message TableEntry {
   // this is stored, as long as it is returned with the rest of the entry in
   // a Read RPC.
   uint64 controller_metadata = 5;
+  // meter_config and counter_data are convenience fields that enable the
+  // controller to configure the direct resources associated with the table at
+  // the same time as a match-action entry is inserted or modified. When
+  // updating a table entry, leaving these fields unset means that the direct
+  // resources (if any) will not be updated. When reading a table entry, the
+  // values associated with the direct resources (if any) will be returned.
+  MeterConfig meter_config = 6;
+  CounterData counter_data = 7;
 }
 
 // field_match_type ::= exact | ternary | lpm | range | valid
