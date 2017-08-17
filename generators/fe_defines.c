@@ -201,6 +201,20 @@ int main(int argc, char *const argv[]) {
   }
   fprintf(gen_fptr, "\n");
 
+  fprintf(gen_fptr, "// ACTIONS PROFILES\n\n");
+  for (pi_p4_id_t id = pi_p4info_act_prof_begin(p4info);
+       id != pi_p4info_act_prof_end(p4info);
+       id = pi_p4info_act_prof_next(p4info, id)) {
+    const char *name = pi_p4info_act_prof_name_from_id(p4info, id);
+    // quick and dirty
+    char *name_ = strdup(name);
+    sanitize_name(name_);
+    fprintf(gen_fptr, "#define %s_ACT_PROF_%s %#x\n", prefix, name_, id);
+    free(name_);
+    fprintf(gen_fptr, "\n");
+  }
+  fprintf(gen_fptr, "\n");
+
   fprintf(gen_fptr, "// TABLES AND MATCH FIELDS\n\n");
   for (pi_p4_id_t id = pi_p4info_table_begin(p4info);
        id != pi_p4info_table_end(p4info);
