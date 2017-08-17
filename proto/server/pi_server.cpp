@@ -28,6 +28,7 @@
 #include <string>
 #include <thread>
 #include <atomic>
+#include <unordered_map>
 
 #include <csignal>
 
@@ -95,6 +96,11 @@ grpc::Status to_grpc_status(const DeviceMgr::Status &from) {
   return to;
 }
 
+grpc::Status no_pipeline_config_status() {
+  return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
+                      "No forwarding pipeline config set for this device");
+}
+
 class ConfigMgrInstance {
  public:
   static GnmiMgr *get() {
@@ -103,7 +109,37 @@ class ConfigMgrInstance {
   }
 };
 
-DeviceMgr *device_mgr = nullptr;
+class Devices {
+ public:
+  static DeviceMgr *get(DeviceMgr::device_id_t device_id) {
+    const auto &instance = get_instance();
+    std::lock_guard<std::mutex> lock(instance.m);
+    const auto &map = instance.device_map;
+    auto it = map.find(device_id);
+    return (it == map.end()) ? nullptr : it->second.get();
+  }
+
+  static DeviceMgr *get_or_add(DeviceMgr::device_id_t device_id) {
+    auto &instance = get_instance();
+    std::lock_guard<std::mutex> lock(instance.m);
+    auto &map = instance.device_map;
+    auto it = map.find(device_id);
+    if (it != map.end()) return it->second.get();
+    auto device_mgr = new DeviceMgr(device_id);
+    map.emplace(device_id, std::unique_ptr<DeviceMgr>(device_mgr));
+    return device_mgr;
+  }
+
+ private:
+  static Devices &get_instance() {
+    static Devices devices;
+    return devices;
+  }
+
+  mutable std::mutex m{};
+  std::unordered_map<DeviceMgr::device_id_t,
+                     std::unique_ptr<DeviceMgr> > device_map{};
+};
 
 class gNMIServiceImpl : public gnmi::gNMI::Service {
  private:
@@ -157,6 +193,8 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
     SIMPLELOG << "P4Runtime Write\n";
     SIMPLELOG << request->DebugString();
     (void) rep;
+    auto device_mgr = Devices::get(request->device_id());
+    if (device_mgr == nullptr) return no_pipeline_config_status();
     auto status = device_mgr->write(*request);
     return to_grpc_status(status);
   }
@@ -167,6 +205,8 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
     SIMPLELOG << "P4Runtime Read\n";
     SIMPLELOG << request->DebugString();
     p4::ReadResponse response;
+    auto device_mgr = Devices::get(request->device_id());
+    if (device_mgr == nullptr) return no_pipeline_config_status();
     auto status = device_mgr->read(*request, &response);
     writer->Write(response);
     return to_grpc_status(status);
@@ -179,7 +219,7 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
     SIMPLELOG << "P4Runtime SetForwardingPipelineConfig\n";
     (void) rep;
     for (const auto &config : request->configs()) {
-      if (device_mgr == nullptr) device_mgr = new DeviceMgr(config.device_id());
+      auto device_mgr = Devices::get_or_add(config.device_id());
       auto status = device_mgr->pipeline_config_set(request->action(), config);
       device_mgr->packet_in_register_cb(::packet_in_cb,
                                         static_cast<void *>(packet_in_mgr));
@@ -195,7 +235,8 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
       p4::GetForwardingPipelineConfigResponse *rep) override {
     SIMPLELOG << "P4Runtime GetForwardingPipelineConfig\n";
     for (const auto device_id : request->device_ids()) {
-      (void) device_id;
+      auto device_mgr = Devices::get(device_id);
+      if (device_mgr == nullptr) return no_pipeline_config_status();
       auto status = device_mgr->pipeline_config_get(rep->add_configs());
       // TODO(antonin): multi-device support
       return to_grpc_status(status);
@@ -293,7 +334,13 @@ class StreamChannelClientMgr {
             device_id = request.arbitration().device_id();
           break;
           case p4::StreamMessageRequest::kPacket:
-            device_mgr->packet_out_send(request.packet());
+            {
+              auto device_mgr = Devices::get(device_id);
+              // we only transmit packet out if the forwarding pipeline has been
+              // configured
+              if (device_mgr != nullptr)
+                device_mgr->packet_out_send(request.packet());
+            }
             break;
           default:
             assert(0);
