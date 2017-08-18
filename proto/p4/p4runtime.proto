@@ -141,7 +141,10 @@ message TableEntry {
   // the same time as a match-action entry is inserted or modified. When
   // updating a table entry, leaving these fields unset means that the direct
   // resources (if any) will not be updated. When reading a table entry, the
-  // values associated with the direct resources (if any) will be returned.
+  // values associated with the direct resources (if any) will be returned. If
+  // the table does not support a direct resource, then setting the
+  // corresponding direct resource field in any table write operation will
+  // return an error.
   MeterConfig meter_config = 6;
   CounterData counter_data = 7;
 }
