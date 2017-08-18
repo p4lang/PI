@@ -67,7 +67,8 @@ test_server_no_pipeline_config_LDFLAGS = $(LD_IGNORE_UNRESOLVED_SYMBOLS)
 test_server_no_pipeline_config_LDADD = \
 $(top_builddir)/server/libpigrpcserver.la \
 $(mock_switch_libs) \
-$(top_builddir)/libpiproto.la \
+$(top_builddir)/libpiprotogrpc.la \
+$(top_builddir)/libpiprotobuf.la \
 $(PROTOBUF_LIBS) $(GRPC_LIBS)
 
 check_PROGRAMS = \

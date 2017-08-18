@@ -182,21 +182,23 @@ $(BUILT_SOURCES): proto_files.ts
 	  fi; \
 	fi
 
-# confusing names...
 # libpiprotobuf = only protobuf files
-# libpiproto = protobuf + grpc
-lib_LTLIBRARIES = libpiprotobuf.la libpiproto.la
+# libpiprotogrpc = only grpc files
+# It used to be that I had a library combining both (i.e. it was created by
+# compiling and linking both proto_cpp_files and proto_grpc_files). Some
+# executables ended up linking to both libraries which lead to an issue when
+# compiling with clang in optimized mode similar to that one:
+# https://github.com/tensorflow/tensorflow/issues/8394
+lib_LTLIBRARIES = libpiprotobuf.la libpiprotogrpc.la
 
 # generated source should not be distributed
 nodist_libpiprotobuf_la_SOURCES = $(proto_cpp_files)
-nodist_libpiproto_la_SOURCES = $(proto_cpp_files) $(proto_grpc_files)
+nodist_libpiprotogrpc_la_SOURCES = $(proto_grpc_files)
 
 libpiprotobuf_la_SOURCES = src/util.cpp
 
-libpiproto_la_SOURCES = src/util.cpp
-
 libpiprotobuf_la_LIBADD = $(PROTOBUF_LIBS)
-libpiproto_la_LIBADD = $(PROTOBUF_LIBS) $(GRPC_LIBS)
+libpiprotogrpc_la_LIBADD = libpiprotobuf.la $(PROTOBUF_LIBS) $(GRPC_LIBS)
 
 nobase_include_HEADERS = \
 PI/proto/util.h

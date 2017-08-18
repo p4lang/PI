@@ -26,7 +26,8 @@ app.cpp
 COMMON_SERVER_LIBS = \
 $(top_builddir)/server/libpigrpcserver.la \
 $(top_builddir)/frontend/libpifeproto.la \
-$(top_builddir)/libpiproto.la \
+$(top_builddir)/libpiprotogrpc.la \
+$(top_builddir)/libpiprotobuf.la \
 $(top_builddir)/../src/libpiall.la
 
 if WITH_BMV2
@@ -46,13 +47,15 @@ $(top_builddir)/../targets/dummy/libpi_dummy.la
 
 test_perf_LDADD = \
 $(top_builddir)/../src/libpip4info.la \
-$(top_builddir)/libpiproto.la \
+$(top_builddir)/libpiprotogrpc.la \
+$(top_builddir)/libpiprotobuf.la \
 $(top_builddir)/p4info/libpiconvertproto.la \
 $(PROTOBUF_LIBS) $(GRPC_LIBS)
 
 controller_LDADD = \
 $(top_builddir)/../src/libpip4info.la \
-$(top_builddir)/libpiproto.la \
+$(top_builddir)/libpiprotogrpc.la \
+$(top_builddir)/libpiprotobuf.la \
 $(top_builddir)/p4info/libpiconvertproto.la \
 -lmicrohttpd -lboost_system \
 $(PROTOBUF_LIBS) $(GRPC_LIBS)
