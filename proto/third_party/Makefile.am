@@ -13,4 +13,6 @@ fmt/posix.h \
 fmt/printf.cc \
 fmt/printf.h \
 fmt/string.h \
-fmt/time.h
+fmt/time.h \
+fmt/_assert.h \
+fmt/_assert.cc

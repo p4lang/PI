@@ -42,6 +42,8 @@
 #include <utility>  // for std::pair
 #undef FMT_INCLUDE
 
+#include "_assert.h"
+
 // The fmt library version in the form major * 10000 + minor * 100 + patch.
 #define FMT_VERSION 40001
 
@@ -184,7 +186,7 @@ typedef __int64          intmax_t;
 # if FMT_EXCEPTIONS
 #  define FMT_THROW(x) throw x
 # else
-#  define FMT_THROW(x) assert(false)
+#  define FMT_THROW(x) _FMT_ASSERT(false)
 # endif
 #endif
 
