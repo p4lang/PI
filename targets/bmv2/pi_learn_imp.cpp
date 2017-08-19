@@ -45,8 +45,8 @@ void cb_fn(const bm_apps::LearnListener::MsgInfo &msg_info,
     printf("Unknown switch id\n");
     return;
   }
-  const pi_p4info_t *p4info = d_info->p4info;
-  assert(p4info);
+  // const pi_p4info_t *p4info = d_info->p4info;
+  // assert(p4info);
   // pi_learn_msg_t *msg = new pi_learn_msg_t;
   // msg->dev_tgt.dev_id = msg_info.switch_id;
   // msg->dev_tgt.dev_pipe_mask = msg_info.cxt_id;
