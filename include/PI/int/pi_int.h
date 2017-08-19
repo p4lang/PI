@@ -66,6 +66,7 @@ static inline size_t get_match_key_size_one_field(
     default:
       assert(0);
   }
+  return 0;
 }
 
 struct pi_match_key_s {

@@ -929,7 +929,9 @@ class DeviceMgrImp {
   }
 
   static void init(size_t max_devices) {
-    assert(pi_init(max_devices, NULL) == PI_STATUS_SUCCESS);
+    auto pi_status = pi_init(max_devices, NULL);
+    (void) pi_status;
+    assert(pi_status == PI_STATUS_SUCCESS);
   }
 
   static void destroy() {

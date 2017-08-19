@@ -35,6 +35,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "_assert.h"
 #include "pi_notifications_pub.h"
 
 typedef struct {
@@ -69,6 +70,8 @@ static void send_status(pi_status_t status) {
   rep_hdr_t rep;
   size_t s = emit_rep_hdr((char *)&rep, status);
   int bytes = nn_send(state.s, &rep, sizeof(rep), 0);
+  _PI_UNUSED(s);
+  _PI_UNUSED(bytes);
   assert((size_t)bytes == s);
 }
 
@@ -196,6 +199,7 @@ static void __pi_init(char *req) {
   assert((size_t)(rep_ - rep) == s);
 
   int bytes = nn_send(state.s, &rep, NN_MSG, 0);
+  _PI_UNUSED(bytes);
   assert((size_t)bytes == s);
 }
 
@@ -332,6 +336,7 @@ static void __pi_session_init(char *req) {
   rep_ += emit_session_handle(rep_, sess);
 
   int bytes = nn_send(state.s, &rep, sizeof(rep), 0);
+  _PI_UNUSED(bytes);
   assert(bytes == sizeof(rep));
 }
 
@@ -423,6 +428,7 @@ static void __pi_table_entry_add(char *req) {
   rep_ += emit_entry_handle(rep_, entry_handle);
 
   int bytes = nn_send(state.s, &rep, sizeof(rep), 0);
+  _PI_UNUSED(bytes);
   assert(bytes == sizeof(rep));
 }
 
@@ -485,6 +491,7 @@ static void __pi_table_default_action_get(char *req) {
   assert((size_t)(rep_ - rep) == s);
 
   int bytes = nn_send(state.s, &rep, NN_MSG, 0);
+  _PI_UNUSED(bytes);
   assert((size_t)bytes == s);
 }
 
@@ -612,6 +619,7 @@ static void __pi_table_entries_fetch(char *req) {
   assert((size_t)(rep_ - rep) == s);
 
   int bytes = nn_send(state.s, &rep, NN_MSG, 0);
+  _PI_UNUSED(bytes);
   assert((size_t)bytes == s);
 }
 
@@ -626,6 +634,7 @@ static void send_indirect_handle(pi_status_t status, pi_indirect_handle_t h) {
   rep_ += emit_indirect_handle(rep_, h);
 
   int bytes = nn_send(state.s, &rep, sizeof(rep), 0);
+  _PI_UNUSED(bytes);
   assert(bytes == sizeof(rep));
 }
 
@@ -747,7 +756,7 @@ static void grp_add_remove_mbr(char *req, pi_rpc_type_t add_or_remove) {
                                            grp_handle, mbr_handle);
       break;
     default:
-      assert(0);
+      _PI_UNREACHABLE("Invalid switch case");
   }
 
   send_status(status);
@@ -818,6 +827,7 @@ static void __pi_act_prof_entries_fetch(char *req) {
   assert((size_t)(rep_ - rep) == s);
 
   int bytes = nn_send(state.s, &rep, NN_MSG, 0);
+  _PI_UNUSED(bytes);
   assert((size_t)bytes == s);
 }
 
@@ -845,6 +855,7 @@ static void counter_read(char *req, pi_rpc_type_t direct_or_not) {
                                        &counter_data);
       break;
     default:
+      _PI_UNREACHABLE("Invalid switch case");
       assert(0);
   }
 
@@ -858,6 +869,7 @@ static void counter_read(char *req, pi_rpc_type_t direct_or_not) {
   rep_ += emit_counter_data(rep_, &counter_data);
 
   int bytes = nn_send(state.s, &rep, sizeof(rep), 0);
+  _PI_UNUSED(bytes);
   assert(bytes == sizeof(rep));
 }
 
@@ -893,7 +905,7 @@ static void counter_write(char *req, pi_rpc_type_t direct_or_not) {
           _pi_counter_write_direct(sess, dev_tgt, counter_id, h, &counter_data);
       break;
     default:
-      assert(0);
+      _PI_UNREACHABLE("Invalid switch case");
   }
 
   send_status(status);
@@ -929,7 +941,7 @@ static void meter_read(char *req, pi_rpc_type_t direct_or_not) {
       status = _pi_meter_read_direct(sess, dev_tgt, meter_id, h, &meter_spec);
       break;
     default:
-      assert(0);
+      _PI_UNREACHABLE("Invalid switch case");
   }
 
   // e.g. if meter spec was not set previously
@@ -945,6 +957,7 @@ static void meter_read(char *req, pi_rpc_type_t direct_or_not) {
   rep_ += emit_meter_spec(rep_, &meter_spec);
 
   int bytes = nn_send(state.s, &rep, sizeof(rep), 0);
+  _PI_UNUSED(bytes);
   assert(bytes == sizeof(rep));
 }
 
@@ -979,7 +992,7 @@ static void meter_set(char *req, pi_rpc_type_t direct_or_not) {
       status = _pi_meter_set_direct(sess, dev_tgt, meter_id, h, &meter_spec);
       break;
     default:
-      assert(0);
+      _PI_UNREACHABLE("Invalid switch case");
   }
 
   send_status(status);
@@ -1043,9 +1056,10 @@ pi_status_t pi_rpc_server_run(const pi_remote_addr_t *remote_addr) {
   if (notifications_addr) {
     pi_status_t status = pi_notifications_init(notifications_addr);
     if (status != PI_STATUS_SUCCESS) return status;
-    assert(pi_learn_register_default_cb(learn_cb, NULL) == PI_STATUS_SUCCESS);
-    assert(pi_packetin_register_default_cb(packetin_cb, NULL) ==
-           PI_STATUS_SUCCESS);
+    _PI_ASSERT(pi_learn_register_default_cb(learn_cb, NULL) ==
+               PI_STATUS_SUCCESS);
+    _PI_ASSERT(pi_packetin_register_default_cb(packetin_cb, NULL) ==
+               PI_STATUS_SUCCESS);
   }
 
   state.init = 1;

@@ -18,6 +18,7 @@
  *
  */
 
+#include "_assert.h"
 #include "error_codes.h"
 #include "table_common.h"
 #include "utils.h"
@@ -58,7 +59,7 @@ static const char *match_type_to_str(pi_p4info_match_type_t mt) {
     case PI_P4INFO_MATCH_TYPE_RANGE:
       return "RANGE";
     default:
-      assert(0);
+      _PI_UNREACHABLE("Invalid switch statement");
   }
 }
 

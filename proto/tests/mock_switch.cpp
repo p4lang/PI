@@ -193,7 +193,9 @@ class DummyTable {
     auto it = key_to_handle.find(DummyMatchKey(match_key));
     if (it == key_to_handle.end()) return PI_STATUS_TARGET_ERROR;
     auto entry_handle = it->second;
-    assert(entries.erase(entry_handle) == 1);
+    auto cnt = entries.erase(entry_handle);
+    (void) cnt;
+    assert(cnt == 1);
     key_to_handle.erase(it);
     return PI_STATUS_SUCCESS;
   }

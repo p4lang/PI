@@ -2,6 +2,7 @@ ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 
 AM_CPPFLAGS = \
 -I$(top_srcdir)/include \
+-I$(top_srcdir)/lib \
 -DTESTDATADIR=\"$(abs_srcdir)/testdata\"
 
 # TODO(antonin): find a way to remove libpip4info as a dep here (should come

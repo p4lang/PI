@@ -84,8 +84,10 @@ class DeviceMgrTest : public ::testing::Test {
     auto status = mgr.pipeline_config_set(
         p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT,
         config);
-    ASSERT_EQ(status.code(), Code::OK);
+    // releasing resource before the assert to avoid double free in case the
+    // assert is false
     config.release_p4info();
+    ASSERT_EQ(status.code(), Code::OK);
   }
 
   void TearDown() override { }

@@ -6,6 +6,7 @@ p4_name = p4
 AM_CPPFLAGS = \
 -I$(top_srcdir) \
 -I$(top_srcdir)/../../include \
+-I$(top_srcdir)/../../lib \
 -DTESTDATADIR=\"$(testdata_dirpath)\"
 fe_defines = pi_fe_defines_$(p4_name).h
 gen_fe_defines = $(top_builddir)/../../generators/pi_gen_fe_defines

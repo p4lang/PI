@@ -25,7 +25,7 @@
 #include "PI/frontends/generic/pi.h"
 #include "PI/pi.h"
 
-#include <assert.h>
+#include "_assert.h"
 
 static pi_p4info_t *p4info = NULL;
 
@@ -100,7 +100,7 @@ int main() {
   // Adding entry 10.0.0.1/8 => nhop=10.0.0.1, port=11
   uint32_t ipv4_dstAddr = 0x0a000001;
   uint16_t port = 11;
-  assert(!add_route(ipv4_dstAddr, 8, ipv4_dstAddr, port, &handle));
+  _PI_ASSERT(!add_route(ipv4_dstAddr, 8, ipv4_dstAddr, port, &handle));
 
   pi_match_key_destroy(mkey_ipv4_lpm);
   pi_action_data_destroy(adata_set_nhop);

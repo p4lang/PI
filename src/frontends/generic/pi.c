@@ -26,6 +26,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "_assert.h"
+
 #define ALIGN 16
 
 #define SAFEGUARD ((int)0xabababab)
@@ -108,6 +110,7 @@ static _fegen_mk_prefix_t *get_mk_prefix(pi_match_key_t *key) {
 }
 
 static void check_mk_prefix(const _fegen_mk_prefix_t *prefix) {
+  _PI_UNUSED(prefix);
   assert(prefix->safeguard == SAFEGUARD);
 }
 
@@ -317,6 +320,7 @@ static _fegen_ad_prefix_t *get_ad_prefix(pi_action_data_t *adata) {
 }
 
 static void check_ad_prefix(const _fegen_ad_prefix_t *prefix) {
+  _PI_UNUSED(prefix);
   assert(prefix->safeguard == SAFEGUARD);
 }
 

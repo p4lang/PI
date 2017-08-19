@@ -20,12 +20,12 @@
 
 #include <PI/frontends/cpp/tables.h>
 
-#include <cassert>
 #include <cstring>
 #include <fstream>
 #include <streambuf>
 #include <string>
 
+#include "_assert.h"
 // auto-generated #define's
 #include "pi_fe_defines_p4.h"
 
@@ -108,8 +108,8 @@ int main() {
   uint32_t ipv4_dstAddr = 0x0a000001;
   uint16_t port_1 = 7;
   uint16_t port_2 = 8;
-  assert(!add_route(ipv4_dstAddr, 8, ipv4_dstAddr, port_1, &handle));
-  assert(!add_route_fast(ipv4_dstAddr, 16, ipv4_dstAddr, port_2, &handle));
+  _PI_ASSERT(!add_route(ipv4_dstAddr, 8, ipv4_dstAddr, port_1, &handle));
+  _PI_ASSERT(!add_route_fast(ipv4_dstAddr, 16, ipv4_dstAddr, port_2, &handle));
 
   pi_session_cleanup(sess);
 

@@ -26,6 +26,7 @@
 
 #include <string.h>
 
+#include "_assert.h"
 #include "pi_notifications_pub.h"
 
 static char *addr = NULL;
@@ -57,6 +58,8 @@ static size_t emit_learn_msg(char *dst, const pi_learn_msg_t *msg) {
 
 static void pub_notification(char *msg, size_t msg_size) {
   int bytes_sent = nn_send(pub_socket, &msg, NN_MSG, 0);
+  _PI_UNUSED(msg_size);
+  _PI_UNUSED(bytes_sent);
   assert((size_t)bytes_sent == msg_size);
 }
 
