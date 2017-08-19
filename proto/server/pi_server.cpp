@@ -172,9 +172,14 @@ class gNMIServiceImpl : public gnmi::gNMI::Service {
       ServerContext *context,
       ServerReaderWriter<gnmi::SubscribeResponse,
                          gnmi::SubscribeRequest> *stream) override {
-    (void) stream;
     SIMPLELOG << "gNMI Subscribe\n";
-    return Status(StatusCode::UNIMPLEMENTED, "not implemented yet");
+    gnmi::SubscribeRequest request;
+    // keeping the channel open, but not doing anything
+    // if we receive a Write, we will return an error status
+    while (stream->Read(&request)) {
+      return Status(StatusCode::UNIMPLEMENTED, "not implemented yet");
+    }
+    return Status::OK;
   }
 };
 

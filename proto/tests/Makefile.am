@@ -14,7 +14,8 @@ TESTS = \
 test_p4info_convert \
 test_proto_fe \
 test_proto_fe_packet_io \
-test_server_no_pipeline_config
+test_server_no_pipeline_config \
+test_server_gnmi
 
 common_source = main.cpp
 
@@ -60,19 +61,28 @@ $(PROTOBUF_LIBS)
 test_proto_fe_LDADD = $(proto_fe_libs)
 test_proto_fe_packet_io_LDADD = $(proto_fe_libs)
 
-test_server_no_pipeline_config_SOURCES = $(proto_fe_common_source) \
-server/gnmi_mgr_dummy.cpp \
-server/test_no_pipeline_config.cpp
-test_server_no_pipeline_config_LDFLAGS = $(LD_IGNORE_UNRESOLVED_SYMBOLS)
-test_server_no_pipeline_config_LDADD = \
+test_server_common_source = $(proto_fe_common_source) \
+server/gnmi_mgr_dummy.cpp
+test_server_libs = \
 $(top_builddir)/server/libpigrpcserver.la \
 $(mock_switch_libs) \
 $(top_builddir)/libpiprotogrpc.la \
 $(top_builddir)/libpiprotobuf.la \
 $(PROTOBUF_LIBS) $(GRPC_LIBS)
 
+test_server_no_pipeline_config_SOURCES = $(test_server_common_source) \
+server/test_no_pipeline_config.cpp
+test_server_no_pipeline_config_LDFLAGS = $(LD_IGNORE_UNRESOLVED_SYMBOLS)
+test_server_no_pipeline_config_LDADD = $(test_server_libs)
+
+test_server_gnmi_SOURCES = $(test_server_common_source) \
+server/test_gnmi.cpp
+test_server_gnmi_LDFLAGS = $(LD_IGNORE_UNRESOLVED_SYMBOLS)
+test_server_gnmi_LDADD = $(test_server_libs)
+
 check_PROGRAMS = \
 test_p4info_convert \
 test_proto_fe \
 test_proto_fe_packet_io \
-test_server_no_pipeline_config
+test_server_no_pipeline_config \
+test_server_gnmi
