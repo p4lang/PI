@@ -1,9 +1,11 @@
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 
+# issytem for generated code, to avoid potential warnings
 AM_CPPFLAGS = \
 -I$(top_srcdir)/../include \
 -I$(top_srcdir)/frontend \
--I$(top_builddir)/cpp_out \
+-isystem$(top_builddir)/cpp_out \
+-isystem$(top_builddir)/grpc_out \
 -I$(top_srcdir)/p4info \
 -I$(top_srcdir)/server \
 -I$(top_srcdir)/../third_party/googletest/googletest/include \
