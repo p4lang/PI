@@ -342,6 +342,19 @@ class DummyMeter {
   }
 };
 
+class DummyCounter {
+ public:
+  // TODO(antonin): write API
+  template <typename T>
+  pi_status_t read(T index, pi_counter_data_t *counter_data) {
+    (void) index;
+    counter_data->valid = PI_COUNTER_UNIT_PACKETS | PI_COUNTER_UNIT_BYTES;
+    counter_data->bytes = 0;
+    counter_data->packets = 0;
+    return PI_STATUS_SUCCESS;
+  }
+};
+
 }  // namespace
 
 class DummySwitch {
@@ -419,8 +432,8 @@ class DummySwitch {
   }
 
   pi_status_t action_prof_group_remove_member(pi_p4_id_t act_prof_id,
-                                           pi_indirect_handle_t grp_handle,
-                                           pi_indirect_handle_t mbr_handle) {
+                                              pi_indirect_handle_t grp_handle,
+                                              pi_indirect_handle_t mbr_handle) {
     return action_profs[act_prof_id].group_remove_member(
         grp_handle, mbr_handle);
   }
@@ -441,6 +454,19 @@ class DummySwitch {
     return meters[meter_id].set(entry_handle, meter_spec);
   }
 
+  pi_status_t counter_read(pi_p4_id_t counter_id, size_t index, int flags,
+                           pi_counter_data_t *counter_data) {
+    (void) flags;
+    return counters[counter_id].read(index, counter_data);
+  }
+
+  pi_status_t counter_read_direct(pi_p4_id_t counter_id,
+                                  pi_entry_handle_t entry_handle, int flags,
+                                  pi_counter_data_t *counter_data) {
+    (void) flags;
+    return counters[counter_id].read(entry_handle, counter_data);
+  }
+
   pi_status_t packetout_send(const char *, size_t) {
     return PI_STATUS_SUCCESS;
   }
@@ -453,6 +479,7 @@ class DummySwitch {
   std::unordered_map<pi_p4_id_t, DummyTable> tables{};
   std::unordered_map<pi_p4_id_t, DummyActionProf> action_profs{};
   std::unordered_map<pi_p4_id_t, DummyMeter> meters{};
+  std::unordered_map<pi_p4_id_t, DummyCounter> counters{};
   device_id_t device_id;
 };
 
@@ -505,6 +532,11 @@ DummySwitchMock::DummySwitchMock(device_id_t device_id)
       .WillByDefault(Invoke(sw_, &DummySwitch::meter_set));
   ON_CALL(*this, meter_set_direct(_, _, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::meter_set_direct));
+
+  ON_CALL(*this, counter_read(_, _, _, _))
+      .WillByDefault(Invoke(sw_, &DummySwitch::counter_read));
+  ON_CALL(*this, counter_read_direct(_, _, _, _))
+      .WillByDefault(Invoke(sw_, &DummySwitch::counter_read_direct));
 
   ON_CALL(*this, packetout_send(_, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::packetout_send));
@@ -741,6 +773,31 @@ pi_status_t _pi_meter_set_direct(pi_session_handle_t,
                                  const pi_meter_spec_t *meter_spec) {
   return DeviceResolver::get_switch(dev_tgt.dev_id)->meter_set_direct(
       meter_id, entry_handle, meter_spec);
+}
+
+pi_status_t _pi_counter_read(pi_session_handle_t,
+                             pi_dev_tgt_t dev_tgt, pi_p4_id_t counter_id,
+                             size_t index, int flags,
+                             pi_counter_data_t *counter_data) {
+  return DeviceResolver::get_switch(dev_tgt.dev_id)->counter_read(
+      counter_id, index, flags, counter_data);
+}
+
+pi_status_t _pi_counter_read_direct(pi_session_handle_t,
+                                    pi_dev_tgt_t dev_tgt, pi_p4_id_t counter_id,
+                                    pi_entry_handle_t entry_handle, int flags,
+                                    pi_counter_data_t *counter_data) {
+  return DeviceResolver::get_switch(dev_tgt.dev_id)->counter_read_direct(
+      counter_id, entry_handle, flags, counter_data);
+}
+
+pi_status_t _pi_counter_hw_sync(pi_session_handle_t,
+                                pi_dev_tgt_t dev_tgt, pi_p4_id_t counter_id,
+                                PICounterHwSyncCb cb, void *cb_cookie) {
+  (void) dev_tgt;
+  (void) counter_id;
+  (void) cb_cookie;
+  return (cb == NULL) ? PI_STATUS_SUCCESS : PI_STATUS_NOT_IMPLEMENTED_BY_TARGET;
 }
 
 pi_status_t _pi_packetout_send(pi_dev_id_t dev_id, const char *pkt,

@@ -333,8 +333,8 @@ class DeviceMgrImp {
         status = counter_read(entity.counter_entry(), session, response);
         break;
       case p4::Entity::kDirectCounterEntry:
-        Logger::get()->error("Reading direct counters is not supported yet");
-        status.set_code(Code::UNIMPLEMENTED);
+        status = direct_counter_read(
+            entity.direct_counter_entry(), session, response);
         break;
       default:
         status.set_code(Code::UNKNOWN);
@@ -882,8 +882,8 @@ class DeviceMgrImp {
                           p4::ReadResponse *response) const {
     Status status;
     status.set_code(Code::OK);
-    assert(!(pi_p4info_counter_get_direct(p4info.get(), counter_id)
-                      != PI_INVALID_ID));
+    assert(pi_p4info_counter_get_direct(p4info.get(), counter_id) ==
+           PI_INVALID_ID);
     if (counter_entry.index() != 0) {
       auto entry = response->add_entities()->mutable_counter_entry();
       entry->CopyFrom(counter_entry);
@@ -910,7 +910,8 @@ class DeviceMgrImp {
                       p4::ReadResponse *response) const {
     Status status;
     status.set_code(Code::OK);
-    if (counter_entry.counter_id() == 0) {  // read all entries for all counters
+    auto counter_id = counter_entry.counter_id();
+    if (counter_id == 0) {  // read all entries for all counters
       for (auto c_id = pi_p4info_counter_begin(p4info.get());
            c_id != pi_p4info_counter_end(p4info.get());
            c_id = pi_p4info_counter_next(p4info.get(), c_id)) {
@@ -920,12 +921,96 @@ class DeviceMgrImp {
         if (status.code() != Code::OK) break;
       }
     } else {  // read for a single counter
-      if (!check_p4_id(counter_entry.counter_id(), P4ResourceType::COUNTER))
+      if (!check_p4_id(counter_id, P4ResourceType::COUNTER))
         return make_invalid_p4_id_status();
-      status = counter_read_one(counter_entry.counter_id(), counter_entry,
-                                session, response);
+      if (pi_p4info_counter_get_direct(p4info.get(), counter_id) !=
+          PI_INVALID_ID) {
+        status.set_code(Code::INVALID_ARGUMENT);
+        status.set_message("Cannot use CounterEntry with a direct counter");
+        Logger::get()->error(status.message());
+        return status;
+      }
+      status = counter_read_one(counter_id, counter_entry, session, response);
     }
     return status;
+  }
+
+  Status direct_counter_read_one(p4_id_t counter_id,
+                                 const p4::DirectCounterEntry &counter_entry,
+                                 const SessionTemp &session,
+                                 p4::ReadResponse *response) const {
+    Status status;
+    status.set_code(Code::OK);
+    assert(pi_p4info_counter_get_direct(p4info.get(), counter_id) !=
+           PI_INVALID_ID);
+
+    if (counter_entry.has_table_entry()) {
+      const auto &table_entry = counter_entry.table_entry();
+      auto table_lock = table_info_store.lock_table(table_entry.table_id());
+
+      pi_entry_handle_t entry_handle;
+      {
+        auto code = entry_handle_from_table_entry(table_entry, &entry_handle);
+        if (code != Code::OK) {
+          status.set_code(code);
+          return status;
+        }
+      }
+      pi_counter_data_t counter_data;
+      auto pi_status = pi_counter_read_direct(
+          session.get(), device_tgt, counter_id, entry_handle,
+          PI_COUNTER_FLAGS_HW_SYNC, &counter_data);
+      if (pi_status != PI_STATUS_SUCCESS) {
+        status.set_code(Code::UNKNOWN);
+        status.set_message("Error when reading counter from target");
+        Logger::get()->error(status.message());
+        return status;
+      }
+      auto entry = response->add_entities()->mutable_direct_counter_entry();
+      entry->CopyFrom(counter_entry);
+      convert_counter_data(counter_data, entry->mutable_data());
+      return status;
+    }
+    // read all direct counters in table
+    status.set_code(Code::UNIMPLEMENTED);
+    status.set_message(
+        "Reading ALL direct counters in a table is not supported yet");
+    Logger::get()->error(status.message());
+    return status;
+  }
+
+  Status direct_counter_read(const p4::DirectCounterEntry &counter_entry,
+                             const SessionTemp &session,
+                             p4::ReadResponse *response) const {
+    Status status;
+    status.set_code(Code::OK);
+    auto counter_id = counter_entry.counter_id();
+    if (counter_id == 0 && counter_entry.has_table_entry()) {
+      status.set_code(Code::INVALID_ARGUMENT);
+      status.set_message(
+          "When reading direct counters, you cannot use a counter_id of zero "
+          "with a non-empty table_entry");
+      Logger::get()->error(status.message());
+      return status;
+    }
+    if (counter_id == 0) {
+      status.set_code(Code::UNIMPLEMENTED);
+      status.set_message("Reading ALL direct counters is not supported yet");
+      Logger::get()->error(status.message());
+      return status;
+    }
+    if (!check_p4_id(counter_id, P4ResourceType::COUNTER))
+      return make_invalid_p4_id_status();
+    if (pi_p4info_counter_get_direct(p4info.get(), counter_id) ==
+        PI_INVALID_ID) {
+      status.set_code(Code::INVALID_ARGUMENT);
+      status.set_message(
+          "Cannot use DirectCounterEntry with a indirect counter");
+      Logger::get()->error(status.message());
+      return status;
+    }
+    return direct_counter_read_one(
+        counter_id, counter_entry, session, response);
   }
 
   static void init(size_t max_devices) {
@@ -1274,10 +1359,17 @@ class DeviceMgrImp {
     return (it == action_profs.end()) ? nullptr : it->second.get();
   }
 
-  template <typename T>
+  void convert_counter_data(const pi_counter_data_t &pi_data,
+                            p4::CounterData *data) const {
+    if (pi_data.valid & PI_COUNTER_UNIT_PACKETS)
+      data->set_packet_count(pi_data.packets);
+    if (pi_data.valid & PI_COUNTER_UNIT_BYTES)
+      data->set_byte_count(pi_data.bytes);
+  }
+
   Code counter_read_one_index(const SessionTemp &session, uint32_t counter_id,
-                              T *cell) const {
-    auto index = cell->index();
+                              p4::CounterEntry *entry) const {
+    auto index = entry->index();
     int flags = PI_COUNTER_FLAGS_NONE;
     pi_counter_data_t counter_data;
     pi_status_t pi_status = pi_counter_read(session.get(), device_tgt,
@@ -1287,11 +1379,7 @@ class DeviceMgrImp {
       Logger::get()->error("Error when reading counter from target");
       return Code::UNKNOWN;
     }
-    auto data = cell->mutable_data();
-    if (counter_data.valid & PI_COUNTER_UNIT_PACKETS)
-      data->set_packet_count(counter_data.packets);
-    if (counter_data.valid & PI_COUNTER_UNIT_BYTES)
-      data->set_byte_count(counter_data.bytes);
+    convert_counter_data(counter_data, entry->mutable_data());
     return Code::OK;
   }
 
