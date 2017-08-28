@@ -887,12 +887,22 @@ class DeviceMgrImp {
     if (counter_entry.index() != 0) {
       auto entry = response->add_entities()->mutable_counter_entry();
       entry->CopyFrom(counter_entry);
-      auto code = counter_read_one_index(session, counter_id, entry);
+      auto code = counter_read_one_index(session, counter_id, entry, true);
       if (code != Code::OK) status.set_code(code);
       return status;
     }
     // default index, read all
     auto counter_size = pi_p4info_counter_get_size(p4info.get(), counter_id);
+    {  // sync the entire counter array with HW
+      auto pi_status = pi_counter_hw_sync(
+          session.get(), device_tgt, counter_id, NULL, NULL);
+      if (pi_status != PI_STATUS_SUCCESS) {
+        status.set_code(Code::UNKNOWN);
+        status.set_message("Error when doing HW counter sync");
+        Logger::get()->error(status.message());
+        return status;
+      }
+    }
     for (size_t index = 0; index < counter_size; index++) {
       auto entry = response->add_entities()->mutable_counter_entry();
       entry->set_index(index);
@@ -1368,9 +1378,10 @@ class DeviceMgrImp {
   }
 
   Code counter_read_one_index(const SessionTemp &session, uint32_t counter_id,
-                              p4::CounterEntry *entry) const {
+                              p4::CounterEntry *entry,
+                              bool hw_sync = false) const {
     auto index = entry->index();
-    int flags = PI_COUNTER_FLAGS_NONE;
+    int flags = hw_sync ? PI_COUNTER_FLAGS_HW_SYNC : PI_COUNTER_FLAGS_NONE;
     pi_counter_data_t counter_data;
     pi_status_t pi_status = pi_counter_read(session.get(), device_tgt,
                                             counter_id, index, flags,
