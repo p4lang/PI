@@ -112,7 +112,9 @@ int main(int argc, char *argv[]) {
   std::ifstream istream(opt_config_path);
   std::string config((std::istreambuf_iterator<char>(istream)),
                       std::istreambuf_iterator<char>());
-  assert(!simple_router_mgr.assign(config));
+  auto rc = simple_router_mgr.assign(config);
+  (void) rc;
+  assert(rc == 0);
   simple_router_mgr.set_default_entries();
   simple_router_mgr.static_config();
 
