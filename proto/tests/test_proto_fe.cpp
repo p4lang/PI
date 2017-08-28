@@ -1230,6 +1230,92 @@ TEST_F(DirectMeterTest, InvalidMeterId) {
 }
 
 
+class DirectCounterTest : public ExactOneTest {
+ protected:
+  DirectCounterTest()
+      : ExactOneTest("ExactOne", "header_test.field32") {
+    c_id = pi_p4info_counter_id_from_name(p4info, "ExactOne_counter");
+  }
+
+  // sends a read request for a DirectCounterEntry; returns the RPC status;
+  // ignores the returned counter value(s)
+  DeviceMgr::Status read_counter(p4::DirectCounterEntry *direct_counter_entry) {
+    p4::ReadRequest request;
+    p4::ReadResponse response;
+    auto entity = request.add_entities();
+    entity->set_allocated_direct_counter_entry(direct_counter_entry);
+    auto status = mgr.read(request, &response);
+    entity->release_direct_counter_entry();
+    return status;
+  }
+
+  p4::DirectCounterEntry make_counter_entry(const p4::TableEntry *entry) {
+    p4::DirectCounterEntry direct_counter_entry;
+    direct_counter_entry.set_counter_id(c_id);
+    if (entry) direct_counter_entry.mutable_table_entry()->CopyFrom(*entry);
+    return direct_counter_entry;
+  }
+
+  pi_p4_id_t c_id;
+};
+
+TEST_F(DirectCounterTest, Read) {
+  std::string mf("\xaa\xbb\xcc\xdd", 4);
+  std::string adata(6, '\x00');
+  auto entry = make_entry(mf, adata);
+  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mf));
+  auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
+  EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
+  {
+    auto status = add_entry(&entry);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+  auto entry_h = mock->get_table_entry_handle();
+
+  auto counter_entry = make_counter_entry(&entry);
+  EXPECT_CALL(*mock, counter_read_direct(c_id, entry_h, _, _));
+  {
+    auto status = read_counter(&counter_entry);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+}
+
+TEST_F(DirectCounterTest, InvalidRequestReadAllFromDefault) {
+  std::string mf("\xaa\xbb\xcc\xdd", 4);
+  std::string adata(6, '\x00');
+  auto entry = make_entry(mf, adata);
+  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mf));
+  auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
+  EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
+  {
+    auto status = add_entry(&entry);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+
+  // default counter id + non-default table entry is invalid
+  p4::DirectCounterEntry counter_entry;
+  counter_entry.mutable_table_entry()->CopyFrom(entry);
+  {
+    auto status = read_counter(&counter_entry);
+    ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
+  }
+}
+
+// TODO(antonin)
+TEST_F(DirectCounterTest, ReadAllFromTable) {
+  auto counter_entry = make_counter_entry(nullptr);  // default TableEntry
+  auto status = read_counter(&counter_entry);
+  ASSERT_EQ(status.code(), Code::UNIMPLEMENTED);
+}
+
+// TODO(antonin)
+TEST_F(DirectCounterTest, ReadAll) {
+  p4::DirectCounterEntry counter_entry;
+  auto status = read_counter(&counter_entry);
+  ASSERT_EQ(status.code(), Code::UNIMPLEMENTED);
+}
+
+
 // Only testing for exact match tables for now, there is not much code variation
 // between different table types.
 class MatchKeyFormatTest : public ExactOneTest {
