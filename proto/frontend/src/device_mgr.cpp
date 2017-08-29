@@ -32,9 +32,9 @@
 #include "action_helpers.h"
 #include "action_prof_mgr.h"
 #include "common.h"
-#include "logger.h"
 #include "p4info_to_and_from_proto.h"  // for p4info_proto_reader
 #include "packet_io_mgr.h"
+#include "report_error.h"
 #include "table_info_store.h"
 
 #include "p4/tmp/p4config.pb.h"
@@ -122,34 +122,29 @@ class DeviceMgrImp {
 
   Status pipeline_config_set(p4::SetForwardingPipelineConfigRequest_Action a,
                              const p4::ForwardingPipelineConfig &config) {
-    Status status;
     pi_status_t pi_status;
-    status.set_code(Code::OK);
     if (a == p4::SetForwardingPipelineConfigRequest_Action_UNSPECIFIED) {
-      status.set_code(Code::INVALID_ARGUMENT);
-      return status;
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "Invalid SetForwardingPipeline action");
     }
 
     pi_p4info_t *p4info_tmp = nullptr;
     if (a == p4::SetForwardingPipelineConfigRequest_Action_VERIFY ||
         a == p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_SAVE ||
         a == p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT) {
-      if (!pi::p4info::p4info_proto_reader(config.p4info(), &p4info_tmp)) {
-        Logger::get()->error("Error when importing p4info");
-        status.set_code(Code::UNKNOWN);
-        return status;
-      }
+      if (!pi::p4info::p4info_proto_reader(config.p4info(), &p4info_tmp))
+        RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when importing p4info");
     }
 
     if (a == p4::SetForwardingPipelineConfigRequest_Action_VERIFY)
-      return status;
+      RETURN_OK_STATUS();
 
     p4::tmp::P4DeviceConfig p4_device_config;
     if (!p4_device_config.ParseFromString(config.p4_device_config())) {
-      Logger::get()->error("Invalid 'p4_device_config', "
-                           "not an instance of p4::tmp::P4DeviceConfig");
-      status.set_code(Code::INVALID_ARGUMENT);
-      return status;
+      RETURN_ERROR_STATUS(
+          Code::INVALID_ARGUMENT,
+          "Invalid 'p4_device_config', not an instance of "
+          "p4::tmp::P4DeviceConfig");
     }
 
     // check that p4info => device assigned
@@ -184,12 +179,11 @@ class DeviceMgrImp {
       pi_status = pi_assign_device(device_id, p4info_tmp,
                                    assign_options.data());
       if (pi_status != PI_STATUS_SUCCESS) {
-        status.set_code(Code::UNKNOWN);
         pi_destroy_config(p4info_tmp);
-        return status;
+        RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when assigning device");
       }
       p4_change(config.p4info(), p4info_tmp);
-      return status;
+      RETURN_OK_STATUS();
     }
 
     // assign device if needed, i.e. if device hasn't been assigned yet or if
@@ -202,10 +196,9 @@ class DeviceMgrImp {
         auto assign_options = make_assign_options();
         pi_status = pi_assign_device(device_id, NULL, assign_options.data());
         if (pi_status != PI_STATUS_SUCCESS) {
-          Logger::get()->error("Error when trying to assign device");
-          status.set_code(Code::UNKNOWN);
           pi_destroy_config(p4info_tmp);
-          return status;
+          RETURN_ERROR_STATUS(Code::UNKNOWN,
+                              "Error when trying to assign device");
         }
       }
     }
@@ -217,10 +210,9 @@ class DeviceMgrImp {
                                          device_data.data(),
                                          device_data.size());
       if (pi_status != PI_STATUS_SUCCESS) {
-        Logger::get()->error("Error in first phase of device update");
-        status.set_code(Code::UNKNOWN);
         pi_destroy_config(p4info_tmp);
-        return status;
+        RETURN_ERROR_STATUS(Code::UNKNOWN,
+                            "Error in first phase of device update");
       }
       p4_change(config.p4info(), p4info_tmp);
     }
@@ -229,23 +221,21 @@ class DeviceMgrImp {
         a == p4::SetForwardingPipelineConfigRequest_Action_COMMIT) {
       pi_status = pi_update_device_end(device_id);
       if (pi_status != PI_STATUS_SUCCESS) {
-        Logger::get()->error("Error in second phase of device update");
-        status.set_code(Code::UNKNOWN);
+        RETURN_ERROR_STATUS(Code::UNKNOWN,
+                            "Error in second phase of device update");
       }
     }
 
-    return status;
+    RETURN_OK_STATUS();
   }
 
   Status pipeline_config_get(p4::ForwardingPipelineConfig *config) {
-    Status status;
     config->set_device_id(device_id);
     config->mutable_p4info()->CopyFrom(p4info_proto);
     // TODO(antonin): we do not set the p4_device_config bytes field, as we do
     // not have a local copy of it; if it is needed by the controller, we will
     // find a way to return it as well.
-    status.set_code(Code::OK);
-    return status;
+    RETURN_OK_STATUS();
   }
 
   Status write(const p4::WriteRequest &request) {
@@ -278,16 +268,16 @@ class DeviceMgrImp {
               update.type(), entity.direct_meter_entry(), session);
           break;
         case p4::Entity::kCounterEntry:
-          Logger::get()->error("Writing to counters is not supported yet");
-          status.set_code(Code::UNIMPLEMENTED);
+          status = ERROR_STATUS(Code::UNIMPLEMENTED,
+                                "Writing to counters is not supported yet");
           break;
         case p4::Entity::kDirectCounterEntry:
-          Logger::get()->error(
+          status = ERROR_STATUS(
+              Code::UNIMPLEMENTED,
               "Writing to direct counters is not supported yet");
-          status.set_code(Code::UNIMPLEMENTED);
           break;
         default:
-          status.set_code(Code::UNKNOWN);
+          status = ERROR_STATUS(Code::UNKNOWN, "Incorrect entity type");
           break;
       }
       if (status.code() != Code::OK) break;
@@ -322,12 +312,12 @@ class DeviceMgrImp {
             entity.action_profile_group(), session, response);
         break;
       case p4::Entity::kMeterEntry:
-        Logger::get()->error("Reading meter spec is not supported yet");
-        status.set_code(Code::UNIMPLEMENTED);
+        status = ERROR_STATUS(Code::UNIMPLEMENTED,
+                              "Reading meter spec is not supported yet");
         break;
       case p4::Entity::kDirectMeterEntry:
-        Logger::get()->error("Reading direct meter spec is not supported yet");
-        status.set_code(Code::UNIMPLEMENTED);
+        status = ERROR_STATUS(Code::UNIMPLEMENTED,
+                              "Reading direct meter spec is not supported yet");
         break;
       case p4::Entity::kCounterEntry:
         status = counter_read(entity.counter_entry(), session, response);
@@ -337,7 +327,7 @@ class DeviceMgrImp {
             entity.direct_counter_entry(), session, response);
         break;
       default:
-        status.set_code(Code::UNKNOWN);
+        status = ERROR_STATUS(Code::UNKNOWN, "Incorrect entity type");
         break;
     }
     return status;
@@ -367,13 +357,11 @@ class DeviceMgrImp {
 
   Status meter_write(p4::Update_Type update, const p4::MeterEntry &meter_entry,
                      const SessionTemp &session) {
-    Status status;
     if (!check_p4_id(meter_entry.meter_id(), P4ResourceType::METER))
       return make_invalid_p4_id_status();
     switch (update) {
       case p4::Update_Type_UNSPECIFIED:
-        status.set_code(Code::INVALID_ARGUMENT);
-        break;
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
       // TODO(antonin): should INSERT and MODIFY be treated the same way?
       case p4::Update_Type_INSERT:
       case p4::Update_Type_MODIFY:
@@ -383,10 +371,8 @@ class DeviceMgrImp {
                                         meter_entry.meter_id(),
                                         meter_entry.index(),
                                         &pi_meter_spec);
-          if (pi_status != PI_STATUS_SUCCESS) {
-            Logger::get()->error("Error when writing meter spec");
-            status.set_code(Code::UNKNOWN);
-          }
+          if (pi_status != PI_STATUS_SUCCESS)
+            RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when writing meter spec");
         }
         break;
       case p4::Update_Type_DELETE:
@@ -397,58 +383,51 @@ class DeviceMgrImp {
                                         meter_entry.meter_id(),
                                         meter_entry.index(),
                                         &pi_meter_spec);
-          if (pi_status != PI_STATUS_SUCCESS) {
-            Logger::get()->error("Error when writing meter spec");
-            status.set_code(Code::UNKNOWN);
-          }
+          if (pi_status != PI_STATUS_SUCCESS)
+            RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when writing meter spec");
         }
-      default:
-        status.set_code(Code::INVALID_ARGUMENT);
         break;
+      default:
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
     }
-    return status;
+    RETURN_OK_STATUS();
   }
 
-  Code entry_handle_from_table_entry(const p4::TableEntry &table_entry,
-                                     pi_entry_handle_t *handle) const {
+  Status entry_handle_from_table_entry(const p4::TableEntry &table_entry,
+                                       pi_entry_handle_t *handle) const {
     pi::MatchKey match_key(p4info.get(), table_entry.table_id());
     {
-      auto code = construct_match_key(table_entry, &match_key);
-      if (code != Code::OK) return code;
+      auto status = construct_match_key(table_entry, &match_key);
+      if (IS_ERROR(status)) return status;
     }
     auto entry_data = table_info_store.get_entry(
         table_entry.table_id(), match_key);
     if (entry_data == nullptr) {
-      Logger::get()->error("Cannot map table entry to handle");
-      return Code::INVALID_ARGUMENT;
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "Cannot map table entry to handle");
     }
     *handle = entry_data->handle;
-    return Code::OK;
+    RETURN_OK_STATUS();
   }
 
   Status direct_meter_write(p4::Update_Type update,
                             const p4::DirectMeterEntry &meter_entry,
                             const SessionTemp &session) {
-    Status status;
     if (!check_p4_id(meter_entry.meter_id(), P4ResourceType::METER))
       return make_invalid_p4_id_status();
 
     const auto &table_entry = meter_entry.table_entry();
     auto table_lock = table_info_store.lock_table(table_entry.table_id());
 
-    pi_entry_handle_t entry_handle;
+    pi_entry_handle_t entry_handle = 0;
     {
-      auto code = entry_handle_from_table_entry(table_entry, &entry_handle);
-      if (code != Code::OK) {
-        status.set_code(code);
-        return status;
-      }
+      auto status = entry_handle_from_table_entry(table_entry, &entry_handle);
+      if (IS_ERROR(status)) return status;
     }
 
     switch (update) {
       case p4::Update_Type_UNSPECIFIED:
-        status.set_code(Code::INVALID_ARGUMENT);
-        break;
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
       // TODO(antonin): should INSERT and MODIFY be treated the same way?
       case p4::Update_Type_INSERT:
       case p4::Update_Type_MODIFY:
@@ -459,8 +438,8 @@ class DeviceMgrImp {
                                                entry_handle,
                                                &pi_meter_spec);
           if (pi_status != PI_STATUS_SUCCESS) {
-            Logger::get()->error("Error when writing direct meter spec");
-            status.set_code(Code::UNKNOWN);
+            RETURN_ERROR_STATUS(Code::UNKNOWN,
+                                "Error when writing direct meter spec");
           }
         }
         break;
@@ -473,15 +452,14 @@ class DeviceMgrImp {
                                                entry_handle,
                                                &pi_meter_spec);
           if (pi_status != PI_STATUS_SUCCESS) {
-            Logger::get()->error("Error when writing direct meter spec");
-            status.set_code(Code::UNKNOWN);
+            RETURN_ERROR_STATUS(Code::UNKNOWN,
+                                "Error when writing direct meter spec");
           }
         }
       default:
-        status.set_code(Code::INVALID_ARGUMENT);
-        break;
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
     }
-    return status;
+    RETURN_OK_STATUS();
   }
 
   Code parse_match_key(p4_id_t table_id, const pi_match_key_t *match_key,
@@ -587,15 +565,13 @@ class DeviceMgrImp {
   template <typename T, typename Accessor>
   Status table_read_common(p4_id_t table_id, const SessionTemp &session,
                            T *entries, Accessor An) const {
-    Status status;
     pi_table_fetch_res_t *res;
     auto table_lock = table_info_store.lock_table(table_id);
     auto pi_status = pi_table_entries_fetch(session.get(), device_id,
                                             table_id, &res);
     if (pi_status != PI_STATUS_SUCCESS) {
-      Logger::get()->error("Error when fetching entries from target");
-      status.set_code(Code::UNKNOWN);
-      return status;
+      RETURN_ERROR_STATUS(Code::UNKNOWN,
+                          "Error when fetching entries from target");
     }
     auto num_entries = pi_table_entries_num(res);
     pi_table_ma_entry_t entry;
@@ -628,8 +604,7 @@ class DeviceMgrImp {
 
     pi_table_entries_fetch_done(session.get(), res);
 
-    status.set_code(code);
-    return status;
+    RETURN_STATUS(code);
   }
 
   Status table_read_one(p4_id_t table_id, const SessionTemp &session,
@@ -645,40 +620,37 @@ class DeviceMgrImp {
   Status table_read(const p4::TableEntry &table_entry,
                     const SessionTemp &session,
                     p4::ReadResponse *response) const {
-    Status status;
     if (table_entry.table_id() == 0) {  // read all entries for all tables
       for (auto t_id = pi_p4info_table_begin(p4info.get());
            t_id != pi_p4info_table_end(p4info.get());
            t_id = pi_p4info_table_next(p4info.get(), t_id)) {
-        status = table_read_one(t_id, session, response);
-        if (status.code() != Code::OK) break;
+        auto status = table_read_one(t_id, session, response);
+        if (IS_ERROR(status)) return status;
       }
     } else {  // read for a single table
       if (!check_p4_id(table_entry.table_id(), P4ResourceType::TABLE))
         return make_invalid_p4_id_status();
-      status = table_read_one(table_entry.table_id(), session, response);
+      auto status = table_read_one(table_entry.table_id(), session, response);
+      if (IS_ERROR(status)) return status;
     }
-    return status;
+    RETURN_OK_STATUS();
   }
 
   Status action_profile_member_write(p4::Update_Type update,
                                      const p4::ActionProfileMember &member,
                                      const SessionTemp &session) {
-    Status status;
     if (!check_p4_id(member.action_profile_id(),
                      P4ResourceType::ACTION_PROFILE))
       return make_invalid_p4_id_status();
     auto action_prof_mgr = get_action_prof_mgr(member.action_profile_id());
     if (action_prof_mgr == nullptr) {
-      Logger::get()->error("Not a valid action profile id: {}",
-                           member.action_profile_id());
-      status.set_code(Code::INVALID_ARGUMENT);
-      return status;
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "Not a valid action profile id: {}",
+                          member.action_profile_id());
     }
     switch (update) {
       case p4::Update_Type_UNSPECIFIED:
-        status.set_code(Code::INVALID_ARGUMENT);
-        break;
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
       case p4::Update_Type_INSERT:
         return action_prof_mgr->member_create(member, session);
       case p4::Update_Type_MODIFY:
@@ -686,29 +658,26 @@ class DeviceMgrImp {
       case p4::Update_Type_DELETE:
         return action_prof_mgr->member_delete(member, session);
       default:
-        status.set_code(Code::INVALID_ARGUMENT);
-        break;
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
     }
-    return status;
+    assert(0);
+    RETURN_ERROR_STATUS(Code::UNKNOWN);  // UNREACHABLE
   }
 
   Status action_profile_group_write(p4::Update_Type update,
                                     const p4::ActionProfileGroup &group,
                                     const SessionTemp &session) {
-    Status status;
     if (!check_p4_id(group.action_profile_id(), P4ResourceType::ACTION_PROFILE))
       return make_invalid_p4_id_status();
     auto action_prof_mgr = get_action_prof_mgr(group.action_profile_id());
     if (action_prof_mgr == nullptr) {
-      Logger::get()->error("Not a valid action profile id: {}",
-                           group.action_profile_id());
-      status.set_code(Code::INVALID_ARGUMENT);
-      return status;
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "Not a valid action profile id: {}",
+                          group.action_profile_id());
     }
     switch (update) {
       case p4::Update_Type_UNSPECIFIED:
-        status.set_code(Code::INVALID_ARGUMENT);
-        break;
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
       case p4::Update_Type_INSERT:
         return action_prof_mgr->group_create(group, session);
       case p4::Update_Type_MODIFY:
@@ -716,37 +685,33 @@ class DeviceMgrImp {
       case p4::Update_Type_DELETE:
         return action_prof_mgr->group_delete(group, session);
       default:
-        status.set_code(Code::INVALID_ARGUMENT);
-        break;
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
     }
-    return status;
+    assert(0);
+    RETURN_ERROR_STATUS(Code::UNKNOWN);  // UNREACHABLE
   }
 
   template <typename T, typename MemberAccessor, typename GroupAccessor>
   Status action_profile_read_common(
       p4_id_t action_profile_id, const SessionTemp &session,
       T *entries, MemberAccessor MAn, GroupAccessor GAn) const {
-    Status status;
-    Code code(Code::OK);
-
     auto action_prof_mgr = get_action_prof_mgr(action_profile_id);
     if (action_prof_mgr == nullptr) {
-      Logger::get()->error("Not a valid action profile id: {}",
-                           action_profile_id);
-      status.set_code(Code::INVALID_ARGUMENT);
-      return status;
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "Not a valid action profile id: {}",
+                          action_profile_id);
     }
 
     pi_act_prof_fetch_res_t *res;
     auto pi_status = pi_act_prof_entries_fetch(session.get(), device_id,
                                                action_profile_id, &res);
     if (pi_status != PI_STATUS_SUCCESS) {
-      Logger::get()->error(
+      RETURN_ERROR_STATUS(
+          Code::UNKNOWN,
           "Error when fetching action profile entries from target");
-      status.set_code(Code::UNKNOWN);
-      return status;
     }
 
+    Code code = Code::OK;
     auto num_members = pi_act_prof_mbrs_num(res);
     for (size_t i = 0; i < num_members; i++) {
       pi_action_data_t *action_data;
@@ -796,8 +761,7 @@ class DeviceMgrImp {
 
     pi_act_prof_entries_fetch_done(session.get(), res);
 
-    status.set_code(code);
-    return status;
+    RETURN_STATUS(code);
   }
 
   Status action_profile_member_read_one(p4_id_t action_profile_id,
@@ -815,23 +779,23 @@ class DeviceMgrImp {
   Status action_profile_member_read(const p4::ActionProfileMember &member,
                                     const SessionTemp &session,
                                     p4::ReadResponse *response) const {
-    Status status;
-    status.set_code(Code::OK);
     if (member.action_profile_id() == 0) {
       for (auto act_prof_id = pi_p4info_act_prof_begin(p4info.get());
            act_prof_id != pi_p4info_act_prof_end(p4info.get());
            act_prof_id = pi_p4info_act_prof_next(p4info.get(), act_prof_id)) {
-        status = action_profile_member_read_one(act_prof_id, session, response);
-        if (status.code() != Code::OK) break;
+        auto status = action_profile_member_read_one(
+            act_prof_id, session, response);
+        if (IS_ERROR(status)) return status;
       }
     } else {
       if (!check_p4_id(member.action_profile_id(),
                        P4ResourceType::ACTION_PROFILE))
         return make_invalid_p4_id_status();
-      status = action_profile_member_read_one(
+      auto status = action_profile_member_read_one(
           member.action_profile_id(), session, response);
+      if (IS_ERROR(status)) return status;
     }
-    return status;
+    RETURN_OK_STATUS();
   }
 
   Status action_profile_group_read_one(p4_id_t action_profile_id,
@@ -849,23 +813,23 @@ class DeviceMgrImp {
   Status action_profile_group_read(const p4::ActionProfileGroup &group,
                                    const SessionTemp &session,
                                    p4::ReadResponse *response) const {
-    Status status;
-    status.set_code(Code::OK);
     if (group.action_profile_id() == 0) {
       for (auto act_prof_id = pi_p4info_act_prof_begin(p4info.get());
            act_prof_id != pi_p4info_act_prof_end(p4info.get());
            act_prof_id = pi_p4info_act_prof_next(p4info.get(), act_prof_id)) {
-        status = action_profile_group_read_one(act_prof_id, session, response);
-        if (status.code() != Code::OK) break;
+        auto status = action_profile_group_read_one(
+            act_prof_id, session, response);
+        if (IS_ERROR(status)) return status;
       }
     } else {
       if (!check_p4_id(group.action_profile_id(),
                        P4ResourceType::ACTION_PROFILE))
         return make_invalid_p4_id_status();
-      status = action_profile_group_read_one(
+      auto status = action_profile_group_read_one(
           group.action_profile_id(), session, response);
+      if (IS_ERROR(status)) return status;
     }
-    return status;
+    RETURN_OK_STATUS();
   }
 
   Status packet_out_send(const p4::PacketOut &packet) const {
@@ -880,46 +844,34 @@ class DeviceMgrImp {
                           const p4::CounterEntry &counter_entry,
                           const SessionTemp &session,
                           p4::ReadResponse *response) const {
-    Status status;
-    status.set_code(Code::OK);
     assert(pi_p4info_counter_get_direct(p4info.get(), counter_id) ==
            PI_INVALID_ID);
     if (counter_entry.index() != 0) {
       auto entry = response->add_entities()->mutable_counter_entry();
       entry->CopyFrom(counter_entry);
-      auto code = counter_read_one_index(session, counter_id, entry, true);
-      if (code != Code::OK) status.set_code(code);
-      return status;
+      auto status = counter_read_one_index(session, counter_id, entry, true);
+      if (IS_ERROR(status)) return status;
     }
     // default index, read all
     auto counter_size = pi_p4info_counter_get_size(p4info.get(), counter_id);
     {  // sync the entire counter array with HW
       auto pi_status = pi_counter_hw_sync(
           session.get(), device_tgt, counter_id, NULL, NULL);
-      if (pi_status != PI_STATUS_SUCCESS) {
-        status.set_code(Code::UNKNOWN);
-        status.set_message("Error when doing HW counter sync");
-        Logger::get()->error(status.message());
-        return status;
-      }
+      if (pi_status != PI_STATUS_SUCCESS)
+        RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when doing HW counter sync");
     }
     for (size_t index = 0; index < counter_size; index++) {
       auto entry = response->add_entities()->mutable_counter_entry();
       entry->set_index(index);
-      auto code = counter_read_one_index(session, counter_id, entry);
-      if (code != Code::OK) {
-        status.set_code(code);
-        return status;
-      }
+      auto status = counter_read_one_index(session, counter_id, entry);
+      if (IS_ERROR(status)) return status;
     }
-    return status;
+    RETURN_OK_STATUS();
   }
 
   Status counter_read(const p4::CounterEntry &counter_entry,
                       const SessionTemp &session,
                       p4::ReadResponse *response) const {
-    Status status;
-    status.set_code(Code::OK);
     auto counter_id = counter_entry.counter_id();
     if (counter_id == 0) {  // read all entries for all counters
       for (auto c_id = pi_p4info_counter_begin(p4info.get());
@@ -927,30 +879,28 @@ class DeviceMgrImp {
            c_id = pi_p4info_counter_next(p4info.get(), c_id)) {
         if (pi_p4info_counter_get_direct(p4info.get(), c_id) != PI_INVALID_ID)
           continue;
-        status = counter_read_one(c_id, counter_entry, session, response);
-        if (status.code() != Code::OK) break;
+        auto status = counter_read_one(c_id, counter_entry, session, response);
+        if (IS_ERROR(status)) return status;
       }
     } else {  // read for a single counter
       if (!check_p4_id(counter_id, P4ResourceType::COUNTER))
         return make_invalid_p4_id_status();
       if (pi_p4info_counter_get_direct(p4info.get(), counter_id) !=
           PI_INVALID_ID) {
-        status.set_code(Code::INVALID_ARGUMENT);
-        status.set_message("Cannot use CounterEntry with a direct counter");
-        Logger::get()->error(status.message());
-        return status;
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                            "Cannot use CounterEntry with a direct counter");
       }
-      status = counter_read_one(counter_id, counter_entry, session, response);
+      auto status = counter_read_one(
+          counter_id, counter_entry, session, response);
+      if (IS_ERROR(status)) return status;
     }
-    return status;
+    RETURN_OK_STATUS();
   }
 
   Status direct_counter_read_one(p4_id_t counter_id,
                                  const p4::DirectCounterEntry &counter_entry,
                                  const SessionTemp &session,
                                  p4::ReadResponse *response) const {
-    Status status;
-    status.set_code(Code::OK);
     assert(pi_p4info_counter_get_direct(p4info.get(), counter_id) !=
            PI_INVALID_ID);
 
@@ -958,66 +908,51 @@ class DeviceMgrImp {
       const auto &table_entry = counter_entry.table_entry();
       auto table_lock = table_info_store.lock_table(table_entry.table_id());
 
-      pi_entry_handle_t entry_handle;
+      pi_entry_handle_t entry_handle = 0;
       {
-        auto code = entry_handle_from_table_entry(table_entry, &entry_handle);
-        if (code != Code::OK) {
-          status.set_code(code);
-          return status;
-        }
+        auto status = entry_handle_from_table_entry(table_entry, &entry_handle);
+        if (IS_ERROR(status)) return status;
       }
       pi_counter_data_t counter_data;
       auto pi_status = pi_counter_read_direct(
           session.get(), device_tgt, counter_id, entry_handle,
           PI_COUNTER_FLAGS_HW_SYNC, &counter_data);
       if (pi_status != PI_STATUS_SUCCESS) {
-        status.set_code(Code::UNKNOWN);
-        status.set_message("Error when reading counter from target");
-        Logger::get()->error(status.message());
-        return status;
+        RETURN_ERROR_STATUS(Code::UNKNOWN,
+                            "Error when reading counter from target");
       }
       auto entry = response->add_entities()->mutable_direct_counter_entry();
       entry->CopyFrom(counter_entry);
       convert_counter_data(counter_data, entry->mutable_data());
-      return status;
+      RETURN_OK_STATUS();
     }
     // read all direct counters in table
-    status.set_code(Code::UNIMPLEMENTED);
-    status.set_message(
+    RETURN_ERROR_STATUS(
+        Code::UNIMPLEMENTED,
         "Reading ALL direct counters in a table is not supported yet");
-    Logger::get()->error(status.message());
-    return status;
   }
 
   Status direct_counter_read(const p4::DirectCounterEntry &counter_entry,
                              const SessionTemp &session,
                              p4::ReadResponse *response) const {
-    Status status;
-    status.set_code(Code::OK);
     auto counter_id = counter_entry.counter_id();
     if (counter_id == 0 && counter_entry.has_table_entry()) {
-      status.set_code(Code::INVALID_ARGUMENT);
-      status.set_message(
+      RETURN_ERROR_STATUS(
+          Code::INVALID_ARGUMENT,
           "When reading direct counters, you cannot use a counter_id of zero "
           "with a non-empty table_entry");
-      Logger::get()->error(status.message());
-      return status;
     }
     if (counter_id == 0) {
-      status.set_code(Code::UNIMPLEMENTED);
-      status.set_message("Reading ALL direct counters is not supported yet");
-      Logger::get()->error(status.message());
-      return status;
+      RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
+                          "Reading ALL direct counters is not supported yet");
     }
     if (!check_p4_id(counter_id, P4ResourceType::COUNTER))
       return make_invalid_p4_id_status();
     if (pi_p4info_counter_get_direct(p4info.get(), counter_id) ==
         PI_INVALID_ID) {
-      status.set_code(Code::INVALID_ARGUMENT);
-      status.set_message(
+      RETURN_ERROR_STATUS(
+          Code::INVALID_ARGUMENT,
           "Cannot use DirectCounterEntry with a indirect counter");
-      Logger::get()->error(status.message());
-      return status;
     }
     return direct_counter_read_one(
         counter_id, counter_entry, session, response);
@@ -1039,17 +974,17 @@ class DeviceMgrImp {
         && pi_p4info_is_valid_id(p4info.get(), p4_id);
   }
 
-  Code validate_match_key(const p4::TableEntry &entry) const {
-    Code code;
+  Status validate_match_key(const p4::TableEntry &entry) const {
     auto t_id = entry.table_id();
     size_t num_match_fields;
     auto expected_mf_ids = pi_p4info_table_get_match_fields(
         p4info.get(), t_id, &num_match_fields);
     if (static_cast<size_t>(entry.match().size()) > num_match_fields) {
-      Logger::get()->error("Too many fields in match key");
-      return Code::INVALID_ARGUMENT;
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "Too many fields in match key");
     }
 
+    Code code = Code::OK;
     int num_mf_matched = 0;  // check if some extra fields in the match key
     // the double loop is potentially too slow; refactor this code if it proves
     // to be a bottleneck
@@ -1082,31 +1017,27 @@ class DeviceMgrImp {
             code = check_proto_bytestring(mf.range().high(), bitwidth);
             break;
           default:
-            return Code::INVALID_ARGUMENT;
+            RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
         }
-        if (code != Code::OK) {
-          Logger::get()->error("Invalid bytestring format");
-          return code;
-        }
+        if (code != Code::OK)
+          RETURN_ERROR_STATUS(code, "Invalid bytestring format");
       }
       if (mf_is_missing
           && mf_info->match_type != PI_P4INFO_MATCH_TYPE_TERNARY) {
-        Logger::get()->error("Missing non-ternary field in match key");
-        return Code::INVALID_ARGUMENT;
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                            "Missing non-ternary field in match key");
       }
     }
-    if (num_mf_matched != entry.match().size()) {
-      Logger::get()->error("Unknown field in match key");
-      return Code::INVALID_ARGUMENT;
-    }
-    return Code::OK;
+    if (num_mf_matched != entry.match().size())
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Unknown field in match key");
+    RETURN_OK_STATUS();
   }
 
-  Code construct_match_key(const p4::TableEntry &entry,
+  Status construct_match_key(const p4::TableEntry &entry,
                            pi::MatchKey *match_key) const {
-    if (entry.match().empty()) return Code::OK;
-    auto code = validate_match_key(entry);
-    if (code != Code::OK) return code;
+    if (entry.match().empty()) RETURN_OK_STATUS();  // default entry
+    auto status = validate_match_key(entry);
+    if (IS_ERROR(status)) return status;
     for (const auto &mf : entry.match()) {
       switch (mf.field_match_type_case()) {
         case p4::FieldMatch::kExact:
@@ -1131,46 +1062,39 @@ class DeviceMgrImp {
                                mf.range().low().size());
           break;
         default:
-          return Code::INVALID_ARGUMENT;
+          RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
       }
     }
-    return Code::OK;
+    RETURN_OK_STATUS();
   }
 
   Status construct_action_data(uint32_t table_id, const p4::Action &action,
                                pi::ActionEntry *action_entry) const {
-    Status status;
     auto action_id = action.action_id();
     if (!check_p4_id(action_id, P4ResourceType::ACTION))
       return make_invalid_p4_id_status();
-    if (!pi_p4info_table_is_action_of(p4info.get(), table_id, action_id)) {
-      status.set_code(Code::INVALID_ARGUMENT);
-      status.set_message("Invalid action for table");
-      Logger::get()->error(status.message());
-      return status;
-    }
-    status = validate_action_data(p4info.get(), action);
-    if (status.code() != Code::OK) return status;
+    if (!pi_p4info_table_is_action_of(p4info.get(), table_id, action_id))
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid action for table");
+    auto status = validate_action_data(p4info.get(), action);
+    if (IS_ERROR(status)) return status;
     action_entry->init_action_data(p4info.get(), action.action_id());
     auto action_data = action_entry->mutable_action_data();
     for (const auto &p : action.params()) {
       action_data->set_arg(p.param_id(), p.value().data(), p.value().size());
     }
-    return status;
+    RETURN_OK_STATUS();
   }
 
   Status construct_action_entry_indirect(uint32_t table_id,
                                          const p4::TableAction &table_action,
                                          pi::ActionEntry *action_entry) {
-    Status status;
     auto action_prof_id = pi_p4info_table_get_implementation(p4info.get(),
                                                              table_id);
     // check that table is indirect
     if (action_prof_id == PI_INVALID_ID) {
-      Logger::get()->error("Expected indirect table but table {} is not",
-                           table_id);
-      status.set_code(Code::INVALID_ARGUMENT);
-      return status;
+      RETURN_ERROR_STATUS(
+          Code::INVALID_ARGUMENT,
+          "Expected indirect table but table {} is not", table_id);
     }
     auto action_prof_mgr = get_action_prof_mgr(action_prof_id);
     // cannot assert because the action prof id is provided by the PI
@@ -1189,21 +1113,16 @@ class DeviceMgrImp {
         assert(0);
     }
     // invalid member/group id
-    if (indirect_h == nullptr) {
-      status.set_code(Code::INVALID_ARGUMENT);
-      status.set_message("Invalid member / group id");
-      Logger::get()->error(status.message());
-      return status;
-    }
+    if (indirect_h == nullptr)
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid member / group id");
     action_entry->init_indirect_handle(*indirect_h);
-    return status;
+    RETURN_OK_STATUS();
   }
 
   // the table_id is needed for indirect entries
   Status construct_action_entry(uint32_t table_id,
                                 const p4::TableAction &table_action,
                                 pi::ActionEntry *action_entry) {
-    Status status;
     switch (table_action.type_case()) {
       case p4::TableAction::kAction:
         return construct_action_data(table_id, table_action.action(),
@@ -1213,31 +1132,25 @@ class DeviceMgrImp {
         return construct_action_entry_indirect(table_id, table_action,
                                                action_entry);
       default:
-        status.set_code(Code::INVALID_ARGUMENT);
-        return status;
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
     }
   }
 
   Status table_insert(const p4::TableEntry &table_entry,
                       const SessionTemp &session) {
-    Status status;
-    Code code;
     const auto table_id = table_entry.table_id();
     pi::MatchKey match_key(p4info.get(), table_id);
-    code = construct_match_key(table_entry, &match_key);
-    if (code != Code::OK) {
-      status.set_code(code);
-      status.set_message("Invalid match key");
-      Logger::get()->error(status.message());
-      return status;
+    {
+      auto status = construct_match_key(table_entry, &match_key);
+      if (IS_ERROR(status))
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match key");
     }
 
     pi::ActionEntry action_entry;
-    status = construct_action_entry(
-        table_id, table_entry.action(), &action_entry);
-    if (status.code() != Code::OK) {
-      Logger::get()->error("Invalid action entry");
-      return status;
+    {
+      auto status = construct_action_entry(
+          table_id, table_entry.action(), &action_entry);
+      if (IS_ERROR(status)) return status;
     }
 
     auto table_lock = table_info_store.lock_table(table_id);
@@ -1254,40 +1167,32 @@ class DeviceMgrImp {
       (void) handle;
     }
     if (pi_status != PI_STATUS_SUCCESS) {
-      status.set_code(Code::UNKNOWN);
-      status.set_message("Error when adding match entry to target");
-      Logger::get()->error(status.message());
-      return status;
+      RETURN_ERROR_STATUS(Code::UNKNOWN,
+                          "Error when adding match entry to target");
     }
 
     table_info_store.add_entry(
         table_id, match_key,
         TableInfoStore::Data(handle, table_entry.controller_metadata()));
 
-    status.set_code(Code::OK);
-    return status;
+    RETURN_OK_STATUS();
   }
 
   Status table_modify(const p4::TableEntry &table_entry,
                       const SessionTemp &session) {
-    Status status;
-    Code code;
     const auto table_id = table_entry.table_id();
     pi::MatchKey match_key(p4info.get(), table_id);
-    code = construct_match_key(table_entry, &match_key);
-    if (code != Code::OK) {
-      status.set_code(code);
-      status.set_message("Invalid match key");
-      Logger::get()->error(status.message());
-      return status;
+    {
+      auto status = construct_match_key(table_entry, &match_key);
+      if (IS_ERROR(status))
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match key");
     }
 
     pi::ActionEntry action_entry;
-    status = construct_action_entry(
-        table_id, table_entry.action(), &action_entry);
-    if (status.code() != Code::OK) {
-      Logger::get()->error("Invalid action entry");
-      return status;
+    {
+      auto status = construct_action_entry(
+          table_id, table_entry.action(), &action_entry);
+      if (IS_ERROR(status)) return status;
     }
 
     auto table_lock = table_info_store.lock_table(table_id);
@@ -1295,12 +1200,8 @@ class DeviceMgrImp {
     // we need this pointer to update the controller metadata if the modify
     // operation is successful
     auto entry_data = table_info_store.get_entry(table_id, match_key);
-    if (entry_data == nullptr) {
-      status.set_code(Code::INVALID_ARGUMENT);
-      status.set_message("Cannot find match entry");
-      Logger::get()->error(status.message());
-      return status;
-    }
+    if (entry_data == nullptr)
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Cannot find match entry");
 
     pi::MatchTable mt(session.get(), device_tgt, p4info.get(), table_id);
     pi_status_t pi_status;
@@ -1311,30 +1212,23 @@ class DeviceMgrImp {
       pi_status = mt.entry_modify_wkey(match_key, action_entry);
     }
     if (pi_status != PI_STATUS_SUCCESS) {
-      status.set_code(Code::UNKNOWN);
-      status.set_message("Error when modifying match entry in target");
-      Logger::get()->error(status.message());
-      return status;
+      RETURN_ERROR_STATUS(Code::UNKNOWN,
+                          "Error when modifying match entry in target");
     }
 
     entry_data->controller_metadata = table_entry.controller_metadata();
 
-    status.set_code(Code::OK);
-    return status;
+    RETURN_OK_STATUS();
   }
 
   Status table_delete(const p4::TableEntry &table_entry,
                       const SessionTemp &session) {
-    Status status;
-    Code code;
     const auto table_id = table_entry.table_id();
     pi::MatchKey match_key(p4info.get(), table_id);
-    code = construct_match_key(table_entry, &match_key);
-    if (code != Code::OK) {
-      status.set_code(code);
-      status.set_message("Invalid match key");
-      Logger::get()->error(status.message());
-      return status;
+    {
+      auto status = construct_match_key(table_entry, &match_key);
+      if (IS_ERROR(status))
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match key");
     }
 
     auto table_lock = table_info_store.lock_table(table_id);
@@ -1345,23 +1239,19 @@ class DeviceMgrImp {
     if (table_entry.match().empty()) {
       // we do not yet have the ability to clear a default entry, which is not a
       // very interesting feature anyway
-      Logger::get()->warn("Resetting default entry not supported yet");
-      status.set_code(Code::UNIMPLEMENTED);
-      return status;
+      RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
+                          "Resetting default entry not supported yet");
     } else {
       pi_status = mt.entry_delete_wkey(match_key);
     }
     if (pi_status != PI_STATUS_SUCCESS) {
-      status.set_code(Code::UNKNOWN);
-      status.set_message("Error when deleting match entry in target");
-      Logger::get()->error(status.message());
-      return status;
+      RETURN_ERROR_STATUS(Code::UNKNOWN,
+                          "Error when deleting match entry in target");
     }
 
     table_info_store.remove_entry(table_id, match_key);
 
-    status.set_code(Code::OK);
-    return status;
+    RETURN_OK_STATUS();
   }
 
   ActionProfMgr *get_action_prof_mgr(uint32_t id) const {
@@ -1377,9 +1267,9 @@ class DeviceMgrImp {
       data->set_byte_count(pi_data.bytes);
   }
 
-  Code counter_read_one_index(const SessionTemp &session, uint32_t counter_id,
-                              p4::CounterEntry *entry,
-                              bool hw_sync = false) const {
+  Status counter_read_one_index(const SessionTemp &session, uint32_t counter_id,
+                                p4::CounterEntry *entry,
+                                bool hw_sync = false) const {
     auto index = entry->index();
     int flags = hw_sync ? PI_COUNTER_FLAGS_HW_SYNC : PI_COUNTER_FLAGS_NONE;
     pi_counter_data_t counter_data;
@@ -1387,11 +1277,11 @@ class DeviceMgrImp {
                                             counter_id, index, flags,
                                             &counter_data);
     if (pi_status != PI_STATUS_SUCCESS) {
-      Logger::get()->error("Error when reading counter from target");
-      return Code::UNKNOWN;
+      RETURN_ERROR_STATUS(Code::UNKNOWN,
+                          "Error when reading counter from target");
     }
     convert_counter_data(counter_data, entry->mutable_data());
-    return Code::OK;
+    RETURN_OK_STATUS();
   }
 
   device_id_t device_id;

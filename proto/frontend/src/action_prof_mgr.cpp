@@ -31,6 +31,7 @@
 #include "action_prof_mgr.h"
 #include "common.h"
 #include "logger.h"
+#include "report_error.h"
 
 namespace pi {
 
@@ -108,84 +109,65 @@ ActionProfMgr::ActionProfMgr(pi_dev_tgt_t device_tgt, pi_p4_id_t act_prof_id,
 Status
 ActionProfMgr::member_create(const p4::ActionProfileMember &member,
                              const SessionTemp &session) {
-  Status status;
-  status = validate_action(member.action());
-  if (status.code() != Code::OK) return status;
+  {
+    auto status = validate_action(member.action());
+    if (IS_ERROR(status)) return status;
+  }
   auto action_data = construct_action_data(member.action());
   // TODO(antonin): weight / watch?
   Lock lock(mutex);
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   // we check if the member id already exists
   if (member_bimap.retrieve_handle(member.member_id()) != nullptr) {
-    status.set_code(Code::INVALID_ARGUMENT);
-    status.set_message("Duplicate member id");
-    Logger::get()->error("Duplicate member id: {}", member.member_id());
-    return status;
+    RETURN_ERROR_STATUS(
+        Code::INVALID_ARGUMENT, "Duplicate member id: {}", member.member_id());
   }
   pi_indirect_handle_t member_h;
   auto pi_status = ap.member_create(action_data, &member_h);
-  if (pi_status != PI_STATUS_SUCCESS) {
-    status.set_code(Code::UNKNOWN);
-    Logger::get()->error("Error when creating member on target");
-    return status;
-  }
+  if (pi_status != PI_STATUS_SUCCESS)
+    RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when creating member on target");
   member_bimap.add(member.member_id(), member_h);
-  status.set_code(Code::OK);
-  return status;
+  RETURN_OK_STATUS();
 }
 
 Status
 ActionProfMgr::group_create(const p4::ActionProfileGroup &group,
                             const SessionTemp &session) {
-  Status status;
   Lock lock(mutex);
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   // we check if the group id already exists
   if (group_bimap.retrieve_handle(group.group_id()) != nullptr) {
-    status.set_code(Code::INVALID_ARGUMENT);
-    status.set_message("Duplicate group id");
-    Logger::get()->error("Duplicate group id: {}", group.group_id());
-    return status;
+    RETURN_ERROR_STATUS(
+        Code::INVALID_ARGUMENT, "Duplicate group id: {}", group.group_id());
   }
   pi_indirect_handle_t group_h;
   auto pi_status = ap.group_create(group.max_size(), &group_h);
-  if (pi_status != PI_STATUS_SUCCESS) {
-    status.set_code(Code::UNKNOWN);
-    Logger::get()->error("Error when creating group on target");
-    return status;
-  }
+  if (pi_status != PI_STATUS_SUCCESS)
+    RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when creating group on target");
   group_bimap.add(group.group_id(), group_h);
   group_members.emplace(group.group_id(), ActionProfGroupMembership());
   auto code = group_update_members(ap, group);
-  status.set_code(code);
-  return status;
+  RETURN_STATUS(code);
 }
 
 Status
 ActionProfMgr::member_modify(const p4::ActionProfileMember &member,
                              const SessionTemp &session) {
-  Status status;
-  status = validate_action(member.action());
-  if (status.code() != Code::OK) return status;
+  auto status = validate_action(member.action());
+  if (IS_ERROR(status)) return status;
   auto action_data = construct_action_data(member.action());
   // TODO(antonin): weight / watch?
   Lock lock(mutex);
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   auto member_h = member_bimap.retrieve_handle(member.member_id());
   if (member_h == nullptr) {
-    status.set_code(Code::INVALID_ARGUMENT);
-    status.set_message("Member id does not exist");
-    Logger::get()->error("Member id does not exist: {}", member.member_id());
-    return status;
+    RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                        "Member id does not exist: {}", member.member_id());
   }
   auto pi_status = ap.member_modify(*member_h, action_data);
-  if (pi_status != PI_STATUS_SUCCESS) {
-    status.set_code(Code::UNKNOWN);
-    Logger::get()->error("Error when modifying member on target");
-    return status;
-  }
-  status.set_code(Code::OK);
-  return status;
+  if (pi_status != PI_STATUS_SUCCESS)
+    RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when modifying member on target");
+  RETURN_OK_STATUS();
 }
 
 // we stop as soon as there is an error, but make sure to keep consistency
@@ -193,70 +175,52 @@ ActionProfMgr::member_modify(const p4::ActionProfileMember &member,
 Status
 ActionProfMgr::group_modify(const p4::ActionProfileGroup &group,
                             const SessionTemp &session) {
-  Status status;
   Lock lock(mutex);
   auto group_id = group.group_id();
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   auto group_h = group_bimap.retrieve_handle(group_id);
   if (group_h == nullptr) {
-    status.set_code(Code::INVALID_ARGUMENT);
-    status.set_message("Group id does not exist");
-    Logger::get()->error("Group id does not exist: {}", group.group_id());
-    return status;
+    RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                        "Group id does not exist: {}", group.group_id());
   }
   auto code = group_update_members(ap, group);
-  status.set_code(code);
-  return status;
+  RETURN_STATUS(code);
 }
 
 Status
 ActionProfMgr::member_delete(const p4::ActionProfileMember &member,
                              const SessionTemp &session) {
-  Status status;
   Lock lock(mutex);
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   auto member_h = member_bimap.retrieve_handle(member.member_id());
   if (member_h == nullptr) {
-    status.set_code(Code::INVALID_ARGUMENT);
-    status.set_message("Member id does not exist: {}");
-    Logger::get()->error("Member id does not exist: {}", member.member_id());
-    return status;
+    RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                        "Member id does not exist: {}", member.member_id());
   }
   auto pi_status = ap.member_delete(*member_h);
-  if (pi_status != PI_STATUS_SUCCESS) {
-    status.set_code(Code::UNKNOWN);
-    Logger::get()->error("Error when deleting member on target");
-    return status;
-  }
+  if (pi_status != PI_STATUS_SUCCESS)
+    RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when deleting member on target");
   member_bimap.remove(member.member_id());
   update_group_membership(member.member_id());
-  status.set_code(Code::OK);
-  return status;
+  RETURN_OK_STATUS();
 }
 
 Status
 ActionProfMgr::group_delete(const p4::ActionProfileGroup &group,
                             const SessionTemp &session) {
-  Status status;
   Lock lock(mutex);
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   auto group_h = group_bimap.retrieve_handle(group.group_id());
   if (group_h == nullptr) {
-    status.set_code(Code::INVALID_ARGUMENT);
-    status.set_message("Group id does not exist: {}");
-    Logger::get()->error("Group id does not exist: {}", group.group_id());
-    return status;
+    RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                        "Group id does not exist: {}", group.group_id());
   }
   auto pi_status = ap.group_delete(*group_h);
-  if (pi_status != PI_STATUS_SUCCESS) {
-    status.set_code(Code::UNKNOWN);
-    Logger::get()->error("Error when deleting group on target");
-    return status;
-  }
+  if (pi_status != PI_STATUS_SUCCESS)
+    RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when deleting group on target");
   group_bimap.remove(group.group_id());
   group_members.erase(group.group_id());
-  status.set_code(Code::OK);
-  return status;
+  RETURN_OK_STATUS();
 }
 
 bool
@@ -282,11 +246,8 @@ ActionProfMgr::validate_action(const p4::Action &action) {
   if (!check_p4_action_id(action_id))
     return make_invalid_p4_id_status();
   if (!pi_p4info_act_prof_is_action_of(p4info, act_prof_id, action_id)) {
-    Status status;
-    status.set_code(Code::INVALID_ARGUMENT);
-    status.set_message("Invalid action for action profile");
-    Logger::get()->error(status.message());
-    return status;
+    RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                        "Invalid action for action profile");
   }
   return validate_action_data(p4info, action);
 }
