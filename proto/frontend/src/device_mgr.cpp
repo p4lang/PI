@@ -1065,6 +1065,7 @@ class DeviceMgrImp {
           RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
       }
     }
+    match_key->set_priority(entry.priority());
     RETURN_OK_STATUS();
   }
 

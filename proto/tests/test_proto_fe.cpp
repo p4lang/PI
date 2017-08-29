@@ -214,6 +214,8 @@ class MatchKeyInput {
     return fm;
   }
 
+  int get_priority() const { return priority; }
+
   // The MatchKeyInput object is used to parametrize the MatchTableTest test
   // below. If I do not define this operator, valgrind reports some memory
   // errors regarding "uninitialised values" because of the compiler padding
@@ -254,6 +256,7 @@ class MatchTableTest
   p4::TableEntry generic_make(pi_p4_id_t t_id,
                               boost::optional<p4::FieldMatch> mf,
                               const std::string &param_v,
+                              int priority = 0,
                               uint64_t controller_metadata = 0);
 
   DeviceMgr::Status generic_write(p4::Update_Type type, p4::TableEntry *entry);
@@ -299,10 +302,12 @@ p4::TableEntry
 MatchTableTest::generic_make(pi_p4_id_t t_id,
                              boost::optional<p4::FieldMatch> mf,
                              const std::string &param_v,
+                             int priority,
                              uint64_t controller_metadata) {
   p4::TableEntry table_entry;
   table_entry.set_table_id(t_id);
   table_entry.set_controller_metadata(controller_metadata);
+  table_entry.set_priority(priority);
   // not supported by older versions of boost
   // if (mf != boost::none) {
   if (mf.is_initialized()) {
@@ -394,8 +399,8 @@ TEST_P(MatchTableTest, AddAndRead) {
       .Times(2);
   DeviceMgr::Status status;
   uint64_t controller_metadata(0xab);
-  auto entry = generic_make(
-      t_id, mk_input.get_proto(mf_id), adata, controller_metadata);
+  auto entry = generic_make(t_id, mk_input.get_proto(mf_id), adata,
+                            mk_input.get_priority(), controller_metadata);
   status = add_one(&entry);
   ASSERT_EQ(status.code(), Code::OK);
   // second is error because duplicate match key
@@ -421,7 +426,8 @@ TEST_P(MatchTableTest, AddAndDelete) {
   auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
   DeviceMgr::Status status;
-  auto entry = generic_make(t_id, mk_input.get_proto(mf_id), adata);
+  auto entry = generic_make(
+      t_id, mk_input.get_proto(mf_id), adata, mk_input.get_priority());
   status = add_one(&entry);
   ASSERT_EQ(status.code(), Code::OK);
 
@@ -440,13 +446,15 @@ TEST_P(MatchTableTest, AddAndModify) {
   auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
   DeviceMgr::Status status;
-  auto entry = generic_make(t_id, mk_input.get_proto(mf_id), adata);
+  auto entry = generic_make(
+      t_id, mk_input.get_proto(mf_id), adata, mk_input.get_priority());
   status = add_one(&entry);
   ASSERT_EQ(status.code(), Code::OK);
 
   std::string new_adata(6, '\xaa');
   auto new_entry_matcher = Truly(TableEntryMatcher_Direct(a_id, new_adata));
-  auto new_entry = generic_make(t_id, mk_input.get_proto(mf_id), adata);
+  auto new_entry = generic_make(
+      t_id, mk_input.get_proto(mf_id), adata, mk_input.get_priority());
   EXPECT_CALL(*mock, table_entry_modify_wkey(t_id, mk_matcher, entry_matcher));
   status = modify(&new_entry);
   EXPECT_EQ(status.code(), Code::OK);
