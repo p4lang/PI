@@ -390,7 +390,7 @@ message ForwardingPipelineConfig {
 }
 
 message GetForwardingPipelineConfigRequest {
-  repeated uint32 device_ids = 1;
+  repeated uint64 device_ids = 1;
 }
 
 message GetForwardingPipelineConfigResponse {
