@@ -2,8 +2,9 @@
     "__meta__": {
         "version": [
             2,
-            0
-        ]
+            5
+        ],
+        "compiler": "https://github.com/p4lang/p4c-bm"
     },
     "header_types": [
         {
@@ -213,8 +214,39 @@
             "pragmas": []
         },
         {
-            "name": "forward",
+            "name": "broadcast",
             "id": 1,
+            "runtime_data": [],
+            "primitives": [
+                {
+                    "op": "modify_field",
+                    "parameters": [
+                        {
+                            "type": "field",
+                            "value": [
+                                "intrinsic_metadata",
+                                "mcast_grp"
+                            ]
+                        },
+                        {
+                            "type": "hexstr",
+                            "value": "0x1"
+                        }
+                    ]
+                }
+            ],
+            "pragmas": []
+        },
+        {
+            "name": "_nop",
+            "id": 2,
+            "runtime_data": [],
+            "primitives": [],
+            "pragmas": []
+        },
+        {
+            "name": "forward",
+            "id": 3,
             "runtime_data": [
                 {
                     "name": "port",
@@ -255,37 +287,6 @@
                     ]
                 }
             ],
-            "pragmas": []
-        },
-        {
-            "name": "broadcast",
-            "id": 2,
-            "runtime_data": [],
-            "primitives": [
-                {
-                    "op": "modify_field",
-                    "parameters": [
-                        {
-                            "type": "field",
-                            "value": [
-                                "intrinsic_metadata",
-                                "mcast_grp"
-                            ]
-                        },
-                        {
-                            "type": "hexstr",
-                            "value": "0x1"
-                        }
-                    ]
-                }
-            ],
-            "pragmas": []
-        },
-        {
-            "name": "_nop",
-            "id": 3,
-            "runtime_data": [],
-            "primitives": [],
             "pragmas": []
         }
     ],

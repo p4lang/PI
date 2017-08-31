@@ -1323,6 +1323,61 @@ TEST_F(DirectCounterTest, ReadAll) {
   ASSERT_EQ(status.code(), Code::UNIMPLEMENTED);
 }
 
+class IndirectCounterTest : public DeviceMgrTest  {
+ protected:
+  IndirectCounterTest() {
+    c_id = pi_p4info_counter_id_from_name(p4info, "CounterA");
+    c_size = pi_p4info_counter_get_size(p4info, c_id);
+  }
+
+  pi_p4_id_t c_id{0};
+  size_t c_size{0};
+};
+
+TEST_F(IndirectCounterTest, Read) {
+  int index = 66;
+  p4::ReadRequest request;
+  p4::ReadResponse response;
+  auto entity = request.add_entities();
+  auto counter_entry = entity->mutable_counter_entry();
+  counter_entry->set_counter_id(c_id);
+  counter_entry->set_index(index);
+
+  EXPECT_CALL(*mock, counter_read(c_id, index, _, _));
+  auto status = mgr.read(request, &response);
+  ASSERT_EQ(status.code(), Code::OK);
+  const auto &entities = response.entities();
+  ASSERT_EQ(1, entities.size());
+  auto counter_data = counter_entry->mutable_data();
+  counter_data->set_byte_count(0);
+  counter_data->set_packet_count(0);
+  ASSERT_TRUE(MessageDifferencer::Equals(*counter_entry,
+                                         entities.Get(0).counter_entry()));
+}
+
+TEST_F(IndirectCounterTest, ReadAll) {
+  p4::ReadRequest request;
+  p4::ReadResponse response;
+  auto entity = request.add_entities();
+  auto counter_entry = entity->mutable_counter_entry();
+  counter_entry->set_counter_id(c_id);
+
+  // TODO(antonin): match index?
+  EXPECT_CALL(*mock, counter_read(c_id, _, _, _)).Times(c_size);
+  auto status = mgr.read(request, &response);
+  ASSERT_EQ(status.code(), Code::OK);
+  const auto &entities = response.entities();
+  ASSERT_EQ(c_size, static_cast<size_t>(entities.size()));
+  auto counter_data = counter_entry->mutable_data();
+  counter_data->set_byte_count(0);
+  counter_data->set_packet_count(0);
+  for (size_t i = 0; i < c_size; i++) {
+    const auto &entry = entities.Get(i).counter_entry();
+    counter_entry->set_index(i);
+    ASSERT_TRUE(MessageDifferencer::Equals(*counter_entry, entry));
+  }
+}
+
 
 // Only testing for exact match tables for now, there is not much code variation
 // between different table types.

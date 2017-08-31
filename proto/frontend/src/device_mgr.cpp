@@ -849,8 +849,7 @@ class DeviceMgrImp {
     if (counter_entry.index() != 0) {
       auto entry = response->add_entities()->mutable_counter_entry();
       entry->CopyFrom(counter_entry);
-      auto status = counter_read_one_index(session, counter_id, entry, true);
-      if (IS_ERROR(status)) return status;
+      return counter_read_one_index(session, counter_id, entry, true);
     }
     // default index, read all
     auto counter_size = pi_p4info_counter_get_size(p4info.get(), counter_id);
@@ -862,6 +861,7 @@ class DeviceMgrImp {
     }
     for (size_t index = 0; index < counter_size; index++) {
       auto entry = response->add_entities()->mutable_counter_entry();
+      entry->set_counter_id(counter_id);
       entry->set_index(index);
       auto status = counter_read_one_index(session, counter_id, entry);
       if (IS_ERROR(status)) return status;

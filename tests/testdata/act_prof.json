@@ -2,8 +2,9 @@
     "__meta__": {
         "version": [
             2,
-            0
-        ]
+            5
+        ],
+        "compiler": "https://github.com/p4lang/p4c-bm"
     },
     "header_types": [
         {
@@ -44,7 +45,8 @@
                 ]
             ],
             "length_exp": null,
-            "max_length": null
+            "max_length": null,
+            "pragmas": []
         }
     ],
     "headers": [
@@ -52,7 +54,8 @@
             "name": "standard_metadata",
             "id": 0,
             "header_type": "standard_metadata_t",
-            "metadata": true
+            "metadata": true,
+            "pragmas": []
         }
     ],
     "header_stacks": [],
@@ -74,7 +77,8 @@
                             "mask": null,
                             "next_state": null
                         }
-                    ]
+                    ],
+                    "pragmas": []
                 }
             ]
         }
@@ -93,7 +97,8 @@
             "name": "a",
             "id": 0,
             "runtime_data": [],
-            "primitives": []
+            "primitives": [],
+            "pragmas": []
         }
     ],
     "pipelines": [
@@ -119,7 +124,8 @@
                     "next_tables": {
                         "a": "t2"
                     },
-                    "base_default_next": "t2"
+                    "base_default_next": "t2",
+                    "pragmas": []
                 },
                 {
                     "name": "t2",
@@ -138,14 +144,16 @@
                     "next_tables": {
                         "a": null
                     },
-                    "base_default_next": null
+                    "base_default_next": null,
+                    "pragmas": []
                 }
             ],
             "action_profiles": [
                 {
                     "name": "ap",
                     "id": 0,
-                    "max_size": 128
+                    "max_size": 128,
+                    "pragmas": []
                 }
             ],
             "conditionals": []

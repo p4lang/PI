@@ -2,8 +2,9 @@
     "__meta__": {
         "version": [
             2,
-            0
-        ]
+            5
+        ],
+        "compiler": "https://github.com/p4lang/p4c-bm"
     },
     "header_types": [
         {
