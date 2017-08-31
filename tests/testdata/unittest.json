@@ -165,28 +165,20 @@
     ],
     "actions": [
         {
-            "name": "actionB",
+            "name": "_CounterAAction",
             "id": 0,
-            "runtime_data": [
-                {
-                    "name": "param",
-                    "bitwidth": 8
-                }
-            ],
+            "runtime_data": [],
             "primitives": [
                 {
-                    "op": "modify_field",
+                    "op": "count",
                     "parameters": [
                         {
-                            "type": "field",
-                            "value": [
-                                "header_test",
-                                "field8"
-                            ]
+                            "type": "counter_array",
+                            "value": "CounterA"
                         },
                         {
-                            "type": "runtime_data",
-                            "value": 0
+                            "type": "hexstr",
+                            "value": "0x80"
                         }
                     ]
                 }
@@ -223,8 +215,37 @@
             "pragmas": []
         },
         {
-            "name": "actionC",
+            "name": "actionB",
             "id": 2,
+            "runtime_data": [
+                {
+                    "name": "param",
+                    "bitwidth": 8
+                }
+            ],
+            "primitives": [
+                {
+                    "op": "modify_field",
+                    "parameters": [
+                        {
+                            "type": "field",
+                            "value": [
+                                "header_test",
+                                "field8"
+                            ]
+                        },
+                        {
+                            "type": "runtime_data",
+                            "value": 0
+                        }
+                    ]
+                }
+            ],
+            "pragmas": []
+        },
+        {
+            "name": "actionC",
+            "id": 3,
             "runtime_data": [],
             "primitives": [],
             "pragmas": []
@@ -492,8 +513,36 @@
                         "actionB"
                     ],
                     "next_tables": {
-                        "actionA": null,
-                        "actionB": null
+                        "actionA": "_CounterATable",
+                        "actionB": "_CounterATable"
+                    },
+                    "base_default_next": "_CounterATable",
+                    "pragmas": []
+                },
+                {
+                    "name": "_CounterATable",
+                    "id": 8,
+                    "match_type": "exact",
+                    "type": "simple",
+                    "max_size": 512,
+                    "with_counters": false,
+                    "direct_meters": null,
+                    "support_timeout": false,
+                    "key": [
+                        {
+                            "match_type": "exact",
+                            "target": [
+                                "header_test",
+                                "field32"
+                            ],
+                            "mask": null
+                        }
+                    ],
+                    "actions": [
+                        "_CounterAAction"
+                    ],
+                    "next_tables": {
+                        "_CounterAAction": null
                     },
                     "base_default_next": null,
                     "pragmas": []
@@ -585,6 +634,13 @@
             "is_direct": true,
             "binding": "ExactOne",
             "size": 512,
+            "pragmas": []
+        },
+        {
+            "name": "CounterA",
+            "id": 1,
+            "is_direct": false,
+            "size": 1024,
             "pragmas": []
         }
     ],

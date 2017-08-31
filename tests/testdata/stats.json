@@ -2,8 +2,9 @@
     "__meta__": {
         "version": [
             2,
-            0
-        ]
+            5
+        ],
+        "compiler": "https://github.com/p4lang/p4c-bm"
     },
     "header_types": [
         {
@@ -165,8 +166,62 @@
     ],
     "actions": [
         {
-            "name": "actionA",
+            "name": "_RegisterAAction",
             "id": 0,
+            "runtime_data": [],
+            "primitives": [
+                {
+                    "op": "register_write",
+                    "parameters": [
+                        {
+                            "type": "register_array",
+                            "value": "RegisterA"
+                        },
+                        {
+                            "type": "hexstr",
+                            "value": "0xa"
+                        },
+                        {
+                            "type": "hexstr",
+                            "value": "0x4d"
+                        }
+                    ]
+                }
+            ],
+            "pragmas": []
+        },
+        {
+            "name": "actionB",
+            "id": 1,
+            "runtime_data": [
+                {
+                    "name": "param",
+                    "bitwidth": 8
+                }
+            ],
+            "primitives": [
+                {
+                    "op": "modify_field",
+                    "parameters": [
+                        {
+                            "type": "field",
+                            "value": [
+                                "header_test",
+                                "field8"
+                            ]
+                        },
+                        {
+                            "type": "runtime_data",
+                            "value": 0
+                        }
+                    ]
+                }
+            ],
+            "pragmas": []
+        },
+        {
+            "name": "actionA",
+            "id": 2,
             "runtime_data": [
                 {
                     "name": "param",
@@ -195,7 +250,7 @@
         },
         {
             "name": "_CounterAAction",
-            "id": 1,
+            "id": 3,
             "runtime_data": [],
             "primitives": [
                 {
@@ -208,60 +263,6 @@
                         {
                             "type": "hexstr",
                             "value": "0x80"
-                        }
-                    ]
-                }
-            ],
-            "pragmas": []
-        },
-        {
-            "name": "actionB",
-            "id": 2,
-            "runtime_data": [
-                {
-                    "name": "param",
-                    "bitwidth": 8
-                }
-            ],
-            "primitives": [
-                {
-                    "op": "modify_field",
-                    "parameters": [
-                        {
-                            "type": "field",
-                            "value": [
-                                "header_test",
-                                "field8"
-                            ]
-                        },
-                        {
-                            "type": "runtime_data",
-                            "value": 0
-                        }
-                    ]
-                }
-            ],
-            "pragmas": []
-        },
-        {
-            "name": "_RegisterAAction",
-            "id": 3,
-            "runtime_data": [],
-            "primitives": [
-                {
-                    "op": "register_write",
-                    "parameters": [
-                        {
-                            "type": "register_array",
-                            "value": "RegisterA"
-                        },
-                        {
-                            "type": "hexstr",
-                            "value": "0xa"
-                        },
-                        {
-                            "type": "hexstr",
-                            "value": "0x4d"
                         }
                     ]
                 }

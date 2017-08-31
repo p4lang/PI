@@ -161,6 +161,25 @@ table ExactOneNonAligned {
     size: 512;
 }
 
+counter CounterA {
+    type : packets;
+    instance_count : 1024;
+}
+
+action _CounterAAction() {
+    count(CounterA, 128);
+}
+
+table _CounterATable {
+    reads {
+         header_test.field32 : exact;
+    }
+    actions {
+        _CounterAAction;
+    }
+    size: 512;
+}
+
 control ingress {
     apply(ExactOne);
     apply(LpmOne);
@@ -170,6 +189,7 @@ control ingress {
     apply(MixMany);
     apply(IndirectWS);
     apply(ExactOneNonAligned);
+    apply(_CounterATable);
 }
 
 control egress { }
