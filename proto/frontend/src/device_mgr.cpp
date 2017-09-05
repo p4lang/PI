@@ -335,9 +335,13 @@ class DeviceMgrImp {
 
   Status table_write(p4::Update_Type update, const p4::TableEntry &table_entry,
                      const SessionTemp &session) {
-    Status status;
     if (!check_p4_id(table_entry.table_id(), P4ResourceType::TABLE))
       return make_invalid_p4_id_status();
+    if (table_entry.has_meter_config() || table_entry.has_counter_data()) {
+      RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
+                          "Direct resources not supported in TableEntry yet");
+    }
+    Status status;
     switch (update) {
       case p4::Update_Type_UNSPECIFIED:
         status.set_code(Code::INVALID_ARGUMENT);
@@ -362,8 +366,9 @@ class DeviceMgrImp {
     switch (update) {
       case p4::Update_Type_UNSPECIFIED:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
-      // TODO(antonin): should INSERT and MODIFY be treated the same way?
       case p4::Update_Type_INSERT:
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                            "INSERT update type not supported for meters");
       case p4::Update_Type_MODIFY:
         {
           auto pi_meter_spec = meter_spec_proto_to_pi(meter_entry.config());
@@ -375,7 +380,7 @@ class DeviceMgrImp {
             RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when writing meter spec");
         }
         break;
-      case p4::Update_Type_DELETE:
+      case p4::Update_Type_DELETE:  // TODO(antonin): return error instead?
         {
           pi_meter_spec_t pi_meter_spec =
               {0, 0, 0, 0, PI_METER_UNIT_DEFAULT, PI_METER_TYPE_DEFAULT};
@@ -428,8 +433,9 @@ class DeviceMgrImp {
     switch (update) {
       case p4::Update_Type_UNSPECIFIED:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
-      // TODO(antonin): should INSERT and MODIFY be treated the same way?
       case p4::Update_Type_INSERT:
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                            "INSERT update type not supported for meters");
       case p4::Update_Type_MODIFY:
         {
           auto pi_meter_spec = meter_spec_proto_to_pi(meter_entry.config());
@@ -443,7 +449,7 @@ class DeviceMgrImp {
           }
         }
         break;
-      case p4::Update_Type_DELETE:
+      case p4::Update_Type_DELETE:  // TODO(antonin): return error instead?
         {
           pi_meter_spec_t pi_meter_spec =
               {0, 0, 0, 0, PI_METER_UNIT_DEFAULT, PI_METER_TYPE_DEFAULT};
@@ -456,6 +462,7 @@ class DeviceMgrImp {
                                 "Error when writing direct meter spec");
           }
         }
+        break;
       default:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
     }

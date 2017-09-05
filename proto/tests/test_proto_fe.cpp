@@ -1115,7 +1115,7 @@ class DirectMeterTest : public ExactOneTest {
   DeviceMgr::Status set_meter(p4::DirectMeterEntry *direct_meter_entry) {
     p4::WriteRequest request;
     auto update = request.add_updates();
-    update->set_type(p4::Update_Type_INSERT);
+    update->set_type(p4::Update_Type_MODIFY);
     auto entity = update->mutable_entity();
     entity->set_allocated_direct_meter_entry(direct_meter_entry);
     auto status = mgr.write(request);
@@ -1165,7 +1165,7 @@ struct MeterSpecMatcher {
   pi_meter_type_t meter_type;
 };
 
-TEST_F(DirectMeterTest, SetConfig) {
+TEST_F(DirectMeterTest, Write) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
   std::string adata(6, '\x00');
   auto entry = make_entry(mf, adata);
@@ -1188,6 +1188,17 @@ TEST_F(DirectMeterTest, SetConfig) {
     auto status = set_meter(&meter_entry);
     ASSERT_EQ(status.code(), Code::OK);
   }
+}
+
+// TODO(antonin)
+TEST_F(DirectMeterTest, WriteInTableEntry) {
+  std::string mf("\xaa\xbb\xcc\xdd", 4);
+  std::string adata(6, '\x00');
+  auto entry = make_entry(mf, adata);
+  auto meter_config = entry.mutable_meter_config();
+  (void) meter_config;
+  auto status = add_entry(&entry);
+  ASSERT_EQ(status.code(), Code::UNIMPLEMENTED);
 }
 
 TEST_F(DirectMeterTest, InvalidTableEntry) {
@@ -1320,6 +1331,17 @@ TEST_F(DirectCounterTest, ReadAllFromTable) {
 TEST_F(DirectCounterTest, ReadAll) {
   p4::DirectCounterEntry counter_entry;
   auto status = read_counter(&counter_entry);
+  ASSERT_EQ(status.code(), Code::UNIMPLEMENTED);
+}
+
+// TODO(antonin)
+TEST_F(DirectCounterTest, WriteInTableEntry) {
+  std::string mf("\xaa\xbb\xcc\xdd", 4);
+  std::string adata(6, '\x00');
+  auto entry = make_entry(mf, adata);
+  auto counter_data = entry.mutable_counter_data();
+  (void) counter_data;
+  auto status = add_entry(&entry);
   ASSERT_EQ(status.code(), Code::UNIMPLEMENTED);
 }
 
