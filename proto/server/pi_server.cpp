@@ -27,10 +27,7 @@
 #include <memory>
 #include <string>
 #include <thread>
-#include <atomic>
 #include <unordered_map>
-
-#include <csignal>
 
 #include <grpc++/grpc++.h>
 // #include <grpc++/support/error_details.h>
@@ -430,35 +427,6 @@ void packet_in_cb(DeviceMgr::device_id_t device_id, p4::PacketIn *packet,
 //   }
 // }
 
-struct PacketInGenerator {
-  PacketInGenerator(StreamChannelClientMgr *mgr)
-      : mgr(mgr) { }
-
-  ~PacketInGenerator() { stop(); }
-
-  void run() {
-    stop_f = 0;
-    sender = std::thread([this]() {
-      while (!stop_f) {
-        // sending 1000 bytes packets
-        p4::PacketIn packet;
-        packet.set_payload(std::string(1000, '1'));
-        mgr->notify_clients(0, &packet);
-      }
-    });
-  }
-
-  void stop() {
-    if (stop_f) return;
-    stop_f = 1;
-    sender.join();
-  }
-
-  std::atomic<int> stop_f{0};
-  StreamChannelClientMgr *mgr;
-  std::thread sender;
-};
-
 struct ServerData {
   std::string server_address;
   P4RuntimeHybridService pi_service;
@@ -467,7 +435,6 @@ struct ServerData {
   std::unique_ptr<Server> server;
   std::thread packetin_thread;
   std::unique_ptr<ServerCompletionQueue> cq_;
-  PacketInGenerator *generator{nullptr};
 };
 
 ServerData *server_data;
@@ -499,22 +466,6 @@ void PIGrpcServerRunAddr(const char *server_address) {
 
   server_data->packetin_thread = std::thread(packet_io, packet_in_mgr);
 
-  // for testing only
-  auto manage_generator = [](int s) {
-    if (s == SIGUSR1) {
-      std::cout << "Starting generator\n";
-      server_data->generator = new PacketInGenerator(packet_in_mgr);
-      server_data->generator->run();
-    } else {
-      std::cout << "Stopping generator\n";
-      delete server_data->generator;
-      server_data->generator = nullptr;
-    }
-  };
-  // TODO(antonin): use sigaction?
-  std::signal(SIGUSR1, manage_generator);
-  std::signal(SIGUSR2, manage_generator);
-
   // std::thread test_thread(probe, packet_in_mgr);
 }
 
@@ -541,7 +492,6 @@ void PIGrpcServerForceShutdown(int deadline_seconds) {
 }
 
 void PIGrpcServerCleanup() {
-  if (server_data->generator) delete server_data->generator;
   delete server_data;
 }
 
