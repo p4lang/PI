@@ -40,6 +40,7 @@ run_cpplint $ROOT_DIR/proto/frontend proto/frontend
 run_cpplint $ROOT_DIR/proto/tests
 run_cpplint $ROOT_DIR/proto/src
 run_cpplint $ROOT_DIR/proto/PI proto
+run_cpplint $ROOT_DIR/proto/server
 
 echo "********************************"
 if [ $return_status -eq 0 ]; then

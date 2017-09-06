@@ -9,7 +9,10 @@ AM_CXXFLAGS = -Wall -Werror
 
 lib_LTLIBRARIES = libpigrpcserver.la
 
-libpigrpcserver_la_SOURCES = pi_server.cpp
+libpigrpcserver_la_SOURCES = \
+pi_server.cpp \
+uint128.h \
+uint128.cpp
 
 nobase_include_HEADERS = PI/proto/pi_server.h
 

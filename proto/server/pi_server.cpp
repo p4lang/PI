@@ -18,35 +18,33 @@
  *
  */
 
-#include <PI/frontends/proto/gnmi_mgr.h>
 #include <PI/frontends/proto/device_mgr.h>
+#include <PI/frontends/proto/gnmi_mgr.h>
 
 #include <PI/proto/pi_server.h>
-
-#include <iostream>
-#include <memory>
-#include <string>
-#include <thread>
-#include <unordered_map>
 
 #include <grpc++/grpc++.h>
 // #include <grpc++/support/error_details.h>
 
+#include <iostream>
+#include <memory>
+#include <set>
+#include <string>
+#include <thread>
+#include <unordered_map>
+
 #include "gnmi/gnmi.grpc.pb.h"
 #include "google/rpc/code.pb.h"
 #include "p4/p4runtime.grpc.pb.h"
+#include "uint128.h"
 
 using grpc::Server;
 using grpc::ServerBuilder;
 using grpc::ServerContext;
-using grpc::ServerReader;
 using grpc::ServerWriter;
 using grpc::ServerReaderWriter;
 using grpc::Status;
 using grpc::StatusCode;
-using grpc::CompletionQueue;
-using grpc::ServerCompletionQueue;
-using grpc::ServerAsyncReaderWriter;
 
 using pi::fe::proto::GnmiMgr;
 using pi::fe::proto::DeviceMgr;
@@ -98,6 +96,10 @@ grpc::Status no_pipeline_config_status() {
                       "No forwarding pipeline config set for this device");
 }
 
+grpc::Status not_master_status() {
+  return grpc::Status(grpc::StatusCode::PERMISSION_DENIED, "Not master");
+}
+
 class ConfigMgrInstance {
  public:
   static GnmiMgr *get() {
@@ -106,25 +108,213 @@ class ConfigMgrInstance {
   }
 };
 
-class Devices {
+using StreamChannelReaderWriter = grpc::ServerReaderWriter<
+  p4::StreamMessageResponse, p4::StreamMessageRequest>;
+
+class ConnectionId {
  public:
-  static DeviceMgr *get(DeviceMgr::device_id_t device_id) {
-    const auto &instance = get_instance();
-    std::lock_guard<std::mutex> lock(instance.m);
-    const auto &map = instance.device_map;
-    auto it = map.find(device_id);
-    return (it == map.end()) ? nullptr : it->second.get();
+  using Id = Uint128;
+
+  static Id get() {
+    auto &instance_ = instance();
+    return instance_.current_id++;
   }
 
-  static DeviceMgr *get_or_add(DeviceMgr::device_id_t device_id) {
+ private:
+  ConnectionId()
+      : current_id(0, 1) { }
+
+  static ConnectionId &instance() {
+    static ConnectionId instance;
+    return instance;
+  }
+
+  Id current_id;
+};
+
+class Connection {
+ public:
+  static std::unique_ptr<Connection> make(const Uint128 &election_id,
+                                          StreamChannelReaderWriter *stream,
+                                          ServerContext *context) {
+    (void) context;
+    return std::unique_ptr<Connection>(
+        new Connection(ConnectionId::get(), election_id, stream));
+  }
+
+  const ConnectionId::Id &connection_id() const { return connection_id_; }
+  const Uint128 &election_id() const { return election_id_; }
+  StreamChannelReaderWriter *stream() const { return stream_; }
+
+  void set_election_id(const Uint128 &election_id) {
+    election_id_ = election_id;
+  }
+
+ private:
+  Connection(ConnectionId::Id connection_id, const Uint128 &election_id,
+             StreamChannelReaderWriter *stream)
+      : connection_id_(connection_id), election_id_(election_id),
+        stream_(stream) { }
+
+  ConnectionId::Id connection_id_{0};
+  Uint128 election_id_{0};
+  StreamChannelReaderWriter *stream_{nullptr};
+};
+
+class DeviceState {
+ public:
+  struct CompareConnections {
+    bool operator()(const Connection *c1, const Connection *c2) const {
+      return c1->election_id() > c2->election_id();
+    }
+  };
+  using Connections = std::set<Connection *, CompareConnections>;
+
+  static constexpr size_t max_connections = 16;
+
+  explicit DeviceState(DeviceMgr::device_id_t device_id)
+      : device_id(device_id) { }
+
+  DeviceMgr *get_p4_mgr() {
+    std::lock_guard<std::mutex> lock(m);
+    return device_mgr.get();
+  }
+
+  DeviceMgr *get_or_add_p4_mgr() {
+    std::lock_guard<std::mutex> lock(m);
+    if (device_mgr == nullptr) device_mgr.reset(new DeviceMgr(device_id));
+    return device_mgr.get();
+  }
+
+  void send_packet_in(p4::PacketIn *packet) const {
+    std::lock_guard<std::mutex> lock(m);
+    auto master = get_master();
+    if (master == nullptr) return;
+    auto stream = master->stream();
+    p4::StreamMessageResponse response;
+    response.set_allocated_packet(packet);
+    stream->Write(response);
+    response.release_packet();
+  }
+
+  Status add_connection(Connection *connection) {
+    std::lock_guard<std::mutex> lock(m);
+    if (connections.size() >= max_connections)
+      return Status(StatusCode::RESOURCE_EXHAUSTED, "Too many connections");
+    auto p = connections.insert(connection);
+    if (!p.second) {
+      return Status(StatusCode::ALREADY_EXISTS,
+                    "Election id already exists");
+    }
+    SIMPLELOG << "New connection\n";
+    auto is_master = (p.first == connections.begin());
+    if (is_master)
+      notify_all();
+    else
+      notify_one(connection);
+    return Status::OK;
+  }
+
+  Status update_connection(Connection *connection,
+                           const Uint128 &new_election_id) {
+    std::lock_guard<std::mutex> lock(m);
+    if (connection->election_id() == new_election_id) return Status::OK;
+    auto connection_it = connections.find(connection);
+    assert(connection_it != connections.end());
+    auto was_master = (connection_it == connections.begin());
+    connections.erase(connection_it);
+    connection->set_election_id(new_election_id);
+    auto p = connections.insert(connection);
+    if (!p.second) {
+      return Status(StatusCode::ALREADY_EXISTS,
+                    "New election id already exists");
+    }
+    auto is_master = (p.first == connections.begin());
+    auto master_changed = (is_master != was_master);
+    if (master_changed)
+      notify_all();
+    else
+      notify_one(connection);
+    return Status::OK;
+  }
+
+  void cleanup_connection(Connection *connection) {
+    std::lock_guard<std::mutex> lock(m);
+    auto connection_it = connections.find(connection);
+    assert(connection_it != connections.end());
+    auto was_master = (connection_it == connections.begin());
+    connections.erase(connection_it);
+    SIMPLELOG << "Connection removed\n";
+    if (was_master) notify_all();
+  }
+
+  void process_packet_out(Connection *connection,
+                          const p4::PacketOut &packet_out) const {
+    std::lock_guard<std::mutex> lock(m);
+    SIMPLELOG << "PACKET OUT\n";
+    if (!is_master(connection)) return;
+    if (device_mgr == nullptr) return;
+    device_mgr->packet_out_send(packet_out);
+  }
+
+  bool is_master(const Uint128 &election_id) const {
+    std::lock_guard<std::mutex> lock(m);
+    auto master = get_master();
+    return (master == nullptr) ? false : (master->election_id() == election_id);
+  }
+
+ private:
+  Connection *get_master() const {
+    return connections.empty() ? nullptr : *connections.begin();
+  }
+
+  bool is_master(const Connection *connection) const {
+    return connection == get_master();
+  }
+
+  void notify_one(const Connection *connection) const {
+    auto is_master = (connection == *connections.begin());
+    auto stream = connection->stream();
+    p4::StreamMessageResponse response;
+    auto arbitration = response.mutable_arbitration();
+    arbitration->set_device_id(device_id);
+    auto convert_u128 = [](const Uint128 &from, p4::Uint128 *to) {
+      to->set_high(from.high());
+      to->set_low(from.low());
+    };
+    convert_u128(connection->election_id(), arbitration->mutable_election_id());
+    auto status = arbitration->mutable_status();
+    if (is_master) {
+      status->set_code(::google::rpc::Code::OK);
+      status->set_message("Is master");
+    } else {
+      status->set_code(::google::rpc::Code::ALREADY_EXISTS);
+      status->set_message("Is slave");
+    }
+    stream->Write(response);
+  }
+
+  void notify_all() const {
+    for (auto connection : connections) notify_one(connection);
+  }
+
+  mutable std::mutex m{};
+  std::unique_ptr<DeviceMgr> device_mgr{nullptr};
+  std::set<Connection *, CompareConnections> connections{};
+  DeviceMgr::device_id_t device_id;
+};
+
+class Devices {
+ public:
+  static DeviceState *get(DeviceMgr::device_id_t device_id) {
     auto &instance = get_instance();
     std::lock_guard<std::mutex> lock(instance.m);
     auto &map = instance.device_map;
     auto it = map.find(device_id);
     if (it != map.end()) return it->second.get();
-    auto device_mgr = new DeviceMgr(device_id);
-    map.emplace(device_id, std::unique_ptr<DeviceMgr>(device_mgr));
-    return device_mgr;
+    auto device = new DeviceState(device_id);
+    map.emplace(device_id, std::unique_ptr<DeviceState>(device));
+    return device;
   }
 
  private:
@@ -135,7 +325,7 @@ class Devices {
 
   mutable std::mutex m{};
   std::unordered_map<DeviceMgr::device_id_t,
-                     std::unique_ptr<DeviceMgr> > device_map{};
+                     std::unique_ptr<DeviceState> > device_map{};
 };
 
 class gNMIServiceImpl : public gnmi::gNMI::Service {
@@ -180,10 +370,6 @@ class gNMIServiceImpl : public gnmi::gNMI::Service {
   }
 };
 
-class StreamChannelClientMgr;
-
-StreamChannelClientMgr *packet_in_mgr;
-
 void packet_in_cb(DeviceMgr::device_id_t device_id, p4::PacketIn *packet,
                   void *cookie);
 
@@ -195,7 +381,10 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
     SIMPLELOG << "P4Runtime Write\n";
     SIMPLELOG << request->DebugString();
     (void) rep;
-    auto device_mgr = Devices::get(request->device_id());
+    auto election_id = convert_u128(request->election_id());
+    auto device = Devices::get(request->device_id());
+    if (!device->is_master(election_id)) return not_master_status();
+    auto device_mgr = device->get_p4_mgr();
     if (device_mgr == nullptr) return no_pipeline_config_status();
     auto status = device_mgr->write(*request);
     return to_grpc_status(status);
@@ -207,7 +396,7 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
     SIMPLELOG << "P4Runtime Read\n";
     SIMPLELOG << request->DebugString();
     p4::ReadResponse response;
-    auto device_mgr = Devices::get(request->device_id());
+    auto device_mgr = Devices::get(request->device_id())->get_p4_mgr();
     if (device_mgr == nullptr) return no_pipeline_config_status();
     auto status = device_mgr->read(*request, &response);
     writer->Write(response);
@@ -221,10 +410,9 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
     SIMPLELOG << "P4Runtime SetForwardingPipelineConfig\n";
     (void) rep;
     for (const auto &config : request->configs()) {
-      auto device_mgr = Devices::get_or_add(config.device_id());
+      auto device_mgr = Devices::get(config.device_id())->get_or_add_p4_mgr();
       auto status = device_mgr->pipeline_config_set(request->action(), config);
-      device_mgr->packet_in_register_cb(::packet_in_cb,
-                                        static_cast<void *>(packet_in_mgr));
+      device_mgr->packet_in_register_cb(::packet_in_cb, NULL);
       // TODO(antonin): multi-device support
       return to_grpc_status(status);
     }
@@ -237,7 +425,7 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
       p4::GetForwardingPipelineConfigResponse *rep) override {
     SIMPLELOG << "P4Runtime GetForwardingPipelineConfig\n";
     for (const auto device_id : request->device_ids()) {
-      auto device_mgr = Devices::get(device_id);
+      auto device_mgr = Devices::get(device_id)->get_p4_mgr();
       if (device_mgr == nullptr) return no_pipeline_config_status();
       auto status = device_mgr->pipeline_config_get(rep->add_configs());
       // TODO(antonin): multi-device support
@@ -245,196 +433,89 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
     }
     return Status::OK;
   }
-};
 
-using P4RuntimeHybridService =
-  p4::P4Runtime::WithAsyncMethod_StreamChannel<P4RuntimeServiceImpl>;
-
-class StreamChannelClientMgr {
- public:
-  StreamChannelClientMgr(P4RuntimeHybridService *service,
-                         ServerCompletionQueue* cq)
-      : service_(service), cq_(cq) {
-    new StreamChannelReader(this, service, cq);
-  }
-
-  using ReaderWriter = ServerAsyncReaderWriter<p4::StreamMessageResponse,
-                                               p4::StreamMessageRequest>;
-
-  class StreamChannelTag {
-   public:
-    virtual ~StreamChannelTag() { }
-    virtual void proceed(bool ok = true) = 0;
-  };
-
-  class StreamChannelWriter : public StreamChannelTag {
-   public:
-    StreamChannelWriter(ReaderWriter *stream)
-        : stream(stream), state(State::CREATE) { }
-
-    void send(DeviceMgr::device_id_t device_id, p4::PacketIn *packet) {
-      {
-        std::unique_lock<std::mutex> L(m_);
-        if (state != State::CAN_WRITE) return;
-        state = State::MUST_WAIT;
+  Status StreamChannel(ServerContext *context,
+                       StreamChannelReaderWriter *stream) override {
+    struct ConnectionStatus {
+      explicit ConnectionStatus(ServerContext *context)
+          : context(context)  { }
+      ~ConnectionStatus() {
+        if (connection != nullptr)
+          Devices::get(device_id)->cleanup_connection(connection.get());
       }
-      response.set_allocated_packet(packet);
-      stream->Write(response, this);
-      response.release_packet();
-    }
 
-    void proceed(bool ok = true) override {
-      if (!ok) return;
-      std::unique_lock<std::mutex> L(m_);
-      if (state == State::CREATE) {
-        // SIMPLELOG << "CREATE\n";
-        state = State::CAN_WRITE;
-      } else if (state == State::MUST_WAIT) {
-        // SIMPLELOG << "MUST_WAIT\n";
-        state = State::CAN_WRITE;
-      }
-    }
+      ServerContext *context;
+      std::unique_ptr<Connection> connection{nullptr};
+      DeviceMgr::device_id_t device_id{0};
+    };
+    ConnectionStatus connection_status(context);
 
-   private:
-    ReaderWriter *stream;
-    p4::StreamMessageResponse response{};
-    mutable std::mutex m_;
-    enum class State { CREATE, CAN_WRITE, MUST_WAIT};
-    State state;  // The current serving state
-  };
-
-  class StreamChannelReader : public StreamChannelTag {
-   public:
-    StreamChannelReader(StreamChannelClientMgr *mgr,
-                        P4RuntimeHybridService *service,
-                        ServerCompletionQueue* cq)
-        : mgr_(mgr), service_(service), cq_(cq),
-          stream(&ctx), state(State::CREATE) {
-      proceed();
-    }
-
-    void proceed(bool ok = true) override {
-      if (state == State::FINISH) {
-        delete this;
-        return;
-      }
-      if (!ok) state = State::FINISH;
-      if (state == State::CREATE) {
-        state = State::PROCESS;
-        service_->RequestStreamChannel(&ctx, &stream, cq_, cq_, this);
-      } else if (state == State::PROCESS) {
-        new StreamChannelReader(mgr_, service_, cq_);
-        writer.reset(new StreamChannelWriter(&stream));
-        writer->proceed();
-        mgr_->register_client(writer.get());
-        state = State::READ;
-        stream.Read(&request, this);
-      } else if (state == State::READ) {
-        // SIMPLELOG << "PACKET OUT\n";
-        switch (request.update_case()) {
-          case p4::StreamMessageRequest::kArbitration:
-            device_id = request.arbitration().device_id();
-          break;
-          case p4::StreamMessageRequest::kPacket:
-            {
-              auto device_mgr = Devices::get(device_id);
-              // we only transmit packet out if the forwarding pipeline has been
-              // configured
-              if (device_mgr != nullptr)
-                device_mgr->packet_out_send(request.packet());
+    p4::StreamMessageRequest request;
+    while (stream->Read(&request)) {
+      switch (request.update_case()) {
+        case p4::StreamMessageRequest::kArbitration:
+          {
+            auto device_id = request.arbitration().device_id();
+            auto election_id = convert_u128(
+                request.arbitration().election_id());
+            // TODO(antonin): a lot of existing code will break if 0 is not
+            // valid anymore
+            // if (election_id == 0) {
+            //   return Status(StatusCode::INVALID_ARGUMENT,
+            //                 "Invalid election id value");
+            // }
+            auto connection = connection_status.connection.get();
+            if (connection != nullptr &&
+                connection_status.device_id != device_id) {
+              return Status(StatusCode::FAILED_PRECONDITION,
+                            "Invalid device id");
             }
-            break;
-          default:
-            assert(0);
-        }
-        stream.Read(&request, this);
-      } else {
-        assert(state == State::FINISH);
-        if (writer) {
-          SIMPLELOG << "Disconnect!!!\n";
-          mgr_->remove_client(writer.get());
-          stream.Finish(Status::OK, this);
-        }
+            if (connection == nullptr) {
+              connection_status.connection = Connection::make(
+                  election_id, stream, context);
+              auto status = Devices::get(device_id)->add_connection(
+                  connection_status.connection.get());
+              if (!status.ok()) return status;
+              connection_status.device_id = device_id;
+            } else {
+              auto status = Devices::get(device_id)->update_connection(
+                  connection_status.connection.get(), election_id);
+              if (!status.ok()) return status;
+            }
+          }
+          break;
+        case p4::StreamMessageRequest::kPacket:
+          {
+            if (connection_status.connection == nullptr) break;
+            auto device_id = connection_status.device_id;
+            Devices::get(device_id)->process_packet_out(
+                connection_status.connection.get(), request.packet());
+          }
+          break;
+        default:
+          break;
       }
     }
-
-   private:
-    DeviceMgr::device_id_t device_id{};
-    p4::StreamMessageRequest request{};
-    StreamChannelClientMgr *mgr_;
-    P4RuntimeHybridService *service_;
-    ServerCompletionQueue* cq_;
-    ServerContext ctx{};
-    ReaderWriter stream;
-    std::unique_ptr<StreamChannelWriter> writer{nullptr};
-    enum class State {CREATE, PROCESS, READ, FINISH};
-    State state;
-  };
-
-  bool next() {
-    void *tag;
-    bool ok;
-    if (!cq_->Next(&tag, &ok)) return false;
-    static_cast<StreamChannelTag *>(tag)->proceed(ok);
-    return true;
+    return Status::OK;
   }
 
-  void notify_clients(DeviceMgr::device_id_t device_id, p4::PacketIn *packet) {
-    // SIMPLELOG << "NOTIFYING\n";
-    std::vector<StreamChannelWriter *> clients_;
-    {
-      std::unique_lock<std::mutex> L(mgr_m_);
-      clients_ = clients;
-    }
-    for (auto c : clients_) c->send(device_id, packet);
+  static Uint128 convert_u128(const p4::Uint128 &from) {
+    return Uint128(from.high(), from.low());
   }
-
- private:
-  void register_client(StreamChannelWriter *client) {
-    std::unique_lock<std::mutex> L(mgr_m_);
-    clients.push_back(client);
-  }
-
-  void remove_client(StreamChannelWriter *client) {
-    std::unique_lock<std::mutex> L(mgr_m_);
-    for (auto it = clients.begin(); it != clients.end(); it++) {
-      if (*it == client) {
-        clients.erase(it);
-        break;
-      }
-    }
-  }
-
-  mutable std::mutex mgr_m_;
-#ifdef __clang__
-  __attribute__((unused))
-#endif
-  P4RuntimeHybridService *service_;
-  ServerCompletionQueue* cq_;
-  std::vector<StreamChannelWriter *> clients;
 };
 
 void packet_in_cb(DeviceMgr::device_id_t device_id, p4::PacketIn *packet,
                   void *cookie) {
-  auto mgr = static_cast<StreamChannelClientMgr *>(cookie);
-  mgr->notify_clients(device_id, packet);
+  SIMPLELOG << "PACKET IN\n";
+  Devices::get(device_id)->send_packet_in(packet);
 }
-
-// void probe(StreamChannelClientMgr *mgr) {
-//   for (int i = 0; i < 100; i++) {
-//     std::this_thread::sleep_for(std::chrono::seconds(1));
-//     mgr->notify_clients(i, std::string("11111"));
-//   }
-// }
 
 struct ServerData {
   std::string server_address;
-  P4RuntimeHybridService pi_service;
+  P4RuntimeServiceImpl pi_service;
   gNMIServiceImpl gnmi_service;
   ServerBuilder builder;
   std::unique_ptr<Server> server;
-  std::thread packetin_thread;
-  std::unique_ptr<ServerCompletionQueue> cq_;
 };
 
 ServerData *server_data;
@@ -452,21 +533,9 @@ void PIGrpcServerRunAddr(const char *server_address) {
   builder.RegisterService(&server_data->pi_service);
   builder.RegisterService(&server_data->gnmi_service);
   builder.SetMaxReceiveMessageSize(256*1024*1024);  // 256MB
-  server_data->cq_ = builder.AddCompletionQueue();
 
   server_data->server = builder.BuildAndStart();
   std::cout << "Server listening on " << server_data->server_address << "\n";
-
-  packet_in_mgr = new StreamChannelClientMgr(
-    &server_data->pi_service, server_data->cq_.get());
-
-  auto packet_io = [](StreamChannelClientMgr *mgr) {
-    while (mgr->next()) { }
-  };
-
-  server_data->packetin_thread = std::thread(packet_io, packet_in_mgr);
-
-  // std::thread test_thread(probe, packet_in_mgr);
 }
 
 void PIGrpcServerRun() {
@@ -479,16 +548,12 @@ void PIGrpcServerWait() {
 
 void PIGrpcServerShutdown() {
   server_data->server->Shutdown();
-  server_data->cq_->Shutdown();
-  server_data->packetin_thread.join();
 }
 
 void PIGrpcServerForceShutdown(int deadline_seconds) {
   using clock = std::chrono::system_clock;
   auto deadline = clock::now() + std::chrono::seconds(deadline_seconds);
   server_data->server->Shutdown(deadline);
-  server_data->cq_->Shutdown();
-  server_data->packetin_thread.join();
 }
 
 void PIGrpcServerCleanup() {
