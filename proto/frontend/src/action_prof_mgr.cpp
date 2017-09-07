@@ -145,6 +145,7 @@ ActionProfMgr::group_create(const p4::ActionProfileGroup &group,
   if (pi_status != PI_STATUS_SUCCESS)
     RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when creating group on target");
   group_bimap.add(group.group_id(), group_h);
+  group_types.emplace(group.group_id(), group.type());
   group_members.emplace(group.group_id(), ActionProfGroupMembership());
   auto code = group_update_members(ap, group);
   RETURN_STATUS(code);
@@ -343,6 +344,16 @@ const Id *
 ActionProfMgr::retrieve_group_id(pi_indirect_handle_t h) {
   Lock lock(mutex);
   return group_bimap.retrieve_id(h);
+}
+
+const p4::ActionProfileGroup::Type
+ActionProfMgr::retrieve_group_type(const Id &group_id) {
+  Lock lock(mutex);
+  try {
+    return group_types.at(group_id);
+  } catch (std::out_of_range e) {
+    return p4::ActionProfileGroup::UNSPECIFIED;
+  }
 }
 
 }  // namespace proto
