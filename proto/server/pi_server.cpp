@@ -36,6 +36,7 @@
 #include "gnmi/gnmi.grpc.pb.h"
 #include "google/rpc/code.pb.h"
 #include "p4/p4runtime.grpc.pb.h"
+#include "pi_server_testing.h"
 #include "uint128.h"
 
 using grpc::Server;
@@ -58,6 +59,10 @@ using pi::fe::proto::DeviceMgr;
 #endif
 
 #define SIMPLELOG if (ENABLE_SIMPLELOG) std::cout
+
+namespace pi {
+
+namespace server {
 
 namespace {
 
@@ -84,7 +89,7 @@ Status SetErrorDetails(const ::google::rpc::Status& from, grpc::Status* to) {
 grpc::Status to_grpc_status(const DeviceMgr::Status &from) {
   grpc::Status to;
   // auto conversion_status = grpc::SetErrorDetails(from, &to);
-  auto conversion_status = ::SetErrorDetails(from, &to);
+  auto conversion_status = SetErrorDetails(from, &to);
   // This can only fail if the second argument to SetErrorDetails is a nullptr,
   // which cannot be the case here
   assert(conversion_status.ok());
@@ -203,7 +208,7 @@ class DeviceState {
       return Status(StatusCode::RESOURCE_EXHAUSTED, "Too many connections");
     auto p = connections.insert(connection);
     if (!p.second) {
-      return Status(StatusCode::ALREADY_EXISTS,
+      return Status(StatusCode::INVALID_ARGUMENT,
                     "Election id already exists");
     }
     SIMPLELOG << "New connection\n";
@@ -226,7 +231,7 @@ class DeviceState {
     connection->set_election_id(new_election_id);
     auto p = connections.insert(connection);
     if (!p.second) {
-      return Status(StatusCode::ALREADY_EXISTS,
+      return Status(StatusCode::INVALID_ARGUMENT,
                     "New election id already exists");
     }
     auto is_master = (p.first == connections.begin());
@@ -424,7 +429,7 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
     for (const auto &config : request->configs()) {
       auto device_mgr = Devices::get(config.device_id())->get_or_add_p4_mgr();
       auto status = device_mgr->pipeline_config_set(request->action(), config);
-      device_mgr->packet_in_register_cb(::packet_in_cb, NULL);
+      device_mgr->packet_in_register_cb(packet_in_cb, NULL);
       // TODO(antonin): multi-device support
       return to_grpc_status(status);
     }
@@ -487,7 +492,10 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
                   election_id, stream, context);
               auto status = Devices::get(device_id)->add_connection(
                   connection_status.connection.get());
-              if (!status.ok()) return status;
+              if (!status.ok()) {
+                connection_status.connection.release();
+                return status;
+              }
               connection_status.device_id = device_id;
             } else {
               auto status = Devices::get(device_id)->update_connection(
@@ -518,6 +526,7 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
 
 void packet_in_cb(DeviceMgr::device_id_t device_id, p4::PacketIn *packet,
                   void *cookie) {
+  (void) cookie;
   SIMPLELOG << "PACKET IN\n";
   Devices::get(device_id)->send_packet_in(packet);
 }
@@ -530,14 +539,32 @@ struct ServerData {
   std::unique_ptr<Server> server;
 };
 
-ServerData *server_data;
+}  // namespace
+
+namespace testing {
+
+void send_packet_in(DeviceMgr::device_id_t device_id, p4::PacketIn *packet) {
+  packet_in_cb(device_id, packet, nullptr);
+}
+
+size_t max_connections() { return DeviceState::max_connections; }
+
+}  // namespace testing
+
+}  // namespace server
+
+}  // namespace pi
+
+namespace {
+
+pi::server::ServerData *server_data;
 
 }  // namespace
 
 extern "C" {
 
 void PIGrpcServerRunAddr(const char *server_address) {
-  server_data = new ServerData();
+  server_data = new ::pi::server::ServerData();
   server_data->server_address = std::string(server_address);
   auto &builder = server_data->builder;
   builder.AddListeningPort(

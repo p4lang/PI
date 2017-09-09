@@ -56,6 +56,25 @@ class Uint128 {
     return tmp;
   }
 
+  Uint128& operator-=(const Uint128 &other) {
+    high_ -= other.high_;
+    uint64_t new_low_ = low_ - other.low_;
+    if (new_low_ > low_) high_--;
+    low_ = new_low_;
+    return *this;
+  }
+
+  Uint128 &operator--() {
+    *this -= 1;
+    return *this;
+  }
+
+  Uint128 operator--(int) {
+    Uint128 tmp(*this);
+    *this -= 1;
+    return tmp;
+  }
+
   friend bool operator==(const Uint128 &a, const Uint128 &b) {
     return (a.high_ == b.high_) && (a.low_ == b.low_);
   }
