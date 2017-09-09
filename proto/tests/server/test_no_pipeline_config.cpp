@@ -50,9 +50,29 @@ class TestNoForwardingPipeline : public ::testing::Test {
     PIGrpcServerShutdown();
   }
 
+  void SetUp() override {
+    stream = p4runtime_stub->StreamChannel(&stream_context);
+    p4::StreamMessageRequest request;
+    auto arbitration = request.mutable_arbitration();
+    arbitration->set_device_id(device_id);
+    stream->Write(request);
+  }
+
+  void TearDown() override {
+    stream->WritesDone();
+    p4::StreamMessageResponse response;
+    while (stream->Read(&response)) { }
+    auto status = stream->Finish();
+    EXPECT_TRUE(status.ok());
+  }
+
   int device_id{0};
   std::shared_ptr<grpc::Channel> p4runtime_channel;
   std::unique_ptr<p4::P4Runtime::Stub> p4runtime_stub;
+  using ReaderWriter = ::grpc::ClientReaderWriter<p4::StreamMessageRequest,
+                                                  p4::StreamMessageResponse>;
+  ClientContext stream_context;
+  std::unique_ptr<ReaderWriter> stream{nullptr};
 
   static constexpr char grpc_server_addr[] = "0.0.0.0:50051";
 };

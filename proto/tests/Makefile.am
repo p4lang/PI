@@ -17,7 +17,8 @@ test_p4info_convert \
 test_proto_fe \
 test_proto_fe_packet_io \
 test_server_no_pipeline_config \
-test_server_gnmi
+test_server_gnmi \
+test_server_arbitration
 
 common_source = main.cpp
 
@@ -82,9 +83,15 @@ server/test_gnmi.cpp
 test_server_gnmi_LDFLAGS = $(LD_IGNORE_UNRESOLVED_SYMBOLS)
 test_server_gnmi_LDADD = $(test_server_libs)
 
+test_server_arbitration_SOURCES = $(test_server_common_source) \
+server/test_arbitration.cpp
+test_server_arbitration_LDFLAGS = $(LD_IGNORE_UNRESOLVED_SYMBOLS)
+test_server_arbitration_LDADD = $(test_server_libs)
+
 check_PROGRAMS = \
 test_p4info_convert \
 test_proto_fe \
 test_proto_fe_packet_io \
 test_server_no_pipeline_config \
-test_server_gnmi
+test_server_gnmi \
+test_server_arbitration
