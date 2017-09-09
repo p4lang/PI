@@ -263,6 +263,11 @@ class DeviceState {
     return (master == nullptr) ? false : (master->election_id() == election_id);
   }
 
+  size_t connections_size() const {
+    std::lock_guard<std::mutex> lock(m);
+    return connections.size();
+  }
+
  private:
   Connection *get_master() const {
     return connections.empty() ? nullptr : *connections.begin();
@@ -381,9 +386,16 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
     SIMPLELOG << "P4Runtime Write\n";
     SIMPLELOG << request->DebugString();
     (void) rep;
-    auto election_id = convert_u128(request->election_id());
     auto device = Devices::get(request->device_id());
-    if (!device->is_master(election_id)) return not_master_status();
+    // TODO(antonin): if there are no connections, we accept all Write requests
+    // with no election_id. This is very convenient for debugging, testing and
+    // using grpc_cli, but may need to be changed in production.
+    auto num_connections = device->connections_size();
+    if (num_connections == 0 && request->has_election_id())
+      return not_master_status();
+    auto election_id = convert_u128(request->election_id());
+    if (num_connections > 0 && !device->is_master(election_id))
+      return not_master_status();
     auto device_mgr = device->get_p4_mgr();
     if (device_mgr == nullptr) return no_pipeline_config_status();
     auto status = device_mgr->write(*request);
