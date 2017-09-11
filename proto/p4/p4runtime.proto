@@ -139,12 +139,17 @@ message TableEntry {
   // meter_config and counter_data are convenience fields that enable the
   // controller to configure the direct resources associated with the table at
   // the same time as a match-action entry is inserted or modified. When
-  // updating a table entry, leaving these fields unset means that the direct
-  // resources (if any) will not be updated. When reading a table entry, the
-  // values associated with the direct resources (if any) will be returned. If
-  // the table does not support a direct resource, then setting the
-  // corresponding direct resource field in any table write operation will
-  // return an error.
+  // inserting a new table entry, leaving these fields unset means that the
+  // direct resources of this table (if any) will assume default values. For
+  // counters, the default value is 0, and for meters, the default value is
+  // always green. When updating a table entry, leaving these fields unset means
+  // that the direct resources (if any) will not be updated. When reading a table
+  // entry, the values associated with the direct resources (if any) will be
+  // returned. If these fields were never set or if the table does not support
+  // the direct resource, then these fields will be absent in the read table
+  // entry. If the table does not support a direct resource, then setting the
+  // corresponding direct resource field in any table write operation will return
+  // an error.
   MeterConfig meter_config = 6;
   CounterData counter_data = 7;
 }
