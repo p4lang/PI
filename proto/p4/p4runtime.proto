@@ -127,7 +127,7 @@ message TableEntry {
   // or modify another entry with priority k such that a packet may match both
   // entries, an error is returned. This will be the case if the overlap is
   // strict (entries are identical) or not.
-  // In the future, if there is a use-case, a table-level annotation may be 
+  // In the future, if there is a use-case, a table-level annotation may be
   // introduced to make the overlap check non-strict. In that case, if there
   // are multiple matching entries with the same highest priority, the selected
   // entry will be explicitly undefined.
@@ -142,14 +142,14 @@ message TableEntry {
   // inserting a new table entry, leaving these fields unset means that the
   // direct resources of this table (if any) will assume default values. For
   // counters, the default value is 0, and for meters, the default value is
-  // always green. When updating a table entry, leaving these fields unset means
-  // that the direct resources (if any) will not be updated. When reading a table
-  // entry, the values associated with the direct resources (if any) will be
-  // returned. If these fields were never set or if the table does not support
-  // the direct resource, then these fields will be absent in the read table
-  // entry. If the table does not support a direct resource, then setting the
-  // corresponding direct resource field in any table write operation will return
-  // an error.
+  // always green. If the table does not support a direct resource, then setting
+  // the corresponding direct resource field in any table write operation will
+  // return an error. When updating a table entry, leaving these fields unset
+  // means that the direct resources (if any) will not be updated. When reading
+  // a table entry, the values associated with the direct resources (if any)
+  // will be returned. If the table does not support the direct resource, then
+  // these fields will be absent in the read table entry. If the meter_config
+  // field was never set, it will be absent in the read table entry.
   MeterConfig meter_config = 6;
   CounterData counter_data = 7;
 }
