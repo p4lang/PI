@@ -374,8 +374,9 @@ message SetForwardingPipelineConfigRequest {
     VERIFY_AND_COMMIT = 3;
     COMMIT = 4;
   }
-  Action action = 1;
+  Uint128 election_id = 1;
   repeated ForwardingPipelineConfig configs = 2;
+  Action action = 3;
 }
 
 message SetForwardingPipelineConfigResponse {
