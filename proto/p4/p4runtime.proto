@@ -138,18 +138,24 @@ message TableEntry {
   uint64 controller_metadata = 5;
   // meter_config and counter_data are convenience fields that enable the
   // controller to configure the direct resources associated with the table at
-  // the same time as a match-action entry is inserted or modified. When
-  // inserting a new table entry, leaving these fields unset means that the
-  // direct resources of this table (if any) will assume default values. For
-  // counters, the default value is 0, and for meters, the default value is
-  // always green. If the table does not support a direct resource, then setting
-  // the corresponding direct resource field in any table write operation will
-  // return an error. When updating a table entry, leaving these fields unset
-  // means that the direct resources (if any) will not be updated. When reading
-  // a table entry, the values associated with the direct resources (if any)
-  // will be returned. If the table does not support the direct resource, then
-  // these fields will be absent in the read table entry. If the meter_config
-  // field was never set, it will be absent in the read table entry.
+  // the same time as a match-action entry is inserted or modified.
+  // Table write:
+  //   - If the table does not contain a direct resource, then setting the
+  //     corresponding direct resource field in any table write operation will
+  //     return an error.
+  //   - When inserting a new table entry, leaving these fields unset means that
+  //     the direct resources of this table (if any) will assume default values.
+  //     For counters, the default value is 0, and for meters, the default value
+  //     is always green.
+  //   - When updating a table entry, leaving these fields unset means that the
+  //     direct resources (if any) will not be updated.
+  // Table read:
+  //   - If the table does not contain a direct resource, then the corresponding
+  //     field will not be set in the read table entry.
+  //   - If the meter_config field has default value, it will not be set in the
+  //     read table entry.
+  //   - The counter_data field will always be set in a read table entry if the
+  //     table contains a direct counter.
   MeterConfig meter_config = 6;
   CounterData counter_data = 7;
 }
