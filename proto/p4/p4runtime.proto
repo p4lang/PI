@@ -252,7 +252,9 @@ message MeterEntry {
 }
 
 //------------------------------------------------------------------------------
-// For WriteRequest, Update.Type must be MODIFY.
+// For WriteRequest, Update.Type must be MODIFY. INSERT and DELETE on direct
+// meters is not allowed and will return an error. The insertion/deletion
+// should happen as part of INSERT/DELETE on the associated table-entry.
 // For ReadRequest, the scope is defined as follows:
 // - All meter cells for all meters if meter_id = 0 (default).
 // - All meter cells for given meter_id if table_entry.match is empty.
@@ -295,7 +297,9 @@ message CounterEntry {
 }
 
 //------------------------------------------------------------------------------
-// For WriteRequest, Update.Type must be MODIFY.
+// For WriteRequest, Update.Type must be MODIFY. INSERT and DELETE on direct
+// counters is not allowed and will return an error. The insertion/deletion
+// should happen as part of INSERT/DELETE on the associated table-entry.
 // For ReadRequest, the scope is defined as follows:
 // - All counter cells for all meters if counter_id = 0 (default).
 // - All counter cells for given counter_id if table_entry.match is empty.
