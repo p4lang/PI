@@ -427,7 +427,17 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
     SIMPLELOG << "P4Runtime SetForwardingPipelineConfig\n";
     (void) rep;
     for (const auto &config : request->configs()) {
-      auto device_mgr = Devices::get(config.device_id())->get_or_add_p4_mgr();
+      auto device = Devices::get(config.device_id());
+      // TODO(antonin): if there are no connections, we accept all requests with
+      // no election_id. This is very convenient for debugging, testing and
+      // using grpc_cli, but may need to be changed in production.
+      auto num_connections = device->connections_size();
+      if (num_connections == 0 && request->has_election_id())
+        return not_master_status();
+      auto election_id = convert_u128(request->election_id());
+      if (num_connections > 0 && !device->is_master(election_id))
+        return not_master_status();
+      auto device_mgr = device->get_or_add_p4_mgr();
       auto status = device_mgr->pipeline_config_set(request->action(), config);
       device_mgr->packet_in_register_cb(packet_in_cb, NULL);
       // TODO(antonin): multi-device support
