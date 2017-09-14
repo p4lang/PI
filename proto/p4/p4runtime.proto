@@ -127,7 +127,7 @@ message TableEntry {
   // or modify another entry with priority k such that a packet may match both
   // entries, an error is returned. This will be the case if the overlap is
   // strict (entries are identical) or not.
-  // In the future, if there is a use-case, a table-level annotation may be 
+  // In the future, if there is a use-case, a table-level annotation may be
   // introduced to make the overlap check non-strict. In that case, if there
   // are multiple matching entries with the same highest priority, the selected
   // entry will be explicitly undefined.
@@ -138,13 +138,24 @@ message TableEntry {
   uint64 controller_metadata = 5;
   // meter_config and counter_data are convenience fields that enable the
   // controller to configure the direct resources associated with the table at
-  // the same time as a match-action entry is inserted or modified. When
-  // updating a table entry, leaving these fields unset means that the direct
-  // resources (if any) will not be updated. When reading a table entry, the
-  // values associated with the direct resources (if any) will be returned. If
-  // the table does not support a direct resource, then setting the
-  // corresponding direct resource field in any table write operation will
-  // return an error.
+  // the same time as a match-action entry is inserted or modified.
+  // Table write:
+  //   - If the table does not contain a direct resource, then setting the
+  //     corresponding direct resource field in any table write operation will
+  //     return an error.
+  //   - When inserting a new table entry, leaving these fields unset means that
+  //     the direct resources of this table (if any) will assume default values.
+  //     For counters, the default value is 0, and for meters, the default value
+  //     is always green.
+  //   - When updating a table entry, leaving these fields unset means that the
+  //     direct resources (if any) will not be updated.
+  // Table read:
+  //   - If the table does not contain a direct resource, then the corresponding
+  //     field will not be set in the read table entry.
+  //   - If the meter_config field has default value, it will not be set in the
+  //     read table entry.
+  //   - The counter_data field will always be set in a read table entry if the
+  //     table contains a direct counter.
   MeterConfig meter_config = 6;
   CounterData counter_data = 7;
 }
@@ -241,7 +252,9 @@ message MeterEntry {
 }
 
 //------------------------------------------------------------------------------
-// For WriteRequest, Update.Type must be MODIFY.
+// For WriteRequest, Update.Type must be MODIFY. INSERT and DELETE on direct
+// meters is not allowed and will return an error. The insertion/deletion
+// should happen as part of INSERT/DELETE on the associated table-entry.
 // For ReadRequest, the scope is defined as follows:
 // - All meter cells for all meters if meter_id = 0 (default).
 // - All meter cells for given meter_id if table_entry.match is empty.
@@ -284,7 +297,9 @@ message CounterEntry {
 }
 
 //------------------------------------------------------------------------------
-// For WriteRequest, Update.Type must be MODIFY.
+// For WriteRequest, Update.Type must be MODIFY. INSERT and DELETE on direct
+// counters is not allowed and will return an error. The insertion/deletion
+// should happen as part of INSERT/DELETE on the associated table-entry.
 // For ReadRequest, the scope is defined as follows:
 // - All counter cells for all meters if counter_id = 0 (default).
 // - All counter cells for given counter_id if table_entry.match is empty.
