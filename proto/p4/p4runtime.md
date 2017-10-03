@@ -105,8 +105,7 @@ P4Runtime can have. This is to ensure a canonical representation as described
 earlier. The server should handle fields as follows (using p4runtime.proto
 format):
 
-### `TableEntry.match`, `FieldMatch.field_id`, and other fields of the
-`FieldMatch`
+### `TableEntry.match`, `FieldMatch.field_id`, and other fields of the `FieldMatch`
 
 Controller leaves `match` as unspecified when it wants to change the default
 action within a table. For example, here is a TableEntry that the controller can
