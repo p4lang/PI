@@ -7,7 +7,7 @@ Yavuz Yetim, Antonin Bas, Waqar Mohsin, Tom Everman, Samar Abdi
 October 2nd, 2017
 
 **Version:**
-0.1: This is a WIP draft and will improve other issues such as sharding.
+0.1: This is a WIP draft and we will improve other issues such as sharding.
 
 This document describes the rules and conventions for the P4Runtime API for a
 switch. This document's goals:
@@ -77,7 +77,7 @@ def Equal(map_like_x, map_like_y):
 ## Byte strings
 
 P4Runtime data sizes may be large enough to not fit in common data types that
-largely follow a host machines word sizes, i.e., 32 or 64 bits. The P4 language
+largely follow a host machine's word sizes, i.e., 32 or 64 bits. The P4 language
 does not put any limit on the header fields or action parameters a switch can
 operate on, and it is up to a P4 program to determine them. Due to the
 flexibility of data sizes, P4Runtime declares them to be byte strings of any
@@ -123,8 +123,8 @@ table_entry {
 ```
 
 While, as long as `match` exists `field_id` must exist, the corresponding
-`oneof` may or may not exist (e.g., FieldMatch.Ternary). The subfields of
-FieldMatch are subject to the constraints listed below. 
+`oneof` may or may not exist (e.g., `FieldMatch.Ternary`). The subfields of
+`FieldMatch` are subject to the constraints listed below.
 
 Convention: The code below follows C++ syntax, but skips verbosity such as
 semicolon and `break` statements. Further, consider a function `p4_type()` that
@@ -182,7 +182,7 @@ The following fields should always be set: `PacketOut.payload`,
 ### Config
 
 `ForwardingPipelineConfig.p4_device_config`: Handling of this message and its
-existance or non-existance is target-dependent.
+existence or non-existence is target-dependent.
 
 ## Sub-byte bit location
 
@@ -221,8 +221,8 @@ or a `SetForwardingPipelineConfigRequest`.
 
 ## Direct resources
 
-Direct resources, i.e., `DirectMeterEntry` and `DirectCounterEntry`, are bound to
-`TableEntry`s and therefore their insertion, deletion, and configuration are
+Direct resources, i.e., `DirectMeterEntry` and `DirectCounterEntry`, are bound
+to `TableEntry`s and therefore their insertion, deletion, and configuration are
 subject to the following constraints:
 
 - Direct resources cannot be inserted or deleted independent of their
@@ -239,8 +239,8 @@ by
 -   not specifying a message field, or
 -   giving 0 for a field of a scalar data type (such as for an uint32 ID).
 
-For example, the client can issue the following ReadRequest to read all devices
-and all entities that a run time server manages:
+For example, the client can issue the following `ReadRequest` to read all
+entities from all devices that a runtime server manages:
 
 ```
 device_id: 0
@@ -290,4 +290,3 @@ should take into account the top-level message and act as follows:
   switch only returns the counter state associated with the match given in
   `DirectCounterEntry.TableEntry.match`, and does not populate other fields
   within the `TableEntry` (such as `Action`).
-
