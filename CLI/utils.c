@@ -20,10 +20,11 @@
 
 #include "PI/pi.h"
 
-#include <readline/readline.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <readline/readline.h>
 
 int count_tokens(const char *str) {
   int count = 0;
