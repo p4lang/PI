@@ -107,9 +107,10 @@ format):
 
 ### `TableEntry.match`, `FieldMatch.field_id`, and other fields of the `FieldMatch`
 
-Controller leaves `match` as unspecified when it wants to change the default
-action within a table. For example, here is a TableEntry that the controller can
-send to modify the default action of the table:
+Controller leaves `match` as unspecified and sets the `is_default_action` field
+to true when it wants to change the default action within a table. For example,
+here is a TableEntry that the controller can send to modify the default action
+of a table:
 
 ```
 table_entry {
@@ -119,10 +120,15 @@ table_entry {
   }
   priority: 9
   controller_metadata: 0
+  is_default_action: true
 }
 ```
 
-While, as long as `match` exists `field_id` must exist, the corresponding
+If `match` for a field is not defined, then the field is treated as don't care
+when constructing the match key for the table entry. Note that leaving match field
+undefined is only allowed for ternary and LPM fields.
+
+As long as `match` exists, `field_id` must exist. However, the corresponding
 `oneof` may or may not exist (e.g., `FieldMatch.Ternary`). The subfields of
 `FieldMatch` are subject to the constraints listed below.
 
