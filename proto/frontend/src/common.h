@@ -47,7 +47,7 @@ struct SessionTemp {
   }
 
   ~SessionTemp() {
-    if (batch) pi_batch_end(sess, false  /* hw_sync */);
+    if (batch) pi_batch_end(sess, true  /* hw_sync */);
     pi_session_cleanup(sess);
   }
 
