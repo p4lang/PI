@@ -88,8 +88,6 @@ int conn_mgr_client_init(conn_mgr_t *conn_mgr_state, int dev_id,
       new StandardClient(standard_protocol);
   conn_mgr_state->clients[dev_id].mc_client =
       new SimplePreLAGClient(mc_protocol);
-  conn_mgr_state->clients[dev_id].sswitch_client =
-      new SimpleSwitchClient(sswitch_protocol);
 
   return 0;
 }
@@ -116,9 +114,5 @@ McClient conn_mgr_mc_client(conn_mgr_t *conn_mgr_state, int dev_id) {
   return {state.mc_client, std::unique_lock<std::mutex>(state.mutex)};
 }
 
-SSwitchClient conn_mgr_sswitch_client(conn_mgr_t *conn_mgr_state, int dev_id) {
-  auto &state = conn_mgr_state->clients[dev_id];
-  return {state.sswitch_client, std::unique_lock<std::mutex>(state.mutex)};
-}
 
 }  // namespace pibmv2

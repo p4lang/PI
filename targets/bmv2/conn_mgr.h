@@ -55,7 +55,6 @@ void conn_mgr_destroy(conn_mgr_t *conn_mgr_state);
 
 Client conn_mgr_client(conn_mgr_t *, int dev_id);
 McClient conn_mgr_mc_client(conn_mgr_t *, int dev_id);
-SSwitchClient conn_mgr_sswitch_client(conn_mgr_t *, int dev_id);
 
 int conn_mgr_client_init(conn_mgr_t *, int dev_id, int thrift_port_num);
 int conn_mgr_client_close(conn_mgr_t *, int dev_id);
