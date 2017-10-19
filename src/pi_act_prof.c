@@ -160,6 +160,7 @@ size_t pi_act_prof_grps_next(pi_act_prof_fetch_res_t *res,
   uint32_t offset;
   curr += retrieve_uint32(entries + curr, &offset);
   *mbrs = res->mbr_handles + offset;
+  res->curr_groups = curr;
 
   return res->idx_groups++;
 }
