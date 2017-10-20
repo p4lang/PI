@@ -22,7 +22,8 @@ $(abs_srcdir)/p4/p4runtime.proto \
 $(abs_srcdir)/p4/config/p4info.proto \
 $(abs_srcdir)/google/rpc/status.proto \
 $(abs_srcdir)/google/rpc/code.proto \
-$(abs_srcdir)/p4/tmp/p4config.proto
+$(abs_srcdir)/p4/tmp/p4config.proto \
+$(abs_srcdir)/gnmi/gnmi.proto
 
 # Somehow, using an absolute path above prevents me from using EXTRA_DIST =
 # $(protos)
@@ -32,7 +33,7 @@ p4/config/p4info.proto \
 google/rpc/status.proto \
 google/rpc/code.proto \
 p4/tmp/p4config.proto \
-openconfig/reference/rpc/gnmi/gnmi.proto
+gnmi/gnmi.proto
 
 proto_cpp_files = \
 cpp_out/p4/p4runtime.pb.cc \
@@ -135,16 +136,10 @@ $(nodist_googlerpcpy_PYTHON) \
 $(nodist_gnmipy_PYTHON)
 endif
 
-$(abs_builddir)/gnmi/gnmi.proto : $(abs_srcdir)/openconfig/reference/rpc/gnmi/gnmi.proto
-	@mkdir -p $(builddir)/gnmi
-	$(SED) 's;github.com/golang/protobuf/ptypes/any/any.proto;google/protobuf/any.proto;g' $^ > gnmi.proto.tmp
-	$(SED) 's;github.com/google/protobuf/src/google/protobuf/descriptor.proto;google/protobuf/descriptor.proto;g' gnmi.proto.tmp > $@
-	@rm gnmi.proto.tmp
-
 # See http://www.gnu.org/software/automake/manual/html_node/Multiple-Outputs.html
 
 # Is there any issue with running protoc only once, instead of once per proto?
-proto_files.ts: $(protos) $(abs_builddir)/gnmi/gnmi.proto
+proto_files.ts: $(protos)
 	@rm -f proto_files.tmp
 	@touch proto_files.tmp
 	@mkdir -p $(builddir)/cpp_out
@@ -203,4 +198,4 @@ libpiprotogrpc_la_LIBADD = libpiprotobuf.la $(PROTOBUF_LIBS) $(GRPC_LIBS)
 nobase_include_HEADERS = \
 PI/proto/util.h
 
-CLEANFILES = $(BUILT_SOURCES) proto_files.ts gnmi/gnmi.proto
+CLEANFILES = $(BUILT_SOURCES) proto_files.ts

@@ -1,4 +1,4 @@
 cpp_out
 grpc_out
+py_out
 proto_files.ts
-gnmi/gnmi.proto
