@@ -117,6 +117,7 @@ take any arguments.
 table foo {             // table id: 1
   key = {
     hdr.foo : ternary;  // field id: 10
+  }
   actions = {
     bar;                // action id: 20
     baz;                // action id: 21
