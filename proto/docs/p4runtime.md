@@ -128,9 +128,9 @@ If `match` for a field is not defined, then the field is treated as don't care
 when constructing the match key for the table entry. Note that leaving match field
 undefined is only allowed for ternary and LPM fields.
 
-As long as `match` exists, `field_id` must exist. However, the corresponding
-`oneof` may or may not exist (e.g., `FieldMatch.Ternary`). The subfields of
-`FieldMatch` are subject to the constraints listed below.
+As long as `match` exists, `field_id` and the `oneof` match specification must
+exist (e.g., `FieldMatch.Ternary`). The subfields of `FieldMatch` are subject
+to the constraints listed below.
 
 Convention: The code below follows C++ syntax, but skips verbosity such as
 semicolon and `break` statements. Further, consider a function `p4_type()` that
