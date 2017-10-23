@@ -108,15 +108,31 @@ format):
 ### `TableEntry.match`, `FieldMatch.field_id`, and other fields of the `FieldMatch`
 
 Controller leaves `match` as unspecified and sets the `is_default_action` field
-to true when it wants to change the default action within a table. For example,
-here is a TableEntry that the controller can send to modify the default action
-of a table:
+to true when it wants to change the default action within a table. The following
+table illustrates this use case. The ids in the comments refer to the P4 compiler
+assigned ids to the entities. We assume that both actions `bar` and `baz` do not
+take any arguments.
 
 ```
+table foo {             // table id: 1
+  key = {
+    hdr.foo : ternary;  // field id: 10
+  actions = {
+    bar;                // action id: 20
+    baz;                // action id: 21
+  }
+  default_action = baz();
+}
+```
+
+The following table entry will change the default action from `baz()` to `bar()`.
+```
 table_entry {
-  table_id: 7
+  table_id: 1
   action {
-    // Some action
+    action {
+      action_id: 20  ## bar action id
+    }
   }
   priority: 9
   controller_metadata: 0
@@ -126,7 +142,22 @@ table_entry {
 
 If `match` for a field is not defined, then the field is treated as don't care
 when constructing the match key for the table entry. Note that leaving match field
-undefined is only allowed for ternary and LPM fields.
+undefined is only allowed for ternary and LPM fields. The following table entry
+will program a flow in table `foo` (above) that matches all packets and performs
+action `baz`. Notice the missing fields for `match` and `is_default_action`.
+
+```
+table_entry {
+  table_id: 1
+  action {
+    action {
+      action_id: 21  ## baz action id
+    }
+  }
+  priority: 9
+  controller_metadata: 0
+}
+```
 
 As long as `match` exists, `field_id` and the `oneof` match specification must
 exist (e.g., `FieldMatch.Ternary`). The subfields of `FieldMatch` are subject
@@ -143,27 +174,17 @@ switch(p4_type(match.field_id())) {
   case EXACT:
     assert(match.has_exact() && !match.exact().value().empty())
   case TERNARY:
-    if (!match.has_ternary()) {
-      // handle as don't care, i.e., match all.
-    } else {
-      assert(!match.ternary().value().empty() && !match.ternary().mask().empty())
-    }
+    assert(match.has_ternary())
+    assert(!match.ternary().value().empty() && !match.ternary().mask().empty())
   case LPM:
-    if (!match.has_lpm()) {
-      // handle as don't care, i.e., match all.
-    } else {
-      assert(!match.lpm().value().empty() && match.lpm().prefix_len() > 0)
-    }
+    assert(match.has_lpm())
+    assert(!match.lpm().value().empty() && match.lpm().prefix_len() > 0)
   case RANGE:
     Integer low, high;
-    if (!match.has_range()) {
-      // handle as don't care, i.e., match all.
-    } else {
-      assert(match.has_range())
-      assert(parseInteger(match.range().low(), &low))
-      assert(parseInteger(match.range().high(), &hi))
-      assert(low <= high)
-    }
+    assert(match.has_range())
+    assert(parseInteger(match.range().low(), &low))
+    assert(parseInteger(match.range().high(), &hi))
+    assert(low <= high)
   case VALID:
     assert(match.has_valid())
 }
