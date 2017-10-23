@@ -143,9 +143,10 @@ table_entry {
 
 If `match` for a field is not defined, then the field is treated as don't care
 when constructing the match key for the table entry. Note that leaving match field
-undefined is only allowed for ternary and LPM fields. The following table entry
-will program a flow in table `foo` (above) that matches all packets and performs
-action `baz`. Notice the missing fields for `match` and `is_default_action`.
+undefined is only allowed for ternary, LPM and range fields. The following table
+entry will program a flow in table `foo` (above) that matches all packets and
+performs action `baz`. Notice the missing fields for `match` and
+`is_default_action`.
 
 ```
 table_entry {
