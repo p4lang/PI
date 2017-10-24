@@ -51,6 +51,21 @@ Code check_proto_bytestring(const std::string &str, size_t nbits) {
   return Code::OK;
 }
 
+std::string range_default_lo(size_t nbits) {
+  size_t nbytes = (nbits + 7) / 8;
+  return std::string(nbytes, '\x00');
+}
+
+std::string range_default_hi(size_t nbits) {
+  size_t nbytes = (nbits + 7) / 8;
+  std::string hi(nbytes, '\xff');
+  size_t zero_nbits = (nbytes * 8) - nbits;
+  uint8_t mask = 0xff >> zero_nbits;
+  hi[0] &= static_cast<char>(mask);
+  assert(check_proto_bytestring(hi, nbits) == Code::OK);
+  return hi;
+}
+
 }  // namespace common
 
 }  // namespace proto

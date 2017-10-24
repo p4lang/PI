@@ -983,6 +983,13 @@ class DeviceMgrImp {
         && pi_p4info_is_valid_id(p4info.get(), p4_id);
   }
 
+  const p4::FieldMatch *find_mf(const p4::TableEntry &entry,
+                                pi_p4_id_t mf_id) const {
+    for (const auto &mf : entry.match())
+      if (mf.field_id() == mf_id) return &mf;
+    return nullptr;
+  }
+
   Status validate_match_key(const p4::TableEntry &entry) const {
     auto t_id = entry.table_id();
     size_t num_match_fields;
@@ -1000,42 +1007,52 @@ class DeviceMgrImp {
     for (size_t i = 0; i < num_match_fields; i++) {
       auto mf_id = expected_mf_ids[i];
       auto mf_info = pi_p4info_table_match_field_info(p4info.get(), t_id, i);
-      bool mf_is_missing = true;
-      for (const auto &mf : entry.match()) {
-        if (mf.field_id() != mf_id) continue;
-        mf_is_missing = false;
-        num_mf_matched++;
-        auto bitwidth = mf_info->bitwidth;
-        switch (mf.field_match_type_case()) {
-          case p4::FieldMatch::kExact:
-            code = check_proto_bytestring(mf.exact().value(), bitwidth);
-            break;
-          case p4::FieldMatch::kLpm:
-            code = check_proto_bytestring(mf.lpm().value(), bitwidth);
-            break;
-          case p4::FieldMatch::kTernary:
-            code = check_proto_bytestring(mf.ternary().value(), bitwidth);
-            if (code != Code::OK) break;
-            code = check_proto_bytestring(mf.ternary().mask(), bitwidth);
-            break;
-          case p4::FieldMatch::kValid:
-            break;
-          case p4::FieldMatch::kRange:
-            code = check_proto_bytestring(mf.range().low(), bitwidth);
-            if (code != Code::OK) break;
-            code = check_proto_bytestring(mf.range().high(), bitwidth);
-            break;
-          default:
-            RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
-        }
-        if (code != Code::OK)
-          RETURN_ERROR_STATUS(code, "Invalid bytestring format");
-      }
-      if (mf_is_missing
-          && mf_info->match_type != PI_P4INFO_MATCH_TYPE_TERNARY) {
+      auto mf = find_mf(entry, mf_id);
+      bool can_be_omitted = (mf_info->match_type == PI_P4INFO_MATCH_TYPE_LPM) ||
+          (mf_info->match_type == PI_P4INFO_MATCH_TYPE_TERNARY) ||
+          (mf_info->match_type == PI_P4INFO_MATCH_TYPE_RANGE);
+      if (mf == nullptr && !can_be_omitted) {
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                             "Missing non-ternary field in match key");
       }
+      if (mf == nullptr) continue;
+      num_mf_matched++;
+      auto bitwidth = mf_info->bitwidth;
+      switch (mf_info->match_type) {
+        case PI_P4INFO_MATCH_TYPE_VALID:
+          if (!mf->has_valid())
+            RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
+          break;
+        case PI_P4INFO_MATCH_TYPE_EXACT:
+          if (!mf->has_exact())
+            RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
+          code = check_proto_bytestring(mf->exact().value(), bitwidth);
+          break;
+        case PI_P4INFO_MATCH_TYPE_LPM:
+          if (!mf->has_lpm())
+            RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
+          code = check_proto_bytestring(mf->lpm().value(), bitwidth);
+          break;
+        case PI_P4INFO_MATCH_TYPE_TERNARY:
+          if (!mf->has_ternary())
+            RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
+          code = check_proto_bytestring(mf->ternary().value(), bitwidth);
+          if (code != Code::OK) break;
+          code = check_proto_bytestring(mf->ternary().mask(), bitwidth);
+          break;
+        case PI_P4INFO_MATCH_TYPE_RANGE:
+          if (!mf->has_range())
+            RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
+          code = check_proto_bytestring(mf->range().low(), bitwidth);
+          if (code != Code::OK) break;
+          code = check_proto_bytestring(mf->range().high(), bitwidth);
+          break;
+        default:
+          assert(0);
+          break;
+      }
+      if (code != Code::OK)
+        RETURN_ERROR_STATUS(code, "Invalid bytestring format");
     }
     if (num_mf_matched != entry.match().size())
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Unknown field in match key");
@@ -1043,35 +1060,76 @@ class DeviceMgrImp {
   }
 
   Status construct_match_key(const p4::TableEntry &entry,
-                           pi::MatchKey *match_key) const {
-    if (entry.match().empty()) RETURN_OK_STATUS();  // default entry
+                             pi::MatchKey *match_key) const {
+    if (entry.is_default_action()) {
+      if (!entry.match().empty()) {
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                            "Non-empty key for default entry");
+      }
+      if (entry.priority() != 0) {
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                            "Non-zero priority for default entry");
+      }
+      RETURN_OK_STATUS();
+    }
     auto status = validate_match_key(entry);
     if (IS_ERROR(status)) return status;
-    for (const auto &mf : entry.match()) {
-      switch (mf.field_match_type_case()) {
-        case p4::FieldMatch::kExact:
-          match_key->set_exact(mf.field_id(), mf.exact().value().data(),
-                               mf.exact().value().size());
-          break;
-        case p4::FieldMatch::kLpm:
-          match_key->set_lpm(mf.field_id(), mf.lpm().value().data(),
-                             mf.lpm().value().size(), mf.lpm().prefix_len());
-          break;
-        case p4::FieldMatch::kTernary:
-          match_key->set_ternary(mf.field_id(), mf.ternary().value().data(),
-                                 mf.ternary().mask().data(),
-                                 mf.ternary().value().size());
-          break;
-        case p4::FieldMatch::kValid:
-          match_key->set_valid(mf.field_id(), mf.valid().value());
-          break;
-        case p4::FieldMatch::kRange:
-          match_key->set_range(mf.field_id(), mf.range().low().data(),
-                               mf.range().high().data(),
-                               mf.range().low().size());
-          break;
-        default:
-          RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
+    auto t_id = entry.table_id();
+    size_t num_match_fields;
+    auto expected_mf_ids = pi_p4info_table_get_match_fields(
+        p4info.get(), t_id, &num_match_fields);
+    // same as for validate_match_key above: refactor if double loop too
+    // expensive
+    for (size_t i = 0; i < num_match_fields; i++) {
+      auto mf_id = expected_mf_ids[i];
+      auto mf_info = pi_p4info_table_match_field_info(p4info.get(), t_id, i);
+      auto mf = find_mf(entry, mf_id);
+      if (mf != nullptr) {
+        switch (mf_info->match_type) {
+          case PI_P4INFO_MATCH_TYPE_VALID:
+            match_key->set_valid(mf_id, mf->valid().value());
+            break;
+          case PI_P4INFO_MATCH_TYPE_EXACT:
+            match_key->set_exact(mf_id, mf->exact().value().data(),
+                                 mf->exact().value().size());
+            break;
+          case PI_P4INFO_MATCH_TYPE_LPM:
+            match_key->set_lpm(mf_id, mf->lpm().value().data(),
+                               mf->lpm().value().size(),
+                               mf->lpm().prefix_len());
+            break;
+          case PI_P4INFO_MATCH_TYPE_TERNARY:
+            match_key->set_ternary(mf_id, mf->ternary().value().data(),
+                                   mf->ternary().mask().data(),
+                                   mf->ternary().value().size());
+            break;
+          case PI_P4INFO_MATCH_TYPE_RANGE:
+            match_key->set_range(mf_id, mf->range().low().data(),
+                                 mf->range().high().data(),
+                                 mf->range().low().size());
+            break;
+          default:
+            assert(0);
+            break;
+        }
+      } else {  // missing field
+        auto bitwidth = mf_info->bitwidth;
+        auto nbytes = (bitwidth + 7) / 8;
+        switch (mf_info->match_type) {
+          case PI_P4INFO_MATCH_TYPE_LPM:
+          case PI_P4INFO_MATCH_TYPE_TERNARY:
+            // nothing to do: key, mask, pLen default to 0
+            break;
+          case PI_P4INFO_MATCH_TYPE_RANGE:
+            match_key->set_range(mf_id,
+                                 common::range_default_lo(bitwidth).data(),
+                                 common::range_default_hi(bitwidth).data(),
+                                 nbytes);
+            break;
+          default:
+            assert(0);  // cannot reach this because of validate method call
+            break;
+        }
       }
     }
     match_key->set_priority(entry.priority());
@@ -1168,8 +1226,7 @@ class DeviceMgrImp {
     pi::MatchTable mt(session.get(), device_tgt, p4info.get(), table_id);
     pi_status_t pi_status;
     pi_entry_handle_t handle;
-    // an empty match means default entry
-    if (table_entry.match().empty()) {
+    if (table_entry.is_default_action()) {
       pi_status = mt.default_entry_set(action_entry);
     } else {
       pi_status = mt.entry_add(match_key, action_entry, false, &handle);
@@ -1215,8 +1272,7 @@ class DeviceMgrImp {
 
     pi::MatchTable mt(session.get(), device_tgt, p4info.get(), table_id);
     pi_status_t pi_status;
-    // an empty match means default entry
-    if (table_entry.match().empty()) {
+    if (table_entry.is_default_action()) {
       pi_status = mt.default_entry_set(action_entry);
     } else {
       pi_status = mt.entry_modify_wkey(match_key, action_entry);
@@ -1245,8 +1301,7 @@ class DeviceMgrImp {
 
     pi::MatchTable mt(session.get(), device_tgt, p4info.get(), table_id);
     pi_status_t pi_status;
-    // an empty match means default entry
-    if (table_entry.match().empty()) {
+    if (table_entry.is_default_action()) {
       // we do not yet have the ability to clear a default entry, which is not a
       // very interesting feature anyway
       RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,

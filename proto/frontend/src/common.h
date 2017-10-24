@@ -59,6 +59,9 @@ struct SessionTemp {
 
 Code check_proto_bytestring(const std::string &str, size_t nbits);
 
+std::string range_default_lo(size_t nbits);
+std::string range_default_hi(size_t nbits);
+
 inline Status make_invalid_p4_id_status() {
   Status status;
   status.set_code(Code::INVALID_ARGUMENT);
