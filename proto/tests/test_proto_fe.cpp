@@ -148,6 +148,10 @@ using ::testing::Combine;
 
 class MatchKeyInput {
  public:
+  enum class Type {
+    EXACT, LPM, TERNARY, RANGE
+  };
+
   static MatchKeyInput make_exact(const std::string &mf_v) {
     return MatchKeyInput(Type::EXACT, mf_v, "", 0, 0);
   }
@@ -168,10 +172,14 @@ class MatchKeyInput {
     return MatchKeyInput(Type::RANGE, start_v, end_v, 0, priority);
   }
 
+  Type get_type() const {
+    return type;
+  }
+
   std::string get_match_key() const {
     std::string mk(mf);
     mk += mask;
-    if (pLen > 0) {
+    if (type == Type::LPM) {
       std::string pLen_str(4, '\x00');
       pLen_str[0] = static_cast<char>(pLen);
       mk += pLen_str;
@@ -227,10 +235,6 @@ class MatchKeyInput {
   }
 
  private:
-  enum class Type {
-    EXACT, LPM, TERNARY, RANGE
-  };
-
   MatchKeyInput(Type type, const std::string &mf_v, const std::string &mask_v,
                 unsigned int pLen, int pri)
       : type(type), mf(mf_v), mask(mask_v), pLen(pLen), priority(pri) { }
@@ -264,11 +268,11 @@ class MatchTableTest
   DeviceMgr::Status remove(p4::TableEntry *entry);
   DeviceMgr::Status modify(p4::TableEntry *entry);
 
-  pi_p4_id_t t_id = pi_p4info_table_id_from_name(
-      p4info, std::get<0>(GetParam()));
-  pi_p4_id_t mf_id = pi_p4info_table_match_field_id_from_name(
-      p4info, t_id, "header_test.field32");
-  pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, "actionA");
+  boost::optional<MatchKeyInput> default_mf() const;
+
+  pi_p4_id_t t_id;
+  pi_p4_id_t mf_id;
+  pi_p4_id_t a_id;
 };
 
 DeviceMgr::Status
@@ -323,6 +327,24 @@ MatchTableTest::generic_make(pi_p4_id_t t_id,
       pi_p4info_action_param_id_from_name(p4info, a_id, "param"));
   param->set_value(param_v);
   return table_entry;
+}
+
+boost::optional<MatchKeyInput>
+MatchTableTest::default_mf() const {
+  auto mk_input = std::get<1>(GetParam());
+  switch (mk_input.get_type()) {
+    case MatchKeyInput::Type::EXACT:
+      return boost::none;
+    case MatchKeyInput::Type::LPM:
+      return MatchKeyInput::make_lpm(std::string(4, '\x00'), 0);
+    case MatchKeyInput::Type::TERNARY:
+      return MatchKeyInput::make_ternary(
+          std::string(4, '\x00'), std::string(4, '\x00'), 0);
+    case MatchKeyInput::Type::RANGE:
+      return MatchKeyInput::make_range(
+          std::string(4, '\x00'), std::string(4, '\xff'), 0);
+  }
+  return boost::none;  // unreachable
 }
 
 // started out using a lambda in the test cases, but it was too much duplicated
@@ -464,10 +486,20 @@ TEST_P(MatchTableTest, SetDefault) {
   std::string adata(6, '\x00');
   auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
   EXPECT_CALL(*mock, table_default_action_set(t_id, entry_matcher));
-  DeviceMgr::Status status;
   auto entry = generic_make(t_id, boost::none, adata);
-  status = add_one(&entry);
+  entry.set_is_default_action(true);
+  auto status = add_one(&entry);
   ASSERT_EQ(status.code(), Code::OK);
+}
+
+TEST_P(MatchTableTest, InvalidSetDefault) {
+  // Invalid to set is_default_action flag to true with a non-empty match key
+  std::string adata(6, '\x00');
+  auto mk_input = std::get<1>(GetParam());
+  auto entry = generic_make(t_id, mk_input.get_proto(mf_id), adata);
+  entry.set_is_default_action(true);
+  auto status = add_one(&entry);
+  ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
 }
 
 TEST_P(MatchTableTest, InvalidTableId) {
@@ -536,6 +568,24 @@ TEST_P(MatchTableTest, InvalidActionId) {
   {
     auto bad_id = pi_p4info_action_id_from_name(p4info, "actionC");
     check_bad_status_write(bad_id, "Invalid action for table");
+  }
+}
+
+TEST_P(MatchTableTest, MissingMatchField) {
+  std::string adata(6, '\x00');
+  auto mk_input = default_mf();
+  if (mk_input.is_initialized()) {  // omitting field supported for match type
+    auto mk_matcher = Truly(MatchKeyMatcher(
+        t_id, mk_input.get().get_match_key()));
+    auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
+    EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
+    auto entry = generic_make(t_id, boost::none, adata);
+    auto status = add_one(&entry);
+    ASSERT_EQ(status.code(), Code::OK);
+  } else {  // omitting field not supported for match type
+    auto entry = generic_make(t_id, boost::none, adata);
+    auto status = add_one(&entry);
+    ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
   }
 }
 
@@ -1450,12 +1500,11 @@ TEST_F(MatchKeyFormatTest, Good2) {
   ASSERT_EQ(status.code(), Code::OK);
 }
 
-// Not a valid test: empty key means default action
-// TEST_F(MatchKeyFormatTest, MkTooShort) {
-//   auto entry = make_entry_no_mk();
-//   auto status = add_entry(&entry);
-//   ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
-// }
+TEST_F(MatchKeyFormatTest, MkMissingField) {
+  auto entry = make_entry_no_mk();
+  auto status = add_entry(&entry);
+  ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
+}
 
 TEST_F(MatchKeyFormatTest, MkTooLong) {
   auto entry = make_entry_no_mk();
@@ -1543,7 +1592,9 @@ class TernaryTwoTest : public DeviceMgrTest {
   pi_p4_id_t a_id;
 };
 
-// This test is the reason why we need 2 match fields in the table. If the macth
+// THIS IS NOT TRUE ANYMORE NOW THAT WE HAVE THE IS_DEFAULT_ACTION FLAG
+// TODO(antonin): remove the test?
+// This test is the reason why we need 2 match fields in the table. If the match
 // key is empty, the semantics of P4Runtime are different: it means "set the
 // default entry".
 TEST_F(TernaryTwoTest, MissingMatchField) {
