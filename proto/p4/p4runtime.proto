@@ -158,9 +158,10 @@ message TableEntry {
   //     table contains a direct counter.
   MeterConfig meter_config = 6;
   CounterData counter_data = 7;
-  // Set to true if the table entry is being used to update the non-const
+  // Set to true if the table entry is being written to update the non-const
   // default action of the table. If true, the "match" field must be empty and
   // the "action" field must be populated with a valid direct action.
+  // It is an error to set this field for a table read.
   bool is_default_action = 8;
 }
 
