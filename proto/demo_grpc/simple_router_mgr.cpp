@@ -24,6 +24,8 @@
 
 #include <boost/bind.hpp>
 
+#include <google/protobuf/text_format.h>
+
 #include "p4/tmp/p4config.grpc.pb.h"
 
 #include <future>
@@ -160,15 +162,18 @@ struct CounterQueryHandler : public MgrHandler {
 struct ConfigUpdateHandler : public MgrHandler {
   ConfigUpdateHandler(SimpleRouterMgr *mgr,
                       const std::string &config_buffer,
+                      const std::string *p4info_buffer,
                       std::promise<int> &promise)
-      : MgrHandler(mgr), config_buffer(config_buffer), promise(promise) { }
+      : MgrHandler(mgr), config_buffer(config_buffer),
+        p4info_buffer(p4info_buffer), promise(promise) { }
 
   void operator()() {
-    int rc = simple_router_mgr->update_config_(config_buffer);
+    int rc = simple_router_mgr->update_config_(config_buffer, p4info_buffer);
     promise.set_value(rc);
   }
 
   const std::string &config_buffer;
+  const std::string *p4info_buffer;
   std::promise<int> &promise;
 };
 
@@ -229,17 +234,25 @@ SimpleRouterMgr::SimpleRouterMgr(int dev_id,
 SimpleRouterMgr::~SimpleRouterMgr() = default;
 
 int
-SimpleRouterMgr::assign(const std::string &config_buffer) {
+SimpleRouterMgr::assign(const std::string &config_buffer,
+                        const std::string *p4info_buffer) {
   if (assigned) return 0;
 
-  pi_add_config(config_buffer.c_str(), PI_CONFIG_TYPE_BMV2_JSON, &p4info);
+  p4::config::P4Info p4info_proto;
+  if (!p4info_buffer) {
+    pi_add_config(config_buffer.c_str(), PI_CONFIG_TYPE_BMV2_JSON, &p4info);
+    p4info_proto = pi::p4info::p4info_serialize_to_proto(p4info);
+  } else {
+    google::protobuf::TextFormat::ParseFromString(
+        *p4info_buffer, &p4info_proto);
+    pi::p4info::p4info_proto_reader(p4info_proto, &p4info);
+  }
 
   p4::SetForwardingPipelineConfigRequest request;
   request.set_action(
       p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT);
   auto config = request.add_configs();
   config->set_device_id(dev_id);
-  auto p4info_proto = pi::p4info::p4info_serialize_to_proto(p4info);
   config->set_allocated_p4info(&p4info_proto);
   p4::tmp::P4DeviceConfig device_config;
   auto extras = device_config.mutable_extras();
@@ -661,20 +674,31 @@ SimpleRouterMgr::query_counter_(const std::string &counter_name, size_t index,
 }
 
 int
-SimpleRouterMgr::update_config(const std::string &config_buffer) {
+SimpleRouterMgr::update_config(const std::string &config_buffer,
+                               const std::string *p4info_buffer) {
   std::promise<int> promise;
   auto future = promise.get_future();
-  ConfigUpdateHandler h(this, config_buffer, promise);
+  ConfigUpdateHandler h(this, config_buffer, p4info_buffer, promise);
   post_event(std::move(h));
   future.wait();
   return future.get();
 }
 
 int
-SimpleRouterMgr::update_config_(const std::string &config_buffer) {
+SimpleRouterMgr::update_config_(const std::string &config_buffer,
+                                const std::string *p4info_buffer) {
   std::cout << "Updating config\n";
+
+  p4::config::P4Info p4info_proto;
   pi_p4info_t *p4info_new;
-  pi_add_config(config_buffer.c_str(), PI_CONFIG_TYPE_BMV2_JSON, &p4info_new);
+  if (!p4info_buffer) {
+    pi_add_config(config_buffer.c_str(), PI_CONFIG_TYPE_BMV2_JSON, &p4info_new);
+    p4info_proto = pi::p4info::p4info_serialize_to_proto(p4info);
+  } else {
+    google::protobuf::TextFormat::ParseFromString(
+        *p4info_buffer, &p4info_proto);
+    pi::p4info::p4info_proto_reader(p4info_proto, &p4info_new);
+  }
   pi_p4info_t *p4info_prev = p4info;
   p4info = p4info_new;
   if (p4info_prev) pi_destroy_config(p4info_prev);
@@ -685,7 +709,6 @@ SimpleRouterMgr::update_config_(const std::string &config_buffer) {
         p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_SAVE);
     auto config = request.add_configs();
     config->set_device_id(dev_id);
-    auto p4info_proto = pi::p4info::p4info_serialize_to_proto(p4info);
     config->set_allocated_p4info(&p4info_proto);
     p4::tmp::P4DeviceConfig device_config;
     device_config.set_device_data(config_buffer);

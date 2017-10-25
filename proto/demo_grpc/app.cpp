@@ -38,12 +38,15 @@
 namespace {
 
 char *opt_config_path = NULL;
+char *opt_p4info_path = NULL;
 
 void print_help(const char *name) {
   fprintf(stderr,
           "Usage: %s [OPTIONS]...\n"
           "PI example controller app\n\n"
-          "-c          P4 config (json)\n",
+          "-c          P4 config (json)\n"
+          "-p          P4Info (in protobuf text format);\n"
+          "             if missing it will be generated from the config JSON\n",
           name);
 }
 
@@ -52,16 +55,19 @@ int parse_opts(int argc, char *const argv[]) {
 
   opterr = 0;
 
-  while ((c = getopt(argc, argv, "c:h")) != -1) {
+  while ((c = getopt(argc, argv, "c:p:h")) != -1) {
     switch (c) {
       case 'c':
         opt_config_path = optarg;
+        break;
+      case 'p':
+        opt_p4info_path = optarg;
         break;
       case 'h':
         print_help(argv[0]);
         exit(0);
       case '?':
-        if (optopt == 'c') {
+        if (optopt == 'c' || optopt == 'p') {
           fprintf(stderr, "Option -%c requires an argument.\n\n", optopt);
           print_help(argv[0]);
         } else if (isprint(optopt)) {
@@ -109,10 +115,18 @@ int main(int argc, char *argv[]) {
 
   int dev_id = 0;
   SimpleRouterMgr simple_router_mgr(dev_id, io_service, channel);
-  std::ifstream istream(opt_config_path);
-  std::string config((std::istreambuf_iterator<char>(istream)),
+  std::ifstream istream_config(opt_config_path);
+  std::string config((std::istreambuf_iterator<char>(istream_config)),
                       std::istreambuf_iterator<char>());
-  auto rc = simple_router_mgr.assign(config);
+  int rc;
+  if (!opt_p4info_path) {
+    rc = simple_router_mgr.assign(config, nullptr);
+  } else {
+    std::ifstream istream_p4info(opt_p4info_path);
+    std::string p4info_str((std::istreambuf_iterator<char>(istream_p4info)),
+                           std::istreambuf_iterator<char>());
+    rc = simple_router_mgr.assign(config, &p4info_str);
+  }
   (void) rc;
   assert(rc == 0);
   simple_router_mgr.set_default_entries();

@@ -38,7 +38,8 @@ class WebServer {
   int query_counter(const std::string &counter_name, size_t index,
                     uint64_t *packets, uint64_t *bytes);
 
-  int update_json_config(const std::string &config_buffer);
+  int update_json_config(const std::string &config_buffer,
+                         const std::string *p4info_buffer);
 
   int start();
 

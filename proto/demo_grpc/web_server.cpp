@@ -40,16 +40,21 @@ struct connection_info_struct {
   size_t counter_index;
   std::string counter_str;
   std::string new_json_name;
-  std::string buffer;
+  std::string json_buffer;
+  std::string new_p4info_name;
+  std::string p4info_buffer;
   std::string update_error;
   struct MHD_PostProcessor *postprocessor;
 };
 
 const char *monitor_page_template = "<html><body>\
 <h1>L3 Controller monitor page</h1>\
-Current JSON is '%s', do you want to update a new file?<br>\
+Current JSON is '%s', do you want to update a new file?<br><br>\
 <form action=\"/jsonpost\" method=\"post\" enctype=\"multipart/form-data\">\
-  <input type=\"file\" name=\"new_json\">\
+  New JSON config:<br>\
+  <input type=\"file\" name=\"new_json\"><br>\
+  New p4info protobuf text message (optional):<br>\
+  <input type=\"file\" name=\"new_p4info\"><br><br>\
   <input type=\"submit\" value=\" Submit \">\
 </form>\
 %s<br>\
@@ -116,8 +121,12 @@ int iterate_post(void *coninfo_cls, enum MHD_ValueKind kind, const char *key,
     }
     return MHD_YES;
   } else if (!strncmp(key, "new_json", sizeof "new_json")) {
-    con_info->buffer.append(data, size);
+    con_info->json_buffer.append(data, size);
     con_info->new_json_name = std::string(filename);
+    return MHD_YES;
+  } else if (!strncmp(key, "new_p4info", sizeof "new_p4info")) {
+    con_info->p4info_buffer.append(data, size);
+    con_info->new_p4info_name = std::string(filename);
     return MHD_YES;
   }
   return MHD_NO;
@@ -139,7 +148,10 @@ int perform_requested_ops_and_respond(struct MHD_Connection *connection,
                                       connection_info_struct *con_info) {
   WebServer *server = con_info->web_server;
   if (con_info->new_json_name != "") {
-    int rc = server->update_json_config(con_info->buffer);
+    std::string *p4info_buffer_ = nullptr;
+    if (con_info->new_p4info_name != "")
+      p4info_buffer_ = &con_info->p4info_buffer;
+    int rc = server->update_json_config(con_info->json_buffer, p4info_buffer_);
     if (rc) {
       con_info->update_error = "Error during config update";
     } else {
@@ -177,7 +189,9 @@ int answer_to_connection(void *cls, struct MHD_Connection *connection,
     con_info->counter_name = "";
     con_info->counter_index = 0;
     con_info->new_json_name = "";
-    con_info->buffer = "";
+    con_info->json_buffer = "";
+    con_info->new_p4info_name = "";
+    con_info->p4info_buffer = "";
     con_info->update_error = "";
     con_info->web_server = server;
     if (!strncmp (method, "POST", sizeof "POST")) {
@@ -248,6 +262,7 @@ WebServer::query_counter(const std::string &counter_name, size_t index,
 }
 
 int
-WebServer::update_json_config(const std::string &config_buffer) {
-  return simple_router_mgr->update_config(config_buffer);
+WebServer::update_json_config(const std::string &config_buffer,
+                              const std::string *p4info_buffer) {
+  return simple_router_mgr->update_config(config_buffer, p4info_buffer);
 }

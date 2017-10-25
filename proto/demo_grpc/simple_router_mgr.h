@@ -83,7 +83,8 @@ class SimpleRouterMgr {
 
   ~SimpleRouterMgr();
 
-  int assign(const std::string &config_buffer);
+  int assign(const std::string &config_buffer,
+             const std::string *p4info_buffer);
 
   int add_route(uint32_t prefix, int pLen, uint32_t nhop, uint16_t port);
 
@@ -96,7 +97,8 @@ class SimpleRouterMgr {
   int query_counter(const std::string &counter_name, size_t index,
                     uint64_t *packets, uint64_t *bytes);
 
-  int update_config(const std::string &config_buffer);
+  int update_config(const std::string &config_buffer,
+                    const std::string *p4info_buffer);
 
   template <typename E> void post_event(E &&event) {
     io_service.post(std::move(event));
@@ -149,7 +151,8 @@ class SimpleRouterMgr {
   int query_counter_(const std::string &counter_name, size_t index,
                      p4::CounterData *counter_data);
 
-  int update_config_(const std::string &config_buffer);
+  int update_config_(const std::string &config_buffer,
+                     const std::string *p4info_buffer);
 
   void send_packetout(const char *data, size_t size);
 
