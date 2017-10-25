@@ -310,10 +310,15 @@ static bool exclude_field(const char *suffix) {
 
 // rules to exclude header instances
 static bool exclude_header(cJSON *header) {
-  const cJSON *item = cJSON_GetObjectItem(header, "pi_omit");
-  if (!item) return false;
-  if (item->valueint) return true;
+  (void)header;
   return false;
+  // For some reason the new p4c compiler always sets pi_omit to true
+  // Now that we do not have "fields" in p4info anymore, this check is probably
+  // not even relevant anymore.
+  /* const cJSON *item = cJSON_GetObjectItem(header, "pi_omit"); */
+  /* if (!item) return false; */
+  /* if (item->valueint) return true; */
+  /* return false; */
 }
 
 static pi_status_t read_fields(reader_state_t *state, cJSON *root) {
