@@ -753,9 +753,7 @@ class DeviceMgrImp {
         code = Code::UNKNOWN;
         break;
       }
-      auto group_type = action_prof_mgr->retrieve_group_type(*group_id);
       group->set_group_id(*group_id);
-      group->set_type(group_type);
       for (size_t j = 0; j < num; j++) {
         auto member_id = action_prof_mgr->retrieve_member_id(members_h[j]);
         if (member_id == nullptr) {
