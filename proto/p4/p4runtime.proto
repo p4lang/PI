@@ -400,7 +400,7 @@ message SetForwardingPipelineConfigRequest {
 
   // TODO(wmohsin): Remove when clients have migrated to 'device_id' and
   // 'config' above.
-  repeated ForwardingPipelineConfig configs = 2 [deprecated = true];
+  repeated ForwardingPipelineConfig configs = 5 [deprecated = true];
 }
 
 message SetForwardingPipelineConfigResponse {
