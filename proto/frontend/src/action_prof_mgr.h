@@ -148,7 +148,6 @@ class ActionProfMgr {
 
   const Id *retrieve_member_id(pi_indirect_handle_t h);
   const Id *retrieve_group_id(pi_indirect_handle_t h);
-  const p4::ActionProfileGroup::Type retrieve_group_type(const Id &group_id);
 
  private:
   bool check_p4_action_id(pi_p4_id_t p4_id) const;
@@ -199,7 +198,6 @@ class ActionProfMgr {
   pi_p4info_t *p4info;
   ActionProfBiMap member_bimap{};
   ActionProfBiMap group_bimap{};
-  std::map<Id, p4::ActionProfileGroup::Type> group_types{};
   std::map<Id, ActionProfGroupMembership> group_members{};
   mutable Mutex mutex{};
 };
