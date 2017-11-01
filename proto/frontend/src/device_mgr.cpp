@@ -230,7 +230,6 @@ class DeviceMgrImp {
   }
 
   Status pipeline_config_get(p4::ForwardingPipelineConfig *config) {
-    config->set_device_id(device_id);
     config->mutable_p4info()->CopyFrom(p4info_proto);
     // TODO(antonin): we do not set the p4_device_config bytes field, as we do
     // not have a local copy of it; if it is needed by the controller, we will

@@ -249,10 +249,10 @@ SimpleRouterMgr::assign(const std::string &config_buffer,
   }
 
   p4::SetForwardingPipelineConfigRequest request;
+  request.set_device_id(dev_id);
   request.set_action(
       p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT);
-  auto config = request.add_configs();
-  config->set_device_id(dev_id);
+  auto config = request.mutable_config();
   config->set_allocated_p4info(&p4info_proto);
   p4::tmp::P4DeviceConfig device_config;
   auto extras = device_config.mutable_extras();
@@ -705,10 +705,10 @@ SimpleRouterMgr::update_config_(const std::string &config_buffer,
 
   {
     p4::SetForwardingPipelineConfigRequest request;
+    request.set_device_id(dev_id);
     request.set_action(
         p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_SAVE);
-    auto config = request.add_configs();
-    config->set_device_id(dev_id);
+    auto config = request.mutable_config();
     config->set_allocated_p4info(&p4info_proto);
     p4::tmp::P4DeviceConfig device_config;
     device_config.set_device_data(config_buffer);
@@ -728,14 +728,12 @@ SimpleRouterMgr::update_config_(const std::string &config_buffer,
 
   {
     p4::SetForwardingPipelineConfigRequest request;
+    request.set_device_id(dev_id);
     request.set_action(p4::SetForwardingPipelineConfigRequest_Action_COMMIT);
-    auto config = request.add_configs();
-    config->set_device_id(dev_id);
     p4::SetForwardingPipelineConfigResponse rep;
     ClientContext context;
     auto status = pi_stub_->SetForwardingPipelineConfig(
         &context, request, &rep);
-    config->release_p4info();
     assert(status.ok());
   }
 
