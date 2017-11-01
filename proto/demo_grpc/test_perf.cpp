@@ -100,9 +100,10 @@ class P4RuntimeClient {
 
   int assign_device(int device_id, const pi_p4info_t *p4info) {
     p4::SetForwardingPipelineConfigRequest request;
+    request.set_device_id(device_id);
     request.set_action(
         p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT);
-    auto config = request.add_configs();
+    auto config = request.mutable_config();
     auto p4info_proto = pi::p4info::p4info_serialize_to_proto(p4info);
     config->set_allocated_p4info(&p4info_proto);
     p4::SetForwardingPipelineConfigResponse rep;

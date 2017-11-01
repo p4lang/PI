@@ -426,24 +426,22 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
       p4::SetForwardingPipelineConfigResponse *rep) override {
     SIMPLELOG << "P4Runtime SetForwardingPipelineConfig\n";
     (void) rep;
-    for (const auto &config : request->configs()) {
-      auto device = Devices::get(config.device_id());
-      // TODO(antonin): if there are no connections, we accept all requests with
-      // no election_id. This is very convenient for debugging, testing and
-      // using grpc_cli, but may need to be changed in production.
-      auto num_connections = device->connections_size();
-      if (num_connections == 0 && request->has_election_id())
-        return not_master_status();
-      auto election_id = convert_u128(request->election_id());
-      if (num_connections > 0 && !device->is_master(election_id))
-        return not_master_status();
-      auto device_mgr = device->get_or_add_p4_mgr();
-      auto status = device_mgr->pipeline_config_set(request->action(), config);
-      device_mgr->packet_in_register_cb(packet_in_cb, NULL);
-      // TODO(antonin): multi-device support
-      return to_grpc_status(status);
-    }
-    return Status::OK;
+    auto device = Devices::get(request->device_id());
+    // TODO(antonin): if there are no connections, we accept all requests with
+    // no election_id. This is very convenient for debugging, testing and
+    // using grpc_cli, but may need to be changed in production.
+    auto num_connections = device->connections_size();
+    if (num_connections == 0 && request->has_election_id())
+      return not_master_status();
+    auto election_id = convert_u128(request->election_id());
+    if (num_connections > 0 && !device->is_master(election_id))
+      return not_master_status();
+    auto device_mgr = device->get_or_add_p4_mgr();
+    auto status = device_mgr->pipeline_config_set(
+        request->action(), request->config());
+    device_mgr->packet_in_register_cb(packet_in_cb, NULL);
+    // TODO(antonin): multi-device support
+    return to_grpc_status(status);
   }
 
   Status GetForwardingPipelineConfig(
@@ -451,14 +449,10 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
       const p4::GetForwardingPipelineConfigRequest *request,
       p4::GetForwardingPipelineConfigResponse *rep) override {
     SIMPLELOG << "P4Runtime GetForwardingPipelineConfig\n";
-    for (const auto device_id : request->device_ids()) {
-      auto device_mgr = Devices::get(device_id)->get_p4_mgr();
-      if (device_mgr == nullptr) return no_pipeline_config_status();
-      auto status = device_mgr->pipeline_config_get(rep->add_configs());
-      // TODO(antonin): multi-device support
-      return to_grpc_status(status);
-    }
-    return Status::OK;
+    auto device_mgr = Devices::get(request->device_id())->get_p4_mgr();
+    if (device_mgr == nullptr) return no_pipeline_config_status();
+    auto status = device_mgr->pipeline_config_get(rep->mutable_config());
+    return to_grpc_status(status);
   }
 
   Status StreamChannel(ServerContext *context,

@@ -104,7 +104,7 @@ TEST_F(TestNoForwardingPipeline, Read) {
 
 TEST_F(TestNoForwardingPipeline, GetForwardingPipelineConfig) {
   p4::GetForwardingPipelineConfigRequest request;
-  request.add_device_ids(device_id);
+  request.set_device_id(device_id);
   ClientContext context;
   p4::GetForwardingPipelineConfigResponse rep;
   auto status = p4runtime_stub->GetForwardingPipelineConfig(
