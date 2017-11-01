@@ -229,19 +229,13 @@ message ActionProfileMember {
 message ActionProfileGroup {
   uint32 action_profile_id = 1;
   uint32 group_id = 2;
-  enum Type {
-    UNSPECIFIED = 0;
-    SELECT = 1;
-    FAST_FAILOVER = 2;
-  }
-  Type type = 3;
   message Member {
     uint32 member_id = 1;
     int32 weight = 2;
     uint32 watch = 3;
   }
-  repeated Member members = 4;
-  int32 max_size = 5;  // cannot be modified after a group has been created
+  repeated Member members = 3;
+  int32 max_size = 4;  // cannot be modified after a group has been created
 }
 
 //------------------------------------------------------------------------------
