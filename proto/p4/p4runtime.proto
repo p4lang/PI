@@ -393,25 +393,39 @@ message SetForwardingPipelineConfigRequest {
     VERIFY_AND_COMMIT = 3;
     COMMIT = 4;
   }
-  Uint128 election_id = 1;
-  repeated ForwardingPipelineConfig configs = 2;
+  uint64 device_id = 1;
+  Uint128 election_id = 2;
   Action action = 3;
+  ForwardingPipelineConfig config = 4;
+
+  // TODO(wmohsin): Remove when clients have migrated to 'device_id' and
+  // 'config' above.
+  repeated ForwardingPipelineConfig configs = 2 [deprecated = true];
 }
 
 message SetForwardingPipelineConfigResponse {
 }
 
 message ForwardingPipelineConfig {
-  uint64 device_id = 1;
-  config.P4Info p4info = 2;
+  config.P4Info p4info = 1;
   // Target-specific P4 configuration.
-  bytes p4_device_config = 3;
+  bytes p4_device_config = 2;
+
+  // TODO(wmohsin): Remove when clients have migrated to specifying 'device_id'
+  // in SetForwardingPipelineConfigRequest.
+  uint64 device_id = 3 [deprecated = true];
 }
 
 message GetForwardingPipelineConfigRequest {
-  repeated uint64 device_ids = 1;
+  uint64 device_id = 1;
+
+  // TODO(wmohsin): Remove when clients have migrated to 'device_id' above
+  repeated uint64 device_ids = 2 [deprecated = true];
 }
 
 message GetForwardingPipelineConfigResponse {
-  repeated ForwardingPipelineConfig configs = 1;
+  ForwardingPipelineConfig config = 1;
+
+  // TODO(wmohsin): Remove when clients have migrated to 'config' above
+  repeated ForwardingPipelineConfig configs = 2 [deprecated = true];
 }
