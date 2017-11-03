@@ -9,6 +9,10 @@ language: generic
 services:
   - docker
 
+branches:
+  only:
+  - master
+
 matrix:
   include:
     - env: CXX=g++ CC=gcc
