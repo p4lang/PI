@@ -1,0 +1,4 @@
+*.proto.txt
+*.bin
+*.log
+*.pcap
