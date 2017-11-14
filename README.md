@@ -11,6 +11,9 @@ See [examples](examples/) for how to use the PI.
 
 - libjudy-dev
 - libreadline-dev
+
+## CI Tests Dependencies
+
 - libtool-bin
 - valgrind
 
