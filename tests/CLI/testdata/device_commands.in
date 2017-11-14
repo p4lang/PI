@@ -1,3 +1,3 @@
 show_devices
-remove_device 0
+remove_device 8589934592
 show_devices

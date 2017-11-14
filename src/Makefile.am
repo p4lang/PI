@@ -39,7 +39,9 @@ pi_act_prof.c \
 pi_counter.c \
 pi_meter.c \
 pi_learn.c \
-pi_value.c
+pi_value.c \
+device_map.c \
+device_map.h
 
 if WITH_INTERNAL_RPC
 libpi_la_SOURCES += \

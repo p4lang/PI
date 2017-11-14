@@ -26,25 +26,24 @@
 #include <thrift/transport/TTransportUtils.h>
 
 #include <iostream>
+#include <memory>
+#include <unordered_map>
 
 namespace pibmv2 {
-
-#define NUM_DEVICES 256
 
 using namespace ::apache::thrift;  // NOLINT(build/namespaces)
 using namespace ::apache::thrift::protocol;  // NOLINT(build/namespaces)
 using namespace ::apache::thrift::transport;  // NOLINT(build/namespaces)
 
 struct ClientImp {
-  StandardClient *client{nullptr};
-  SimplePreLAGClient *mc_client{nullptr};
-  SimpleSwitchClient *sswitch_client{nullptr};
+  boost::shared_ptr<TTransport> transport{nullptr};
+  std::unique_ptr<StandardClient> client{nullptr};
+  std::unique_ptr<SimplePreLAGClient> mc_client{nullptr};
   std::mutex mutex{};
 };
 
 struct conn_mgr_t {
-  std::array<ClientImp, NUM_DEVICES> clients;
-  boost::shared_ptr<TTransport> transports[NUM_DEVICES];
+  std::unordered_map<dev_id_t, ClientImp> clients;
 };
 
 conn_mgr_t *conn_mgr_create() {
@@ -57,9 +56,10 @@ void conn_mgr_destroy(conn_mgr_t *conn_mgr_state) {
   delete conn_mgr_state;
 }
 
-int conn_mgr_client_init(conn_mgr_t *conn_mgr_state, int dev_id,
+int conn_mgr_client_init(conn_mgr_t *conn_mgr_state, dev_id_t dev_id,
                          int thrift_port_num) {
-  assert(!conn_mgr_state->clients[dev_id].client);
+  assert(conn_mgr_state->clients.find(dev_id) == conn_mgr_state->clients.end());
+  auto &client = conn_mgr_state->clients[dev_id];  // construct
 
   boost::shared_ptr<TTransport> socket(
       new TSocket("localhost", thrift_port_num));
@@ -70,8 +70,6 @@ int conn_mgr_client_init(conn_mgr_t *conn_mgr_state, int dev_id,
       new TMultiplexedProtocol(protocol, "standard"));
   boost::shared_ptr<TMultiplexedProtocol> mc_protocol(
       new TMultiplexedProtocol(protocol, "simple_pre_lag"));
-  boost::shared_ptr<TMultiplexedProtocol> sswitch_protocol(
-      new TMultiplexedProtocol(protocol, "simple_switch"));
 
   try {
     transport->open();
@@ -83,35 +81,32 @@ int conn_mgr_client_init(conn_mgr_t *conn_mgr_state, int dev_id,
     return 1;
   }
 
-  conn_mgr_state->transports[dev_id] = transport;
-  conn_mgr_state->clients[dev_id].client =
-      new StandardClient(standard_protocol);
-  conn_mgr_state->clients[dev_id].mc_client =
-      new SimplePreLAGClient(mc_protocol);
+  client.transport = transport;
+  client.client = std::unique_ptr<StandardClient>(
+      new StandardClient(standard_protocol));
+  client.mc_client = std::unique_ptr<SimplePreLAGClient>(
+      new SimplePreLAGClient(mc_protocol));
 
   return 0;
 }
 
-int conn_mgr_client_close(conn_mgr_t *conn_mgr_state, int dev_id) {
-  assert(conn_mgr_state->clients[dev_id].client);
-  conn_mgr_state->transports[dev_id]->close();
-  delete conn_mgr_state->clients[dev_id].client;
-  delete conn_mgr_state->clients[dev_id].mc_client;
-  delete conn_mgr_state->clients[dev_id].sswitch_client;
-  conn_mgr_state->clients[dev_id].client = NULL;
-  conn_mgr_state->clients[dev_id].mc_client = NULL;
-  conn_mgr_state->clients[dev_id].sswitch_client = NULL;
+int conn_mgr_client_close(conn_mgr_t *conn_mgr_state, dev_id_t dev_id) {
+  auto it = conn_mgr_state->clients.find(dev_id);
+  assert(it != conn_mgr_state->clients.end());
+  auto &client = it->second;
+  client.transport->close();
+  conn_mgr_state->clients.erase(it);
   return 0;
 }
 
-Client conn_mgr_client(conn_mgr_t *conn_mgr_state, int dev_id) {
+Client conn_mgr_client(conn_mgr_t *conn_mgr_state, dev_id_t dev_id) {
   auto &state = conn_mgr_state->clients[dev_id];
-  return {state.client, std::unique_lock<std::mutex>(state.mutex)};
+  return {state.client.get(), std::unique_lock<std::mutex>(state.mutex)};
 }
 
-McClient conn_mgr_mc_client(conn_mgr_t *conn_mgr_state, int dev_id) {
+McClient conn_mgr_mc_client(conn_mgr_t *conn_mgr_state, dev_id_t dev_id) {
   auto &state = conn_mgr_state->clients[dev_id];
-  return {state.mc_client, std::unique_lock<std::mutex>(state.mutex)};
+  return {state.mc_client.get(), std::unique_lock<std::mutex>(state.mutex)};
 }
 
 

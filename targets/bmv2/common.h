@@ -30,15 +30,27 @@
 
 namespace pibmv2 {
 
-typedef struct {
-  int assigned;
-  const pi_p4info_t *p4info;
-} device_info_t;
+using dev_id_t = uint64_t;
 
-extern device_info_t device_info_state[];
+struct device_info_t {
+  int assigned{0};
+  const pi_p4info_t *p4info{NULL};
+};
 
-static inline device_info_t *get_device_info(size_t dev_id) {
-  return &device_info_state[dev_id];
+class DeviceInfo {
+ public:
+  device_info_t *get_device_info(dev_id_t dev_id) {
+    return &devices[dev_id];
+  }
+
+ private:
+  std::unordered_map<dev_id_t, device_info_t> devices;
+};
+
+extern DeviceInfo *device_info_state;
+
+static inline device_info_t *get_device_info(dev_id_t dev_id) {
+  return device_info_state->get_device_info(dev_id);
 }
 
 struct IndirectHMgr {

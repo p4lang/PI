@@ -43,6 +43,7 @@ typedef struct {
   char *notifications_addr;
 } pi_remote_addr_t;
 
+// TODO(antonin): remove max_devices as it is not needed any more
 //! Init function for PI
 pi_status_t pi_init(size_t max_devices, pi_remote_addr_t *remote_addr);
 
@@ -74,6 +75,10 @@ pi_status_t pi_update_device_end(pi_dev_id_t dev_id);
 
 //! Check if a device was assigned.
 bool pi_is_device_assigned(pi_dev_id_t dev_id);
+
+size_t pi_num_devices();
+
+void pi_get_device_ids(pi_dev_id_t *dev_ids);
 
 //! Remove a device.
 pi_status_t pi_remove_device(pi_dev_id_t dev_id);

@@ -25,6 +25,7 @@
 
 #include "PI/pi.h"
 
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -84,7 +85,7 @@ pi_cli_status_t do_assign_device(char *subcmd) {
   if (parse_fixed_args(subcmd, args, num_args) < num_args)
     return PI_CLI_STATUS_TOO_FEW_ARGS;
   char *endptr;
-  uint16_t device_id = strtol(args[0], &endptr, 0);
+  uint64_t device_id = strtoll(args[0], &endptr, 0);
   if (*endptr != '\0') return PI_CLI_STATUS_INVALID_DEVICE_ID;
   int p4_config_id = strtol(args[1], &endptr, 0);
   if (*endptr != '\0') return PI_CLI_STATUS_INVALID_P4_CONFIG_ID;
@@ -131,14 +132,14 @@ pi_cli_status_t do_assign_device(char *subcmd) {
 
   if (device_data) {
     size_t device_data_size = strlen(device_data);
-    rc = pi_update_device_start(dev_tgt.dev_id, p4info, device_data,
+    rc = pi_update_device_start(device_id, p4info, device_data,
                                 device_data_size);
     free(device_data);
     if (rc != PI_STATUS_SUCCESS) {
       printf("Failed to update device config\n");
       return PI_CLI_STATUS_TARGET_ERROR;
     }
-    rc = pi_update_device_end(dev_tgt.dev_id);
+    rc = pi_update_device_end(device_id);
     if (rc != PI_STATUS_SUCCESS) {
       printf("Failed to update device config\n");
       return PI_CLI_STATUS_TARGET_ERROR;
@@ -169,7 +170,7 @@ pi_cli_status_t do_select_device(char *subcmd) {
   if (parse_fixed_args(subcmd, args, num_args) < num_args)
     return PI_CLI_STATUS_TOO_FEW_ARGS;
   char *endptr;
-  uint16_t device_id = strtol(args[0], &endptr, 0);
+  uint64_t device_id = strtoll(args[0], &endptr, 0);
   if (*endptr != '\0') return PI_CLI_STATUS_INVALID_DEVICE_ID;
 
   if (is_device_selected && dev_tgt.dev_id == device_id) {
@@ -257,16 +258,19 @@ pi_cli_status_t do_show_devices(char *subcmd) {
 
   // TODO(antonin): improve loop and get more information
   printf("Showing devices:\n");
-  for (pi_dev_id_t i = 0; i < 256; i++) {
-    const pi_p4info_t *p4info = pi_get_device_p4info(i);
+  size_t num_devices = pi_num_devices();
+  pi_dev_id_t *dev_ids = malloc(num_devices * sizeof(pi_dev_id_t));
+  pi_get_device_ids(dev_ids);
+  for (size_t idx = 0; idx < num_devices; idx++) {
+    const pi_p4info_t *p4info = pi_get_device_p4info(dev_ids[idx]);
     if (!p4info) continue;
-    printf("%d", i);
-    if (is_device_selected && dev_tgt.dev_id == i)
+    printf("%" PRIu64, dev_ids[idx]);
+    if (is_device_selected && dev_tgt.dev_id == dev_ids[idx])
       printf(" (selected)\n");
     else
       printf("\n");
   }
-
+  free(dev_ids);
   return PI_CLI_STATUS_SUCCESS;
 }
 
@@ -282,7 +286,7 @@ pi_cli_status_t do_remove_device(char *subcmd) {
   if (parse_fixed_args(subcmd, args, num_args) < num_args)
     return PI_CLI_STATUS_TOO_FEW_ARGS;
   char *endptr;
-  uint16_t device_id = strtol(args[0], &endptr, 0);
+  uint64_t device_id = strtoll(args[0], &endptr, 0);
   if (*endptr != '\0') return PI_CLI_STATUS_INVALID_DEVICE_ID;
 
   pi_status_t rc = pi_remove_device(device_id);

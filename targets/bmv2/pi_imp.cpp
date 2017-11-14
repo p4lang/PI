@@ -30,13 +30,9 @@
 #include "conn_mgr.h"
 #include "cpu_send_recv.h"
 
-#define NUM_DEVICES 256
-
 namespace pibmv2 {
 
-conn_mgr_t *conn_mgr_state = NULL;
-
-device_info_t device_info_state[NUM_DEVICES];
+conn_mgr_t *conn_mgr_state = nullptr;
 
 extern void start_learn_listener(const std::string &addr, int rpc_port_num);
 extern void stop_learn_listener();
@@ -53,7 +49,7 @@ extern "C" {
 
 pi_status_t _pi_init(void *extra) {
   (void) extra;
-  memset(pibmv2::device_info_state, 0, sizeof(pibmv2::device_info_state));
+  pibmv2::device_info_state = new pibmv2::DeviceInfo();
   pibmv2::conn_mgr_state = pibmv2::conn_mgr_create();
   cpu_send_recv = new pibmv2::CpuSendRecv();
   cpu_send_recv->start();

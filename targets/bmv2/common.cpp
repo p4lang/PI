@@ -24,6 +24,6 @@
 
 namespace pibmv2 {
 
-
+DeviceInfo *device_info_state = nullptr;
 
 }  // namespace pibmv2

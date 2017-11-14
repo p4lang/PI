@@ -40,7 +40,7 @@ size_t emit_uint64(char *dst, uint64_t v);
 typedef pi_p4_id_t s_pi_p4_id_t;
 typedef pi_entry_handle_t s_pi_entry_handle_t;
 typedef pi_indirect_handle_t s_pi_indirect_handle_t;
-typedef uint32_t s_pi_dev_id_t;
+typedef uint64_t s_pi_dev_id_t;
 typedef struct __attribute__((packed)) {
   s_pi_dev_id_t _dev_id;
   uint32_t _dev_pipe_mask;

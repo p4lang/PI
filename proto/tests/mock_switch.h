@@ -131,8 +131,8 @@ class DeviceResolver {
   static device_id_t new_switch() {
     auto r = DeviceResolver::get_instance();
     std::lock_guard<std::mutex> lock(r->m);
-    assert(r->map.size() < 256);
-    for (device_id_t id = 0; id < 256; id++) {
+    assert(r->map.size() <= (device_range_end - device_range_start));
+    for (device_id_t id = device_range_start; id < device_range_end; id++) {
       if (!r->map.count(id)) {
         r->map.emplace(
             id, std::unique_ptr<DummySwitchMock>(new DummySwitchMock(id)));
@@ -160,6 +160,10 @@ class DeviceResolver {
     static DeviceResolver resolver;
     return &resolver;
   }
+
+  // test 64-bit device id support
+  static constexpr device_id_t device_range_start = 1ULL << 30;
+  static constexpr device_id_t device_range_end = device_range_start + 256;
 
   mutable std::mutex m{};
   std::map<device_id_t, std::unique_ptr<DummySwitchMock> > map{};
