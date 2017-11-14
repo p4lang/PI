@@ -43,10 +43,7 @@ size_t emit_indirect_handle(char *dst, pi_indirect_handle_t v) {
   return emit_uint64(dst, v);
 }
 
-size_t emit_dev_id(char *dst, pi_dev_id_t v) {
-  // TODO(antonin): change to uint16?
-  return emit_uint32(dst, v);
-}
+size_t emit_dev_id(char *dst, pi_dev_id_t v) { return emit_uint64(dst, v); }
 
 size_t emit_dev_tgt(char *dst, pi_dev_tgt_t v) {
   size_t s = 0;
@@ -115,10 +112,7 @@ size_t retrieve_indirect_handle(const char *src, pi_indirect_handle_t *v) {
 }
 
 size_t retrieve_dev_id(const char *src, pi_dev_id_t *v) {
-  uint32_t tmp32;
-  size_t s = retrieve_uint32(src, &tmp32);
-  *v = tmp32;
-  return s;
+  return retrieve_uint64(src, v);
 }
 
 size_t retrieve_dev_tgt(const char *src, pi_dev_tgt_t *v) {

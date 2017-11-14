@@ -101,8 +101,10 @@ typedef enum {
 typedef uint32_t pi_p4_id_t;
 
 //! Device identifier.
-typedef uint16_t pi_dev_id_t;
+typedef uint64_t pi_dev_id_t;
 
+// TODO(antonin): pi_dev_tgt is passed by-value in PI functions. pi_dev_id_t
+// used to be 16-bit. Is pass by-value still ok now that pi_dev_id_t is 64-bit?
 //! Identifies a device plus a pipe (or set of pipes?) within device.
 typedef struct {
   pi_dev_id_t dev_id;

@@ -34,11 +34,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+// TODO(antonin): devices that don't exist at server?
 static void process_state_sync(const char *rep) {
   uint32_t num;
   rep += retrieve_uint32(rep, &num);
-  size_t num_devices;
-  pi_device_info_t *devices = pi_get_devices(&num_devices);
   for (size_t i = 0; i < num; i++) {
     pi_dev_id_t dev_id;
     uint32_t version;
@@ -47,13 +46,17 @@ static void process_state_sync(const char *rep) {
     rep += retrieve_uint32(rep, &version);
     /* rep += retrieve_uint32(rep, &p4info_size); */
 
-    assert(dev_id <= num_devices);
-
-    assert(devices[dev_id].version < version);
-    devices[dev_id].version = version;
+    pi_device_info_t *info = pi_get_device_info(dev_id);
+    if (info == NULL) {
+      pi_create_device_config(dev_id);
+      info = pi_get_device_info(dev_id);
+    }
+    assert(info != NULL);
+    assert(info->version < version);
+    info->version = version;
     pi_p4info_t *p4info;
     pi_add_config(rep, PI_CONFIG_TYPE_NATIVE_JSON, &p4info);
-    devices[dev_id].p4info = p4info;
+    info->p4info = p4info;
   }
 }
 

@@ -119,16 +119,17 @@ struct pi_act_prof_fetch_res_s {
 };
 
 typedef struct {
+  pi_dev_id_t dev_id;
   int backend_id;
   size_t version;
   const pi_p4info_t *p4info;
 } pi_device_info_t;
 
-pi_device_info_t *pi_get_device_info(uint16_t dev_id);
+pi_device_info_t *pi_get_device_info(pi_dev_id_t dev_id);
 pi_device_info_t *pi_get_devices(size_t *num_devices);
 
 void pi_update_device_config(pi_dev_id_t dev_id, const pi_p4info_t *p4info);
-void pi_reset_device_config(pi_dev_id_t dev_id);
+void pi_create_device_config(pi_dev_id_t dev_id);
 
 #ifdef __cplusplus
 }

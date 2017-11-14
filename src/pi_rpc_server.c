@@ -75,10 +75,6 @@ static void send_status(pi_status_t status) {
   assert((size_t)bytes == s);
 }
 
-static size_t get_device_version(pi_dev_id_t dev_id) {
-  return pi_get_device_info(dev_id)->version;
-}
-
 // all of this is a little complicated, maybe multiple calls to malloc would be
 // just as efficient...
 
@@ -161,34 +157,29 @@ static void __pi_init(char *req) {
   p4info_tmp_t *p4info_tmp = NULL;
 
   size_t s = sizeof(rep_hdr_t);
-  s += sizeof(uint32_t);  // num assigned devices
+  s += sizeof(uint32_t);  // num devices
 
   if (num_devices > 0) {
     p4info_tmp = calloc(num_devices, sizeof(*p4info_tmp));
   }
 
-  size_t num_assigned_devices = 0;
-
-  for (pi_dev_id_t dev_id = 0; dev_id < num_devices; dev_id++) {
-    if (devices[dev_id].version == 0) continue;
-    num_assigned_devices++;
+  for (size_t idx = 0; idx < num_devices; idx++) {
     s += sizeof(s_pi_dev_id_t);
     s += sizeof(uint32_t);  // version
-    p4info_tmp[dev_id].json = pi_serialize_config(devices[dev_id].p4info, 0);
-    p4info_tmp[dev_id].size = strlen(p4info_tmp[dev_id].json) + 1;
-    s += p4info_tmp[dev_id].size;
+    p4info_tmp[idx].json = pi_serialize_config(devices[idx].p4info, 0);
+    p4info_tmp[idx].size = strlen(p4info_tmp[idx].json) + 1;
+    s += p4info_tmp[idx].size;
   }
 
   char *rep = nn_allocmsg(s, 0);
   char *rep_ = rep;
   rep_ += emit_rep_hdr(rep_, status);
-  rep_ += emit_uint32(rep_, num_assigned_devices);
-  for (pi_dev_id_t dev_id = 0; dev_id < num_devices; dev_id++) {
-    if (devices[dev_id].version == 0) continue;
-    rep_ += emit_dev_id(rep_, dev_id);
-    rep_ += emit_uint32(rep_, devices[dev_id].version);
-    memcpy(rep_, p4info_tmp[dev_id].json, p4info_tmp[dev_id].size);
-    rep_ += p4info_tmp[dev_id].size;
+  rep_ += emit_uint32(rep_, num_devices);
+  for (size_t idx = 0; idx < num_devices; idx++) {
+    rep_ += emit_dev_id(rep_, devices[idx].dev_id);
+    rep_ += emit_uint32(rep_, devices[idx].version);
+    memcpy(rep_, p4info_tmp[idx].json, p4info_tmp[idx].size);
+    rep_ += p4info_tmp[idx].size;
   }
 
   if (num_devices > 0) {
@@ -210,7 +201,7 @@ static void __pi_assign_device(char *req) {
   pi_dev_id_t dev_id;
   req += retrieve_dev_id(req, &dev_id);
 
-  if (get_device_version(dev_id) > 0) {
+  if (pi_is_device_assigned(dev_id)) {
     send_status(PI_STATUS_DEV_ALREADY_ASSIGNED);
     return;
   }
@@ -242,10 +233,8 @@ static void __pi_assign_device(char *req) {
   }
   extras[num_extras].end_of_extras = 1;
 
-  status = _pi_assign_device(dev_id, p4info, extras);
+  status = pi_assign_device(dev_id, p4info, extras);
   free(extras);
-
-  if (status == PI_STATUS_SUCCESS) pi_update_device_config(dev_id, p4info);
 
   send_status(status);
 }
@@ -257,7 +246,7 @@ static void __pi_update_device_start(char *req) {
   pi_dev_id_t dev_id;
   req += retrieve_dev_id(req, &dev_id);
 
-  if (get_device_version(dev_id) == 0) {
+  if (!pi_is_device_assigned(dev_id)) {
     send_status(PI_STATUS_DEV_NOT_ASSIGNED);
     return;
   }
@@ -299,15 +288,12 @@ static void __pi_remove_device(char *req) {
   pi_dev_id_t dev_id;
   retrieve_dev_id(req, &dev_id);
 
-  if (get_device_version(dev_id) == 0) {
+  if (!pi_is_device_assigned(dev_id)) {
     send_status(PI_STATUS_DEV_NOT_ASSIGNED);
     return;
   }
 
-  pi_status_t status = _pi_remove_device(dev_id);
-
-  if (status == PI_STATUS_SUCCESS) pi_reset_device_config(dev_id);
-
+  pi_status_t status = pi_remove_device(dev_id);
   send_status(status);
 }
 
