@@ -26,7 +26,7 @@ To include `p4runtime.proto` in the build, please run `configure` with
 ./autogen.sh
 ./configure [--with-proto] [--with-bmv2]
 make
-sudo make check
+make check
 sudo make install
 ```
 
