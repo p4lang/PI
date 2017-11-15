@@ -12,10 +12,23 @@ See [examples](examples/) for how to use the PI.
 - libjudy-dev
 - libreadline-dev
 
+## CI Tests Dependencies
+
+- libtool-bin
+- valgrind
+
 ## Building p4runtime.proto
 
 To include `p4runtime.proto` in the build, please run `configure` with
 `--with-proto`.
+
+```
+./autogen.sh
+./configure [--with-proto] [--with-bmv2]
+make
+make check
+sudo make install
+```
 
 ## PI CLI
 
