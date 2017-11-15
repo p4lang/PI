@@ -72,6 +72,8 @@ class MatchKey {
   // (i.e. same match key format)
   void from(const pi_match_key_t *pi_match_key);
 
+  pi_p4_id_t get_table_id() const;
+
   void set_priority(int priority);
 
   int get_priority() const;
@@ -170,6 +172,8 @@ class ActionData {
 
   void reset();
 
+  pi_p4_id_t get_action_id() const;
+
   template <typename T>
   typename std::enable_if<std::is_integral<T>::value, error_code_t>::type
   set_arg(pi_p4_id_t ap_id, T arg);
@@ -248,6 +252,10 @@ class ActionEntry {
   pi_indirect_handle_t indirect_handle() const {
     assert(tag == Tag::INDIRECT_HANDLE);
     return _indirect_handle;
+  }
+
+  bool is_initialized() {
+      return (tag != Tag::NONE);
   }
 
  private:

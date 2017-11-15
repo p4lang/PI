@@ -204,6 +204,11 @@ MatchKey::from(const pi_match_key_t *pi_match_key) {
   memcpy(match_key->data, pi_match_key->data, mk_size);
 }
 
+pi_p4_id_t
+MatchKey::get_table_id() const {
+    return table_id;
+}
+
 void
 MatchKey::set_priority(int priority) {
   match_key->priority = priority;
@@ -499,6 +504,10 @@ ActionData::~ActionData() { }
 void
 ActionData::reset() {
   nset = 0;
+}
+
+pi_p4_id_t ActionData::get_action_id() const {
+    return action_id;
 }
 
 template <typename T>
