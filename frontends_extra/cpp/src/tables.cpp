@@ -506,7 +506,7 @@ ActionData::reset() {
   nset = 0;
 }
 
-pi_p4_id_t ActionData::get_action_id() const{
+pi_p4_id_t ActionData::get_action_id() const {
     return action_id;
 }
 

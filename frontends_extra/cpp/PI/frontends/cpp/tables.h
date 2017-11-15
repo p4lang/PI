@@ -254,7 +254,7 @@ class ActionEntry {
     return _indirect_handle;
   }
 
-  bool is_initialized(){
+  bool is_initialized() {
       return (tag != Tag::NONE);
   }
 
