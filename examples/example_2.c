@@ -79,6 +79,7 @@ int main() {
                           "simple_router.json",
                           PI_CONFIG_TYPE_BMV2_JSON, &p4info);
 
+  pi_assign_device(dev_tgt.dev_id, p4info, NULL);
   pi_session_init(&sess);
 
   pi_match_key_allocate(p4info, PI_ROUTER_TABLE_IPV4_LPM, &mkey_ipv4_lpm);
@@ -92,6 +93,8 @@ int main() {
 
   pi_match_key_destroy(mkey_ipv4_lpm);
   pi_action_data_destroy(adata_set_nhop);
-  pi_destroy_config(p4info);
+
   pi_session_cleanup(sess);
+  pi_remove_device(dev_tgt.dev_id);
+  pi_destroy_config(p4info);
 }
