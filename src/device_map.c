@@ -24,9 +24,17 @@
 
 #include <Judy.h>
 
+// Judy JL map uses Word_t for keys. On 32-bit systems, Word_t is a 32-bit word,
+// which means device ids in the high 64-bit range would not be supported.
+// TODO(antonin): change implementation to support arbitary 64-bit device ids
+// even on 32-bit systems.
+#define CHECK_DEV_ID_RANGE(dev_id) \
+  assert((sizeof(pi_dev_id_t) <= sizeof(Word_t)) || (dev_id <= (~(Word_t)1)));
+
 void device_map_create(device_map_t *map) { map->_map = NULL; }
 
 bool device_map_add(device_map_t *map, pi_dev_id_t dev_id, void *e) {
+  CHECK_DEV_ID_RANGE(dev_id);
   Pvoid_t *jmap = (Pvoid_t *)&map->_map;
   PWord_t ePtr;
   Word_t id = (Word_t)dev_id;
@@ -40,6 +48,7 @@ bool device_map_add(device_map_t *map, pi_dev_id_t dev_id, void *e) {
 }
 
 bool device_map_remove(device_map_t *map, pi_dev_id_t dev_id) {
+  CHECK_DEV_ID_RANGE(dev_id);
   Pvoid_t *jmap = (Pvoid_t *)&map->_map;
   int rc;
   Word_t id = (Word_t)dev_id;
@@ -48,6 +57,7 @@ bool device_map_remove(device_map_t *map, pi_dev_id_t dev_id) {
 }
 
 bool device_map_exists(device_map_t *map, pi_dev_id_t dev_id) {
+  CHECK_DEV_ID_RANGE(dev_id);
   Pvoid_t *jmap = (Pvoid_t *)&map->_map;
   PWord_t ePtr;
   Word_t id = (Word_t)dev_id;
@@ -56,6 +66,7 @@ bool device_map_exists(device_map_t *map, pi_dev_id_t dev_id) {
 }
 
 void *device_map_get(device_map_t *map, pi_dev_id_t dev_id) {
+  CHECK_DEV_ID_RANGE(dev_id);
   Pvoid_t *jmap = (Pvoid_t *)&map->_map;
   PWord_t ePtr;
   Word_t id = (Word_t)dev_id;
