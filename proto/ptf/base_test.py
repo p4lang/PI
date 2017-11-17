@@ -19,6 +19,7 @@
 #
 
 from functools import wraps
+import re
 import sys
 import threading
 import time
@@ -44,6 +45,51 @@ def stringify(n, length):
     h = '%x' % n
     s = ('0'*(len(h) % 2) + h).zfill(length*2).decode('hex')
     return s
+
+# Strongly inspired from _AssertRaisesContext in Python's unittest module
+class _AssertP4RuntimeErrorContext(object):
+    """A context manager used to implement the assertP4RuntimeError method."""
+
+    def __init__(self, test_case, error_code=None, msg_regexp=None):
+        self.failureException = test_case.failureException
+        self.error_code = error_code
+        self.msg_regexp = msg_regexp
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, tb):
+        if exc_type is None:
+            try:
+                exc_name = self.expected.__name__
+            except AttributeError:
+                exc_name = str(self.expected)
+            raise self.failureException(
+                "{} not raised".format(exc_name))
+        if not issubclass(exc_type, grpc.RpcError):
+            # let unexpected exceptions pass through
+            return False
+        self.exception = exc_value  # store for later retrieval
+
+        if self.error_code is None:
+            return True
+
+        if exc_value.code() != self.error_code:
+            # not the expected error code
+            raise self.failureException(
+                "Invalid P4Runtime error code: expected {} but got {}".format(
+                    self.error_code.name, exc_value.code().name))
+
+        if self.msg_regexp is None:
+            return True
+
+        if not self.msg_regexp.search(exc_value.details()):
+            raise self.failureException(
+                "Invalid P4Runtime error msg: '{}' does not match '{}'".format(
+                self.msg_regexp.pattern, exc_value.details()))
+        return True
+
+StatusCode = grpc.StatusCode
 
 # This code is common to all tests. setUp() is invoked at the beginning of the
 # test and tearDown is called at the end, no matter whether the test passed /
@@ -404,6 +450,12 @@ class P4RuntimeTest(BaseTest):
             update.type = p4runtime_pb2.Update.DELETE
             new_req.updates.add().CopyFrom(update)
         rep = self.stub.Write(new_req)
+
+    def assertP4RuntimeError(self, code=None, msg_regexp=None):
+        if msg_regexp is not None:
+            msg_regexp = re.compile(msg_regexp)
+        context = _AssertP4RuntimeErrorContext(self, code, msg_regexp)
+        return context
 
 # this decorator can be used on the runTest method of P4Runtime PTF tests
 # when it is used, the undo_write_requests will be called at the end of the test
