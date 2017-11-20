@@ -399,9 +399,10 @@ message SetForwardingPipelineConfigRequest {
     // type. Returns an error if no saved config is found or if a config is
     // provided with this message.
     COMMIT = 4;
-    // Verify, save and implement the given config. Preserve the forwarding state
-    // in the target. Returns error if no config is provided, or if the existing
-    // forwarding state in the target cannot be realized with the given config.
+    // Verify, save and implement the given config. Preserve the forwarding
+    // state in the target. Returns error if no config is provided, or if the
+    // existing forwarding state in the target cannot be realized with the given
+    // config.
     RECONCILE_AND_COMMIT = 5;
   }
   uint64 device_id = 1;
