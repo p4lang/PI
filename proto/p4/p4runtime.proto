@@ -393,9 +393,11 @@ message SetForwardingPipelineConfigRequest {
     // Verify, save and implement the given config. Clear the forwarding state
     // in the target. Returns error if config is not provided.
     VERIFY_AND_COMMIT = 3;
-    // Verify, save and implement the given config, or the last saved config if
-    // the config is not provided. Update the forwarding state in the target by
-    // replaying the write requests since the last config was saved.
+    // Implement the last saved, but not yet committed, config. Update the
+    // forwarding state in the target by replaying the write requests since the
+    // last config was saved. Config should not be provided for this action
+    // type. Returns an error if no saved config is found or if a config is
+    // provided with this message.
     COMMIT = 4;
     // Verify, save and implement the given config. Preserve the forwarding state
     // in the target. Returns error if no config is provided, or if the existing
