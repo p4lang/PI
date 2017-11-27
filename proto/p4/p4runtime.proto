@@ -382,10 +382,30 @@ message Uint128 {
 message SetForwardingPipelineConfigRequest {
   enum Action {
     UNSPECIFIED = 0;
+    // Verify that the target can realize the given config. Do not modify the
+    // forwarding state in the target. Returns error if config is not provided
+    // of if the provided config cannot be realized.
     VERIFY = 1;
+    // Save the config if the target can realize it. Do not modify the
+    // forwarding state in the target. Any subsequent read/write requests must
+    // refer to fields in the new config. Returns error if config is not
+    // provided of if the provided config cannot be realized.
     VERIFY_AND_SAVE = 2;
+    // Verify, save and realize the given config. Clear the forwarding state
+    // in the target. Returns error if config is not provided of if the
+    // provided config cannot be realized.
     VERIFY_AND_COMMIT = 3;
+    // Realize the last saved, but not yet committed, config. Update the
+    // forwarding state in the target by replaying the write requests since the
+    // last config was saved. Config should not be provided for this action
+    // type. Returns an error if no saved config is found or if a config is
+    // provided with this message.
     COMMIT = 4;
+    // Verify, save and realize the given config. Preserve the forwarding
+    // state in the target. Returns error if no config is provided, or if the
+    // existing forwarding state in the target cannot be preserved for the
+    // given config.
+    RECONCILE_AND_COMMIT = 5;
   }
   uint64 device_id = 1;
   Uint128 election_id = 2;
