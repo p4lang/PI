@@ -22,7 +22,7 @@ namespace testing {
 namespace {
 
 static std::string grpc_server_addr = "0.0.0.0";
-static std::string grpc_server_port = "50051";
+static std::string grpc_server_port = "50054";
 
 void StartGrpcServer() {
   std::string bind_addr = grpc_server_addr+":"+grpc_server_port;
@@ -39,7 +39,7 @@ void SetGrpcServerPort(std::string port) {
 
 TEST(TestPIGrpcServer, DefaultPort) {
   StartGrpcServer();
-  EXPECT_EQ(PIGrpcServerGetPort(), 50051);
+  EXPECT_EQ(PIGrpcServerGetPort(), 50054);
   ShutdownGrpcServer();
 }
 
