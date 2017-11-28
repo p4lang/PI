@@ -80,7 +80,6 @@ class TestNoForwardingPipeline : public ::testing::Test {
 constexpr char TestNoForwardingPipeline::grpc_server_addr[];
 
 TEST_F(TestNoForwardingPipeline, Write) {
-  EXPECT_EQ(PIGrpcServerGetPort(), 50051);
   p4::WriteRequest request;
   request.set_device_id(device_id);
   ClientContext context;
