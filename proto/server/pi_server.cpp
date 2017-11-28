@@ -537,6 +537,7 @@ void packet_in_cb(DeviceMgr::device_id_t device_id, p4::PacketIn *packet,
 
 struct ServerData {
   std::string server_address;
+  int server_port;
   P4RuntimeServiceImpl pi_service;
   gNMIServiceImpl gnmi_service;
   ServerBuilder builder;
@@ -572,7 +573,8 @@ void PIGrpcServerRunAddr(const char *server_address) {
   server_data->server_address = std::string(server_address);
   auto &builder = server_data->builder;
   builder.AddListeningPort(
-    server_data->server_address, grpc::InsecureServerCredentials());
+    server_data->server_address, grpc::InsecureServerCredentials(),
+    &server_data->server_port);
   builder.RegisterService(&server_data->pi_service);
   builder.RegisterService(&server_data->gnmi_service);
   builder.SetMaxReceiveMessageSize(256*1024*1024);  // 256MB
@@ -583,6 +585,10 @@ void PIGrpcServerRunAddr(const char *server_address) {
 
 void PIGrpcServerRun() {
   PIGrpcServerRunAddr("0.0.0.0:50051");
+}
+
+int PIGrpcServerGetPort() {
+  return server_data->server_port;
 }
 
 void PIGrpcServerWait() {
