@@ -25,7 +25,7 @@ static std::string grpc_server_addr = "0.0.0.0";
 static std::string grpc_server_port = "50051";
 
 void StartGrpcServer() {
-  std::string bind_addr = grpc_server_addr+":"+grpc_server_port; 
+  std::string bind_addr = grpc_server_addr+":"+grpc_server_port;
   PIGrpcServerRunAddr(bind_addr.c_str());
 }
 
