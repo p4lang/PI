@@ -1,7 +1,7 @@
 # P4Runtime User Documentation
 
 **Contributors:**
-Yavuz Yetim, Antonin Bas, Waqar Mohsin, Tom Everman, Samar Abdi
+Yavuz Yetim, Antonin Bas, Waqar Mohsin, Tom Everman, Samar Abdi, Sunghwan Yoo
 
 **Date:**
 October 2nd, 2017
@@ -319,3 +319,125 @@ should take into account the top-level message and act as follows:
   switch only returns the counter state associated with the match given in
   `DirectCounterEntry.TableEntry.match`, and does not populate other fields
   within the `TableEntry` (such as `Action`).
+
+## Error reporting
+
+When the p4.Write() fails for some reason, P4 Runtime returns `grpc::Status` to
+report errors. `grpc::Status` has a top-level canonical `error_code` that
+represents a RPC-wide error, along with an `error_details` field which is a
+serialized `google.rpc.Status` that contains per-entity level errors.
+`google.rpc.Status` can have multiple `p4.Error` messages in the repeated
+`details` field, each repesents a per-entity error in the programming requests
+in the p4.Write() batch.
+
+`p4.Error` message has a gRPC canonical error space to report P4 Runtime error.
+Additionally, `p4.Error` also allows different vendors / chipmakers to express
+their own error code and a error space as well.
+
+![P4 Runtime Error Proto](p4-runtime-error-proto.svg)
+
+P4 Runtime will populate the top-level error code as follows:
+
+-   Use any canonical error code that best describes RPC-wide error. If the
+    entire batch has failed due to P4 Runtime connectivity issue, P4 Runtime
+    will return a canonical code that best describes the reason, e.g.
+    `NOT_FOUND`.
+
+-   Use `UNKNOWN` top level error code for all Write RPC failures, whether
+    partial batch or total failures, e.g. one `RESOURCE_EXHAUSTED` and one
+    `INVALID_ARGUMENT`.
+
+-   2nd level canonical error (google.rpc.Status) should be the same as the
+    top-level canonical error code.
+
+When reporting the per-entity level errors, P4 Runtime includes all batch
+request responses even when only a part of the batch requests failed.
+
+```
+# Example of error message:
+
+{
+  error_code: 2  # UNKNOWN
+  error_message: "Write failure."
+  error_details {
+    code: 2  # UNKNOWN
+    message: "Write failure."
+    details {
+      canonical_code: 8  # RESOURCE_EXHAUSTED
+      message: "Table is full."
+      space: "targetX-psa-vendorY"
+      code: 500  # ERR_TABLE_FULL
+    }
+    details {
+      canonical_code: 0  # OK
+    }
+    details {
+      canonical_code: 6  # ALREADY_EXISTS
+      message: "Entity already exists."
+      space: "targetX-psa-vendorY"
+      code: 600  # ERR_ENITTY_ALREADY_EXISTS
+    }
+  }
+}
+
+```
+
+### Examples of p4.Error canonical code usage
+
+List of gRPC Canonical code is defined in
+[here](https://github.com/grpc/grpc-go/blob/master/codes/codes.go). Per each
+code, we expect controller to do as listed below.
+
+-   `OK (0)`: A successful Read PRC.
+-   `CANCELLED (1)`: The Write RPC cancelled due to failover or shutdown.
+    Controller is expected to retry RPC in the near future.
+-   `UNKNOWN (2)`: We don't know whether the Write RPC succeeded or not.
+    Controller is expected to perform a Read RPC to understand the switch state
+    and then either retry the Write RPC or do nothing based on the response.
+    This error code serves as a default code for errors that cannot be expressed
+    with any other canonical code.
+-   `INVALID_ARGUMENT (3)`: Write RPC failed because the argument in the entry
+    is not valid. Controller should not retry Write RPC unless root-cause the
+    problem. A human intervention (e.g. a bug fix) may be needed.
+-   `DEADLINE_EXCEEDED (4)`: Write RPC failed due to stuck and deadline
+    exceeded. We don't know whether the Write RPC was succeeded or not.
+    Controller is expected to perform a Read RPC to understand the switch state
+    and then retry the Write RPC or do nothing based on the response.
+-   `NOT_FOUND (5)`: TBD. We generally don't expect this error is set.
+-   `ALREADY_EXISTS (6)`: Write RPC failed because the entity already exists in
+    the switch, e.g. duplicate flow installation. This is typically caused by a
+    controller bug. Controller should not retry Write RPC unless root-cause the
+    problem.
+-   `PERMISSION_DENIED (7)`: Write RPC failed due to a permission issue.
+    Controller is expected to retry Write RPC automatically in the near future
+    after resolving the permission issue.
+-   `RESOURCE_EXHAUSTED (8)`: Write RPC failed due to resource exhaustion, e.g.
+    forwarding tables are full. Controller is expected not to retry the Write
+    RPC unless removing surplus entities from the switch or pushing a new
+    SetForwardingPipelineConfig to adjust the pipeline.
+-   `FAILED_PRECONDITION (9)`: Write RPC failed because a certain precondition
+    has not been fulfilled to complete the request. Example: A flow is requested
+    to be installed while the flow references to a non-existent action profile
+    group. Controller is expected to retry the Write RPC automatically in the
+    near future after resolving the dependent condition.
+-   `ABORTED (10)`: Write RPC was explicitly aborted. Controller is expected to
+    retry the Write RPC automatically in the near future after the underlying
+    issue is resolved.
+-   `OUT_OF_RANGE(11)`: TBD. We generally don't expect this error is set.
+-   `UNIMPLEMENTED (12)`: Write RPC failed because the feature is not
+    implemented in the switch. Controller should not retry the Write RPC. A
+    human intervention (e.g. a bug fix or upgrading switch software) is needed.
+-   `INTERNAL (13)`: Write RPC caused a critical error that put the switch in a
+    serious state where the switch cannot no longer accept a new Write RPC,
+    except allowing the Read RPC or Subscribe. Controller should not retry the
+    Write RPC. A human intervention (e.g. a bug fix and rebooting the switch) is
+    needed.
+-   `UNAVAILABLE (14)`: Write RPC failed because the switch is not reachable.
+    This is typically caused when connection between the switch and the
+    controller is broken. Controller is expected to retry the Write RPC in the
+    near future.
+-   `DATA_LOSS (15)`: TBD. We generally don't expect this error is set.
+-   `UNAUTHENTICATED (16)`: Write RPC failed due to a permission issue.
+    Controller is expected to retry the Write RPC automatically in the near
+    future after resolving the permission issue. A human intervention (e.g. a
+    bug fix) may be needed.
