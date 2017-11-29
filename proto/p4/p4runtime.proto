@@ -443,3 +443,19 @@ message GetForwardingPipelineConfigResponse {
   // TODO(wmohsin): Remove when clients have migrated to 'config' above
   repeated ForwardingPipelineConfig configs = 2 [deprecated = true];
 }
+
+// P4-entity level error used to report per-entity level programming error.
+message Error {
+  // gRPC-compliant canonical code.
+  int32 canonical_code = 1;
+  // Detailed error message.
+  string message = 2;
+  // Target and architecture specific space to which this error belongs.
+  // We encourage using triplet: <target>-<arch>-<vendor>, e.g."bmv2-psa-p4org"
+  // or "tofino-psa-barefoot".
+  string space = 3;
+  // Numeric code drawn from target-specific error space above.
+  int32 code = 4;
+  // Reserved.
+  google.protobuf.Any details = 5;
+}
