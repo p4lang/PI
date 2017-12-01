@@ -38,6 +38,9 @@
 #include "p4/p4runtime.grpc.pb.h"
 #include "pi_server_testing.h"
 #include "uint128.h"
+#ifdef WITH_SYSREPO
+#include "gnmi_sysrepo.h"
+#endif
 
 using grpc::Server;
 using grpc::ServerBuilder;
@@ -539,7 +542,7 @@ struct ServerData {
   std::string server_address;
   int server_port;
   P4RuntimeServiceImpl pi_service;
-  gNMIServiceImpl gnmi_service;
+  std::unique_ptr<gnmi::gNMI::Service> gnmi_service;
   ServerBuilder builder;
   std::unique_ptr<Server> server;
 };
@@ -576,7 +579,14 @@ void PIGrpcServerRunAddr(const char *server_address) {
     server_data->server_address, grpc::InsecureServerCredentials(),
     &server_data->server_port);
   builder.RegisterService(&server_data->pi_service);
-  builder.RegisterService(&server_data->gnmi_service);
+#ifdef WITH_SYSREPO
+  server_data->gnmi_service = std::unique_ptr<gnmi::gNMI::Service>(
+      new pi::server::gNMIServiceSysrepoImpl());
+#else
+  server_data->gnmi_service = std::unique_ptr<gnmi::gNMI::Service>(
+      new pi::server::gNMIServiceImpl());
+#endif  // WITH_SYSREPO
+  builder.RegisterService(server_data->gnmi_service.get());
   builder.SetMaxReceiveMessageSize(256*1024*1024);  // 256MB
 
   server_data->server = builder.BuildAndStart();
