@@ -388,54 +388,52 @@ The list of gRPC Canonical codes is defined
 them to be used as follows:
 
 - `OK (0)`: Sucessful RPC.
-- `CANCELLED (1)`: The Write RPC was cancelled due to failover or
-  shutdown. Controller is expected to retry RPC in the near future.
-- `UNKNOWN (2)`: We don't know whether the Write RPC succeeded or not.  The
-  controller is expected to perform a Read RPC to understand the switch state
-  and then either retry the Write RPC or do nothing based on the response.  This
+- `CANCELLED (1)`: The Write RPC was cancelled due to failover or shutdown. The
+  client is expected to retry RPC in the near future.
+- `UNKNOWN (2)`: We don't know whether the Write RPC succeeded or not. The
+  client is expected to perform a Read RPC to understand the switch state and
+  then either retry the Write RPC or do nothing based on the response. This
   error code serves as a default code for errors that cannot be expressed with
   any other canonical code.
 - `INVALID_ARGUMENT (3)`: The Write RPC failed because one or more argument is
-  not valid. The controller should not retry Write RPC unless it can determine
-  the root-cause of the problem. Human intervention (e.g. a bug fix) may be
-  needed.
+  not valid. The client should not retry Write RPC unless it can determine the
+  root-cause of the problem. Human intervention (e.g. a bug fix) may be needed.
 - `DEADLINE_EXCEEDED (4)`: The Write RPC failed due to a timeout. We don't know
-  whether the Write RPC succeeded or not.  The controller is expected to perform
-  a Read RPC to understand the switch state and then retry the Write RPC or do
+  whether the Write RPC succeeded or not. The client is expected to perform a
+  Read RPC to understand the switch state and then retry the Write RPC or do
   nothing based on the response.
 - `NOT_FOUND (5)`: TBD. We generally don't expect this error to be set.
 - `ALREADY_EXISTS (6)`: The Write RPC failed because the entity already exists
   in the switch, e.g. in the case of a duplicate flow installation. This is
-  typically caused by a controller bug. Controller should not retry Write RPC
+  typically caused by a client bug. The client should not retry the Write RPC
   unless the root-cause of the problem can be determined.
 - `PERMISSION_DENIED (7)`: The Write RPC failed due to a permission issue. The
-  controller is expected to retry the Write RPC automatically after resolving
-  the permission issue.
+  client is expected to retry the Write RPC automatically after resolving the
+  permission issue.
 - `RESOURCE_EXHAUSTED (8)`: The Write RPC failed due to resource exhaustion,
-  e.g. a forwarding table is full. The controller is expected not to retry the
-  Write RPC unless some entities are removed from the switch or a new forwarding
+  e.g. a forwarding table is full. The client is expected not to retry the Write
+  RPC unless some entities are removed from the switch or a new forwarding
   pipeline is pushed to the switch.
 - `FAILED_PRECONDITION (9)`: The Write RPC failed because a certain precondition
-  has not been met. For example, if the controller tries to install a flow with
-  a reference to a non-existent action profile group. The controller is expected
-  to retry the Write RPC automatically after resolving the dependency issue.
-- `ABORTED (10)`: The Write RPC was explicitly aborted. The controller is
-  expected to retry the Write RPC automatically once the underlying issue is
-  resolved.
+  has not been met. For example, if the client tries to install a flow with a
+  reference to a non-existent action profile group. The client is expected to
+  retry the Write RPC automatically after resolving the dependency issue.
+- `ABORTED (10)`: The Write RPC was explicitly aborted. The client is expected
+  to retry the Write RPC automatically once the underlying issue is resolved.
 - `OUT_OF_RANGE(11)`: TBD. We generally don't expect this error to be set.
 - `UNIMPLEMENTED (12)`: The Write RPC failed because the feature is not
-  implemented in the switch. The controller should not retry the Write RPC. A
-  human intervention (e.g. a bug fix or upgrading the switch software) is
-  needed.
+  implemented in the switch. The client should not retry the Write RPC. A human
+  intervention (e.g. a bug fix or upgrading the switch software) is needed.
 - `INTERNAL (13)`: The Write RPC caused a critical error that put the switch in
   a state where it can no longer accept a new Write RPC, but may still service
-  Read RPCs. The controller should not retry the Write RPC. A human intervention
+  Read RPCs. The client should not retry the Write RPC. A human intervention
   (e.g. a bug fix and rebooting the switch) is needed.
 - `UNAVAILABLE (14)`: The Write RPC failed because the switch is not
   reachable. This typically happens when the connection between the switch and
-  the controller is broken. The controller is expected to retry the Write RPC in
-  the near future.
+  the client is broken. The client is expected to retry the Write RPC in the
+  near future.
 - `DATA_LOSS (15)`: TBD. We generally don't expect this error to be set.
-- `UNAUTHENTICATED (16)`: The Write RPC failed due to a permission issue. The
-  controller is expected to retry the Write RPC automatically after resolving
-  the permission issue. A human intervention (e.g. a bug fix) may be needed.
+- `UNAUTHENTICATED (16)`: The Write RPC failed because the client cannot be
+  authenticated. The client is expected to retry the Write RPC automatically
+  after resolving the issue. A human intervention (e.g. a bug fix) may be
+  needed.
