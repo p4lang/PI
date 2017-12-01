@@ -8,3 +8,6 @@
 [submodule "proto/openconfig/gnmi"]
 	path = proto/openconfig/gnmi
 	url = https://github.com/openconfig/gnmi.git
+[submodule "proto/openconfig/public"]
+	path = proto/openconfig/public
+	url = https://github.com/openconfig/public.git
