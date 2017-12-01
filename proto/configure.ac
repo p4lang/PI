@@ -63,6 +63,16 @@ AC_CHECK_LIB([microhttpd], [MHD_start_daemon], [], [
 
 AM_CONDITIONAL([WITH_PROTO_DEMO], [test "$with_proto_demo" = yes])
 
+AC_ARG_WITH([sysrepo],
+    AS_HELP_STRING([--with-sysrepo],
+                   [Use sysrepo gNMI service implementation @<:@default=no@:>@]),
+    [with_sysrepo="$withval"], [with_sysrepo=no])
+AM_CONDITIONAL([WITH_SYSREPO], [test "$with_sysrepo" = yes])
+AM_COND_IF([WITH_SYSREPO], [
+    AC_CHECK_LIB([sysrepo], [sr_connect], [],
+                 [AC_MSG_ERROR([Missing libsysrepo])])
+])
+
 dnl cannot use the path below, which would break 'make dist'
 dnl googleapis_check_f=$ac_abs_confdir/googleapis/google/rpc/status.proto
 googleapis_check_f=$ac_abs_confdir/google/rpc/status.proto
@@ -98,8 +108,11 @@ AC_CONFIG_FILES([Makefile
                  tests/Makefile
                  third_party/Makefile])
 
+AC_CONFIG_FILES([sysrepo/install_yangs.sh], [chmod +x sysrepo/install_yangs.sh])
+
 AC_OUTPUT
 
 AS_ECHO("")
 AS_ECHO("Features recap ......................................")
+AS_ECHO("Use sysrepo gNMI implementation .............. : $with_sysrepo")
 AS_ECHO("Compile demo_grpc ............................ : $with_proto_demo")

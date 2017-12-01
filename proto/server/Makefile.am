@@ -5,6 +5,10 @@ AM_CPPFLAGS = \
 -I$(top_builddir)/cpp_out \
 -I$(top_builddir)/grpc_out
 
+if WITH_SYSREPO
+AM_CPPFLAGS += -DWITH_SYSREPO
+endif
+
 AM_CXXFLAGS = -Wall -Werror
 
 lib_LTLIBRARIES = libpigrpcserver.la
@@ -13,6 +17,12 @@ libpigrpcserver_la_SOURCES = \
 pi_server.cpp \
 uint128.h \
 uint128.cpp
+
+if WITH_SYSREPO
+libpigrpcserver_la_SOURCES += \
+gnmi_sysrepo.h \
+gnmi_sysrepo.cpp
+endif
 
 nobase_include_HEADERS = PI/proto/pi_server.h
 
