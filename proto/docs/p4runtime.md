@@ -326,9 +326,9 @@ When the p4.Write() fails for some reason, P4 Runtime returns `grpc::Status` to
 report errors. `grpc::Status` has a top-level canonical `error_code` that
 represents a RPC-wide error, along with an `error_details` field which is a
 serialized `google.rpc.Status` that contains per-entity level errors.
-`google.rpc.Status` can have multiple `p4.Error` messages in the repeated
-`details` field, each repesenting a per-entity error in the programming requests
-in the p4.Write() batch.
+`google.rpc.Status` will have multiple `p4.Error` messages in the repeated
+`details` field, each representing a per-entity error for that update in the
+WriteRequest batch.
 
 The `p4.Error` message has a gRPC canonical error space to report P4 Runtime
 errors.  Additionally, `p4.Error` also allows different vendors / chipmakers to
@@ -336,24 +336,28 @@ express their own error codes in their chosen error-space.
 
 ![P4 Runtime Error Proto](p4-runtime-error-proto.svg)
 
-P4 Runtime will populate the top-level error code as follows:
+P4 Runtime will populate grpc::Status as follows:
 
-- Use any canonical error code that best describes RPC-wide error. If the entire
-  batch has failed due to a connectivity issue, P4 Runtime will return a
-  canonical code that best describes the reason, e.g. `NOT_FOUND`.
+1. If all batch updates succeeded, set top-level `error_code` to OK and do not
+   populate any other field.
 
-- Use the `UNKNOWN` top level error code for all Write operation failures,
-  whether partial or total batch failures. For example, one operation in the
-  batch may fail with `RESOURCE_EXHAUSTED` and another with `INVALID_ARGUMENT`.
+2. If an error is encountered before even trying to attempt individual batch
+   updates, set a top-level `error_code` that best describes that RPC-wide
+   error.  For example, use `UNAVAILABLE` if the P4Runtime service is not yet
+   ready to handle requests. Do not set `error_details` in this case.
 
-- The 2nd level canonical error (`google.rpc.Status`) should be the same as the
-  top-level canonical error code.
-
-When reporting per-entity level errors, P4 Runtime includes an entry for every
-batch request in the responsem even when only part of the batch requests failed.
+3. Use the `UNKNOWN` top level error code for all Write operation failures,
+   whether partial or total batch failures. For example, one operation in the
+   batch may fail with `RESOURCE_EXHAUSTED` and another with `INVALID_ARGUMENT`.
+   The 2nd level (`google.rpc.Status`) error `code` and `message` should be the
+   same as the top-level canonical `error_code` and `error_message`.
+   The number of `p4.Error` messages packed in the `details` field should always
+   match the number of `updates` in the `p4.WriteRequest`.
 
 ```
-# Example of an error message:
+# Example of an error message returned for a batched Write with 3 updates. The
+# first and third updates encountered an error, while the second update
+# succeeded.
 
 {
   error_code: 2  # UNKNOWN

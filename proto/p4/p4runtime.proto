@@ -444,18 +444,20 @@ message GetForwardingPipelineConfigResponse {
   repeated ForwardingPipelineConfig configs = 2 [deprecated = true];
 }
 
-// P4-entity level error used to report per-entity level programming error.
+// Error message used to report a single P4-entity error for a Write RPC.
 message Error {
-  // gRPC-compliant canonical code.
+  // gRPC canonical error code (see
+  // github.com/grpc/grpc-go/blob/master/codes/codes.go)
   int32 canonical_code = 1;
   // Detailed error message.
   string message = 2;
   // Target and architecture specific space to which this error belongs.
-  // We encourage using triplet: <target>-<arch>-<vendor>, e.g."bmv2-psa-p4org"
-  // or "tofino-psa-barefoot".
+  // We encourage using triplet: <target>-<arch>-<vendor>,
+  // e.g."targetX-psa-vendor1" or "targetY-psa-vendor2".
   string space = 3;
   // Numeric code drawn from target-specific error space above.
   int32 code = 4;
-  // Reserved.
+  // Optional: Allows reporting back additional target-specific details on the
+  // error.
   google.protobuf.Any details = 5;
 }
