@@ -1,8 +1,8 @@
-FROM p4lang/third-party:stable
+FROM p4lang/behavioral-model:no-pi
 LABEL maintainer="Antonin Bas <antonin@barefootnetworks.com>"
-LABEL description="This Docker image includes only the most widely-used PI \
-artifacts: PI core and P4Runtime. It does not include the Thrift-based PI \
-implementation for the bmv2 backend."
+LABEL description="This Docker image includes all of the PI artifacts, \
+including the Thrift-based PI implementation for the bmv2 backend. It is \
+currently used to run CI tests."
 
 # Default to using 2 make jobs, which is a good default for CI. If you're
 # building locally or you know there are more cores available, you may want to
@@ -15,16 +15,32 @@ ARG MAKEFLAGS=-j2
 # removed from the image.
 ARG IMAGE_TYPE=build
 
+# Select the compiler to use. GCC 5 is available as 'gcc'/'g++'. GCC 6 is
+# available as 'gcc-6'/'g++-6'. Clang 3.8 is available as
+# 'clang-3.8'/'clang++-3.8'.
+ARG CC=gcc
+ARG CXX=g++
+
 ENV PI_DEPS automake \
             build-essential \
+            clang-3.8 \
+            clang-format-3.8 \
             g++ \
+            g++-6 \
             libboost-dev \
             libboost-system-dev \
             libtool \
+            libtool-bin \
             pkg-config \
-            libjudy-dev
+            libjudy-dev \
+            libreadline-dev \
+            libpcap-dev \
+            libmicrohttpd-dev \
+            doxygen \
+            valgrind
 ENV PI_RUNTIME_DEPS libboost-system1.58.0 \
                     libjudydebian1 \
+                    libpcap0.8 \
                     python
 COPY . /PI/
 WORKDIR /PI/
@@ -34,7 +50,7 @@ RUN apt-get update && \
     apt-get update && \
     apt-get install -y --no-install-recommends $PI_DEPS $PI_RUNTIME_DEPS && \
     ./autogen.sh && \
-    ./configure --without-bmv2 --without-internal-rpc --without-cli --with-proto --with-sysrepo && \
+    ./configure --with-bmv2 --with-proto --with-sysrepo && \
     make && \
     make install-strip && \
     (test "$IMAGE_TYPE" = "build" && \

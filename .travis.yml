@@ -21,7 +21,7 @@ addons:
       - ubuntu-toolchain-r-test
 
 install:
-  - docker build -t pi --build-arg IMAGE_TYPE=test --build-arg CC=$CC --build-arg CXX=$CXX .
+  - docker build -t pi --build-arg IMAGE_TYPE=test --build-arg CC=$CC --build-arg CXX=$CXX -f Dockerfile.bmv2 .
 
 script:
   - docker run -w /PI pi make check -j2
