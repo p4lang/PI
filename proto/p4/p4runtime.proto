@@ -382,7 +382,7 @@ message PacketIn {
 // These special headers are captured in P4Info ControllerPacketMetadata.
 message PacketMetadata {
   // This refers to Metadata.id coming from P4Info ControllerPacketMetadata.
-   uint32 metadata_id = 1;
+  uint32 metadata_id = 1;
   bytes value = 2;
 }
 
