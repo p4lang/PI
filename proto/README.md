@@ -38,6 +38,8 @@ Finally, install sysrepo
     mkdir build
     cd build
     cmake -DBUILD_EXAMPLES=Off -DCALL_TARGET_BINS_DIRECTLY=Off ..
+    make
+    [sudo] make install
 
 You can now start the sysrepo daemon (`sudo sysrepod -d` to start in debug
 mode).
