@@ -330,8 +330,8 @@ message PreEntry {
 message MulticastGroupEntry {
   bytes multicast_group = 1;
   message Replica {
-    bytes port;
-    bytes egress_instance;
+    bytes port = 1;
+    bytes egress_instance = 2;
   }
   repeated Replica replicas = 2;
 }
