@@ -25,6 +25,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>  // for std::pair
 #include <vector>
 
 #include "google/rpc/code.pb.h"
@@ -77,6 +78,53 @@ pi_meter_spec_t meter_spec_proto_to_pi(const p4::MeterConfig &config) {
   pi_meter_spec.meter_type = PI_METER_TYPE_DEFAULT;
   return pi_meter_spec;
 }
+
+class P4ErrorReporter {
+ public:
+  void push_back(const p4::Error &error) {
+    if (error.canonical_code() != Code::OK)
+      errors.emplace_back(index, error);
+    index++;
+  }
+
+  // TODO(antonin): remove this overload when we generalize the use of p4::Error
+  // in the code?
+  void push_back(const Status &status) {
+    if (status.code() != Code::OK) {
+      p4::Error error;
+      error.set_canonical_code(status.code());
+      error.set_message(status.message());
+      error.set_space("ALL-sswitch-p4org");
+      errors.emplace_back(index, error);
+    }
+    index++;
+  }
+
+  Status get_status() const {
+    Status status;
+    if (errors.empty()) {
+      status.set_code(Code::OK);
+    } else {
+      p4::Error success;
+      success.set_code(Code::OK);
+      status.set_code(Code::UNKNOWN);
+      size_t i = 0;
+      for (const auto &p : errors) {
+        for (; i++ < p.first;) {
+          auto success_any = status.add_details();
+          success_any->PackFrom(success);
+        }
+        auto error_any = status.add_details();
+        error_any->PackFrom(p.second);
+      }
+    }
+    return status;
+  }
+
+ private:
+  std::vector<std::pair<size_t, p4::Error> > errors{};
+  size_t index{0};
+};
 
 }  // namespace
 
@@ -241,6 +289,7 @@ class DeviceMgrImp {
     Status status;
     status.set_code(Code::OK);
     SessionTemp session(true  /* = batch */);
+    P4ErrorReporter error_reporter;
     for (const auto &update : request.updates()) {
       const auto &entity = update.entity();
       switch (entity.entity_case()) {
@@ -279,9 +328,9 @@ class DeviceMgrImp {
           status = ERROR_STATUS(Code::UNKNOWN, "Incorrect entity type");
           break;
       }
-      if (status.code() != Code::OK) break;
+      error_reporter.push_back(status);
     }
-    return status;
+    return error_reporter.get_status();
   }
 
   Status read(const p4::ReadRequest &request,
@@ -332,7 +381,8 @@ class DeviceMgrImp {
     return status;
   }
 
-  Status table_write(p4::Update_Type update, const p4::TableEntry &table_entry,
+  Status table_write(p4::Update_Type update,
+                     const p4::TableEntry &table_entry,
                      const SessionTemp &session) {
     if (!check_p4_id(table_entry.table_id(), P4ResourceType::TABLE))
       return make_invalid_p4_id_status();

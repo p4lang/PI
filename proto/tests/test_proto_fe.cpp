@@ -27,6 +27,7 @@
 #include <fstream>  // std::ifstream
 #include <iterator>  // std::distance
 #include <memory>
+#include <ostream>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -44,6 +45,27 @@
 
 #include "mock_switch.h"
 
+// Needs to be in same namespace as google::rpc::Status for ADL
+namespace google {
+namespace rpc {
+std::ostream &operator<<(std::ostream &out, const Status &status) {
+  out << "Status(code=" << status.code() << ", message='" << status.message()
+      << "', details=";
+  for (const auto &error_any : status.details()) {
+    p4::Error error;
+    if (!error_any.UnpackTo(&error)) {
+      out << "INVALID + ";
+    } else {
+      out << "Error(code=" << error.canonical_code() << ", message='"
+          << error.message() << "') + ";
+    }
+  }
+  out << ")";
+  return out;
+}
+}  // namespace rpc
+}  // namespace google
+
 namespace pi {
 namespace proto {
 namespace testing {
@@ -57,7 +79,90 @@ using google::protobuf::util::MessageDifferencer;
 using ::testing::_;
 using ::testing::Truly;
 using ::testing::Pointee;
+using ::testing::AnyNumber;
 using ::testing::AtLeast;
+
+// Used to make sure that a google::rpc::Status object has the correct format
+// and contains a single p4::Error message with a matching canonical error code
+// and message. The test writer can simply write the following:
+// EXPECT_EQ(returned_status, OneExpectedError(expected_code [, expected_msg]));
+struct OneExpectedError {
+  OneExpectedError(Code code, const char *msg)
+      : code(code), msg(msg) { }
+  explicit OneExpectedError(Code code, const std::string msg = "")
+      : code(code), msg(msg) { }
+
+  friend std::ostream &operator<<(std::ostream &out,
+                                  const OneExpectedError &error);
+
+  Code code;
+  std::string msg;
+};
+
+bool operator==(const DeviceMgr::Status &status,
+                const OneExpectedError &expected) {
+  if (status.code() != Code::UNKNOWN) return false;
+  if (status.details().size() != 1) return false;
+  const auto &error_any = status.details().Get(0);
+  p4::Error error;
+  if (!error_any.UnpackTo(&error)) return false;
+  if (error.canonical_code() != expected.code) return false;
+  if (!expected.msg.empty() && (expected.msg != error.message())) return false;
+  return true;
+}
+
+// TODO(antonin): uncommenting this triggers an unused warning due to the
+// anonymous namespace, since we have only been using the operator above
+// bool operator==(const OneExpectedError &expected,
+//                 const DeviceMgr::Status &status) {
+//   return operator ==(status, expected);
+// }
+
+std::ostream &operator<<(std::ostream &out, const OneExpectedError &error) {
+  out << "code=" << error.code;
+  if (!error.msg.empty()) out << ", message='" << error.msg << "'";
+  return out;
+}
+
+// Used to make sure that a google::rpc::Status object has the correct format
+// and contains the correct error codes in the details field, which is a
+// repeated field of p4::Error messages (as Any messages).
+struct ExpectedErrors {
+  void push_back(Code code) {
+    expected_codes.push_back(code);
+  }
+
+  Code at(size_t i) const { return expected_codes.at(i); }
+
+  size_t size() const { return expected_codes.size(); }
+
+  friend std::ostream &operator<<(std::ostream &out,
+                                  const ExpectedErrors &error);
+
+  std::vector<Code> expected_codes;
+};
+
+bool operator==(const DeviceMgr::Status &status,
+                const ExpectedErrors &expected_errors) {
+  if (status.code() != Code::UNKNOWN) return false;
+  if (static_cast<size_t>(status.details().size()) != expected_errors.size())
+    return false;
+  for (size_t i = 0; i < expected_errors.size(); i++) {
+    const auto &error_any = status.details().Get(i);
+    p4::Error error;
+    if (!error_any.UnpackTo(&error)) return false;
+    if (error.canonical_code() != expected_errors.at(i)) return false;
+  }
+  return true;
+}
+
+std::ostream &operator<<(std::ostream &out, const ExpectedErrors &errors) {
+  out << "[";
+  for (auto code : errors.expected_codes)
+    out << "code=" << code << " + ";
+  out << "]";
+  return out;
+}
 
 // Google Test fixture for Protobuf Frontend tests
 class DeviceMgrTest : public ::testing::Test {
@@ -499,7 +604,7 @@ TEST_P(MatchTableTest, InvalidSetDefault) {
   auto entry = generic_make(t_id, mk_input.get_proto(mf_id), adata);
   entry.set_is_default_action(true);
   auto status = add_one(&entry);
-  ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
+  EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
 }
 
 TEST_P(MatchTableTest, InvalidTableId) {
@@ -510,8 +615,9 @@ TEST_P(MatchTableTest, InvalidTableId) {
   auto check_bad_status_write = [this, &entry](pi_p4_id_t bad_id) {
     entry.set_table_id(bad_id);
     auto status = add_one(&entry);
-    ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
-    EXPECT_EQ(status.message(), invalid_p4_id_error_str);
+    EXPECT_EQ(
+        status,
+        OneExpectedError(Code::INVALID_ARGUMENT, invalid_p4_id_error_str));
   };
   auto check_bad_status_read = [this](pi_p4_id_t bad_id) {
     p4::ReadResponse response;
@@ -549,8 +655,7 @@ TEST_P(MatchTableTest, InvalidActionId) {
     auto action = entry.mutable_action()->mutable_action();
     action->set_action_id(bad_id);
     auto status = add_one(&entry);
-    ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
-    EXPECT_EQ(status.message(), msg);
+    EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT, msg));
   };
   // 0, aka missing id
   check_bad_status_write(0);
@@ -585,8 +690,46 @@ TEST_P(MatchTableTest, MissingMatchField) {
   } else {  // omitting field not supported for match type
     auto entry = generic_make(t_id, boost::none, adata);
     auto status = add_one(&entry);
-    ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
+    EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
   }
+}
+
+TEST_P(MatchTableTest, WriteBatchWithError) {
+  std::string adata(6, '\x00');
+  auto mk_input = std::get<1>(GetParam());
+  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mk_input.get_match_key()));
+  auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
+  EXPECT_CALL(*mock, table_entry_delete_wkey(t_id, mk_matcher))
+      .Times(AnyNumber());
+  EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _))
+      .Times(AtLeast(1));
+  auto entry = generic_make(
+      t_id, mk_input.get_proto(mf_id), adata, mk_input.get_priority());
+
+  ExpectedErrors expected_errors;
+  p4::WriteRequest request;
+  {
+    auto update = request.add_updates();
+    update->set_type(p4::Update_Type_DELETE);
+    update->mutable_entity()->mutable_table_entry()->CopyFrom(entry);
+    // TODO(antonin): should really be Code::NOT_FOUND if possible
+    expected_errors.push_back(Code::UNKNOWN);
+  }
+  {
+    auto update = request.add_updates();
+    update->set_type(p4::Update_Type_INSERT);
+    update->mutable_entity()->mutable_table_entry()->CopyFrom(entry);
+    expected_errors.push_back(Code::OK);
+  }
+  {
+    auto update = request.add_updates();
+    update->set_type(p4::Update_Type_INSERT);
+    update->mutable_entity()->mutable_table_entry()->CopyFrom(entry);
+    // TODO(antonin): should really be Code::ALREADY_EXISTS if possible
+    expected_errors.push_back(Code::UNKNOWN);
+  }
+  auto status = mgr.write(request);
+  EXPECT_EQ(status, expected_errors);
 }
 
 #define MK std::string("\xaa\xbb\xcc\xdd", 4)
@@ -892,8 +1035,9 @@ TEST_F(ActionProfTest, InvalidActionProfId) {
   auto check_bad_status_write = [this, &member](pi_p4_id_t bad_id) {
     member.set_action_profile_id(bad_id);
     auto status = create_member(&member);
-    ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
-    EXPECT_EQ(status.message(), invalid_p4_id_error_str);
+    EXPECT_EQ(
+        status,
+        OneExpectedError(Code::INVALID_ARGUMENT, invalid_p4_id_error_str));
   };
   auto check_bad_status_read = [this](pi_p4_id_t bad_id) {
     p4::ReadResponse response;
@@ -931,8 +1075,7 @@ TEST_F(ActionProfTest, InvalidActionId) {
     auto action = member.mutable_action();
     action->set_action_id(bad_id);
     auto status = create_member(&member);
-    ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
-    EXPECT_EQ(status.message(), msg);
+    EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT, msg));
   };
   check_bad_status_write(0);
   // correct resource type id, bad index
@@ -1248,7 +1391,7 @@ TEST_F(DirectMeterTest, WriteInTableEntry) {
   auto meter_config = entry.mutable_meter_config();
   (void) meter_config;
   auto status = add_entry(&entry);
-  ASSERT_EQ(status.code(), Code::UNIMPLEMENTED);
+  EXPECT_EQ(status, OneExpectedError(Code::UNIMPLEMENTED));
 }
 
 TEST_F(DirectMeterTest, InvalidTableEntry) {
@@ -1267,7 +1410,7 @@ TEST_F(DirectMeterTest, InvalidTableEntry) {
   auto meter_entry = make_meter_entry(entry_2, config);
   {
     auto status = set_meter(&meter_entry);
-    ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
+    EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
   }
 }
 
@@ -1280,8 +1423,9 @@ TEST_F(DirectMeterTest, InvalidMeterId) {
   auto check_bad_status_write = [this, &meter_entry](pi_p4_id_t bad_id) {
     meter_entry.set_meter_id(bad_id);
     auto status = set_meter(&meter_entry);
-    ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
-    EXPECT_EQ(status.message(), invalid_p4_id_error_str);
+    EXPECT_EQ(
+        status,
+        OneExpectedError(Code::INVALID_ARGUMENT, invalid_p4_id_error_str));
   };
   // 0, aka missing id
   check_bad_status_write(0);
@@ -1392,7 +1536,7 @@ TEST_F(DirectCounterTest, WriteInTableEntry) {
   auto counter_data = entry.mutable_counter_data();
   (void) counter_data;
   auto status = add_entry(&entry);
-  ASSERT_EQ(status.code(), Code::UNIMPLEMENTED);
+  EXPECT_EQ(status, OneExpectedError(Code::UNIMPLEMENTED));
 }
 
 class IndirectCounterTest : public DeviceMgrTest  {
@@ -1503,7 +1647,7 @@ TEST_F(MatchKeyFormatTest, Good2) {
 TEST_F(MatchKeyFormatTest, MkMissingField) {
   auto entry = make_entry_no_mk();
   auto status = add_entry(&entry);
-  ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
+  EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
 }
 
 TEST_F(MatchKeyFormatTest, MkTooLong) {
@@ -1512,7 +1656,7 @@ TEST_F(MatchKeyFormatTest, MkTooLong) {
   add_one_mf(&entry, mf_v);
   add_one_mf(&entry, mf_v);
   auto status = add_entry(&entry);
-  ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
+  EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
 }
 
 TEST_F(MatchKeyFormatTest, FieldTooShort) {
@@ -1520,7 +1664,7 @@ TEST_F(MatchKeyFormatTest, FieldTooShort) {
   std::string mf_v("\x0a", 1);
   add_one_mf(&entry, mf_v);
   auto status = add_entry(&entry);
-  ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
+  EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
 }
 
 TEST_F(MatchKeyFormatTest, FieldTooLong) {
@@ -1528,7 +1672,7 @@ TEST_F(MatchKeyFormatTest, FieldTooLong) {
   std::string mf_v("\xaa\xbb\xcc", 3);
   add_one_mf(&entry, mf_v);
   auto status = add_entry(&entry);
-  ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
+  EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
 }
 
 TEST_F(MatchKeyFormatTest, BadLeadingZeros) {
@@ -1536,7 +1680,7 @@ TEST_F(MatchKeyFormatTest, BadLeadingZeros) {
   std::string mf_v("\x10\xbb", 2);
   add_one_mf(&entry, mf_v);
   auto status = add_entry(&entry);
-  ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
+  EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
 }
 
 class TernaryTwoTest : public DeviceMgrTest {
