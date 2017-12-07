@@ -406,9 +406,11 @@ them to be used as follows:
   whether the Write RPC succeeded or not. The client is expected to perform a
   Read RPC to understand the switch state and then retry the Write RPC or do
   nothing based on the response.
-- `NOT_FOUND (5)`: TBD. We generally don't expect this error to be set.
+- `NOT_FOUND (5)`: The Write RPC failed because the entity does not exist on the
+  switch, e.g. in the case of the client requesting the deletion of a flow which
+  has not previously been inserted.
 - `ALREADY_EXISTS (6)`: The Write RPC failed because the entity already exists
-  in the switch, e.g. in the case of a duplicate flow installation. This is
+  on the switch, e.g. in the case of a duplicate flow installation. This is
   typically caused by a client bug. The client should not retry the Write RPC
   unless the root-cause of the problem can be determined.
 - `PERMISSION_DENIED (7)`: The Write RPC failed due to a permission issue. The
