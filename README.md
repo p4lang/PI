@@ -5,17 +5,79 @@
 **This repository has submodules; after cloning it you should run `git submodule
   update --init --recursive`.**
 
-See [examples](examples/) for how to use the PI.
-
 ## Dependencies
 
-- libjudy-dev
-- libreadline-dev
+### Base dependencies
 
-## CI Tests Dependencies
+- Judy
 
-- libtool-bin
-- valgrind
+### Dependencies based on configure flags
+
+Based on the command-line flags you intend on providing to `configure`, you need
+to install different dependencies.
+
+| Configure flag        | Default (yes / no) | Dependencies | Remarks |
+| --------------------- | --- | --- | --- |
+| `--with-bmv2`         | no  | bmv2 and its deps | Implies `--with-fe-cpp` |
+| `--with-proto`        | no  | protobuf, grpc | - |
+| `--with-fe-cpp`       | no  | - | - |
+| `--with-internal-rpc` | yes | nanomsg | - |
+| `--with-cli`          | yes | readline | - |
+| `--with-sysrepo`      | no  | same as `--with-proto` + sysrepo and its deps| - |
+
+### Additional CI tests dependencies
+
+- libtool binary; we use libtool as part of the build system, libtool binary is
+  required to run some of the generated binaries uner valgrind
+- valgrind, as some tests use it to check for memory errors
+- Boost library, for some of the C++ tests: we currently require
+  `boost/optional.hpp` and `boost/functional/hash.hpp`
+
+### Installing dependencies from package repositories
+
+| Dependency | Name of Debian package |
+| ---------- | ---------------------- |
+| [Judy](http://judy.sourceforge.net/) | libjudy-dev |
+| [readline](https://tiswww.case.edu/php/chet/readline/rltop.html) | libreadline-dev |
+| valgrind | valgrind |
+| libtool binary | libtool-bin |
+| Boost library | libboost-dev libboost-system-dev |
+
+### Installing other dependencies from source
+
+Some dependencies are not available as Debian packages or the available version
+is not the right one.
+
+- [bmv2](https://github.com/p4lang/behavioral-model) and all its dependencies:
+  follow instructions in the [bmv2
+  README](https://github.com/p4lang/behavioral-model/blob/master/README.md)
+- [nanomsg 1.0.0](https://github.com/nanomsg/nanomsg/releases/tag/1.0.0)
+- [protobuf v3.2.0](https://github.com/google/protobuf/releases/tag/v3.2.0):
+```
+git clone https://github.com/google/protobuf.git
+cd protobuf/
+git checkout tags/v3.2.0
+./autogen.sh
+./configure
+make
+[sudo] make install
+[sudo] ldconfig
+```
+- [grpc v1.3.2](https://github.com/grpc/grpc/releases/tag/v1.3.2):
+```
+git clone https://github.com/google/grpc.git
+cd grpc/
+git checkout tags/v1.3.2
+git submodule update --init --recursive
+make
+[sudo] make install
+[sudo] ldconfig
+```
+- [sysrepo](https://github.com/sysrepo/sysrepo) and all its dependencies: see
+  instructions in [proto/README.md](proto/README.md)
+
+You may be able to use more recent versions of nanomsg, protobuf or grpc, but
+the versions above are the ones we use for development and testing.
 
 ## Building p4runtime.proto
 
@@ -24,10 +86,10 @@ To include `p4runtime.proto` in the build, please run `configure` with
 
 ```
 ./autogen.sh
-./configure [--with-proto] [--with-bmv2]
+./configure --with-proto --without-internal-rpc [--without-cli]
 make
 make check
-sudo make install
+[sudo] make install
 ```
 
 ## PI CLI
