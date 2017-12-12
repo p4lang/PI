@@ -1122,6 +1122,7 @@ class DeviceMgrImp {
     auto status = validate_match_key(entry);
     if (IS_ERROR(status)) return status;
     auto t_id = entry.table_id();
+    bool need_priority = false;
     size_t num_match_fields;
     auto expected_mf_ids = pi_p4info_table_get_match_fields(
         p4info.get(), t_id, &num_match_fields);
@@ -1130,6 +1131,9 @@ class DeviceMgrImp {
     for (size_t i = 0; i < num_match_fields; i++) {
       auto mf_id = expected_mf_ids[i];
       auto mf_info = pi_p4info_table_match_field_info(p4info.get(), t_id, i);
+      need_priority = need_priority ||
+          (mf_info->match_type == PI_P4INFO_MATCH_TYPE_TERNARY) ||
+          (mf_info->match_type == PI_P4INFO_MATCH_TYPE_RANGE);
       auto mf = find_mf(entry, mf_id);
       if (mf != nullptr) {
         switch (mf_info->match_type) {
@@ -1179,7 +1183,18 @@ class DeviceMgrImp {
         }
       }
     }
-    match_key->set_priority(entry.priority());
+    if (!need_priority && entry.priority() > 0) {
+      // TODO(antonin): return an error instead
+      Logger::get()->warn(
+          "Entry priority provided for non-ternary match, it will be ignored");
+    } else if (need_priority) {
+      // we only set the priority when table has a ternary match; the target
+      // will probably not return the provided priority value when doing a table
+      // read and we would end up with a discrepancy with the table_info_store
+      // TODO(antonin): should it be the responsibility of the table_info_store
+      // to ignore the priority for non-ternary tables?
+      match_key->set_priority(entry.priority());
+    }
     RETURN_OK_STATUS();
   }
 
