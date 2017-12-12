@@ -21,9 +21,7 @@
 #ifndef PROTO_SERVER_GNMI_SYSREPO_H_
 #define PROTO_SERVER_GNMI_SYSREPO_H_
 
-#include <grpc++/grpc++.h>
-
-#include <string>
+#include <memory>
 
 #include "gnmi/gnmi.grpc.pb.h"
 
@@ -31,25 +29,7 @@ namespace pi {
 
 namespace server {
 
-class gNMIServiceSysrepoImpl : public gnmi::gNMI::Service {
- private:
-  grpc::Status Capabilities(grpc::ServerContext *context,
-                            const gnmi::CapabilityRequest *request,
-                            gnmi::CapabilityResponse *response) override;
-
-  grpc::Status Get(grpc::ServerContext *context,
-                   const gnmi::GetRequest *request,
-                   gnmi::GetResponse *response) override;
-
-  grpc::Status Set(grpc::ServerContext *context,
-                   const gnmi::SetRequest *request,
-                   gnmi::SetResponse *response) override;
-
-  grpc::Status Subscribe(
-      grpc::ServerContext *context,
-      grpc::ServerReaderWriter<gnmi::SubscribeResponse,
-                               gnmi::SubscribeRequest> *stream) override;
-};
+std::unique_ptr<gnmi::gNMI::Service> make_gnmi_service_sysrepo();
 
 }  // namespace server
 

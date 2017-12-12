@@ -8,10 +8,10 @@ We are working on supporting gNMI and OpenConfig YANG models as part of the P4
 Runtime server. We are using [sysrepo](https://github.com/sysrepo/sysrepo) as
 our YANG configuration data store and operational state manager. If you want to
 experiment with the gNMI support, you will need to install sysrepo and its
-dependencies. We currently recommend using [version 0.7.1 of
-sysrepo](https://github.com/sysrepo/sysrepo/releases/tag/v0.7.1), which depends
-on [version 0.13-rc2 of
-libyang](https://github.com/CESNET/libyang/releases/tag/v0.13-r2).
+dependencies. We currently require [version 0.7.2 of
+sysrepo](https://github.com/sysrepo/sysrepo/releases/tag/v0.7.2), which depends
+on [version 0.14-r1 of
+libyang](https://github.com/CESNET/libyang/releases/tag/v0.14-r1).
 
 Please make sure you install all the dependencies for libyang and sysrepo. If
 you are using a Debian system, we recommend that you install the following
@@ -23,7 +23,7 @@ Then install libyang:
 
     git clone https://github.com/CESNET/libyang.git
     cd libyang
-    git checkout v0.13-r2
+    git checkout v0.14-r1
     mkdir build
     cd build
     cmake ..
@@ -34,10 +34,10 @@ Finally, install sysrepo
 
     git clone https://github.com/sysrepo/sysrepo.git
     cd sysrepo
-    git checkout v0.7.1
+    git checkout v0.7.2
     mkdir build
     cd build
-    cmake -DBUILD_EXAMPLES=Off -DCALL_TARGET_BINS_DIRECTLY=Off ..
+    cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=Off -DCALL_TARGET_BINS_DIRECTLY=Off ..
     make
     [sudo] make install
 
@@ -61,16 +61,17 @@ Sysrepo data directory:   /etc/sysrepo/data/
 
 Module Name                   | Revision   | Conformance | Data Owner          | Permissions | Submodules                    | Enabled Features
 -----------------------------------------------------------------------------------------------------------------------------------------------
-ietf-interfaces               | 2014-05-08 | Installed   | root:root           | 666         |                               |
-openconfig-extensions         | 2017-04-11 | Installed   |                     |             |                               |
-openconfig-types              | 2017-08-16 | Installed   |                     |             |                               |
-openconfig-yang-types         | 2017-07-30 | Installed   |                     |             |                               |
 openconfig-interfaces         | 2017-07-14 | Installed   | root:root           | 666         |                               |
+ietf-interfaces               | 2014-05-08 | Imported    |                     |             |                               |
+openconfig-yang-types         | 2017-07-30 | Imported    |                     |             |                               |
+openconfig-extensions         | 2017-04-11 | Imported    |                     |             |                               |
+openconfig-types              | 2017-08-16 | Imported    |                     |             |                               |
+openconfig-platform           | 2016-12-22 | Installed   | root:root           | 666         |                               |
+openconfig-platform-types     | 2017-08-16 | Imported    |                     |             |                               |
 iana-if-type                  | 2014-05-08 | Installed   |                     |             |                               |
-ietf-inet-types               | 2013-07-15 | Installed   |                     |             |                               |
-ietf-netconf-acm              | 2012-02-22 | Installed   | root:root           | 666         |                               |
-ietf-netconf                  | 2011-06-01 | Installed   | root:root           | 666         |                               |
 ietf-netconf-notifications    | 2012-02-06 | Installed   | root:root           | 666         |                               |
+ietf-netconf                  | 2011-06-01 | Imported    |                     |             |                               |
+ietf-netconf-acm              | 2012-02-22 | Imported    |                     |             |                               |
 ```
 
 The P4 Runtile server library that you get after that will be able to support

@@ -69,6 +69,8 @@ AC_ARG_WITH([sysrepo],
     [with_sysrepo="$withval"], [with_sysrepo=no])
 AM_CONDITIONAL([WITH_SYSREPO], [test "$with_sysrepo" = yes])
 AM_COND_IF([WITH_SYSREPO], [
+    AC_CHECK_LIB([yang], [lys_parse_path], [],
+                 [AC_MSG_ERROR([Missing libyang])])
     AC_CHECK_LIB([sysrepo], [sr_connect], [],
                  [AC_MSG_ERROR([Missing libsysrepo])])
 ])
