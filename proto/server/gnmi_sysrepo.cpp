@@ -23,10 +23,13 @@
 #include <grpc++/grpc++.h>
 
 #include <chrono>
+#include <memory>
 #include <string>
+#include <unordered_map>
 
 extern "C" {
 
+#include "libyang/libyang.h"
 #include "sysrepo.h"
 #include "sysrepo/values.h"
 #include "sysrepo/xpath.h"
@@ -55,24 +58,6 @@ namespace pi {
 namespace server {
 
 namespace {
-
-void convertToXPath(const gnmi::Path &path, std::string *path_str) {
-  if (path.elem().size() == 0) return;
-  for (const auto &elem : path.elem()) {
-    // TODO(antonin): this is dubious and does not work for
-    // interfaces/interface/.../state which is an example in the gNMI path
-    // specification. It is unclear whether sysrepo supports such a path or if
-    // extra work will be required to make it work.
-    if (elem.name() == "...")
-      path_str->append("/*");
-    else
-      path_str->append(elem.name());
-    for (const auto &p : elem.key())
-      path_str->append("[" + p.first + "='" + p.second + "']");
-    path_str->append("/");
-  }
-  path_str->pop_back();  // remove trailing slash
-}
 
 void convertFromXPath(char *xpath, gnmi::Path *gpath) {
   sr_xpath_ctx_t ctx;
@@ -172,7 +157,159 @@ void convertTypedValue(const sr_val_t *value, gnmi::TypedValue *typedV) {
   }
 }
 
+// opens a session to sysrepo and keep it open until the object is destroyed
+struct SysrepoSession {
+  SysrepoSession() = default;
+
+  ~SysrepoSession() {
+    if (sess != NULL) sr_session_stop(sess);
+    if (conn != NULL) sr_disconnect(conn);
+  }
+
+  bool open() {
+    int rc = SR_ERR_OK;
+    rc = sr_connect("gnmiServer", SR_CONN_DEFAULT, &conn);
+    if (rc != SR_ERR_OK) return false;
+    rc = sr_session_start(conn, SR_DS_RUNNING, SR_SESS_DEFAULT, &sess);
+    if (rc != SR_ERR_OK) return false;
+    return true;
+  }
+
+  sr_conn_ctx_t *conn{NULL};
+  sr_session_ctx_t *sess{NULL};
+};
+
+// Utility class to convert gNMI paths to XPaths that sysrepo can understand
+// The difficulty is that gNMI does not assume that the module name is included
+// in the path, as long as there is no ambiguity, i.e. no overlap in the
+// implemented schemas. However, sysrepo does require the module name as a
+// namespace qualifier for the first element in the path. To retrieve the module
+// name, we iterate over all the schemas explicitly installed (aka implemented)
+// in sysrepo and look at the root node(s) for each one. We then associate that
+// root node name to the corresponding schema name, which lets us do the
+// conversion from gNMI path to sysrepo XPath.
+class XPathBuilder {
+ public:
+  XPathBuilder() {
+    scan_schemas();
+  }
+
+  void appendToXPath(const gnmi::Path &path, std::string *path_str) {
+    if (path.elem().size() == 0) return;
+    for (const auto &elem : path.elem()) {
+      path_str->append("/");
+      // TODO(antonin): this is dubious and does not work for
+      // interfaces/interface/.../state which is an example in the gNMI path
+      // specification. It is unclear whether sysrepo supports such a path or if
+      // extra work will be required to make it work.
+      if (elem.name() == "...")
+        path_str->append("/*");
+      else
+        path_str->append(elem.name());
+      for (const auto &p : elem.key())
+        path_str->append("[" + p.first + "='" + p.second + "']");
+    }
+  }
+
+  // returns true on success
+  bool setXPathOrigin(std::string *path_str, const std::string &origin = "") {
+    if (path_str->empty() || path_str->at(0) != '/') return false;
+    auto node_sep = path_str->find_first_of('/', 1);
+    std::string first_node;
+    std::string remaining_path;
+    if (node_sep == std::string::npos) {
+      first_node = path_str->substr(1);
+    } else {
+      first_node = path_str->substr(1, node_sep - 1);
+      remaining_path = path_str->substr(node_sep);
+    }
+    auto ns_sep = first_node.find_first_of(':');
+    if (ns_sep == std::string::npos) {
+      if (origin.empty()) {
+        auto inferred_origin_it = namespace_mapping.find(first_node);
+        if (inferred_origin_it == namespace_mapping.end()) return false;
+        first_node = inferred_origin_it->second + ":" + first_node;
+      } else {
+        first_node = origin + ":" + first_node;
+      }
+      *path_str = "/" + first_node + remaining_path;
+    }
+    return true;
+  }
+
+ private:
+  // TODO(antonin): handle errors in scan_schemas
+  void scan_schemas() {
+    SysrepoSession session;
+    if (!session.open()) return;
+    sr_schema_t *schemas = NULL;
+    size_t schema_cnt = 0;
+    struct ly_ctx *ctx = ly_ctx_new(NULL, 0);
+    int rc = 0;
+    rc = sr_list_schemas(session.sess, &schemas, &schema_cnt);
+    if (rc != SR_ERR_OK) return;
+
+    auto dirname = [](const std::string &path) {
+      auto sep_pos = path.find_last_of('/');
+      if (sep_pos == std::string::npos) return path;
+      return path.substr(0, sep_pos);
+    };
+
+    for (size_t i = 0; i < schema_cnt; i++) {
+      if (!schemas[i].installed) continue;
+      const char *path_yang = schemas[i].revision.file_path_yang;
+      if (ly_ctx_set_searchdir(ctx, dirname(path_yang).c_str()) != EXIT_SUCCESS)
+        continue;
+      const struct lys_module *module = lys_parse_path(
+          ctx, path_yang, LYS_IN_YANG);
+      if (module == NULL) continue;
+      const struct lys_node *node = NULL;
+      while ((node = lys_getnext(node, NULL, module, 0)) != NULL) {
+        auto ns_it = namespace_mapping.find(node->name);
+        if (ns_it == namespace_mapping.end()) {
+          namespace_mapping.emplace(node->name, schemas[i].module_name);
+          SIMPLELOG << "Path " << node->name << " is in module "
+                    << schemas[i].module_name << "\n";
+        } else {
+          SIMPLELOG << "Path " << node->name << " is in multiple modules\n";
+        }
+      }
+    }
+    ly_ctx_clean(ctx, NULL);
+    ly_ctx_destroy(ctx, NULL);
+    sr_free_schemas(schemas, schema_cnt);
+  }
+
+  std::unordered_map<std::string, std::string> namespace_mapping{};
+};
+
 }  // namespace
+
+class gNMIServiceSysrepoImpl : public gnmi::gNMI::Service {
+ private:
+  grpc::Status Capabilities(grpc::ServerContext *context,
+                            const gnmi::CapabilityRequest *request,
+                            gnmi::CapabilityResponse *response) override;
+
+  grpc::Status Get(grpc::ServerContext *context,
+                   const gnmi::GetRequest *request,
+                   gnmi::GetResponse *response) override;
+
+  grpc::Status Set(grpc::ServerContext *context,
+                   const gnmi::SetRequest *request,
+                   gnmi::SetResponse *response) override;
+
+  grpc::Status Subscribe(
+      grpc::ServerContext *context,
+      grpc::ServerReaderWriter<gnmi::SubscribeResponse,
+                               gnmi::SubscribeRequest> *stream) override;
+
+  XPathBuilder xpath_builder;
+};
+
+std::unique_ptr<gnmi::gNMI::Service> make_gnmi_service_sysrepo() {
+  return std::unique_ptr<gnmi::gNMI::Service>(new gNMIServiceSysrepoImpl());
+}
 
 Status
 gNMIServiceSysrepoImpl::Capabilities(ServerContext *context,
@@ -230,27 +367,6 @@ gNMIServiceSysrepoImpl::Subscribe(
     notification->set_timestamp(timestamp);
 
     // TODO(antonin): keep connection open
-    struct SysrepoSession {
-      SysrepoSession() = default;
-
-      ~SysrepoSession() {
-        if (sess != NULL) sr_session_stop(sess);
-        if (conn != NULL) sr_disconnect(conn);
-      }
-
-      bool open() {
-        int rc = SR_ERR_OK;
-        rc = sr_connect("gnmiServer", SR_CONN_DEFAULT, &conn);
-        if (rc != SR_ERR_OK) return false;
-        rc = sr_session_start(conn, SR_DS_RUNNING, SR_SESS_DEFAULT, &sess);
-        if (rc != SR_ERR_OK) return false;
-        return true;
-      }
-
-      sr_conn_ctx_t *conn{NULL};
-      sr_session_ctx_t *sess{NULL};
-    };
-
     SysrepoSession session;
     if (!session.open()) {
       return Status(StatusCode::UNKNOWN,
@@ -259,11 +375,13 @@ gNMIServiceSysrepoImpl::Subscribe(
 
     const auto &prefix = sub.prefix();
     for (const auto &subscription : sub.subscription()) {
-      // TODO(antonin): This isn't part of the gNMI path but is required by
-      // sysrepo so I need to find a way to infer this.
-      std::string xpath("/openconfig-interfaces:");
-      convertToXPath(prefix, &xpath);
-      convertToXPath(subscription.path(), &xpath);
+      std::string xpath;
+      xpath_builder.appendToXPath(prefix, &xpath);
+      xpath_builder.appendToXPath(subscription.path(), &xpath);
+      if (!xpath_builder.setXPathOrigin(&xpath, subscription.path().origin())) {
+        return Status(StatusCode::INVALID_ARGUMENT,
+                      "Cannot convert gNMI path to XPath");
+      }
       SIMPLELOG << "ONCE subscription for XPath: " << xpath << "\n";
 
       sr_val_t *value = NULL;

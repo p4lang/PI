@@ -580,8 +580,7 @@ void PIGrpcServerRunAddr(const char *server_address) {
     &server_data->server_port);
   builder.RegisterService(&server_data->pi_service);
 #ifdef WITH_SYSREPO
-  server_data->gnmi_service = std::unique_ptr<gnmi::gNMI::Service>(
-      new pi::server::gNMIServiceSysrepoImpl());
+  server_data->gnmi_service = ::pi::server::make_gnmi_service_sysrepo();
 #else
   server_data->gnmi_service = std::unique_ptr<gnmi::gNMI::Service>(
       new pi::server::gNMIServiceImpl());

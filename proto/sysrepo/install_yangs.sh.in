@@ -2,13 +2,19 @@
 
 set -e
 
-sysrepoctl -i -S --yang @abs_top_srcdir@/yang/ietf-interfaces@2014-05-08.yang
-sysrepoctl -i -S --yang @abs_top_srcdir@/yang/iana-if-type.yang
-sysrepoctl -i -S --yang @abs_top_srcdir@/yang/ietf-inet-types@2013-07-15.yang
-sysrepoctl -i -S --yang @abs_top_srcdir@/yang/ietf-netconf-acm@2012-02-22.yang
-sysrepoctl -i -S --yang @abs_top_srcdir@/yang/ietf-netconf@2011-06-01.yang
-sysrepoctl -i -S --yang @abs_top_srcdir@/yang/ietf-netconf-notifications.yang
-sysrepoctl -i -S --yang @abs_top_srcdir@/openconfig/public/release/models/openconfig-extensions.yang
-sysrepoctl -i -S --yang @abs_top_srcdir@/openconfig/public/release/models/types/openconfig-types.yang
-sysrepoctl -i -S --yang @abs_top_srcdir@/openconfig/public/release/models/types/openconfig-yang-types.yang
-sysrepoctl -i -S --yang @abs_top_srcdir@/openconfig/public/release/models/interfaces/openconfig-interfaces.yang
+OPENCONFIG_ROOT="@abs_top_srcdir@/openconfig/public/release/models"
+
+SEARCH_DIRS="-s @abs_top_srcdir@/yang \
+-s $OPENCONFIG_ROOT \
+-s $OPENCONFIG_ROOT/types"
+
+YANGS="@abs_top_srcdir@/yang/iana-if-type.yang \
+$OPENCONFIG_ROOT/interfaces/openconfig-interfaces.yang \
+$OPENCONFIG_ROOT/platform/openconfig-platform.yang"
+
+# Sysrepo deamon complains if this is missing
+YANGS="$YANGS @abs_top_srcdir@/yang/ietf-netconf-notifications.yang"
+
+for YANG in $YANGS; do
+    sysrepoctl -i $SEARCH_DIRS --yang $YANG
+done
