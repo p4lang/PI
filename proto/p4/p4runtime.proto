@@ -97,7 +97,7 @@ message Entity {
     DirectMeterEntry direct_meter_entry = 6;
     CounterEntry counter_entry = 7;
     DirectCounterEntry direct_counter_entry = 8;
-    PreEntry pre_entry = 9;
+    PacketReplicationEngineEntry packet_replication_engine_entry = 9;
   }
 }
 
