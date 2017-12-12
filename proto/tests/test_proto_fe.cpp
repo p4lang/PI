@@ -193,6 +193,7 @@ class DeviceMgrTest : public ::testing::Test {
     // assert is false
     config.release_p4info();
     ASSERT_EQ(status.code(), Code::OK);
+    mock->set_p4info(p4info);
   }
 
   void TearDown() override { }
@@ -1272,6 +1273,9 @@ class ExactOneTest : public DeviceMgrTest {
     a_id = pi_p4info_action_id_from_name(p4info, "actionA");
   }
 
+  ExactOneTest()
+      : ExactOneTest("ExactOne", "header_test.field32") { }
+
   p4::TableEntry make_entry(const std::string &mf_v,
                             const std::string &param_v) {
     p4::TableEntry table_entry;
@@ -1296,6 +1300,37 @@ class ExactOneTest : public DeviceMgrTest {
   pi_p4_id_t t_id;
   pi_p4_id_t a_id;
 };
+
+// We used to hit an assert when a priority value was provided for exact match
+// tables (https://github.com/p4lang/behavioral-model/issues/490).
+// This test will need to be updated if we decide the right behavior is to
+// return an error in this scenario instead of silently ignoring the priority
+// value.
+TEST_F(ExactOneTest, ExtraPriority) {
+  std::string mf("\xaa\xbb\xcc\xdd", 4);
+  std::string adata(6, '\x00');
+  int priority(789);
+  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mf));
+  auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
+  EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
+  auto entry = make_entry(mf, adata);
+  entry.set_priority(priority);
+  {
+    auto status = add_entry(&entry);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+
+  EXPECT_CALL(*mock, table_entries_fetch(t_id, _));
+  p4::ReadResponse response;
+  p4::Entity entity;
+  entity.mutable_table_entry()->CopyFrom(entry);
+  {
+    auto status = mgr.read_one(entity, &response);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+  const auto &entities = response.entities();
+  ASSERT_EQ(1, entities.size());
+}
 
 
 class DirectMeterTest : public ExactOneTest {

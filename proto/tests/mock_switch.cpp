@@ -73,6 +73,10 @@ class DummyMatchKey {
     return mk.size();
   }
 
+  void set_priority(int priority) {
+    this->priority = priority;
+  }
+
  private:
   uint32_t priority;
   std::vector<char> mk;
@@ -161,15 +165,22 @@ class DummyTable {
     DummyTableEntry entry;
   };
 
+  DummyTable(pi_p4_id_t table_id, const pi_p4info_t *p4info)
+      : table_id(table_id), p4info(p4info) { }
+
   pi_status_t entry_add(const pi_match_key_t *match_key,
                         const pi_table_entry_t *table_entry,
                         pi_entry_handle_t *entry_handle) {
     auto r = key_to_handle.emplace(DummyMatchKey(match_key), entry_counter);
     // TODO(antonin): we need a better error code for duplicate entry
     if (!r.second) return PI_STATUS_TARGET_ERROR;
+    // An actual target would probably discard the priority for a non-ternary
+    // table...
+    DummyMatchKey dmk(match_key);
+    if (!has_ternary_match()) dmk.set_priority(0);
     entries.emplace(
         entry_counter,
-        Entry(DummyMatchKey(match_key), DummyTableEntry(table_entry)));
+        Entry(std::move(dmk), DummyTableEntry(table_entry)));
     *entry_handle = entry_counter++;
     return PI_STATUS_SUCCESS;
   }
@@ -230,6 +241,19 @@ class DummyTable {
   }
 
  private:
+  bool has_ternary_match() const {
+    size_t num_mfs = pi_p4info_table_num_match_fields(p4info, table_id);
+    for (size_t idx = 0; idx < num_mfs; idx++) {
+      auto mf_info = pi_p4info_table_match_field_info(p4info, table_id, idx);
+      if (mf_info->match_type == PI_P4INFO_MATCH_TYPE_TERNARY ||
+          mf_info->match_type == PI_P4INFO_MATCH_TYPE_RANGE)
+        return true;
+    }
+    return false;
+  }
+
+  const pi_p4_id_t table_id;
+  const pi_p4info_t *p4info;
   std::unordered_map<pi_entry_handle_t, Entry> entries{};
   std::unordered_map<DummyMatchKey, pi_entry_handle_t, DummyMatchKeyHash>
   key_to_handle{};
@@ -366,34 +390,33 @@ class DummySwitch {
                               const pi_match_key_t *match_key,
                               const pi_table_entry_t *table_entry,
                               pi_entry_handle_t *entry_handle) {
-    // constructs DummyTable if not already in map
-    return tables[table_id].entry_add(match_key, table_entry, entry_handle);
+    return get_table(table_id).entry_add(match_key, table_entry, entry_handle);
   }
 
   pi_status_t table_default_action_set(pi_p4_id_t table_id,
                                        const pi_table_entry_t *table_entry) {
-    return tables[table_id].default_action_set(table_entry);
+    return get_table(table_id).default_action_set(table_entry);
   }
 
   pi_status_t table_default_action_get(pi_p4_id_t table_id,
                                        pi_table_entry_t *table_entry) {
-    return tables[table_id].default_action_get(table_entry);
+    return get_table(table_id).default_action_get(table_entry);
   }
 
   pi_status_t table_entry_delete_wkey(pi_p4_id_t table_id,
                                       const pi_match_key_t *match_key) {
-    return tables[table_id].entry_delete_wkey(match_key);
+    return get_table(table_id).entry_delete_wkey(match_key);
   }
 
   pi_status_t table_entry_modify_wkey(pi_p4_id_t table_id,
                                       const pi_match_key_t *match_key,
                                       const pi_table_entry_t *table_entry) {
-    return tables[table_id].entry_modify_wkey(match_key, table_entry);
+    return get_table(table_id).entry_modify_wkey(match_key, table_entry);
   }
 
   pi_status_t table_entries_fetch(pi_p4_id_t table_id,
                                   pi_table_fetch_res_t *res) {
-    return tables[table_id].entries_fetch(res);
+    return get_table(table_id).entries_fetch(res);
   }
 
   pi_status_t action_prof_member_create(pi_p4_id_t act_prof_id,
@@ -475,7 +498,22 @@ class DummySwitch {
     return pi_packetin_receive(device_id, packet.data(), packet.size());
   }
 
+  void set_p4info(const pi_p4info_t *p4info) {
+    this->p4info = p4info;
+  }
+
  private:
+  DummyTable &get_table(pi_p4_id_t table_id) {
+    auto t_it = tables.find(table_id);
+    if (t_it == tables.end()) {
+      return tables.emplace(
+          table_id, DummyTable(table_id, p4info)).first->second;
+    } else {
+      return t_it->second;
+    }
+  }
+
+  const pi_p4info_t *p4info{nullptr};
   std::unordered_map<pi_p4_id_t, DummyTable> tables{};
   std::unordered_map<pi_p4_id_t, DummyActionProf> action_profs{};
   std::unordered_map<pi_p4_id_t, DummyMeter> meters{};
@@ -585,6 +623,11 @@ DummySwitchMock::get_action_prof_handle() const {
 pi_status_t
 DummySwitchMock::packetin_inject(const std::string &packet) const {
   return sw->packetin_inject(packet);
+}
+
+void
+DummySwitchMock::set_p4info(const pi_p4info_t *p4info) {
+  sw->set_p4info(p4info);
 }
 
 namespace {

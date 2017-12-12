@@ -67,6 +67,8 @@ class DummySwitchMock {
 
   pi_status_t packetin_inject(const std::string &packet) const;
 
+  void set_p4info(const pi_p4info_t *p4info);
+
   MOCK_METHOD4(table_entry_add,
                pi_status_t(pi_p4_id_t, const pi_match_key_t *,
                            const pi_table_entry_t *, pi_entry_handle_t *));
