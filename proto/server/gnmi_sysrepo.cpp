@@ -179,6 +179,11 @@ struct SysrepoSession {
   sr_session_ctx_t *sess{NULL};
 };
 
+// checks if str starts with substr
+bool starts_with(const std::string &str, const std::string &substr) {
+  return str.substr(0, substr.size()) == substr;
+}
+
 // Utility class to convert gNMI paths to XPaths that sysrepo can understand
 // The difficulty is that gNMI does not assume that the module name is included
 // in the path, as long as there is no ambiguity, i.e. no overlap in the
@@ -257,6 +262,13 @@ class XPathBuilder {
 
     for (size_t i = 0; i < schema_cnt; i++) {
       if (!schemas[i].installed) continue;
+      const char *module_name = schemas[i].module_name;
+      // Avoid issues if different modules with colliding paths are installed.
+      // For example, if both openconfig-interfaces and ietf-interfaces are
+      // installed. Since we only support modules in the openconfig tree for
+      // now, this check makes sense.
+      // See https://github.com/sysrepo/sysrepo/issues/1015
+      if (!starts_with(module_name, "openconfig")) continue;
       const char *path_yang = schemas[i].revision.file_path_yang;
       if (ly_ctx_set_searchdir(ctx, dirname(path_yang).c_str()) != EXIT_SUCCESS)
         continue;
@@ -267,7 +279,7 @@ class XPathBuilder {
       while ((node = lys_getnext(node, NULL, module, 0)) != NULL) {
         auto ns_it = namespace_mapping.find(node->name);
         if (ns_it == namespace_mapping.end()) {
-          namespace_mapping.emplace(node->name, schemas[i].module_name);
+          namespace_mapping.emplace(node->name, module_name);
           SIMPLELOG << "Path " << node->name << " is in module "
                     << schemas[i].module_name << "\n";
         } else {
