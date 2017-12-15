@@ -24,7 +24,7 @@
 
 #include <p4/p4runtime.grpc.pb.h>
 
-#include <PI/proto/pi_server.h>
+#include "utils.h"
 
 namespace pi {
 namespace proto {
@@ -39,15 +39,15 @@ class TestNoForwardingPipeline : public ::testing::Test {
  protected:
   TestNoForwardingPipeline()
       : p4runtime_channel(grpc::CreateChannel(
-            grpc_server_addr, grpc::InsecureChannelCredentials())),
+            server->bind_addr(), grpc::InsecureChannelCredentials())),
         p4runtime_stub(p4::P4Runtime::NewStub(p4runtime_channel)) { }
 
   static void SetUpTestCase() {
-    PIGrpcServerRunAddr(grpc_server_addr);
+    server = new TestServer();
   }
 
   static void TearDownTestCase() {
-    PIGrpcServerShutdown();
+    delete server;
   }
 
   void SetUp() override {
@@ -74,10 +74,10 @@ class TestNoForwardingPipeline : public ::testing::Test {
   ClientContext stream_context;
   std::unique_ptr<ReaderWriter> stream{nullptr};
 
-  static constexpr char grpc_server_addr[] = "0.0.0.0:50051";
+  static TestServer *server;
 };
 
-constexpr char TestNoForwardingPipeline::grpc_server_addr[];
+TestServer *TestNoForwardingPipeline::server = nullptr;
 
 TEST_F(TestNoForwardingPipeline, Write) {
   p4::WriteRequest request;

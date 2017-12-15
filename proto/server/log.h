@@ -18,21 +18,19 @@
  *
  */
 
-#ifndef PROTO_SERVER_GNMI_SYSREPO_H_
-#define PROTO_SERVER_GNMI_SYSREPO_H_
+#ifndef PROTO_SERVER_LOG_H_
+#define PROTO_SERVER_LOG_H_
 
-#include <memory>
+#include <iostream>
 
-#include "gnmi/gnmi.grpc.pb.h"
+#define DEBUG
 
-namespace pi {
+#ifdef DEBUG
+#define ENABLE_SIMPLELOG true
+#else
+#define ENABLE_SIMPLELOG false
+#endif
 
-namespace server {
+#define SIMPLELOG if (ENABLE_SIMPLELOG) std::cout
 
-std::unique_ptr<gnmi::gNMI::Service> make_gnmi_service_sysrepo();
-
-}  // namespace server
-
-}  // namespace pi
-
-#endif  // PROTO_SERVER_GNMI_SYSREPO_H_
+#endif  // PROTO_SERVER_LOG_H_

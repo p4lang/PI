@@ -19,28 +19,25 @@
  */
 
 #include <PI/frontends/proto/device_mgr.h>
-#include <PI/frontends/proto/gnmi_mgr.h>
 
 #include <PI/proto/pi_server.h>
 
 #include <grpc++/grpc++.h>
 // #include <grpc++/support/error_details.h>
 
-#include <iostream>
 #include <memory>
 #include <set>
 #include <string>
 #include <thread>
 #include <unordered_map>
 
+#include "gnmi.h"
 #include "gnmi/gnmi.grpc.pb.h"
 #include "google/rpc/code.pb.h"
+#include "log.h"
 #include "p4/p4runtime.grpc.pb.h"
 #include "pi_server_testing.h"
 #include "uint128.h"
-#ifdef WITH_SYSREPO
-#include "gnmi_sysrepo.h"
-#endif
 
 using grpc::Server;
 using grpc::ServerBuilder;
@@ -50,18 +47,7 @@ using grpc::ServerReaderWriter;
 using grpc::Status;
 using grpc::StatusCode;
 
-using pi::fe::proto::GnmiMgr;
 using pi::fe::proto::DeviceMgr;
-
-#define DEBUG
-
-#ifdef DEBUG
-#define ENABLE_SIMPLELOG true
-#else
-#define ENABLE_SIMPLELOG false
-#endif
-
-#define SIMPLELOG if (ENABLE_SIMPLELOG) std::cout
 
 namespace pi {
 
@@ -107,14 +93,6 @@ grpc::Status no_pipeline_config_status() {
 grpc::Status not_master_status() {
   return grpc::Status(grpc::StatusCode::PERMISSION_DENIED, "Not master");
 }
-
-class ConfigMgrInstance {
- public:
-  static GnmiMgr *get() {
-    static GnmiMgr mgr;
-    return &mgr;
-  }
-};
 
 using StreamChannelReaderWriter = grpc::ServerReaderWriter<
   p4::StreamMessageResponse, p4::StreamMessageRequest>;
@@ -341,48 +319,6 @@ class Devices {
                      std::unique_ptr<DeviceState> > device_map{};
 };
 
-class gNMIServiceImpl : public gnmi::gNMI::Service {
- private:
-  Status Capabilities(ServerContext *context,
-                      const gnmi::CapabilityRequest *request,
-                      gnmi::CapabilityResponse *response) override {
-    (void) request; (void) response;
-    SIMPLELOG << "gNMI Capabilities\n";
-    SIMPLELOG << request->DebugString();
-    return Status(StatusCode::UNIMPLEMENTED, "not implemented yet");
-  }
-
-  Status Get(ServerContext *context, const gnmi::GetRequest *request,
-             gnmi::GetResponse *response) override {
-    SIMPLELOG << "gNMI Get\n";
-    SIMPLELOG << request->DebugString();
-    auto status = ConfigMgrInstance::get()->get(*request, response);
-    return to_grpc_status(status);
-  }
-
-  Status Set(ServerContext *context, const gnmi::SetRequest *request,
-             gnmi::SetResponse *response) override {
-    SIMPLELOG << "gNMI Set\n";
-    SIMPLELOG << request->DebugString();
-    auto status = ConfigMgrInstance::get()->set(*request, response);
-    return to_grpc_status(status);
-  }
-
-  Status Subscribe(
-      ServerContext *context,
-      ServerReaderWriter<gnmi::SubscribeResponse,
-                         gnmi::SubscribeRequest> *stream) override {
-    SIMPLELOG << "gNMI Subscribe\n";
-    gnmi::SubscribeRequest request;
-    // keeping the channel open, but not doing anything
-    // if we receive a Write, we will return an error status
-    while (stream->Read(&request)) {
-      return Status(StatusCode::UNIMPLEMENTED, "not implemented yet");
-    }
-    return Status::OK;
-  }
-};
-
 void packet_in_cb(DeviceMgr::device_id_t device_id, p4::PacketIn *packet,
                   void *cookie);
 
@@ -582,8 +518,7 @@ void PIGrpcServerRunAddr(const char *server_address) {
 #ifdef WITH_SYSREPO
   server_data->gnmi_service = ::pi::server::make_gnmi_service_sysrepo();
 #else
-  server_data->gnmi_service = std::unique_ptr<gnmi::gNMI::Service>(
-      new pi::server::gNMIServiceImpl());
+  server_data->gnmi_service = ::pi::server::make_gnmi_service_dummy();
 #endif  // WITH_SYSREPO
   builder.RegisterService(server_data->gnmi_service.get());
   builder.SetMaxReceiveMessageSize(256*1024*1024);  // 256MB

@@ -26,8 +26,6 @@
 #include <google/rpc/code.pb.h>
 #include <p4/p4runtime.grpc.pb.h>
 
-#include <PI/proto/pi_server.h>
-
 #include <string>
 #include <vector>
 
@@ -35,6 +33,7 @@
 #include "uint128.h"
 
 #include "mock_switch.h"
+#include "utils.h"
 
 namespace pi {
 namespace proto {
@@ -58,16 +57,16 @@ class TestArbitration : public ::testing::Test {
  protected:
   TestArbitration()
       : p4runtime_channel(grpc::CreateChannel(
-            grpc_server_addr, grpc::InsecureChannelCredentials())),
+            server->bind_addr(), grpc::InsecureChannelCredentials())),
         p4runtime_stub(p4::P4Runtime::NewStub(p4runtime_channel)),
         mock(wrapper.sw()) { }
 
   static void SetUpTestCase() {
-    PIGrpcServerRunAddr(grpc_server_addr);
+    server = new TestServer();
   }
 
   static void TearDownTestCase() {
-    PIGrpcServerShutdown();
+    delete server;
   }
 
   using ReaderWriter = ::grpc::ClientReaderWriter<p4::StreamMessageRequest,
@@ -145,10 +144,10 @@ class TestArbitration : public ::testing::Test {
   DummySwitchWrapper wrapper{};
   DummySwitchMock *mock;
 
-  static constexpr char grpc_server_addr[] = "0.0.0.0:50053";
+  static TestServer *server;
 };
 
-constexpr char TestArbitration::grpc_server_addr[];
+TestServer *TestArbitration::server = nullptr;
 
 TEST_F(TestArbitration, WriteNoMaster) {
   // no streams, empty election id, should go through

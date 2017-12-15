@@ -18,45 +18,41 @@
  *
  */
 
-#ifndef PI_FRONTENDS_PROTO_GNMI_MGR_H_
-#define PI_FRONTENDS_PROTO_GNMI_MGR_H_
+#ifndef PROTO_TESTS_SERVER_UTILS_H_
+#define PROTO_TESTS_SERVER_UTILS_H_
 
-#include <memory>
+#include <PI/proto/pi_server.h>
 
-#include "gnmi/gnmi.pb.h"
-#include "google/rpc/status.pb.h"
+#include <string>
 
 namespace pi {
-
-namespace fe {
-
 namespace proto {
+namespace testing {
 
-// forward declaration for PIMPL class
-class GnmiMgrImp;
-
-class GnmiMgr {
+class TestServer {
  public:
-  using Status = ::google::rpc::Status;
+  TestServer() {
+    PIGrpcServerRunAddr(bind_any_addr);
+    server_port = PIGrpcServerGetPort();
+  }
 
-  GnmiMgr();
-  ~GnmiMgr();
+  ~TestServer() {
+    PIGrpcServerShutdown();
+  }
 
-  Status get(const gnmi::GetRequest &request,
-             gnmi::GetResponse *response) const;
-
-  Status set(const gnmi::SetRequest &request,
-             gnmi::SetResponse *response);
+  std::string bind_addr() const {
+    return std::string("0.0.0.0:") + std::to_string(server_port);
+  }
 
  private:
-  // PIMPL design
-  std::unique_ptr<GnmiMgrImp> pimp;
+  static constexpr char bind_any_addr[] = "[::]:0";
+  int server_port;
 };
 
+constexpr char TestServer::bind_any_addr[];
+
+}  // namespace testing
 }  // namespace proto
-
-}  // namespace fe
-
 }  // namespace pi
 
-#endif  // PI_FRONTENDS_PROTO_GNMI_MGR_H_
+#endif  // PROTO_TESTS_SERVER_UTILS_H_

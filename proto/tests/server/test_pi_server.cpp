@@ -21,11 +21,10 @@ namespace proto {
 namespace testing {
 namespace {
 
-static std::string grpc_server_addr = "0.0.0.0";
-static std::string grpc_server_port = "50054";
+const std::string grpc_server_addr = "0.0.0.0";
 
-void StartGrpcServer() {
-  std::string bind_addr = grpc_server_addr+":"+grpc_server_port;
+void StartGrpcServer(int port) {
+  std::string bind_addr = grpc_server_addr + ":" + std::to_string(port);
   PIGrpcServerRunAddr(bind_addr.c_str());
 }
 
@@ -33,19 +32,20 @@ void ShutdownGrpcServer() {
   PIGrpcServerShutdown();
 }
 
-void SetGrpcServerPort(std::string port) {
-  grpc_server_port = port;
-}
-
 TEST(TestPIGrpcServer, DefaultPort) {
-  StartGrpcServer();
-  EXPECT_EQ(PIGrpcServerGetPort(), 50054);
+  // maybe we should just get rid of the tests in this file now that we let the
+  // OS bind to any port and use PIGrpcServerGetPort() in other tests
+  int port = 1024;
+  for (; port < 4096; port++) {
+    StartGrpcServer(port);
+    if (PIGrpcServerGetPort() == port) break;
+  }
+  ASSERT_EQ(PIGrpcServerGetPort(), port);
   ShutdownGrpcServer();
 }
 
 TEST(TestPIGrpcServer, RandomPort) {
-  SetGrpcServerPort("0");
-  StartGrpcServer();
+  StartGrpcServer(0);
   EXPECT_NE(PIGrpcServerGetPort(), 0);
   ShutdownGrpcServer();
 }

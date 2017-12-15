@@ -24,46 +24,92 @@
 
 #include <gnmi/gnmi.grpc.pb.h>
 
-#include <PI/proto/pi_server.h>
+#include <memory>
+#include <string>
+
+#include "gnmi.h"
+
+using grpc::Server;
+using grpc::ServerBuilder;
+
+using grpc::ClientContext;
+using grpc::Status;
+using grpc::StatusCode;
 
 namespace pi {
 namespace proto {
 namespace testing {
 namespace {
 
-using grpc::ClientContext;
-using grpc::Status;
-using grpc::StatusCode;
+// Cannot use TestServer class from utils because we need to be able to test
+// both gNMI services even when sysrepo is present. The default server (started
+// by PIGrpcServerRunAddr) will default to sysrepo if it is present.
 
-// TODO(antonin): provide a base class to manage server and expose a C++ API so
-// multiple instances of the server can be run in the same process concurrently.
+class GnmiServer {
+ public:
+  explicit GnmiServer(std::unique_ptr<gnmi::gNMI::Service> gnmi_service)
+      : gnmi_service(std::move(gnmi_service)) {
+    builder.AddListeningPort(
+        bind_any_addr, grpc::InsecureServerCredentials(), &server_port);
+    builder.RegisterService(this->gnmi_service.get());
+    server = builder.BuildAndStart();
+  }
+
+  ~GnmiServer() {
+    server->Shutdown();
+  }
+
+  std::string bind_addr() const {
+    return std::string("0.0.0.0:") + std::to_string(server_port);
+  }
+
+ private:
+  static constexpr char bind_any_addr[] = "[::]:0";
+  std::unique_ptr<gnmi::gNMI::Service> gnmi_service;
+  ServerBuilder builder;
+  std::unique_ptr<Server> server;
+  int server_port;
+};
+
+constexpr char GnmiServer::bind_any_addr[];
+
 class TestGNMI : public ::testing::Test {
  protected:
   TestGNMI()
       : gnmi_channel(grpc::CreateChannel(
-            grpc_server_addr, grpc::InsecureChannelCredentials())),
+            server->bind_addr(), grpc::InsecureChannelCredentials())),
         gnmi_stub(gnmi::gNMI::NewStub(gnmi_channel)) { }
 
+  static void setup_server(std::unique_ptr<gnmi::gNMI::Service> gnmi_service) {
+    server = new GnmiServer(std::move(gnmi_service));
+  }
+
+  static void teardown_server() {
+    delete server;
+  }
+
+  static GnmiServer *server;
+
+  std::shared_ptr<grpc::Channel> gnmi_channel;
+  std::unique_ptr<gnmi::gNMI::Stub> gnmi_stub;
+};
+
+GnmiServer *TestGNMI::server = nullptr;
+
+class TestGNMIDummy : public TestGNMI {
+ protected:
   static void SetUpTestCase() {
-    PIGrpcServerRunAddr(grpc_server_addr);
+    setup_server(pi::server::make_gnmi_service_dummy());
   }
 
   static void TearDownTestCase() {
-    PIGrpcServerShutdown();
+    teardown_server();
   }
-
-  int device_id{0};
-  std::shared_ptr<grpc::Channel> gnmi_channel;
-  std::unique_ptr<gnmi::gNMI::Stub> gnmi_stub;
-
-  static constexpr char grpc_server_addr[] = "0.0.0.0:50052";
 };
-
-constexpr char TestGNMI::grpc_server_addr[];
 
 // check that Subscribe stream stays open, even though nothing is implemented
 // yet
-TEST_F(TestGNMI, SubscribeStaysOpen) {
+TEST_F(TestGNMIDummy, SubscribeStaysOpen) {
   gnmi::SubscribeRequest req;
   gnmi::SubscribeResponse rep;
   ClientContext context;
@@ -73,7 +119,7 @@ TEST_F(TestGNMI, SubscribeStaysOpen) {
   EXPECT_TRUE(status.ok());
 }
 
-TEST_F(TestGNMI, SubscribeErrorOnWrite) {
+TEST_F(TestGNMIDummy, SubscribeErrorOnWrite) {
   gnmi::SubscribeRequest req;
   gnmi::SubscribeResponse rep;
   ClientContext context;
@@ -84,6 +130,23 @@ TEST_F(TestGNMI, SubscribeErrorOnWrite) {
   EXPECT_FALSE(status.ok());
   EXPECT_EQ(StatusCode::UNIMPLEMENTED, status.error_code());
 }
+
+#ifdef WITH_SYSREPO
+
+class TestGNMISysrepo : public TestGNMI {
+ protected:
+  static void SetUpTestCase() {
+    setup_server(pi::server::make_gnmi_service_sysrepo());
+  }
+
+  static void TearDownTestCase() {
+    teardown_server();
+  }
+};
+
+TEST_F(TestGNMISysrepo, Dummy) { }
+
+#endif  // WITH_SYSREPO
 
 }  // namespace
 }  // namespace testing

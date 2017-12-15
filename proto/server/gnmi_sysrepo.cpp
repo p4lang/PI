@@ -18,7 +18,7 @@
  *
  */
 
-#include "gnmi_sysrepo.h"
+#include "gnmi.h"
 
 #include <grpc++/grpc++.h>
 
@@ -37,21 +37,12 @@ extern "C" {
 }
 
 #include "gnmi/gnmi.grpc.pb.h"
+#include "log.h"
 
 using grpc::ServerContext;
 using grpc::ServerReaderWriter;
 using grpc::Status;
 using grpc::StatusCode;
-
-#define DEBUG
-
-#ifdef DEBUG
-#define ENABLE_SIMPLELOG true
-#else
-#define ENABLE_SIMPLELOG false
-#endif
-
-#define SIMPLELOG if (ENABLE_SIMPLELOG) std::cout
 
 namespace pi {
 
@@ -99,7 +90,7 @@ bool isLeaf(const sr_val_t *value) {
   return true;
 }
 
-void convertTypedValue(const sr_val_t *value, gnmi::TypedValue *typedV) {
+void convertToTypedValue(const sr_val_t *value, gnmi::TypedValue *typedV) {
   switch (value->type) {
     case SR_BINARY_T:
       typedV->set_bytes_val(value->data.binary_val);
@@ -211,8 +202,11 @@ class XPathBuilder {
         path_str->append("/*");
       else
         path_str->append(elem.name());
-      for (const auto &p : elem.key())
-        path_str->append("[" + p.first + "='" + p.second + "']");
+      for (const auto &p : elem.key()) {
+        // if value is wildcard, do not include the key at all
+        if (p.second != "*")
+          path_str->append("[" + p.first + "='" + p.second + "']");
+      }
     }
   }
 
@@ -425,7 +419,7 @@ gNMIServiceSysrepoImpl::Subscribe(
         // TODO(antonin): use prefix for smaller messages
         // TODO(antonin): investigate aggregation
         convertFromXPath(update_xpath, update->mutable_path());
-        convertTypedValue(value, update->mutable_val());
+        convertToTypedValue(value, update->mutable_val());
         sr_free_val(value);
       }
       sr_free_val_iter(iter);
