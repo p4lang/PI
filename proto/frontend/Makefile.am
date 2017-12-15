@@ -35,7 +35,6 @@ $(top_builddir)/third_party/libfmt.la
 
 nobase_include_HEADERS = \
 PI/frontends/proto/device_mgr.h \
-PI/frontends/proto/gnmi_mgr.h \
 PI/frontends/proto/logging.h
 
 lib_LTLIBRARIES = libpifeproto.la

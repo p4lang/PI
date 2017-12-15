@@ -12,6 +12,10 @@ AM_CPPFLAGS = \
 -I$(top_srcdir)/../third_party/googletest/googlemock/include \
 -DTESTDATADIR=\"$(abs_top_srcdir)/../tests/testdata\"
 
+if WITH_SYSREPO
+AM_CPPFLAGS += -DWITH_SYSREPO
+endif
+
 TESTS = \
 test_p4info_convert \
 test_proto_fe \
@@ -66,7 +70,7 @@ test_proto_fe_LDADD = $(proto_fe_libs)
 test_proto_fe_packet_io_LDADD = $(proto_fe_libs)
 
 test_server_common_source = $(proto_fe_common_source) \
-server/gnmi_mgr_dummy.cpp
+server/utils.h
 test_server_libs = \
 $(top_builddir)/server/libpigrpcserver.la \
 $(mock_switch_libs) \

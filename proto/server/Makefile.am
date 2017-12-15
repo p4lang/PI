@@ -14,13 +14,15 @@ AM_CXXFLAGS = -Wall -Werror
 lib_LTLIBRARIES = libpigrpcserver.la
 
 libpigrpcserver_la_SOURCES = \
+gnmi.h \
+gnmi_dummy.cpp \
+log.h \
 pi_server.cpp \
 uint128.h \
 uint128.cpp
 
 if WITH_SYSREPO
 libpigrpcserver_la_SOURCES += \
-gnmi_sysrepo.h \
 gnmi_sysrepo.cpp
 endif
 

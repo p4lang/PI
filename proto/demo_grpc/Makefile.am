@@ -12,7 +12,7 @@ AM_CXXFLAGS = -Wall -Werror
 
 noinst_PROGRAMS = controller pi_server_dummy test_perf
 
-pi_server_dummy_SOURCES = pi_server_main.cpp gnmi_mgr_dummy.cpp
+pi_server_dummy_SOURCES = pi_server_main.cpp
 
 test_perf_SOURCES = test_perf.cpp
 
@@ -33,7 +33,7 @@ $(top_builddir)/../src/libpiall.la
 if WITH_BMV2
 bin_PROGRAMS = pi_grpc_server
 
-pi_grpc_server_SOURCES = pi_server_main.cpp gnmi_mgr_dummy.cpp
+pi_grpc_server_SOURCES = pi_server_main.cpp
 
 pi_grpc_server_LDADD = \
 $(COMMON_SERVER_LIBS) \
