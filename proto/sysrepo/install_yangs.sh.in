@@ -15,6 +15,13 @@ $OPENCONFIG_ROOT/platform/openconfig-platform.yang"
 # Sysrepo deamon complains if this is missing
 YANGS="$YANGS @abs_top_srcdir@/yang/ietf-netconf-notifications.yang"
 
+# Sysrepocfg cannot export the openconfig-interfaces data tree if this is not
+# explicitly installed.
+# See https://github.com/sysrepo/sysrepo/issues/1015
+# I don't know if this is the intended behavior or an issue, so in the meantime
+# I explicitly install it.
+YANGS="$YANGS @abs_top_srcdir@/yang/ietf-interfaces@2014-05-08.yang"
+
 for YANG in $YANGS; do
     sysrepoctl -i $SEARCH_DIRS --yang $YANG
 done
