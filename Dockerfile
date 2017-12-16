@@ -26,6 +26,7 @@ ENV PI_DEPS automake \
 ENV PI_RUNTIME_DEPS libboost-system1.58.0 \
                     libjudydebian1 \
                     python
+
 COPY . /PI/
 WORKDIR /PI/
 RUN apt-get update && \

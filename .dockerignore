@@ -2,4 +2,5 @@
 **/.gitmodules
 **/.travis.yml
 **/Dockerfile
+**/Dockerfile.bmv2
 **/*.md

@@ -42,6 +42,8 @@ ENV PI_RUNTIME_DEPS libboost-system1.58.0 \
                     libjudydebian1 \
                     libpcap0.8 \
                     python
+
+COPY proto/sysrepo/docker_entry_point.sh /docker_entry_point.sh
 COPY . /PI/
 WORKDIR /PI/
 RUN apt-get update && \
@@ -51,6 +53,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends $PI_DEPS $PI_RUNTIME_DEPS && \
     ./autogen.sh && \
     ./configure --with-bmv2 --with-proto --with-sysrepo && \
+    ./proto/sysrepo/install_yangs.sh && \
     make && \
     make install-strip && \
     (test "$IMAGE_TYPE" = "build" && \
@@ -60,3 +63,6 @@ RUN apt-get update && \
       echo 'Build image ready') || \
     (test "$IMAGE_TYPE" = "test" && \
       echo 'Test image ready')
+
+# start sysrepo daemon (sysrepod)
+ENTRYPOINT ["/docker_entry_point.sh"]
