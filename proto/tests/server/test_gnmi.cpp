@@ -18,6 +18,8 @@
  *
  */
 
+#include <boost/optional.hpp>
+
 #include <grpc++/grpc++.h>
 
 #include <gtest/gtest.h>
@@ -30,6 +32,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <ostream>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -173,53 +176,86 @@ struct Event {
   std::string new_v_str;
 };
 
+bool operator ==(const Event &e1, const Event &e2) {
+  return (e1.xpath == e2.xpath) &&
+      (e1.oper == e2.oper) &&
+      (e1.new_v_str == e2.new_v_str);
+}
+
+std::ostream &operator <<(std::ostream &os, const Event &e) {
+  os << "Event(xpath=" << e.xpath << ", oper=" << e.oper
+     << ", new_val=" << e.new_v_str << ")";
+  return os;
+}
+
+std::ostream &operator <<(std::ostream &os, const boost::optional<Event> &e) {
+  if (e.is_initialized())
+    os << e.get();
+  else
+    os << "NONE";
+  return os;
+}
+
 class SysrepoEventQueue {
  public:
   void push_front(Event &&e) {
     Lock lock(q_mutex);
-    queue.push_front(std::move(e));
+    // create queue for xpath if doesn't exist yet
+    queues[e.xpath].push_front(std::move(e));
     lock.unlock();
-    q_not_empty.notify_one();
+    q_not_empty.notify_all();
   }
 
+  // Event *pE needs to have xpath set
   bool pop_back(Event *pE) {
     Lock lock(q_mutex);
-    q_not_empty.wait(lock, [this]{ return !is_not_empty(); });
+    q_not_empty.wait(lock, [this, pE]{ return !is_not_empty(pE->xpath); });
+    auto &queue = queues.at(pE->xpath);
     *pE = std::move(queue.back());
     queue.pop_back();
+    remove_if_empty(pE->xpath);
     return true;
   }
 
+  // Event *pE needs to have xpath set
   bool pop_back(Event *pE, const std::chrono::milliseconds &max_wait) {
     Lock lock(q_mutex);
     auto success = q_not_empty.wait_for(
-        lock, max_wait, [this]{ return is_not_empty(); });
+        lock, max_wait, [this, pE]{ return is_not_empty(pE->xpath); });
     if (!success) return false;
+    auto &queue = queues.at(pE->xpath);
     *pE = std::move(queue.back());
     queue.pop_back();
+    remove_if_empty(pE->xpath);
     return true;
-  }
-
-  size_t size() const {
-    Lock lock(q_mutex);
-    return queue.size();
   }
 
   bool empty() const {
     Lock lock(q_mutex);
-    return queue.empty();
+    return queues.empty();
   }
 
   void clear() {
     Lock lock(q_mutex);
-    queue.clear();
+    queues.clear();
   }
 
  private:
-  bool is_not_empty() const { return queue.size() > 0; }
+  bool is_not_empty(const std::string &xpath) const {
+    auto it = queues.find(xpath);
+    return (it != queues.end()) && !it->second.empty();
+  }
+
+  void remove_if_empty(const std::string &xpath) {
+    auto it = queues.find(xpath);
+    if (it == queues.end()) return;
+    if (it->second.empty()) queues.erase(it);
+  }
 
   using Lock = std::unique_lock<std::mutex>;
-  std::deque<Event> queue;
+  using Queue = std::deque<Event>;
+  // key is xpath
+  std::unordered_map<std::string, Queue> queues;
   mutable std::mutex q_mutex;
   mutable std::condition_variable q_not_empty;
 };
@@ -369,21 +405,18 @@ class TestGNMISysrepo : public TestGNMI {
     return req;
   }
 
-  std::unordered_map<std::string, Event> get_events(size_t num_events) {
-    std::unordered_map<std::string, Event> events;
-    for (size_t i = 0; i < num_events; i++) {
-      Event event;
-      if (!event_queue.pop_back(&event, std::chrono::milliseconds(500)))
-        break;
-      events.emplace(event.xpath, std::move(event));
-    }
-    return events;
-  }
-
   bool no_more_events(
       std::chrono::milliseconds wait = std::chrono::milliseconds(200)) {
     std::this_thread::sleep_for(wait);
     return event_queue.empty();
+  }
+
+  boost::optional<Event> wait_for_event(const std::string &xpath) {
+    Event event;
+    event.xpath = xpath;
+    if (!event_queue.pop_back(&event, std::chrono::milliseconds(500)))
+      return boost::none;
+    return event;
   }
 
   SysrepoSession session{};
@@ -399,26 +432,20 @@ TEST_F(TestGNMISysrepo, Set) {
   ClientContext context;
   auto status = gnmi_stub->Set(&context, req, &rep);
   EXPECT_TRUE(status.ok());
-  // name, config/name, config/type
-  size_t num_expected_events = 3u;
-  auto events = get_events(num_expected_events);
-  ASSERT_EQ(events.size(), num_expected_events);
-  auto check_event = [&events](const Event &expected_event) {
-    auto it = events.find(expected_event.xpath);
-    ASSERT_NE(it, events.end());
-    const auto &event = it->second;
-    EXPECT_EQ(event.oper, expected_event.oper);
-    EXPECT_EQ(event.new_v_str, expected_event.new_v_str);
+
+  auto xpath = [](const std::string &suffix) {
+    return "/openconfig-interfaces:interfaces/interface[name='eth0']/" + suffix;
   };
-  check_event({
-      "/openconfig-interfaces:interfaces/interface[name='eth0']/name",
-      SR_OP_CREATED, iface_name});
-  check_event({
-      "/openconfig-interfaces:interfaces/interface[name='eth0']/config/name",
-      SR_OP_CREATED, iface_name});
-  check_event({
-      "/openconfig-interfaces:interfaces/interface[name='eth0']/config/type",
-      SR_OP_CREATED, "iana-if-type:ethernetCsmacd"});
+
+  auto check_event = [this](const Event &expected_event) {
+    EXPECT_EQ(wait_for_event(expected_event.xpath), expected_event);
+  };
+
+  check_event({xpath("name"), SR_OP_CREATED, iface_name});
+  check_event({xpath("config/name"), SR_OP_CREATED, iface_name});
+  check_event(
+      {xpath("config/type"), SR_OP_CREATED, "iana-if-type:ethernetCsmacd"});
+
   EXPECT_TRUE(no_more_events());
 }
 
