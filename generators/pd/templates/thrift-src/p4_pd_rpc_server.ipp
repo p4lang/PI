@@ -772,11 +772,14 @@ public:
 //:: for ca_name, ca in counter_arrays.items():
 //::   name = "counter_hw_sync_" + ca_name
 //::   pd_name = pd_prefix + name
-    int32_t ${name}(const SessionHandle_t sess_hdl, const DevTarget_t &dev_tgt) {
+    int32_t ${name}(const SessionHandle_t sess_hdl, const DevTarget_t &dev_tgt, bool blocking) {
       p4_pd_dev_target_t pd_dev_tgt;
       pd_dev_tgt.device_id = dev_tgt.dev_id;
       pd_dev_tgt.dev_pipe_id = dev_tgt.dev_pipe_id;
 
+      if (!blocking) {
+         return ${pd_name}(sess_hdl, pd_dev_tgt, NULL, NULL);
+      }
       std::promise<void> promise;
       auto future = promise.get_future();
       struct HwSync {
@@ -789,9 +792,9 @@ public:
         static_cast<HwSync *>(cookie)->promise.set_value();
       };
       HwSync h(promise);
-      ${pd_name}(sess_hdl, pd_dev_tgt, cb, static_cast<void *>(&h));
+      p4_pd_status_t rc = ${pd_name}(sess_hdl, pd_dev_tgt, cb, static_cast<void *>(&h));
       future.wait();
-      return 0;
+      return rc;
     }
 
 //:: #endfor

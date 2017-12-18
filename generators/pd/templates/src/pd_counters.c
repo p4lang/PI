@@ -138,6 +138,10 @@ ${name}
  p4_pd_stat_sync_cb cb_fn,
  void *cb_cookie
 ) {
+  if (cb_fn == NULL) {
+    return pi_counter_hw_sync(sess_hdl, convert_dev_tgt(dev_tgt), ${ca.id_},
+                              NULL, NULL);
+  }
   hw_sync_cb_data_t *data = malloc(sizeof(hw_sync_cb_data_t));
   data->pd_cb = cb_fn;
   data->pd_cookie = cb_cookie;
