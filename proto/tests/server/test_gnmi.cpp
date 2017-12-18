@@ -230,6 +230,28 @@ class SysrepoEventQueue {
     return true;
   }
 
+  bool pop_back_any(Event *pE) {
+    Lock lock(q_mutex);
+    q_not_empty.wait(lock, [this]{ return !is_not_empty(); });
+    auto &queue = queues.begin()->second;
+    *pE = std::move(queue.back());
+    queue.pop_back();
+    remove_if_empty(pE->xpath);
+    return true;
+  }
+
+  bool pop_back_any(Event *pE, const std::chrono::milliseconds &max_wait) {
+    Lock lock(q_mutex);
+    auto success = q_not_empty.wait_for(
+        lock, max_wait, [this]{ return !is_not_empty(); });
+    if (!success) return false;
+    auto &queue = queues.begin()->second;
+    *pE = std::move(queue.back());
+    queue.pop_back();
+    remove_if_empty(pE->xpath);
+    return true;
+  }
+
   bool empty() const {
     Lock lock(q_mutex);
     return queues.empty();
@@ -244,6 +266,10 @@ class SysrepoEventQueue {
   bool is_not_empty(const std::string &xpath) const {
     auto it = queues.find(xpath);
     return (it != queues.end()) && !it->second.empty();
+  }
+
+  bool is_not_empty() const {
+    return !queues.empty();
   }
 
   void remove_if_empty(const std::string &xpath) {
@@ -286,11 +312,20 @@ int module_change_cb(sr_session_ctx_t *session, const char *module_name,
 
   while ((rc = sr_get_change_next(session, it, &oper, &old_value, &new_value))
          == SR_ERR_OK) {
-    if (new_value->type >= SR_LEAF_EMPTY_T && !new_value->dflt) {
-      sr_val_to_buff(new_value, val_str, sizeof(val_str));
-      std::cout << "CHANGE for " << new_value->xpath << ": " << val_str << "\n";
-      event_queue->push_front(
-          {std::string(new_value->xpath), oper, std::string(val_str)});
+    if (oper == SR_OP_CREATED || oper == SR_OP_MODIFIED) {
+      if (new_value->type >= SR_LEAF_EMPTY_T && !new_value->dflt) {
+        sr_val_to_buff(new_value, val_str, sizeof(val_str));
+        std::cout << "WROTE " << new_value->xpath << ": " << val_str << "\n";
+        event_queue->push_front(
+            {std::string(new_value->xpath), oper, std::string(val_str)});
+      }
+    } else if (oper == SR_OP_DELETED) {
+      assert(new_value == nullptr);
+      if (old_value->type >= SR_LEAF_EMPTY_T && !old_value->dflt) {
+        std::cout << "DELETE " << old_value->xpath << "\n";
+        event_queue->push_front(
+            {std::string(old_value->xpath), oper, ""});
+      }
     }
     sr_free_val(old_value);
     sr_free_val(new_value);
@@ -385,7 +420,7 @@ class TestGNMISysrepo : public TestGNMI {
     return rc == SR_ERR_OK;
   }
 
-  gnmi::SetRequest create_iface(const std::string &name) {
+  gnmi::SetRequest create_iface_req(const std::string &name) {
     gnmi::SetRequest req;
     GNMIPathBuilder pb(req.mutable_prefix());
     pb.append("interfaces").append("interface", {{"name", name}})
@@ -405,6 +440,13 @@ class TestGNMISysrepo : public TestGNMI {
     return req;
   }
 
+  Status create_iface(const std::string &name) {
+    auto req = create_iface_req(name);
+    gnmi::SetResponse rep;
+    ClientContext context;
+    return gnmi_stub->Set(&context, req, &rep);
+  }
+
   bool no_more_events(
       std::chrono::milliseconds wait = std::chrono::milliseconds(200)) {
     std::this_thread::sleep_for(wait);
@@ -419,34 +461,151 @@ class TestGNMISysrepo : public TestGNMI {
     return event;
   }
 
+  size_t consume_events(size_t expected_num_events) {
+    for (size_t i = 0; i < expected_num_events; i++) {
+      Event event;
+      if (!event_queue.pop_back(&event, std::chrono::milliseconds(500)))
+        return i;
+    }
+    return expected_num_events;
+  }
+
+  void check_event(const Event &expected_event) {
+    EXPECT_EQ(wait_for_event(expected_event.xpath), expected_event);
+  }
+
+  void check_create_iface_events(const std::string &name) {
+    auto xpath = [name](const std::string &suffix) {
+      std::string path("/openconfig-interfaces:interfaces/interface");
+      path.append("[name='").append(name).append("']/").append(suffix);
+      return path;
+    };
+
+    check_event({xpath("name"), SR_OP_CREATED, name});
+    check_event({xpath("config/name"), SR_OP_CREATED, name});
+    check_event(
+        {xpath("config/type"), SR_OP_CREATED, "iana-if-type:ethernetCsmacd"});
+  }
+
+  // only supports basic paths without '...' or '*'
+  // works for all paths returned by a subscription
+  std::string gNMI_path_to_XPath(const gnmi::Path &prefix,
+                                 const gnmi::Path &path) const {
+    std::string xpath("/openconfig-interfaces:");
+    auto process_path = [&xpath](const gnmi::Path &p) {
+      for (const auto &elem : p.elem()) {
+        xpath.append(elem.name());
+        for (const auto &p : elem.key())
+          xpath.append("[" + p.first + "='" + p.second + "']");
+        xpath.append("/");
+      }
+    };
+    process_path(prefix);
+    process_path(path);
+    xpath.pop_back();
+    return xpath;
+  }
+
   SysrepoSession session{};
   // event_queue needs to be constructed before sub and destroyed after
   SysrepoEventQueue event_queue;
   SysrepoSubscriber sub;
 };
 
-TEST_F(TestGNMISysrepo, Set) {
+TEST_F(TestGNMISysrepo, Create) {
   const std::string iface_name("eth0");
-  auto req = create_iface(iface_name);
-  gnmi::SetResponse rep;
-  ClientContext context;
-  auto status = gnmi_stub->Set(&context, req, &rep);
-  EXPECT_TRUE(status.ok());
+  EXPECT_TRUE(create_iface(iface_name).ok());
+  check_create_iface_events(iface_name);
+  EXPECT_TRUE(no_more_events());
+}
 
-  auto xpath = [](const std::string &suffix) {
-    return "/openconfig-interfaces:interfaces/interface[name='eth0']/" + suffix;
+TEST_F(TestGNMISysrepo, CreateUpdateAndDelete) {
+  const std::string iface_name("eth0");
+  EXPECT_TRUE(create_iface(iface_name).ok());
+  check_create_iface_events(iface_name);
+  const std::string mtu_path(
+      "/openconfig-interfaces:interfaces/interface[name='eth0']/config/mtu");
+
+  auto set_mtu = [&mtu_path, &iface_name, this](unsigned int mtu) {
+    gnmi::SetRequest req;
+    auto *update = req.add_update();
+    GNMIPathBuilder pb(update->mutable_path());
+    pb.append("interfaces").append("interface", {{"name", iface_name}})
+        .append("config").append("mtu");
+    update->mutable_val()->set_uint_val(mtu);
+
+    gnmi::SetResponse rep;
+    ClientContext context;
+    auto status = gnmi_stub->Set(&context, req, &rep);
+    return status;
   };
 
-  auto check_event = [this](const Event &expected_event) {
-    EXPECT_EQ(wait_for_event(expected_event.xpath), expected_event);
-  };
+  set_mtu(1500);
+  check_event({mtu_path, SR_OP_CREATED, "1500"});
 
-  check_event({xpath("name"), SR_OP_CREATED, iface_name});
-  check_event({xpath("config/name"), SR_OP_CREATED, iface_name});
-  check_event(
-      {xpath("config/type"), SR_OP_CREATED, "iana-if-type:ethernetCsmacd"});
+  set_mtu(1000);
+  check_event({mtu_path, SR_OP_MODIFIED, "1000"});
+
+  {
+    gnmi::SetRequest req;
+    GNMIPathBuilder pb(req.add_delete_());
+    pb.append("interfaces").append("interface", {{"name", iface_name}})
+        .append("config").append("mtu");
+
+    gnmi::SetResponse rep;
+    ClientContext context;
+    auto status = gnmi_stub->Set(&context, req, &rep);
+    EXPECT_TRUE(status.ok());
+  }
+
+  check_event({mtu_path, SR_OP_DELETED, ""});
 
   EXPECT_TRUE(no_more_events());
+}
+
+TEST_F(TestGNMISysrepo, SubscribeOnce) {
+  const std::string iface_name("eth0");
+  EXPECT_TRUE(create_iface(iface_name).ok());
+  check_create_iface_events(iface_name);
+
+  gnmi::SubscribeRequest req;
+  gnmi::SubscribeResponse rep;
+  ClientContext context;
+  auto stream = gnmi_stub->Subscribe(&context);
+  auto *subList = req.mutable_subscribe();
+  subList->set_mode(gnmi::SubscriptionList::ONCE);
+  auto *sub = subList->add_subscription();
+  GNMIPathBuilder pb(sub->mutable_path());
+  pb.append("interfaces").append("interface").append("...");
+  EXPECT_TRUE(stream->Write(req));
+  EXPECT_TRUE(stream->WritesDone());
+
+  EXPECT_TRUE(stream->Read(&rep));  // subscription response
+  ASSERT_EQ(rep.response_case(), gnmi::SubscribeResponse::kUpdate);
+  const auto &notification = rep.update();
+  // name + config/name + config/type
+  EXPECT_EQ(notification.update().size(), 3);
+  auto find_update = [&notification, this](const std::string &suffix)
+      -> std::string {
+    const auto &updates = notification.update();
+    std::string expected_xpath(
+        "/openconfig-interfaces:interfaces/interface[name='eth0']/");
+    expected_xpath.append(suffix);
+    for (const auto &update : updates) {
+      auto xpath = gNMI_path_to_XPath(notification.prefix(), update.path());
+      if (xpath == expected_xpath) return update.val().string_val();
+    }
+    return "";  // use boost::optional instead
+  };
+  EXPECT_EQ(find_update("name"), "eth0");
+  EXPECT_EQ(find_update("config/name"), "eth0");
+  EXPECT_EQ(find_update("config/type"), "iana-if-type:ethernetCsmacd");
+
+  EXPECT_TRUE(stream->Read(&rep));  // EOM
+  EXPECT_TRUE(rep.sync_response());
+
+  auto status = stream->Finish();
+  EXPECT_TRUE(status.ok());
 }
 
 #endif  // WITH_SYSREPO
