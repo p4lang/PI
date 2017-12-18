@@ -506,11 +506,29 @@ class TestGNMISysrepo : public TestGNMI {
     return xpath;
   }
 
+  std::string find_update(const gnmi::Notification &notification,
+                          const std::string &iface_name,
+                          const std::string &suffix) {
+    const auto &updates = notification.update();
+    std::string expected_xpath("/openconfig-interfaces:interfaces/interface");
+    expected_xpath.append("[name='").append(iface_name).append("']/")
+        .append(suffix);
+    for (const auto &update : updates) {
+      auto xpath = gNMI_path_to_XPath(notification.prefix(), update.path());
+      if (xpath == expected_xpath) return update.val().string_val();
+    }
+    return "";  // use boost::optional instead ?
+  }
+
+  static constexpr char iface_type[] = "iana-if-type:ethernetCsmacd";
+
   SysrepoSession session{};
   // event_queue needs to be constructed before sub and destroyed after
   SysrepoEventQueue event_queue;
   SysrepoSubscriber sub;
 };
+
+constexpr char TestGNMISysrepo::iface_type[];
 
 TEST_F(TestGNMISysrepo, Create) {
   const std::string iface_name("eth0");
@@ -585,27 +603,80 @@ TEST_F(TestGNMISysrepo, SubscribeOnce) {
   const auto &notification = rep.update();
   // name + config/name + config/type
   EXPECT_EQ(notification.update().size(), 3);
-  auto find_update = [&notification, this](const std::string &suffix)
-      -> std::string {
-    const auto &updates = notification.update();
-    std::string expected_xpath(
-        "/openconfig-interfaces:interfaces/interface[name='eth0']/");
-    expected_xpath.append(suffix);
-    for (const auto &update : updates) {
-      auto xpath = gNMI_path_to_XPath(notification.prefix(), update.path());
-      if (xpath == expected_xpath) return update.val().string_val();
-    }
-    return "";  // use boost::optional instead
-  };
-  EXPECT_EQ(find_update("name"), "eth0");
-  EXPECT_EQ(find_update("config/name"), "eth0");
-  EXPECT_EQ(find_update("config/type"), "iana-if-type:ethernetCsmacd");
+  EXPECT_EQ(find_update(notification, iface_name, "name"), iface_name);
+  EXPECT_EQ(find_update(notification, iface_name, "config/name"), iface_name);
+  EXPECT_EQ(find_update(notification, iface_name, "config/type"), iface_type);
 
   EXPECT_TRUE(stream->Read(&rep));  // EOM
   EXPECT_TRUE(rep.sync_response());
 
   auto status = stream->Finish();
   EXPECT_TRUE(status.ok());
+
+  EXPECT_TRUE(no_more_events());
+}
+
+TEST_F(TestGNMISysrepo, GetLeaf) {
+  const std::string iface_name("eth0");
+  EXPECT_TRUE(create_iface(iface_name).ok());
+  check_create_iface_events(iface_name);
+
+  {
+    gnmi::GetRequest req;
+    gnmi::GetResponse rep;
+    ClientContext context;
+    {
+      GNMIPathBuilder pb(req.add_path());
+      pb.append("interfaces").append("interface", {{"name", iface_name}})
+          .append("config").append("type");
+    }
+    {
+      GNMIPathBuilder pb(req.add_path());
+      pb.append("interfaces").append("interface", {{"name", iface_name}})
+          .append("config").append("name");
+    }
+    req.set_type(gnmi::GetRequest::ALL);
+    EXPECT_TRUE(gnmi_stub->Get(&context, req, &rep).ok());
+    // gNMI spec: "The target MUST generate a Notification message for each path
+    // specified in the client's GetRequest, and hence MUST NOT collapse data
+    // from multiple paths into a single Notification within the response."
+    ASSERT_EQ(rep.notification_size(), 2);
+    ASSERT_EQ(rep.notification(0).update_size(), 1);
+    EXPECT_EQ(find_update(rep.notification(0), iface_name, "config/type"),
+              iface_type);
+    ASSERT_EQ(rep.notification(1).update_size(), 1);
+    EXPECT_EQ(find_update(rep.notification(1), iface_name, "config/name"),
+              iface_name);
+  }
+
+  EXPECT_TRUE(no_more_events());
+}
+
+TEST_F(TestGNMISysrepo, GetContainer) {
+  const std::string iface_name("eth0");
+  EXPECT_TRUE(create_iface(iface_name).ok());
+  check_create_iface_events(iface_name);
+
+  {
+    gnmi::GetRequest req;
+    gnmi::GetResponse rep;
+    ClientContext context;
+    GNMIPathBuilder pb(req.add_path());
+    pb.append("interfaces").append("interface").append("...");
+    req.set_type(gnmi::GetRequest::ALL);
+    EXPECT_TRUE(gnmi_stub->Get(&context, req, &rep).ok());
+    ASSERT_EQ(rep.notification_size(), 1);
+    const auto &notification = rep.notification(0);
+
+    // TODO(antonin): should the GetRequest return an aggregate (in protobuf
+    // format) once we support ygot-generated protobufs.
+    ASSERT_EQ(notification.update_size(), 3);
+    EXPECT_EQ(find_update(notification, iface_name, "name"), iface_name);
+    EXPECT_EQ(find_update(notification, iface_name, "config/name"), iface_name);
+    EXPECT_EQ(find_update(notification, iface_name, "config/type"), iface_type);
+  }
+
+  EXPECT_TRUE(no_more_events());
 }
 
 #endif  // WITH_SYSREPO
