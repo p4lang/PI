@@ -540,6 +540,54 @@ class gNMIServiceSysrepoImpl : public gnmi::gNMI::Service {
     return timestamp;
   }
 
+  Status set_notification_update_for_path(
+      gnmi::Notification *notification, const SysrepoSession &session,
+      const gnmi::Path &prefix, const gnmi::Path &path) {
+    std::string xpath;
+    xpath_builder.appendToXPath(prefix, &xpath);
+    xpath_builder.appendToXPath(path, &xpath);
+    if (!xpath_builder.setXPathOrigin(&xpath, path.origin())) {
+      return Status(StatusCode::INVALID_ARGUMENT,
+                    "Cannot convert gNMI path to XPath");
+    }
+    SIMPLELOG << "Getting items for xpath: " << xpath << "\n";
+
+    sr_val_t *value = nullptr;
+    sr_val_iter_t *iter = nullptr;
+    int rc = SR_ERR_OK;
+
+    // get all list instances with their content (recursive)
+    rc = sr_get_items_iter(session.sess, xpath.c_str(), &iter);
+    if (rc != SR_ERR_OK) {
+      return Status(StatusCode::UNKNOWN,
+                    "Error while retrieving subscription items");
+    }
+
+    while (sr_get_item_next(session.sess, iter, &value) == SR_ERR_OK) {
+      char *update_xpath = value->xpath;
+      if (!isLeaf(value)) {
+        sr_free_val(value);
+        continue;
+      }
+      if (value->dflt) {  // unset
+        sr_free_val(value);
+        continue;
+      }
+
+      SIMPLELOG << "Update XPath: " << update_xpath << "\n";
+      // sr_print_val(value);
+
+      auto update = notification->add_update();
+      // TODO(antonin): use prefix for smaller messages
+      convertFromXPath(update_xpath, update->mutable_path());
+      convertToTypedValue(value, update->mutable_val());
+      sr_free_val(value);
+    }
+    sr_free_val_iter(iter);
+
+    return Status::OK;
+  }
+
   LYContext LY_ctx;
   XPathBuilder xpath_builder{&LY_ctx};
   LeafTypeCache leaf_type_cache{&LY_ctx};
@@ -563,10 +611,35 @@ Status
 gNMIServiceSysrepoImpl::Get(ServerContext *context,
                             const gnmi::GetRequest *request,
                             gnmi::GetResponse *response) {
-  (void) context; (void) request; (void) response;
+  (void) context;
   SIMPLELOG << "gNMI Get\n";
   SIMPLELOG << request->DebugString();
-  return Status(StatusCode::UNIMPLEMENTED, "not implemented yet");
+  const auto &prefix = request->prefix();
+
+  if (request->type() != gnmi::GetRequest::ALL) {
+    return Status(StatusCode::UNIMPLEMENTED,
+                  "Only ALL data type supported for GetRequest");
+  }
+
+  SysrepoSession session;
+  if (!session.open()) {
+    return Status(StatusCode::UNKNOWN,
+                  "Error when connecting to yang datastore");
+  }
+
+  // gNMI spec: "The target MUST generate a Notification message for each path
+  // specified in the client's GetRequest, and hence MUST NOT collapse data from
+  // multiple paths into a single Notification within the response."
+  for (const auto &path : request->path()) {
+    auto *notification = response->add_notification();
+    notification->set_timestamp(get_timestamp());
+    // TODO(antonin): should we return an aggregated value (e.g. using
+    // ygot-generated protobuf messages once we support them), or return leaf
+    // updates like we do for Subscribe/ONCE.
+    set_notification_update_for_path(notification, session, prefix, path);
+  }
+
+  return Status::OK;
 }
 
 Status
@@ -675,7 +748,6 @@ gNMIServiceSysrepoImpl::Subscribe(
     auto *notification = response.mutable_update();
     notification->set_timestamp(get_timestamp());
 
-    // TODO(antonin): keep connection open
     SysrepoSession session;
     if (!session.open()) {
       return Status(StatusCode::UNKNOWN,
@@ -684,48 +756,8 @@ gNMIServiceSysrepoImpl::Subscribe(
 
     const auto &prefix = sub.prefix();
     for (const auto &subscription : sub.subscription()) {
-      std::string xpath;
-      xpath_builder.appendToXPath(prefix, &xpath);
-      xpath_builder.appendToXPath(subscription.path(), &xpath);
-      if (!xpath_builder.setXPathOrigin(&xpath, subscription.path().origin())) {
-        return Status(StatusCode::INVALID_ARGUMENT,
-                      "Cannot convert gNMI path to XPath");
-      }
-      SIMPLELOG << "ONCE subscription for XPath: " << xpath << "\n";
-
-      sr_val_t *value = nullptr;
-      sr_val_iter_t *iter = nullptr;
-      int rc = SR_ERR_OK;
-
-      // get all list instances with their content (recursive)
-      rc = sr_get_items_iter(session.sess, xpath.c_str(), &iter);
-      if (rc != SR_ERR_OK) {
-        return Status(StatusCode::UNKNOWN,
-                      "Error while retrieving subscription items");
-      }
-
-      while (sr_get_item_next(session.sess, iter, &value) == SR_ERR_OK) {
-        char *update_xpath = value->xpath;
-        if (!isLeaf(value)) {
-          sr_free_val(value);
-          continue;
-        }
-        if (value->dflt) {  // unset
-          sr_free_val(value);
-          continue;
-        }
-
-        SIMPLELOG << "Update XPath: " << update_xpath << "\n";
-        // sr_print_val(value);
-
-        auto update = notification->add_update();
-        // TODO(antonin): use prefix for smaller messages
-        // TODO(antonin): investigate aggregation
-        convertFromXPath(update_xpath, update->mutable_path());
-        convertToTypedValue(value, update->mutable_val());
-        sr_free_val(value);
-      }
-      sr_free_val_iter(iter);
+      set_notification_update_for_path(
+          notification, session, prefix, subscription.path());
     }
     // response.PrintDebugString();
     stream->Write(response);
