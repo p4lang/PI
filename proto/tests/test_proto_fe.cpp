@@ -1770,6 +1770,38 @@ TEST_F(TernaryTwoTest, MissingMatchField) {
   ASSERT_EQ(status.code(), Code::OK);
 }
 
+
+// Placeholder for PRE tests: for now there is no support in DeviceMgr
+class PRETest : public DeviceMgrTest { };
+
+TEST_F(PRETest, Write) {
+  p4::WriteRequest request;
+  auto *update = request.add_updates();
+  update->set_type(p4::Update_Type_MODIFY);
+  auto *entity = update->mutable_entity();
+  auto *pre_entry = entity->mutable_packet_replication_engine_entry();
+  auto *mg_entry = pre_entry->mutable_multicast_group_entry();
+  mg_entry->set_multicast_group_id(1);
+  auto *replica = mg_entry->add_replicas();
+  replica->set_egress_port(1);
+  replica->set_instance(1);
+
+  auto status = mgr.write(request);
+  EXPECT_EQ(status, OneExpectedError(Code::UNIMPLEMENTED));
+}
+
+TEST_F(PRETest, Read) {
+  p4::ReadRequest request;
+  p4::ReadResponse response;
+  auto *entity = request.add_entities();
+  // set oneof to PRE
+  auto *pre_entry = entity->mutable_packet_replication_engine_entry();
+  (void) pre_entry;
+
+  auto status = mgr.read(request, &response);
+  EXPECT_EQ(status.code(), Code::UNIMPLEMENTED);
+}
+
 }  // namespace
 }  // namespace testing
 }  // namespace proto
