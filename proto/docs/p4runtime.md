@@ -443,3 +443,42 @@ them to be used as follows:
   authenticated. The client is expected to retry the Write RPC automatically
   after resolving the issue. A human intervention (e.g. a bug fix) may be
   needed.
+
+## Packet Replication Engine (PRE) API
+
+PRE is a P4Runtime-configurable block in the *Portable Standard Architecture*
+(PSA). It provides the dataplane functionality for cloning, multicasting,
+resubmitting and recirculating packets. The P4Runtime API provides mechanisms
+to program the PRE to control packet replication in the P4 pipeline. For detailed
+description of PRE dataplane semantics, please refer to the
+[PSA specification](https://p4.org/p4-spec/docs/PSA.html).
+
+### Multicast Group Entry
+
+A multicast group entry consists of a multicast group id and a set of
+(egress_port, instance) tuples. All types are *uint64* to accomodate
+bitwidths up to 64 in the PSA metadata. The (egress_port, instance) of each
+entry must be unique for a given multicast group. Therefore, the only restriction
+on the multicast group entries is that they do not lead to packets in the egress
+pipeline with identical (egress_port, instance) pairs as a result of a multicast
+action.
+
+### Clone Session Entry
+
+A clone session entry is a tuple consisting of a clone session id, egress port
+and clone class of service. As above, all fields are of type *uint64* to
+accomodate bitwidths up to 64 for the corresponding PSA metadata fields.
+
+*TODO: API for resubmit and recirculate, if needed.*
+
+### Semantics of Port Numbers
+
+PRE entries include port numbers, for instance as destination of multicast or
+clone copies. These port numbers are used to populate the egress_port metadata
+in the egress pipeline. Note that egress_port is immutable in the egress
+pipeline. Furthermore, PSA mandates that the egress_port value must refer to a
+singleton, otherwise the PRE behavior is undefined. In P4Runtime, the PRE entry
+messages refer to singleton ports by default.
+
+*TODO: Discuss potential use of translation, resolution and watch annotations to
+support cases like multicast to LAGs or clone to arbitrary destination.*

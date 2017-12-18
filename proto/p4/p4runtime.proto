@@ -97,6 +97,7 @@ message Entity {
     DirectMeterEntry direct_meter_entry = 6;
     CounterEntry counter_entry = 7;
     DirectCounterEntry direct_counter_entry = 8;
+    PacketReplicationEngineEntry packet_replication_engine_entry = 9;
   }
 }
 
@@ -312,6 +313,42 @@ message DirectCounterEntry {
 message CounterData {
   int64 byte_count = 1;
   int64 packet_count = 2;
+}
+
+//------------------------------------------------------------------------------
+// Only one instance of a Packet Replication Engine (PRE) is expected in the
+// P4 pipeline. Hence, no instance id is needed to access the PRE.
+message PacketReplicationEngineEntry {
+  oneof type {
+    MulticastGroupEntry multicast_group_entry = 1;
+    CloneSessionEntry clone_session_entry = 2;
+  }
+}
+
+// The (egress_port, instance) pair must be unique for each replica in a given
+// multicast group entry. A packet may be multicast by setting the
+// multicast_group field of PSA ingress output metadata to multicast_group_id
+// of a programmed multicast group entry. The egress_port and instance fields of
+// each replica's egress input metadata will be set to the respective values
+// programmed in the multicast group entry.
+message MulticastGroupEntry {
+  uint64 multicast_group_id = 1;
+  message Replica {
+    uint64 egress_port = 1;
+    uint64 instance = 2;
+  }
+  repeated Replica replicas = 2;
+}
+
+// A packet may be cloned by setting the clone_session_id field of PSA
+// ingress/egress output metadata to session_id of a programmed clone session
+// entry. The egress_port and class_of_service fields of the clone's egress
+// input metadata will be set to the respective values programmed in the clone
+// session entry.
+message CloneSessionEntry {
+  uint64 session_id = 1;
+  uint64 egress_port = 2;
+  uint64 class_of_service = 3;
 }
 
 //------------------------------------------------------------------------------
