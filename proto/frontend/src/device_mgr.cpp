@@ -324,6 +324,10 @@ class DeviceMgrImp {
               Code::UNIMPLEMENTED,
               "Writing to direct counters is not supported yet");
           break;
+        case p4::Entity::kPacketReplicationEngineEntry:
+          status = ERROR_STATUS(Code::UNIMPLEMENTED,
+                                "Writing to PRE is not supported yet");
+          break;
         default:
           status = ERROR_STATUS(Code::UNKNOWN, "Incorrect entity type");
           break;
@@ -373,6 +377,10 @@ class DeviceMgrImp {
       case p4::Entity::kDirectCounterEntry:
         status = direct_counter_read(
             entity.direct_counter_entry(), session, response);
+        break;
+      case p4::Entity::kPacketReplicationEngineEntry:
+        status = ERROR_STATUS(Code::UNIMPLEMENTED,
+                              "Reading from PRE is not supported yet");
         break;
       default:
         status = ERROR_STATUS(Code::UNKNOWN, "Incorrect entity type");
