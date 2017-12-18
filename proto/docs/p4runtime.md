@@ -203,6 +203,16 @@ for (auto param: action.param())
   assert(param.has_value())
 ```
 
+### Priority
+
+The `priority` field of the `TableEntry` message should only be set if one of
+the match fields has match-type `Ternary` or `Range` (usually this implies that
+the hardware implementation uses a TCAM lookup). Setting the priority to a
+non-default (i.e. non-zero) value will result in an `INVALID_ARGUMENT` error.
+
+A higher number indicates a higher priority. Only the highest priority
+`TableEntry` that matches the packet must be selected by the P4 dataplane.
+
 ### Packet IO
 
 The following fields should always be set: `PacketOut.payload`,
