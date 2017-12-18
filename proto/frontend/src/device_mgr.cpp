@@ -1184,15 +1184,9 @@ class DeviceMgrImp {
       }
     }
     if (!need_priority && entry.priority() > 0) {
-      // TODO(antonin): return an error instead
-      Logger::get()->warn(
-          "Entry priority provided for non-ternary match, it will be ignored");
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "Non-zero priority for non-ternary match");
     } else if (need_priority) {
-      // we only set the priority when table has a ternary match; the target
-      // will probably not return the provided priority value when doing a table
-      // read and we would end up with a discrepancy with the table_info_store
-      // TODO(antonin): should it be the responsibility of the table_info_store
-      // to ignore the priority for non-ternary tables?
       match_key->set_priority(entry.priority());
     }
     RETURN_OK_STATUS();
