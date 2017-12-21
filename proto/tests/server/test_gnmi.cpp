@@ -286,7 +286,6 @@ class SysrepoEventQueue {
   mutable std::condition_variable q_not_empty;
 };
 
-#define XPATH_MAX_LEN 256
 #define VAL_STR_MAX_LEN 256
 
 int module_change_cb(sr_session_ctx_t *session, const char *module_name,
@@ -336,7 +335,6 @@ int module_change_cb(sr_session_ctx_t *session, const char *module_name,
   return SR_ERR_OK;
 }
 
-#undef XPATH_MAX_LEN
 #undef VAL_STR_MAX_LEN
 
 class SysrepoSubscriber {
@@ -362,6 +360,53 @@ class SysrepoSubscriber {
 
  private:
   std::string module_name;
+  std::string app_name;
+  SysrepoSession session;
+  sr_subscription_ctx_t *subscription{nullptr};
+};
+
+int data_provider_cb(const char *xpath, sr_val_t **values, size_t *values_cnt,
+                     void *private_ctx) {
+  (void) private_ctx;
+  int rc = SR_ERR_OK;
+  *values_cnt = 1u;
+  sr_val_t *varray = nullptr;
+  rc = sr_new_values(*values_cnt, &varray);
+  if (rc != SR_ERR_OK) return rc;
+  sr_val_t *v = &varray[0];
+  sr_val_set_xpath(v, xpath);
+  sr_val_set_str_data(v, SR_IDENTITYREF_T, "iana-if-type:ethernetCsmacd");
+  *values = varray;
+  return rc;
+}
+
+// The openconfig-if-ethernet augment for openconfig-interfaces has the
+// following when condition:
+// when "oc-if:state/oc-if:type = 'ift:ethernetCsmacd'" { ...
+// As a result, we need an operational state provider to ensure that we can see
+// data nodes in the augment.
+class SysrepoStateProvider {
+ public:
+  explicit SysrepoStateProvider(const std::string &app_name)
+      : app_name(app_name) { }
+
+  ~SysrepoStateProvider() {
+    if (subscription != nullptr) {
+      sr_unsubscribe(session.get(), subscription);
+      subscription = nullptr;
+    }
+  }
+
+  bool subscribe() {
+    session.open(app_name);
+    int rc = sr_dp_get_items_subscribe(
+        session.get(), "/openconfig-interfaces:interfaces/interface/state/type",
+        data_provider_cb, nullptr,
+        SR_SUBSCR_DEFAULT, &subscription);
+    return rc == SR_ERR_OK;
+  }
+
+ private:
   std::string app_name;
   SysrepoSession session;
   sr_subscription_ctx_t *subscription{nullptr};
@@ -675,6 +720,39 @@ TEST_F(TestGNMISysrepo, GetContainer) {
     EXPECT_EQ(find_update(notification, iface_name, "config/name"), iface_name);
     EXPECT_EQ(find_update(notification, iface_name, "config/type"), iface_type);
   }
+
+  EXPECT_TRUE(no_more_events());
+}
+
+TEST_F(TestGNMISysrepo, Augmentation) {
+  SysrepoStateProvider state_provider("state_provider");
+  ASSERT_TRUE(state_provider.subscribe());
+
+  const std::string iface_name("eth0");
+  EXPECT_TRUE(create_iface(iface_name).ok());
+  check_create_iface_events(iface_name);
+
+  gnmi::SetRequest req;
+  auto *update = req.add_update();
+  GNMIPathBuilder pb(update->mutable_path());
+  // TODO(antonin): according to the gNMI spec, we should not have to specify
+  // the module name for the augment, but we do not support this yet in the
+  // server
+  pb.append("interfaces").append("interface", {{"name", iface_name}})
+      .append("openconfig-if-ethernet:ethernet")
+      .append("config").append("port-speed");
+  update->mutable_val()->set_string_val("SPEED_100GB");
+
+  gnmi::SetResponse rep;
+  ClientContext context;
+  auto status = gnmi_stub->Set(&context, req, &rep);
+  EXPECT_TRUE(status.ok());
+
+  std::string port_speed_path(
+      "/openconfig-interfaces:interfaces/interface[name='eth0']/");
+  port_speed_path.append("openconfig-if-ethernet:ethernet/config/port-speed");
+
+  check_event({port_speed_path, SR_OP_CREATED, "SPEED_100GB"});
 
   EXPECT_TRUE(no_more_events());
 }
