@@ -288,9 +288,11 @@ class SysrepoEventQueue {
 
 #define VAL_STR_MAX_LEN 256
 
-int module_change_cb(sr_session_ctx_t *session, const char *module_name,
-                     sr_notif_event_t event, void *private_ctx) {
-  (void) event;
+// Just a toy version of a validation function, which fails only if we try to
+// create an interface which doesn't have the correct type (ethernet)
+int module_change_verify(sr_session_ctx_t *session, const char *module_name,
+                         void *private_ctx) {
+  (void) private_ctx;
 
   sr_change_iter_t *it = nullptr;
   int rc = SR_ERR_OK;
@@ -298,8 +300,45 @@ int module_change_cb(sr_session_ctx_t *session, const char *module_name,
   sr_val_t *old_value = nullptr;
   sr_val_t *new_value = nullptr;
   char val_str[VAL_STR_MAX_LEN] = {};
+  bool error = false;
 
-  assert(event == SR_EV_APPLY);  // we subscribed with SR_SUBSCR_APPLY_ONLY
+  std::string change_path("/");
+  change_path.append(module_name).append(":*");
+
+  rc = sr_get_changes_iter(session, change_path.c_str(), &it);
+  assert(rc == SR_ERR_OK);
+
+  while ((rc = sr_get_change_next(session, it, &oper, &old_value, &new_value))
+         == SR_ERR_OK) {
+    if (oper != SR_OP_CREATED && oper != SR_OP_MODIFIED) continue;
+    if (new_value->type < SR_LEAF_EMPTY_T || new_value->dflt) continue;
+    std::string xpath(new_value->xpath);
+    std::string suffix("config/type");
+    if (xpath.substr(xpath.size() - suffix.size(), xpath.size()) == suffix) {
+      sr_val_to_buff(new_value, val_str, sizeof(val_str));
+      if (std::string(val_str) != "iana-if-type:ethernetCsmacd") {
+        error = true;
+        sr_set_error(session, "Invalid interface type", new_value->xpath);
+      }
+    }
+    sr_free_val(old_value);
+    sr_free_val(new_value);
+    if (error) break;
+  }
+
+  sr_free_change_iter(it);
+
+  return error ? SR_ERR_UNSUPPORTED : SR_ERR_OK;
+}
+
+int module_change_apply(sr_session_ctx_t *session, const char *module_name,
+                        void *private_ctx) {
+  sr_change_iter_t *it = nullptr;
+  int rc = SR_ERR_OK;
+  sr_change_oper_t oper;
+  sr_val_t *old_value = nullptr;
+  sr_val_t *new_value = nullptr;
+  char val_str[VAL_STR_MAX_LEN] = {};
 
   std::string change_path("/");
   change_path.append(module_name).append(":*");
@@ -335,6 +374,15 @@ int module_change_cb(sr_session_ctx_t *session, const char *module_name,
   return SR_ERR_OK;
 }
 
+int module_change_cb(sr_session_ctx_t *session, const char *module_name,
+                     sr_notif_event_t event, void *private_ctx) {
+  if (event == SR_EV_VERIFY)
+    return module_change_verify(session, module_name, private_ctx);
+  if (event == SR_EV_APPLY)
+    return module_change_apply(session, module_name, private_ctx);
+  return SR_ERR_OK;
+}
+
 #undef VAL_STR_MAX_LEN
 
 class SysrepoSubscriber {
@@ -351,9 +399,12 @@ class SysrepoSubscriber {
 
   bool subscribe(SysrepoEventQueue *event_queue) {
     session.open(app_name);
+    // SR_SUBSCR_NO_ABORT_FOR_REFUSED_CFG: The subscriber will not receive
+    // SR_EV_ABORT if he returns an error in verify phase (if the commit is
+    // refused by other verifier SR_EV_ABORT will be delivered).
     int rc = sr_module_change_subscribe(
         session.get(), module_name.c_str(), module_change_cb,
-        static_cast<void *>(event_queue), 0, SR_SUBSCR_APPLY_ONLY,
+        static_cast<void *>(event_queue), 0, SR_SUBSCR_NO_ABORT_FOR_REFUSED_CFG,
         &subscription);
     return rc == SR_ERR_OK;
   }
@@ -753,6 +804,36 @@ TEST_F(TestGNMISysrepo, Augmentation) {
   port_speed_path.append("openconfig-if-ethernet:ethernet/config/port-speed");
 
   check_event({port_speed_path, SR_OP_CREATED, "SPEED_100GB"});
+
+  EXPECT_TRUE(no_more_events());
+}
+
+// Tries to use an unsupported interface type, will fail in verify phase of the
+// commit
+TEST_F(TestGNMISysrepo, VerifyChangesFail) {
+  const std::string iface_name("atm");
+
+  gnmi::SetRequest req;
+  GNMIPathBuilder pb(req.mutable_prefix());
+  pb.append("interfaces").append("interface", {{"name", iface_name}})
+      .append("config");
+  {
+    auto *update = req.add_update();
+    GNMIPathBuilder pb(update->mutable_path());
+    pb.append("name");
+    update->mutable_val()->set_string_val(iface_name);
+  }
+  {
+    auto *update = req.add_update();
+    GNMIPathBuilder pb(update->mutable_path());
+    pb.append("type");
+    update->mutable_val()->set_string_val("iana-if-type:atm");
+  }
+
+  gnmi::SetResponse rep;
+  ClientContext context;
+  auto status = gnmi_stub->Set(&context, req, &rep);
+  EXPECT_FALSE(status.ok());
 
   EXPECT_TRUE(no_more_events());
 }
