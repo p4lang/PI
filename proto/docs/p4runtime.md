@@ -476,10 +476,11 @@ action.
 ### Clone Session Entry
 
 A clone session entry is a tuple consisting of a clone session id, egress port,
-clone class of service and packet length. The packet length must be set to a
-non-zero value if truncation of the clone is required. Otherwise, the packet
-length is unspecified (defaults to 0). As above, all fields are of type *uint64*
-to accomodate bitwidths up to 64 for the corresponding PSA metadata fields.
+clone class of service and packet length. The packet length (bytes) must be set
+to a non-zero value if truncation of the clone is required. Otherwise, the
+packet length is unspecified (defaults to 0). As above, all fields are of type
+*uint64* to accomodate bitwidths up to 64 for the corresponding PSA metadata
+fields.
 
 *TODO: API for resubmit and recirculate, if needed.*
 
