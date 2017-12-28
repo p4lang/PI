@@ -344,11 +344,14 @@ message MulticastGroupEntry {
 // ingress/egress output metadata to session_id of a programmed clone session
 // entry. The egress_port and class_of_service fields of the clone's egress
 // input metadata will be set to the respective values programmed in the clone
-// session entry.
+// session entry. The packet_length field must be set to a non-zero value if the
+// clone packet should be truncated to the given packet_length. If the
+// packet_length field is 0, no truncation on the clone will be performed.
 message CloneSessionEntry {
   uint64 session_id = 1;
   uint64 egress_port = 2;
   uint64 class_of_service = 3;
+  uint64 packet_length = 4;
 }
 
 //------------------------------------------------------------------------------
