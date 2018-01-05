@@ -29,6 +29,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <deque>
+#include <future>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -36,6 +37,7 @@
 #include <string>
 #include <thread>
 #include <unordered_map>
+#include <vector>
 
 #include "gnmi.h"
 
@@ -436,6 +438,9 @@ int data_provider_cb(const char *xpath, sr_val_t **values, size_t *values_cnt,
 // when "oc-if:state/oc-if:type = 'ift:ethernetCsmacd'" { ...
 // As a result, we need an operational state provider to ensure that we can see
 // data nodes in the augment.
+// ACTUALLY, IT SEEMS THAT THE OPENCONFIG YANG MODEL IS NOT CORRECT. "WHEN"
+// STATEMENTS IN CONFIG NODES CANNOT REFER TO STATE DATA.
+// SEE https://github.com/openconfig/public/issues/108
 class SysrepoStateProvider {
  public:
   explicit SysrepoStateProvider(const std::string &app_name)
@@ -836,6 +841,292 @@ TEST_F(TestGNMISysrepo, VerifyChangesFail) {
   EXPECT_FALSE(status.ok());
 
   EXPECT_TRUE(no_more_events());
+}
+
+// GTest fixture for stream subscriptions (ON_CHANGE & SAMPLE)
+// We use interfaces/interface/config/mtu as the subscription path.
+class TestGNMISysrepoSubscribeStream : public TestGNMISysrepo {
+ protected:
+  using Clock = std::chrono::system_clock;
+
+  TestGNMISysrepoSubscribeStream() { }
+
+  using StreamType = grpc::ClientReaderWriter<
+    gnmi::SubscribeRequest, gnmi::SubscribeResponse>;
+
+  void SetUp() override {
+    TestGNMISysrepo::SetUp();
+
+    EXPECT_TRUE(create_iface(iface_name).ok());
+    check_create_iface_events(iface_name);
+    set_mtu(default_mtu, SR_OP_CREATED);
+
+    stream = gnmi_stub->Subscribe(&context);
+  }
+
+  void TearDown() override {
+    EXPECT_TRUE(stream->WritesDone());
+    auto status = stream->Finish();
+    EXPECT_TRUE(status.ok());
+    EXPECT_TRUE(no_more_events());
+    clear_futures();
+
+    TestGNMISysrepo::TearDown();
+  }
+
+  // For the sake of simplicity we use a synchronous gRPC client which means we
+  // cannot give a deadline for the Read call. We therefore wrap the Read call
+  // in a std::future object and use std::future::wait_for() to specify a
+  // timeout. When the timeout expires the Read call is not cancelled. However,
+  // as soon as the client calls WritesDone on the stream, Read will return
+  // false and the future will complete.
+  std::future<bool> &ReadFuture(StreamType *stream,
+                                gnmi::SubscribeResponse *rep) {
+    futures.emplace_back(std::async(
+        std::launch::async, [stream, rep]{ return stream->Read(rep); }));
+    return futures.back();
+  }
+
+  bool read_sync(StreamType *stream) {
+    gnmi::SubscribeResponse rep;
+    return stream->Read(&rep) && rep.sync_response();
+  }
+
+  // destroying the futures will not block if the client has called WritesDone
+  void clear_futures() {
+    futures.clear();
+  }
+
+  void set_mtu(unsigned int mtu, sr_change_oper_t oper = SR_OP_MODIFIED) {
+    gnmi::SetRequest req;
+    auto *update = req.add_update();
+    GNMIPathBuilder pb(update->mutable_path());
+    pb.append("interfaces").append("interface", {{"name", iface_name}})
+        .append("config").append("mtu");
+    update->mutable_val()->set_uint_val(mtu);
+
+    gnmi::SetResponse rep;
+    ClientContext context;
+    auto status = gnmi_stub->Set(&context, req, &rep);
+    EXPECT_TRUE(status.ok());
+    std::string mtu_xpath("/openconfig-interfaces:interfaces/interface");
+    mtu_xpath.append("[name='").append(iface_name).append("']/")
+        .append("config/mtu");
+    check_event({mtu_xpath, oper, std::to_string(mtu)});
+  }
+
+  void check_update(unsigned int mtu = default_mtu) {
+    ASSERT_EQ(rep.response_case(), gnmi::SubscribeResponse::kUpdate);
+    const auto &notification = rep.update();
+    const auto &updates = notification.update();
+    std::string expected_xpath("/openconfig-interfaces:interfaces/interface");
+    expected_xpath.append("[name='").append(iface_name).append("']/")
+        .append("config/mtu");
+    for (const auto &update : updates) {
+      auto xpath = gNMI_path_to_XPath(notification.prefix(), update.path());
+      if (xpath == expected_xpath) {
+        EXPECT_EQ(update.val().uint_val(), mtu);
+        return;
+      }
+    }
+  }
+
+  static Clock::duration time_diff(const Clock::time_point &t1,
+                                   const Clock::time_point &t2) {
+    return (t1 > t2) ? (t1 - t2) : (t2 - t1);
+  }
+
+  using milliseconds = std::chrono::milliseconds;
+  using nanoseconds = std::chrono::nanoseconds;
+
+  static const unsigned int default_mtu{1500};
+
+  const std::string iface_name{"eth0"};
+  const milliseconds timeout{500};
+  std::vector<std::future<bool> > futures;
+
+  gnmi::SubscribeRequest req;
+  gnmi::SubscriptionList *subList;
+  gnmi::Subscription *sub;
+  gnmi::SubscribeResponse rep;
+
+  ClientContext context;
+  std::unique_ptr<StreamType> stream;
+};
+
+class TestGNMISysrepoSubscribeStreamSample
+    : public TestGNMISysrepoSubscribeStream {
+ protected:
+  TestGNMISysrepoSubscribeStreamSample() { }
+
+  void SetUp() override {
+    TestGNMISysrepoSubscribeStream::SetUp();
+
+    subList = req.mutable_subscribe();
+    subList->set_mode(gnmi::SubscriptionList::STREAM);
+    sub = subList->add_subscription();
+    GNMIPathBuilder pb(sub->mutable_path());
+    pb.append("interfaces").append("interface", {{"name", iface_name}})
+        .append("config").append("mtu");
+    sub->set_mode(gnmi::SAMPLE);
+    using std::chrono::duration_cast;
+    sub->set_sample_interval(
+        duration_cast<nanoseconds>(sample_interval).count());
+  }
+
+  const milliseconds sample_interval{200};
+};
+
+TEST_F(TestGNMISysrepoSubscribeStreamSample, Default) {
+  EXPECT_TRUE(stream->Write(req));
+  EXPECT_TRUE(stream->Read(&rep));
+  check_update();
+  EXPECT_TRUE(read_sync(stream.get()));
+
+  auto start = Clock::now();
+  const size_t num_samples = 3;
+  for (size_t i = 0; i < num_samples; i++) {
+    auto &f = ReadFuture(stream.get(), &rep);
+    ASSERT_EQ(f.wait_for(timeout), std::future_status::ready);
+    ASSERT_TRUE(f.get());
+    auto now = Clock::now();
+    auto expected = start + (i + 1) * sample_interval;
+    EXPECT_LT(time_diff(now, expected), sample_interval / 2);
+    check_update();
+  }
+}
+
+TEST_F(TestGNMISysrepoSubscribeStreamSample, SuppressRedundant) {
+  using std::chrono::duration_cast;
+  sub->set_suppress_redundant(true);
+  milliseconds heartbeat_interval(400);
+  sub->set_heartbeat_interval(
+      duration_cast<nanoseconds>(heartbeat_interval).count());
+
+  EXPECT_TRUE(stream->Write(req));
+  EXPECT_TRUE(stream->Read(&rep));
+  check_update();
+  EXPECT_TRUE(read_sync(stream.get()));
+
+  auto start = Clock::now();
+  {
+    auto &f = ReadFuture(stream.get(), &rep);
+    ASSERT_EQ(f.wait_for(timeout), std::future_status::ready);
+    ASSERT_TRUE(f.get());
+    auto now = Clock::now();
+    auto expected = start + heartbeat_interval;
+    EXPECT_LT(time_diff(now, expected), milliseconds(100));
+    check_update();
+  }
+
+  {
+    unsigned int new_mtu = 800;
+    auto &f = ReadFuture(stream.get(), &rep);
+    set_mtu(new_mtu);
+    ASSERT_EQ(f.wait_for(timeout), std::future_status::ready);
+    ASSERT_TRUE(f.get());
+    auto now = Clock::now();
+    auto expected = start + heartbeat_interval + sample_interval;
+    EXPECT_LT(time_diff(now, expected), sample_interval / 2);
+    check_update(new_mtu);
+  }
+}
+
+TEST_F(TestGNMISysrepoSubscribeStreamSample, UpdatesOnly) {
+  subList->set_updates_only(true);
+
+  EXPECT_TRUE(stream->Write(req));
+  // no update
+  EXPECT_TRUE(read_sync(stream.get()));
+
+  auto start = Clock::now();
+  auto &f = ReadFuture(stream.get(), &rep);
+  ASSERT_EQ(f.wait_for(timeout), std::future_status::ready);
+  ASSERT_TRUE(f.get());
+  auto now = Clock::now();
+  auto expected = start + sample_interval;
+  EXPECT_LT(time_diff(now, expected), sample_interval / 2);
+  check_update();
+}
+
+class TestGNMISysrepoSubscribeStreamOnChange
+    : public TestGNMISysrepoSubscribeStream {
+ protected:
+  TestGNMISysrepoSubscribeStreamOnChange() { }
+
+  void SetUp() override {
+    TestGNMISysrepoSubscribeStream::SetUp();
+
+    subList = req.mutable_subscribe();
+    subList->set_mode(gnmi::SubscriptionList::STREAM);
+    sub = subList->add_subscription();
+    GNMIPathBuilder pb(sub->mutable_path());
+    pb.append("interfaces").append("interface", {{"name", iface_name}})
+        .append("config").append("mtu");
+    sub->set_mode(gnmi::ON_CHANGE);
+  }
+
+  const milliseconds refresh_interval{50};
+};
+
+TEST_F(TestGNMISysrepoSubscribeStreamOnChange, Default) {
+  EXPECT_TRUE(stream->Write(req));
+  EXPECT_TRUE(stream->Read(&rep));
+  check_update();
+  EXPECT_TRUE(read_sync(stream.get()));
+
+  unsigned int mtu_1 = 800, mtu_2 = 1500;
+  {
+    auto start = Clock::now();
+    auto &f = ReadFuture(stream.get(), &rep);
+    ASSERT_EQ(f.wait_for(timeout), std::future_status::timeout);
+    set_mtu(mtu_1);
+    ASSERT_EQ(f.wait_for(timeout), std::future_status::ready);
+    ASSERT_TRUE(f.get());
+    auto now = Clock::now();
+    auto expected = start + timeout;
+    EXPECT_LT(time_diff(now, expected), 2 * refresh_interval);
+    check_update(mtu_1);
+  }
+  {
+    auto start = Clock::now();
+    auto &f = ReadFuture(stream.get(), &rep);
+    set_mtu(mtu_2);
+    ASSERT_EQ(f.wait_for(timeout), std::future_status::ready);
+    ASSERT_TRUE(f.get());
+    auto now = Clock::now();
+    auto expected = start;
+    EXPECT_LT(time_diff(now, expected), 2 * refresh_interval);
+    check_update(mtu_2);
+  }
+}
+
+TEST_F(TestGNMISysrepoSubscribeStreamOnChange, UpdatesOnly) {
+  subList->set_updates_only(true);
+  EXPECT_TRUE(stream->Write(req));
+  // no update
+  EXPECT_TRUE(read_sync(stream.get()));
+}
+
+TEST_F(TestGNMISysrepoSubscribeStreamOnChange, Heartbeat) {
+  using std::chrono::duration_cast;
+  milliseconds heartbeat_interval(400);
+  sub->set_heartbeat_interval(
+      duration_cast<nanoseconds>(heartbeat_interval).count());
+
+  EXPECT_TRUE(stream->Write(req));
+  EXPECT_TRUE(stream->Read(&rep));
+  check_update();
+  EXPECT_TRUE(read_sync(stream.get()));
+
+  auto start = Clock::now();
+  auto &f = ReadFuture(stream.get(), &rep);
+  ASSERT_EQ(f.wait_for(timeout), std::future_status::ready);
+  ASSERT_TRUE(f.get());
+  auto now = Clock::now();
+  auto expected = start + heartbeat_interval;
+  EXPECT_LT(time_diff(now, expected), 2 * refresh_interval);
+  check_update();
 }
 
 #endif  // WITH_SYSREPO

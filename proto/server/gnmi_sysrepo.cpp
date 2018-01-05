@@ -29,12 +29,16 @@ extern "C" {
 
 }
 
+#include <google/protobuf/util/message_differencer.h>
 #include <grpc++/grpc++.h>
 
 #include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <memory>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -45,6 +49,8 @@ using grpc::ServerContext;
 using grpc::ServerReaderWriter;
 using grpc::Status;
 using grpc::StatusCode;
+
+using google::protobuf::util::MessageDifferencer;
 
 namespace pi {
 
@@ -331,7 +337,7 @@ class XPathBuilder {
     scan_schemas();
   }
 
-  void appendToXPath(const gnmi::Path &path, std::string *path_str) {
+  void appendToXPath(const gnmi::Path &path, std::string *path_str) const {
     if (path.elem().size() == 0) return;
     for (const auto &elem : path.elem()) {
       path_str->append("/");
@@ -352,7 +358,8 @@ class XPathBuilder {
   }
 
   // returns true on success
-  bool setXPathOrigin(std::string *path_str, const std::string &origin = "") {
+  bool setXPathOrigin(std::string *path_str,
+                      const std::string &origin = "") const {
     if (path_str->empty() || path_str->at(0) != '/') return false;
     auto node_sep = path_str->find_first_of('/', 1);
     std::string first_node;
@@ -511,6 +518,245 @@ class LeafTypeCache {
 
   LYContext *LY_ctx;
 };
+
+// Manages stream subscription lists for a given Subscribe RPC bidi
+// stream. Supports both ON_CHANGE and SAMPLE subscriptions. Each instance of
+// this class comes with its own thread which processes subscriptions
+// periodically. We hope that the "refresh interval" is small enough that we can
+// detect changes fast enough but large enough that we don't hog the CPU.
+class SubscriptionStreamMgr {
+ public:
+  using Stream =
+      ServerReaderWriter<gnmi::SubscribeResponse, gnmi::SubscribeRequest>;
+
+  SubscriptionStreamMgr(Stream *stream, const XPathBuilder &xpath_builder)
+      : stream(stream), xpath_builder(xpath_builder) {
+    session.open();
+  }
+
+  ~SubscriptionStreamMgr() {
+    shutdown();
+  }
+
+  Status add_subscription_list(const gnmi::SubscriptionList &sub_list) {
+    assert(sub_list.mode() == gnmi::SubscriptionList::STREAM);
+    const auto &prefix = sub_list.prefix();
+    Lock lock(m);
+    for (const auto &subscription : sub_list.subscription()) {
+      // sanity-check Subscription message
+      if (subscription.mode() == gnmi::TARGET_DEFINED) {
+        return Status(StatusCode::UNIMPLEMENTED,
+                      "TARGET_DEFINED subscriptions not supported yet");
+      } else if (subscription.mode() == gnmi::ON_CHANGE) {
+        if (subscription.sample_interval() > 0) {
+          return Status(StatusCode::INVALID_ARGUMENT,
+                        "sample_interval invalid for ON_CHANGE subscriptions");
+        }
+        if (subscription.suppress_redundant()) {
+          return Status(
+              StatusCode::INVALID_ARGUMENT,
+              "suppress_redundant invalid for ON_CHANGE subscriptions");
+        }
+      } else if (subscription.mode() == gnmi::SAMPLE) {
+        if (subscription.sample_interval() == 0) {
+          return Status(StatusCode::INVALID_ARGUMENT,
+                        "sample_interval required for SAMPLE subscriptions");
+        }
+      } else {
+        return Status(StatusCode::INVALID_ARGUMENT,
+                      "Invalid subscription type");
+      }
+
+      const auto &path = subscription.path();
+      std::string xpath;
+      xpath_builder.appendToXPath(prefix, &xpath);
+      xpath_builder.appendToXPath(path, &xpath);
+      if (!xpath_builder.setXPathOrigin(&xpath, path.origin())) {
+        return Status(StatusCode::INVALID_ARGUMENT,
+                      "Cannot convert gNMI path to XPath");
+      }
+      subscriptions.emplace_back(subscription, xpath);
+      auto &new_sub = subscriptions.back();
+      if (!new_sub.process(session, stream, !sub_list.updates_only())) {
+        return Status(StatusCode::UNKNOWN,
+                      "Error while retrieving subscription items");
+      }
+    }
+    // When the target has transmitted the initial updates for all paths
+    // specified within the subscription, a SubscribeResponse message with the
+    // sync_response field set to true MUST be transmitted to the client to
+    // indicate that the initial transmission of updates has concluded. This
+    // provides an indication to the client that all of the existing data for
+    // the subscription has been sent at least once. For STREAM subscriptions,
+    // such messages are not required for subsequent updates.
+    gnmi::SubscribeResponse SyncMessage;
+    SyncMessage.set_sync_response(true);
+    stream->Write(SyncMessage);
+    return Status::OK;
+  }
+
+  void start() {
+    Lock lock(m);
+    // default-constructed thread is not-joinable
+    if (t.joinable()) return;
+    t = std::thread(&SubscriptionStreamMgr::run, this);
+  }
+
+  void shutdown() {
+    Lock lock(m);
+    if (!t.joinable()) return;
+    if (stop) return;
+    stop = true;
+    lock.unlock();
+    cv_stop.notify_one();
+    t.join();
+  }
+
+ private:
+  using Mutex = std::mutex;
+  using Lock = std::unique_lock<Mutex>;
+
+  using Clock = std::chrono::system_clock;
+  using TimePoint = Clock::time_point;
+
+  void run() {
+    TimePoint next_process;  // initialized to epoch
+    Lock lock(m);
+    // while shutdown() has not been called...
+    while (!cv_stop.wait_until(lock, next_process, [this] { return stop; })) {
+      auto now = Clock::now();
+      if (now < next_process) continue;
+      // important to refresh the session in case a Set request happened since
+      // the last call to process()
+      sr_session_refresh(session.sess);
+      for (auto &subscription : subscriptions)
+        subscription.process(session, stream);
+      next_process = now + refresh_int;
+    }
+  }
+
+  class Subscription {
+   public:
+    Subscription(const gnmi::Subscription &gnmi_sub, const std::string &xpath)
+        : gnmi_sub(gnmi_sub), xpath(xpath) { }
+
+    bool process(const SysrepoSession &session, Stream *stream,
+                 bool send = true) {
+      sr_val_t *value = nullptr;
+      sr_val_iter_t *iter = nullptr;
+      int rc = SR_ERR_OK;
+
+      const auto now = Clock::now();
+      const auto mode = gnmi_sub.mode();
+
+      rc = sr_get_items_iter(session.sess, xpath.c_str(), &iter);
+      if (rc != SR_ERR_OK) return false;
+
+      // Just like for ONCE subscriptions we send an update for each individual
+      // leaf, we do not use any_val to aggregate in a ygot-generated protobuf
+      // message.
+      gnmi::SubscribeResponse response;
+      auto *notification = response.mutable_update();
+
+      while (sr_get_item_next(session.sess, iter, &value) == SR_ERR_OK) {
+        std::string update_xpath(value->xpath);
+        if (!isLeaf(value)) {
+          sr_free_val(value);
+          continue;
+        }
+        if (value->dflt) {  // unset
+          sr_free_val(value);
+          continue;
+        }
+
+        // check if value has changed and update map
+        gnmi::TypedValue typed_v;
+        convertToTypedValue(value, &typed_v);
+        auto it = values.find(update_xpath);
+        bool has_changed = false;
+        if (it == values.end()) {
+          values[update_xpath] = {typed_v, TimePoint()};
+          has_changed = true;
+        } else {
+          has_changed = !it->second.equals(typed_v);
+        }
+        auto &stored_v = values[update_xpath];
+        const auto &last_sent = stored_v.last_sent;
+
+        bool needs_to_be_sent = false;
+        using std::chrono::nanoseconds;
+        if (mode == gnmi::SAMPLE) {
+          if (has_changed || !gnmi_sub.suppress_redundant()) {
+            needs_to_be_sent =
+                now >= (last_sent + nanoseconds(gnmi_sub.sample_interval()));
+          } else {
+            needs_to_be_sent =
+                now >= (last_sent + nanoseconds(gnmi_sub.heartbeat_interval()));
+          }
+        } else if (mode == gnmi::ON_CHANGE) {
+          auto next_if_not_changed = (gnmi_sub.heartbeat_interval() > 0) ?
+              last_sent + nanoseconds(gnmi_sub.heartbeat_interval()) :
+              TimePoint::max();
+          needs_to_be_sent = has_changed || (now >= next_if_not_changed);
+        }
+
+        if (!needs_to_be_sent) {
+          sr_free_val(value);
+          continue;
+        }
+        stored_v.last_sent = now;
+        // we only update the stored value if we are sending it
+        stored_v.v = typed_v;
+
+        if (!send) {
+          sr_free_val(value);
+          continue;
+        }
+
+        auto update = notification->add_update();
+        // TODO(antonin): use prefix for smaller messages
+        convertFromXPath(value->xpath, update->mutable_path());
+        *update->mutable_val() = typed_v;
+        sr_free_val(value);
+      }
+      sr_free_val_iter(iter);
+
+      if (send && notification->update_size() > 0) {
+        auto timestamp = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            now.time_since_epoch()).count();
+        notification->set_timestamp(timestamp);
+        stream->Write(response);
+      }
+      return true;
+    }
+
+   private:
+    gnmi::Subscription gnmi_sub;
+    std::string xpath;
+    struct StoredValue {
+      gnmi::TypedValue v;  // last value sent
+      TimePoint last_sent;  // initialized to epoch
+
+      bool equals(const gnmi::TypedValue &other) {
+        return MessageDifferencer::Equals(v, other);
+      }
+    };
+    std::unordered_map<std::string, StoredValue> values{};
+  };
+
+  static constexpr std::chrono::nanoseconds refresh_int{50000000};  // 50 ms
+
+  SysrepoSession session{};
+  ServerReaderWriter<gnmi::SubscribeResponse, gnmi::SubscribeRequest> *stream;
+  const XPathBuilder &xpath_builder;
+  mutable Mutex m{};
+  std::thread t{};
+  std::vector<Subscription> subscriptions{};
+  bool stop{false};
+  std::condition_variable cv_stop{};
+};
+
+constexpr std::chrono::nanoseconds SubscriptionStreamMgr::refresh_int;
 
 }  // namespace
 
@@ -733,43 +979,50 @@ gNMIServiceSysrepoImpl::Subscribe(
                        gnmi::SubscribeRequest> *stream) {
   SIMPLELOG << "gNMI Subscribe\n";
   gnmi::SubscribeRequest request;
+  SubscriptionStreamMgr subscription_streams(stream, xpath_builder);
   while (stream->Read(&request)) {
     if (!request.has_subscribe()) {
       return Status(StatusCode::UNIMPLEMENTED,
                     "Only subscription lists supported for now");
     }
     const auto &sub = request.subscribe();
-    if (sub.mode() != gnmi::SubscriptionList::ONCE) {
+    if (sub.mode() == gnmi::SubscriptionList::POLL) {
       return Status(StatusCode::UNIMPLEMENTED,
-                    "Only subscriptions with ONCE mode supported for now");
-    }
+                    "POLL subscriptions not supported for now");
+    } else if (sub.mode() == gnmi::SubscriptionList::STREAM) {
+      subscription_streams.start();
+      auto status = subscription_streams.add_subscription_list(sub);
+      if (!status.ok()) return status;
+    } else if (sub.mode() == gnmi::SubscriptionList::ONCE) {
+      gnmi::SubscribeResponse response;
+      auto *notification = response.mutable_update();
+      notification->set_timestamp(get_timestamp());
 
-    gnmi::SubscribeResponse response;
-    auto *notification = response.mutable_update();
-    notification->set_timestamp(get_timestamp());
+      SysrepoSession session;
+      if (!session.open()) {
+        return Status(StatusCode::UNKNOWN,
+                      "Error when connecting to yang datastore");
+      }
 
-    SysrepoSession session;
-    if (!session.open()) {
-      return Status(StatusCode::UNKNOWN,
-                    "Error when connecting to yang datastore");
+      const auto &prefix = sub.prefix();
+      for (const auto &subscription : sub.subscription()) {
+        set_notification_update_for_path(
+            notification, session, prefix, subscription.path());
+      }
+      // response.PrintDebugString();
+      stream->Write(response);
+      // Following the transmission of all updates which correspond to data
+      // items within the set of paths specified within the subscription list, a
+      // SubscribeResponse message with the sync_response field set to true MUST
+      // be transmitted, and the channel over which the SubscribeRequest was
+      // received MUST be closed.
+      gnmi::SubscribeResponse EOM;
+      EOM.set_sync_response(true);
+      stream->Write(EOM);
+      break;
+    } else {
+      return Status(StatusCode::INVALID_ARGUMENT, "Invalid subscription mode");
     }
-
-    const auto &prefix = sub.prefix();
-    for (const auto &subscription : sub.subscription()) {
-      set_notification_update_for_path(
-          notification, session, prefix, subscription.path());
-    }
-    // response.PrintDebugString();
-    stream->Write(response);
-    // Following the transmission of all updates which correspond to data items
-    // within the set of paths specified within the subscription list, a
-    // SubscribeResponse message with the sync_response field set to true MUST
-    // be transmitted, and the channel over which the SubscribeRequest was
-    // received MUST be closed.
-    gnmi::SubscribeResponse EOM;
-    EOM.set_sync_response(true);
-    stream->Write(EOM);
-    break;
   }
   return Status::OK;
 }
