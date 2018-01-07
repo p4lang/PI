@@ -33,6 +33,12 @@ void PIGrpcServerRunAddr(const char *server_address);
 // Get port number bound to the server
 int PIGrpcServerGetPort();
 
+// Get number of PacketIn packets sent to client
+uint64_t PIGrpcServerGetPacketInCount(uint64_t device_id);
+
+// Get number of PacketOut packets sent to DevMgr
+uint64_t PIGrpcServerGetPacketOutCount(uint64_t device_id);
+
 // Wait for the server to shutdown. Note that some other thread must be
 // responsible for shutting down the server for this call to ever return.
 void PIGrpcServerWait();

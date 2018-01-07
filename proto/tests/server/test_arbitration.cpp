@@ -218,9 +218,12 @@ TEST_F(TestArbitration, WriteAndPacketInAndPacketOut) {
 
   EXPECT_EQ(read_arbitration_status(stream_master.get()).code(),
             ::google::rpc::Code::OK);
+  EXPECT_EQ(PIGrpcServerGetPacketInCount(device_id), 0u);
+  EXPECT_EQ(PIGrpcServerGetPacketOutCount(device_id), 0u);
   check_write(master_id, true);
   check_packet_in(stream_master.get());
   check_packet_out(stream_master.get());
+  EXPECT_EQ(PIGrpcServerGetPacketInCount(device_id), 1u);
 
   ClientContext stream_slave_context;
   auto stream_slave = stream_setup(&stream_slave_context, slave_id);
@@ -232,6 +235,7 @@ TEST_F(TestArbitration, WriteAndPacketInAndPacketOut) {
   check_write(slave_id, false);
   check_packet_in(stream_master.get());
   check_packet_out(stream_master.get());
+  EXPECT_EQ(PIGrpcServerGetPacketInCount(device_id), 2u);
 
   EXPECT_TRUE(stream_teardown(std::move(stream_master)).ok());
 
@@ -240,6 +244,7 @@ TEST_F(TestArbitration, WriteAndPacketInAndPacketOut) {
   check_write(slave_id, true);
   check_packet_in(stream_slave.get());
   check_packet_out(stream_slave.get());
+  EXPECT_EQ(PIGrpcServerGetPacketInCount(device_id), 3u);
 
   EXPECT_TRUE(stream_teardown(std::move(stream_slave)).ok());
 }

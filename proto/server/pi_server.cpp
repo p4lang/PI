@@ -172,7 +172,7 @@ class DeviceState {
     return device_mgr.get();
   }
 
-  void send_packet_in(p4::PacketIn *packet) const {
+  void send_packet_in(p4::PacketIn *packet) {
     std::lock_guard<std::mutex> lock(m);
     auto master = get_master();
     if (master == nullptr) return;
@@ -181,6 +181,12 @@ class DeviceState {
     response.set_allocated_packet(packet);
     stream->Write(response);
     response.release_packet();
+    pkt_in_count++;
+  }
+
+  uint64_t get_pkt_in_count() {
+    std::lock_guard<std::mutex> lock(m);
+    return pkt_in_count;
   }
 
   Status add_connection(Connection *connection) {
@@ -235,12 +241,18 @@ class DeviceState {
   }
 
   void process_packet_out(Connection *connection,
-                          const p4::PacketOut &packet_out) const {
+                          const p4::PacketOut &packet_out) {
     std::lock_guard<std::mutex> lock(m);
     SIMPLELOG << "PACKET OUT\n";
     if (!is_master(connection)) return;
     if (device_mgr == nullptr) return;
     device_mgr->packet_out_send(packet_out);
+    pkt_out_count++;
+  }
+
+  uint64_t get_pkt_out_count() {
+    std::lock_guard<std::mutex> lock(m);
+    return pkt_out_count;
   }
 
   bool is_master(const Uint128 &election_id) const {
@@ -290,6 +302,8 @@ class DeviceState {
   }
 
   mutable std::mutex m{};
+  uint64_t pkt_in_count{0};
+  uint64_t pkt_out_count{0};
   std::unique_ptr<DeviceMgr> device_mgr{nullptr};
   std::set<Connection *, CompareConnections> connections{};
   DeviceMgr::device_id_t device_id;
@@ -306,6 +320,13 @@ class Devices {
     auto device = new DeviceState(device_id);
     map.emplace(device_id, std::unique_ptr<DeviceState>(device));
     return device;
+  }
+
+  static bool has_device(DeviceMgr::device_id_t device_id) {
+    auto &instance = get_instance();
+    std::lock_guard<std::mutex> lock(instance.m);
+    auto &map = instance.device_map;
+    return (map.find(device_id) != map.end());
   }
 
  private:
@@ -533,6 +554,22 @@ void PIGrpcServerRun() {
 
 int PIGrpcServerGetPort() {
   return server_data->server_port;
+}
+
+uint64_t PIGrpcServerGetPacketInCount(uint64_t device_id) {
+  if (::pi::server::Devices::has_device(device_id)) {
+    return ::pi::server::Devices::get(device_id)->get_pkt_in_count();
+  } else {
+    return 0;
+  }
+}
+
+uint64_t PIGrpcServerGetPacketOutCount(uint64_t device_id) {
+  if (::pi::server::Devices::has_device(device_id)) {
+    return ::pi::server::Devices::get(device_id)->get_pkt_out_count();
+  } else {
+    return 0;
+  }
 }
 
 void PIGrpcServerWait() {
