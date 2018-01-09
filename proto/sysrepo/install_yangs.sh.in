@@ -22,14 +22,22 @@ YANGS="$YANGS @abs_top_srcdir@/yang/ietf-netconf-notifications.yang"
 # I explicitly install it.
 YANGS="$YANGS @abs_top_srcdir@/yang/ietf-interfaces@2014-05-08.yang"
 
-# Sysrepo does not support when conditions involving operational state in YANG
-# This is my workaround
-# See https://github.com/sysrepo/sysrepo/issues/1018
+# openconfig-interfaces.yang uses a "when" statement on state data, which is not
+# correct YANG. This is my workaround.
+# See https://github.com/openconfig/public/issues/108
 # The generated file is never cleaned up so 'make distcheck' will probably fail
 mkdir -p @abs_builddir@
 @SED@ 's;when "oc-if:state/oc-if:type;when "oc-if:config/oc-if:type;g' \
  $OPENCONFIG_ROOT/interfaces/openconfig-if-ethernet.yang > @abs_builddir@/openconfig-if-ethernet.yang
 YANGS="$YANGS @abs_builddir@/openconfig-if-ethernet.yang"
+
+# openconfig-yang-types.yang uses regex anchors (POSIX regex) which is not
+# correct YANG. This is my workaround.
+# See https://github.com/openconfig/public/issues/44
+@SED@ "s;\(\s'\)\^;\1;g" \
+ $OPENCONFIG_ROOT/types/openconfig-yang-types.yang > @abs_builddir@/openconfig-yang-types.yang
+@SED@ -i "s;\$\('\;\);\1;g"  @abs_builddir@/openconfig-yang-types.yang
+YANGS="$YANGS @abs_builddir@/openconfig-yang-types.yang"
 
 for YANG in $YANGS; do
     sysrepoctl -i $SEARCH_DIRS --yang $YANG
