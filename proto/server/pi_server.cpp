@@ -559,17 +559,15 @@ int PIGrpcServerGetPort() {
 uint64_t PIGrpcServerGetPacketInCount(uint64_t device_id) {
   if (::pi::server::Devices::has_device(device_id)) {
     return ::pi::server::Devices::get(device_id)->get_pkt_in_count();
-  } else {
-    return 0;
   }
+  return 0;
 }
 
 uint64_t PIGrpcServerGetPacketOutCount(uint64_t device_id) {
   if (::pi::server::Devices::has_device(device_id)) {
     return ::pi::server::Devices::get(device_id)->get_pkt_out_count();
-  } else {
-    return 0;
   }
+  return 0;
 }
 
 void PIGrpcServerWait() {
