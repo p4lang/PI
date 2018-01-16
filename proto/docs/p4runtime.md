@@ -176,14 +176,16 @@ switch(p4_type(match.field_id())) {
   case EXACT:
     assert(match.has_exact() && !match.exact().value().empty())
   case TERNARY:
+    Integer value, mask;
     assert(match.has_ternary())
     assert(!match.ternary().value().empty() && !match.ternary().mask().empty())
-    assert(match.ternary().value() ==
-           (match.ternary().value() & match.ternary().mask()))
+    assert(parseInteger(match.ternary().value(), &value))
+    assert(parseInteger(match.ternary().mask(), &mask))
+    assert(value == (value & mask))
   case LPM:
     assert(match.has_lpm())
     assert(!match.lpm().value().empty() && match.lpm().prefix_len() > 0)
-    assert(count_trailing_zeros(match.lpm().value()) >=
+    assert(countTrailingZeros(match.lpm().value()) >=
            p4_bitwidth(match.field_id()) - match.lpm().prefix_len())
   case RANGE:
     Integer low, high;

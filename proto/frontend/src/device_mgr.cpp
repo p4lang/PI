@@ -1062,6 +1062,10 @@ class DeviceMgrImp {
       RETURN_ERROR_STATUS(
           Code::INVALID_ARGUMENT, "Prefix length cannot be < 0");
     }
+    if (static_cast<size_t>(pLen) > bitwidth) {
+      RETURN_ERROR_STATUS(
+          Code::INVALID_ARGUMENT, "Prefix length cannot be > bitwidth");
+    }
     // makes sure that value ends with zeros
     if (!common::check_prefix_trailing_zeros(value, pLen)) {
       RETURN_ERROR_STATUS(
