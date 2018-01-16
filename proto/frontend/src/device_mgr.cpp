@@ -475,10 +475,13 @@ class DeviceMgrImp {
   Status direct_meter_write(p4::Update_Type update,
                             const p4::DirectMeterEntry &meter_entry,
                             const SessionTemp &session) {
-    if (!check_p4_id(meter_entry.meter_id(), P4ResourceType::METER))
-      return make_invalid_p4_id_status();
-
+    if (!meter_entry.has_table_entry()) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "Missing table_entry field in DirectMeterEntry");
+    }
     const auto &table_entry = meter_entry.table_entry();
+    if (!check_p4_id(table_entry.table_id(), P4ResourceType::TABLE))
+      return make_invalid_p4_id_status();
     auto table_lock = table_info_store.lock_table(table_entry.table_id());
 
     pi_entry_handle_t entry_handle = 0;
@@ -487,6 +490,12 @@ class DeviceMgrImp {
       if (IS_ERROR(status)) return status;
     }
 
+    p4_id_t table_direct_meter_id = pi_get_table_direct_resource_p4_id(
+        table_entry.table_id(), P4ResourceType::METER);
+    if (table_direct_meter_id == PI_INVALID_ID) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "Table has no direct meters");
+    }
     switch (update) {
       case p4::Update_Type_UNSPECIFIED:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
@@ -497,7 +506,7 @@ class DeviceMgrImp {
         {
           auto pi_meter_spec = meter_spec_proto_to_pi(meter_entry.config());
           auto pi_status = pi_meter_set_direct(session.get(), device_tgt,
-                                               meter_entry.meter_id(),
+                                               table_direct_meter_id,
                                                entry_handle,
                                                &pi_meter_spec);
           if (pi_status != PI_STATUS_SUCCESS) {
@@ -511,7 +520,7 @@ class DeviceMgrImp {
           pi_meter_spec_t pi_meter_spec =
               {0, 0, 0, 0, PI_METER_UNIT_DEFAULT, PI_METER_TYPE_DEFAULT};
           auto pi_status = pi_meter_set_direct(session.get(), device_tgt,
-                                               meter_entry.meter_id(),
+                                               table_direct_meter_id,
                                                entry_handle,
                                                &pi_meter_spec);
           if (pi_status != PI_STATUS_SUCCESS) {
@@ -961,15 +970,10 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
-  Status direct_counter_read_one(p4_id_t counter_id,
-                                 const p4::DirectCounterEntry &counter_entry,
+  Status direct_counter_read_one(const p4::TableEntry &table_entry,
                                  const SessionTemp &session,
                                  p4::ReadResponse *response) const {
-    assert(pi_p4info_counter_get_direct(p4info.get(), counter_id) !=
-           PI_INVALID_ID);
-
-    if (counter_entry.has_table_entry()) {
-      const auto &table_entry = counter_entry.table_entry();
+    if (table_entry.match_size() > 0) {
       auto table_lock = table_info_store.lock_table(table_entry.table_id());
 
       pi_entry_handle_t entry_handle = 0;
@@ -977,16 +981,22 @@ class DeviceMgrImp {
         auto status = entry_handle_from_table_entry(table_entry, &entry_handle);
         if (IS_ERROR(status)) return status;
       }
+      p4_id_t table_direct_counter_id = pi_get_table_direct_resource_p4_id(
+        table_entry.table_id(), P4ResourceType::COUNTER);
+      if (table_direct_counter_id == PI_INVALID_ID) {
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                            "Table has no direct counters");
+      }
       pi_counter_data_t counter_data;
       auto pi_status = pi_counter_read_direct(
-          session.get(), device_tgt, counter_id, entry_handle,
+          session.get(), device_tgt, table_direct_counter_id, entry_handle,
           PI_COUNTER_FLAGS_HW_SYNC, &counter_data);
       if (pi_status != PI_STATUS_SUCCESS) {
         RETURN_ERROR_STATUS(Code::UNKNOWN,
                             "Error when reading counter from target");
       }
       auto entry = response->add_entities()->mutable_direct_counter_entry();
-      entry->CopyFrom(counter_entry);
+      entry->mutable_table_entry()->CopyFrom(table_entry);
       convert_counter_data(counter_data, entry->mutable_data());
       RETURN_OK_STATUS();
     }
@@ -999,27 +1009,18 @@ class DeviceMgrImp {
   Status direct_counter_read(const p4::DirectCounterEntry &counter_entry,
                              const SessionTemp &session,
                              p4::ReadResponse *response) const {
-    auto counter_id = counter_entry.counter_id();
-    if (counter_id == 0 && counter_entry.has_table_entry()) {
-      RETURN_ERROR_STATUS(
-          Code::INVALID_ARGUMENT,
-          "When reading direct counters, you cannot use a counter_id of zero "
-          "with a non-empty table_entry");
+    if (!counter_entry.has_table_entry()) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "Missing table_entry field in DirectCounterEntry");
     }
-    if (counter_id == 0) {
+    const auto &table_entry = counter_entry.table_entry();
+    if (table_entry.table_id() == 0) {
       RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
-                          "Reading ALL direct counters is not supported yet");
+        "Reading ALL direct counters for all tables is not supported yet");
     }
-    if (!check_p4_id(counter_id, P4ResourceType::COUNTER))
+    if (!check_p4_id(table_entry.table_id(), P4ResourceType::TABLE))
       return make_invalid_p4_id_status();
-    if (pi_p4info_counter_get_direct(p4info.get(), counter_id) ==
-        PI_INVALID_ID) {
-      RETURN_ERROR_STATUS(
-          Code::INVALID_ARGUMENT,
-          "Cannot use DirectCounterEntry with a indirect counter");
-    }
-    return direct_counter_read_one(
-        counter_id, counter_entry, session, response);
+    return direct_counter_read_one(table_entry, session, response);
   }
 
   static void init(size_t max_devices) {
@@ -1033,6 +1034,21 @@ class DeviceMgrImp {
   }
 
  private:
+  p4_id_t pi_get_table_direct_resource_p4_id(pi_p4_id_t table_id,
+    P4ResourceType resource_type) const {
+    size_t num_direct_resources = 0;
+    p4_id_t table_direct_resource_id = PI_INVALID_ID;
+    const pi_p4_id_t* direct_resource = pi_p4info_table_get_direct_resources(
+        p4info.get(), table_id, &num_direct_resources);
+    for (size_t i = 0; i < num_direct_resources; i++) {
+      if (check_p4_id(direct_resource[i], resource_type)) {
+        table_direct_resource_id = direct_resource[i];
+        break;
+      }
+    }
+    return table_direct_resource_id;
+  }
+
   bool check_p4_id(p4_id_t p4_id, P4ResourceType expected_type) const {
     return (pi::proto::util::resource_type_from_id(p4_id) == expected_type)
         && pi_p4info_is_valid_id(p4info.get(), p4_id);

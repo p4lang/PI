@@ -255,14 +255,14 @@ message MeterEntry {
 // meters is not allowed and will return an error. The insertion/deletion
 // should happen as part of INSERT/DELETE on the associated table-entry.
 // For ReadRequest, the scope is defined as follows:
-// - All meter cells for all meters if meter_id = 0 (default).
-// - All meter cells for given meter_id if table_entry.match is empty.
+// - All meter cells for all tables if table_entry.table_id = 0.
+// - All meter cells of a table if table_entry.table_id is present and
+//   table_entry.match is empty.
 message DirectMeterEntry {
-  uint32 meter_id = 1;
-  // The associated table entry match.
+  // The associated table entry. This field is required.
   // table_entry.action is ignored. Other fields specify the match.
-  TableEntry table_entry = 2;
-  MeterConfig config = 3;
+  TableEntry table_entry = 1;
+  MeterConfig config = 2;
 }
 
 // Modeled as RFC 2698: A Two Rate Three Color Marker (trTCM)
@@ -300,14 +300,14 @@ message CounterEntry {
 // counters is not allowed and will return an error. The insertion/deletion
 // should happen as part of INSERT/DELETE on the associated table-entry.
 // For ReadRequest, the scope is defined as follows:
-// - All counter cells for all meters if counter_id = 0 (default).
-// - All counter cells for given counter_id if table_entry.match is empty.
+// - All counter cells for all tables if table_entry.table_id = 0.
+// - All counter cells of a table if table_entry.table_id is present and
+//   table_entry.match is empty.
 message DirectCounterEntry {
-  uint32 counter_id = 1;
-  // The associated table entry match.
+  // The associated table entry. This field is required.
   // table_entry.action is ignored. Other fields specify the match.
-  TableEntry table_entry = 2;
-  CounterData data = 3;
+  TableEntry table_entry = 1;
+  CounterData data = 2;
 }
 
 message CounterData {

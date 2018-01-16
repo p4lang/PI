@@ -1333,7 +1333,6 @@ class DirectMeterTest : public ExactOneTest {
   p4::DirectMeterEntry make_meter_entry(const p4::TableEntry &entry,
                                         const p4::MeterConfig &config) {
     p4::DirectMeterEntry direct_meter_entry;
-    direct_meter_entry.set_meter_id(m_id);
     direct_meter_entry.mutable_table_entry()->CopyFrom(entry);
     direct_meter_entry.mutable_config()->CopyFrom(config);
     return direct_meter_entry;
@@ -1428,34 +1427,11 @@ TEST_F(DirectMeterTest, InvalidTableEntry) {
   }
 }
 
-TEST_F(DirectMeterTest, InvalidMeterId) {
-  std::string mf("\xaa\xbb\xcc\xdd", 4);
-  std::string adata(6, '\x00');
-  auto entry = make_entry(mf, adata);
-  auto config = make_meter_config();
-  auto meter_entry = make_meter_entry(entry, config);
-  auto check_bad_status_write = [this, &meter_entry](pi_p4_id_t bad_id) {
-    meter_entry.set_meter_id(bad_id);
-    auto status = set_meter(&meter_entry);
-    EXPECT_EQ(
-        status,
-        OneExpectedError(Code::INVALID_ARGUMENT, invalid_p4_id_error_str));
-  };
-  // 0, aka missing id
-  check_bad_status_write(0);
-  // correct resource type id, bad index
-  {
-    auto bad_id = pi_make_meter_id(0);
-    while (pi_p4info_is_valid_id(p4info, bad_id)) bad_id++;
-    check_bad_status_write(bad_id);
-  }
-  // invalid resource type id
-  {
-    auto bad_id = static_cast<pi_p4_id_t>(0xff << 24);
-    check_bad_status_write(bad_id);
-  }
+TEST_F(DirectMeterTest, MissingTableEntry) {
+  p4::DirectMeterEntry meter_entry;
+  auto status = set_meter(&meter_entry);
+  EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
 }
-
 
 class DirectCounterTest : public ExactOneTest {
  protected:
@@ -1478,7 +1454,6 @@ class DirectCounterTest : public ExactOneTest {
 
   p4::DirectCounterEntry make_counter_entry(const p4::TableEntry *entry) {
     p4::DirectCounterEntry direct_counter_entry;
-    direct_counter_entry.set_counter_id(c_id);
     if (entry) direct_counter_entry.mutable_table_entry()->CopyFrom(*entry);
     return direct_counter_entry;
   }
@@ -1507,7 +1482,7 @@ TEST_F(DirectCounterTest, Read) {
   }
 }
 
-TEST_F(DirectCounterTest, InvalidRequestReadAllFromDefault) {
+TEST_F(DirectCounterTest, InvalidTableEntry) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
   std::string adata(6, '\x00');
   auto entry = make_entry(mf, adata);
@@ -1519,9 +1494,9 @@ TEST_F(DirectCounterTest, InvalidRequestReadAllFromDefault) {
     ASSERT_EQ(status.code(), Code::OK);
   }
 
-  // default counter id + non-default table entry is invalid
-  p4::DirectCounterEntry counter_entry;
-  counter_entry.mutable_table_entry()->CopyFrom(entry);
+  std::string mf_1("\xaa\xbb\xcc\xee", 4);
+  auto entry_1 = make_entry(mf_1, adata);
+  auto counter_entry = make_counter_entry(&entry_1);
   {
     auto status = read_counter(&counter_entry);
     ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
@@ -1530,14 +1505,33 @@ TEST_F(DirectCounterTest, InvalidRequestReadAllFromDefault) {
 
 // TODO(antonin)
 TEST_F(DirectCounterTest, ReadAllFromTable) {
-  auto counter_entry = make_counter_entry(nullptr);  // default TableEntry
+  std::string mf("\xaa\xbb\xcc\xdd", 4);
+  std::string adata(6, '\x00');
+  auto entry = make_entry(mf, adata);
+  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mf));
+  auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
+  EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
+  {
+    auto status = add_entry(&entry);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+
+  p4::DirectCounterEntry counter_entry;
+  counter_entry.mutable_table_entry()->set_table_id(entry.table_id());
   auto status = read_counter(&counter_entry);
   ASSERT_EQ(status.code(), Code::UNIMPLEMENTED);
+}
+
+TEST_F(DirectCounterTest, MissingTableEntry) {
+  p4::DirectCounterEntry counter_entry;
+  auto status = read_counter(&counter_entry);
+  EXPECT_EQ(status.code(), Code::INVALID_ARGUMENT);
 }
 
 // TODO(antonin)
 TEST_F(DirectCounterTest, ReadAll) {
   p4::DirectCounterEntry counter_entry;
+  counter_entry.mutable_table_entry();
   auto status = read_counter(&counter_entry);
   ASSERT_EQ(status.code(), Code::UNIMPLEMENTED);
 }
