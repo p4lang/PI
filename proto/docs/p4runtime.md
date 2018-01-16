@@ -178,9 +178,13 @@ switch(p4_type(match.field_id())) {
   case TERNARY:
     assert(match.has_ternary())
     assert(!match.ternary().value().empty() && !match.ternary().mask().empty())
+    assert(match.ternary().value() ==
+           (match.ternary().value() & match.ternary().mask()))
   case LPM:
     assert(match.has_lpm())
     assert(!match.lpm().value().empty() && match.lpm().prefix_len() > 0)
+    assert(count_trailing_zeros(match.lpm().value()) >=
+           p4_bitwidth(match.field_id()) - match.lpm().prefix_len())
   case RANGE:
     Integer low, high;
     assert(match.has_range())

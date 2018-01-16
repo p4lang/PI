@@ -1045,6 +1045,70 @@ class DeviceMgrImp {
     return nullptr;
   }
 
+  Status validate_exact_match(const p4::FieldMatch::Exact &mf,
+                              size_t bitwidth) const {
+    if (check_proto_bytestring(mf.value(), bitwidth) != Code::OK)
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid bytestring format");
+    RETURN_OK_STATUS();
+  }
+
+  Status validate_lpm_match(const p4::FieldMatch::LPM &mf,
+                            size_t bitwidth) const {
+    const auto &value = mf.value();
+    const auto pLen = mf.prefix_len();
+    if (check_proto_bytestring(value, bitwidth) != Code::OK)
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid bytestring format");
+    if (pLen < 0) {
+      RETURN_ERROR_STATUS(
+          Code::INVALID_ARGUMENT, "Prefix length cannot be < 0");
+    }
+    // makes sure that value ends with zeros
+    if (!common::check_prefix_trailing_zeros(value, pLen)) {
+      RETURN_ERROR_STATUS(
+          Code::INVALID_ARGUMENT,
+          "Invalid LPM value, incorrect number of trailing zeros");
+    }
+    RETURN_OK_STATUS();
+  }
+
+  Status validate_ternary_match(const p4::FieldMatch::Ternary &mf,
+                                size_t bitwidth) const {
+    const auto &value = mf.value();
+    const auto &mask = mf.mask();
+    if (check_proto_bytestring(value, bitwidth) != Code::OK)
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid bytestring format");
+    if (check_proto_bytestring(mask, bitwidth) != Code::OK)
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid bytestring format");
+    // makes sure that value == value & mask
+    assert(value.size() == mask.size());
+    for (size_t i = 0; i < value.size(); i++) {
+      // parenthesis required because of C operator precedence
+      if ((value[i] & mask[i]) != value[i]) {
+        RETURN_ERROR_STATUS(
+            Code::INVALID_ARGUMENT,
+            "Invalid ternary value, make sure value & mask == value");
+      }
+    }
+    RETURN_OK_STATUS();
+  }
+
+  Status validate_range_match(const p4::FieldMatch::Range &mf,
+                              size_t bitwidth) const {
+    const auto &low = mf.low();
+    const auto &high = mf.high();
+    if (check_proto_bytestring(low, bitwidth) != Code::OK)
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid bytestring format");
+    if (check_proto_bytestring(high, bitwidth) != Code::OK)
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid bytestring format");
+    // makes sure that low <= high
+    assert(low.size() == high.size());
+    if (std::memcmp(low.data(), high.data(), low.size()) > 0) {
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                            "Invalid range value, make sure low <= high");
+    }
+    RETURN_OK_STATUS();
+  }
+
   Status validate_match_key(const p4::TableEntry &entry) const {
     auto t_id = entry.table_id();
     size_t num_match_fields;
@@ -1055,7 +1119,7 @@ class DeviceMgrImp {
                           "Too many fields in match key");
     }
 
-    Code code = Code::OK;
+    Status status;
     int num_mf_matched = 0;  // check if some extra fields in the match key
     // the double loop is potentially too slow; refactor this code if it proves
     // to be a bottleneck
@@ -1081,33 +1145,31 @@ class DeviceMgrImp {
         case PI_P4INFO_MATCH_TYPE_EXACT:
           if (!mf->has_exact())
             RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
-          code = check_proto_bytestring(mf->exact().value(), bitwidth);
+          status = validate_exact_match(mf->exact(), bitwidth);
+          if (IS_ERROR(status)) return status;
           break;
         case PI_P4INFO_MATCH_TYPE_LPM:
           if (!mf->has_lpm())
             RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
-          code = check_proto_bytestring(mf->lpm().value(), bitwidth);
+          status = validate_lpm_match(mf->lpm(), bitwidth);
+          if (IS_ERROR(status)) return status;
           break;
         case PI_P4INFO_MATCH_TYPE_TERNARY:
           if (!mf->has_ternary())
             RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
-          code = check_proto_bytestring(mf->ternary().value(), bitwidth);
-          if (code != Code::OK) break;
-          code = check_proto_bytestring(mf->ternary().mask(), bitwidth);
+          status = validate_ternary_match(mf->ternary(), bitwidth);
+          if (IS_ERROR(status)) return status;
           break;
         case PI_P4INFO_MATCH_TYPE_RANGE:
           if (!mf->has_range())
             RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
-          code = check_proto_bytestring(mf->range().low(), bitwidth);
-          if (code != Code::OK) break;
-          code = check_proto_bytestring(mf->range().high(), bitwidth);
+          status = validate_range_match(mf->range(), bitwidth);
+          if (IS_ERROR(status)) return status;
           break;
         default:
           assert(0);
           break;
       }
-      if (code != Code::OK)
-        RETURN_ERROR_STATUS(code, "Invalid bytestring format");
     }
     if (num_mf_matched != entry.match().size())
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Unknown field in match key");
