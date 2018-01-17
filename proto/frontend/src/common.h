@@ -59,6 +59,8 @@ struct SessionTemp {
 
 Code check_proto_bytestring(const std::string &str, size_t nbits);
 
+bool check_prefix_trailing_zeros(const std::string &str, int pLen);
+
 std::string range_default_lo(size_t nbits);
 std::string range_default_hi(size_t nbits);
 

@@ -735,21 +735,29 @@ TEST_P(MatchTableTest, WriteBatchWithError) {
 
 #define MK std::string("\xaa\xbb\xcc\xdd", 4)
 #define MASK std::string("\xff\x01\xf0\x0f", 4)
+// for ternary, we need to ensure that mk == mk & mask
+#define TERNARY_MK std::string("\xaa\x01\xc0\x0d", 4)
 #define PREF_LEN 12
+// for LPM, we need to ensure that mk ends with the appropriate number of
+// trailing zeros
+#define LPM_MK std::string("\xaa\xf0\x00\x00", 4)
 #define PRIORITY 77
 
 INSTANTIATE_TEST_CASE_P(
     MatchTableTypes, MatchTableTest,
     Values(std::make_tuple("ExactOne", MatchKeyInput::make_exact(MK)),
-           std::make_tuple("LpmOne", MatchKeyInput::make_lpm(MK, PREF_LEN)),
-           std::make_tuple("TernaryOne",
-                           MatchKeyInput::make_ternary(MK, MASK, PRIORITY)),
+           std::make_tuple("LpmOne", MatchKeyInput::make_lpm(LPM_MK, PREF_LEN)),
+           std::make_tuple(
+               "TernaryOne",
+               MatchKeyInput::make_ternary(TERNARY_MK, MASK, PRIORITY)),
            std::make_tuple("RangeOne",
                            MatchKeyInput::make_range(MK, MASK, PRIORITY))));
 
 #undef MK
 #undef MASK
+#undef TERNARY_MK
 #undef PREF_LEN
+#undef LPM_MK
 
 
 class ActionProfTest : public DeviceMgrTest {
@@ -1611,6 +1619,8 @@ TEST_F(IndirectCounterTest, ReadAll) {
 
 // Only testing for exact match tables for now, there is not much code variation
 // between different table types.
+// I added some tests specific to Ternary, Range and LPM below (TernaryOneTest,
+// RangeOneTest and LpmOneTest).
 class MatchKeyFormatTest : public ExactOneTest {
  protected:
   MatchKeyFormatTest()
@@ -1695,6 +1705,200 @@ TEST_F(MatchKeyFormatTest, BadLeadingZeros) {
   add_one_mf(&entry, mf_v);
   auto status = add_entry(&entry);
   EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
+}
+
+class TernaryOneTest : public DeviceMgrTest {
+ protected:
+  TernaryOneTest(const std::string &t_name, const std::string &f_name)
+      : f_name(f_name) {
+    t_id = pi_p4info_table_id_from_name(p4info, t_name.c_str());
+    a_id = pi_p4info_action_id_from_name(p4info, "actionA");
+  }
+
+  TernaryOneTest()
+      : TernaryOneTest("TernaryOne", "header_test.field32") { }
+
+  p4::TableEntry make_entry(const std::string &mf_v,
+                            const std::string &mask_v,
+                            const std::string &param_v) {
+    p4::TableEntry table_entry;
+    table_entry.set_table_id(t_id);
+    auto mf = table_entry.add_match();
+    mf->set_field_id(pi_p4info_table_match_field_id_from_name(
+        p4info, t_id, f_name.c_str()));
+    auto mf_ternary = mf->mutable_ternary();
+    mf_ternary->set_value(mf_v);
+    mf_ternary->set_mask(mask_v);
+    auto entry = table_entry.mutable_action();
+    auto action = entry->mutable_action();
+
+    action->set_action_id(a_id);
+    auto param = action->add_params();
+    param->set_param_id(
+        pi_p4info_action_param_id_from_name(p4info, a_id, "param"));
+    param->set_value(param_v);
+    return table_entry;
+  }
+
+  const std::string f_name;
+  pi_p4_id_t t_id;
+  pi_p4_id_t a_id;
+};
+
+TEST_F(TernaryOneTest, ValueEqValueAndMask) {
+  std::string adata(6, '\x00');
+  {  // value == value & mask
+    std::string mf("\x11\x01\x01\x00", 4);
+    std::string mask("\xff\xff\xff\xff", 4);
+    auto entry = make_entry(mf, mask, adata);
+    EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
+    auto status = add_entry(&entry);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+  {  // value != value & mask
+    std::string mf("\x11\x01\x01\x00", 4);
+    std::string mask("\xff\x00\xff\xff", 4);
+    auto entry = make_entry(mf, mask, adata);
+    EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _)).Times(0);
+    auto status = add_entry(&entry);
+    EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
+  }
+}
+
+class RangeOneTest : public DeviceMgrTest {
+ protected:
+  RangeOneTest(const std::string &t_name, const std::string &f_name)
+      : f_name(f_name) {
+    t_id = pi_p4info_table_id_from_name(p4info, t_name.c_str());
+    a_id = pi_p4info_action_id_from_name(p4info, "actionA");
+  }
+
+  RangeOneTest()
+      : RangeOneTest("RangeOne", "header_test.field32") { }
+
+  p4::TableEntry make_entry(const std::string &low_v,
+                            const std::string &high_v,
+                            const std::string &param_v) {
+    p4::TableEntry table_entry;
+    table_entry.set_table_id(t_id);
+    auto mf = table_entry.add_match();
+    mf->set_field_id(pi_p4info_table_match_field_id_from_name(
+        p4info, t_id, f_name.c_str()));
+    auto mf_range = mf->mutable_range();
+    mf_range->set_low(low_v);
+    mf_range->set_high(high_v);
+    auto entry = table_entry.mutable_action();
+    auto action = entry->mutable_action();
+
+    action->set_action_id(a_id);
+    auto param = action->add_params();
+    param->set_param_id(
+        pi_p4info_action_param_id_from_name(p4info, a_id, "param"));
+    param->set_value(param_v);
+    return table_entry;
+  }
+
+  const std::string f_name;
+  pi_p4_id_t t_id;
+  pi_p4_id_t a_id;
+};
+
+TEST_F(RangeOneTest, LowLeHigh) {
+  std::string adata(6, '\x00');
+  {  // low < high
+    std::string low("\x11\x00\x11\x11", 4);
+    std::string high("\x11\x00\x12\x11", 4);
+    auto entry = make_entry(low, high, adata);
+    EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
+    auto status = add_entry(&entry);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+  {  // low == high
+    std::string low("\x11\x00\x11\x11", 4);
+    std::string high(low);
+    auto entry = make_entry(low, high, adata);
+    EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
+    auto status = add_entry(&entry);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+  {  // low > high
+    std::string low("\x11\x00\x12\x11", 4);
+    std::string high("\x11\x00\x11\x11", 4);
+    auto entry = make_entry(low, high, adata);
+    EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _)).Times(0);
+    auto status = add_entry(&entry);
+    EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
+  }
+}
+
+class LpmOneTest : public DeviceMgrTest {
+ protected:
+  LpmOneTest(const std::string &t_name, const std::string &f_name)
+      : f_name(f_name) {
+    t_id = pi_p4info_table_id_from_name(p4info, t_name.c_str());
+    a_id = pi_p4info_action_id_from_name(p4info, "actionA");
+  }
+
+  LpmOneTest()
+      : LpmOneTest("LpmOne", "header_test.field32") { }
+
+  p4::TableEntry make_entry(const std::string &mf_v, int pLen,
+                            const std::string &param_v) {
+    p4::TableEntry table_entry;
+    table_entry.set_table_id(t_id);
+    auto mf = table_entry.add_match();
+    mf->set_field_id(pi_p4info_table_match_field_id_from_name(
+        p4info, t_id, f_name.c_str()));
+    auto mf_lpm = mf->mutable_lpm();
+    mf_lpm->set_value(mf_v);
+    mf_lpm->set_prefix_len(pLen);
+    auto entry = table_entry.mutable_action();
+    auto action = entry->mutable_action();
+
+    action->set_action_id(a_id);
+    auto param = action->add_params();
+    param->set_param_id(
+        pi_p4info_action_param_id_from_name(p4info, a_id, "param"));
+    param->set_value(param_v);
+    return table_entry;
+  }
+
+  const std::string f_name;
+  pi_p4_id_t t_id;
+  pi_p4_id_t a_id;
+};
+
+TEST_F(LpmOneTest, TrailingZeros) {
+  std::string adata(6, '\x00');
+  int pLen(12);
+  {
+    std::string mf("\xff\xf0\x00\x00", 4);
+    auto entry = make_entry(mf, pLen, adata);
+    EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
+    auto status = add_entry(&entry);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+  {
+    std::string mf("\xff\x80\x00\x00", 4);
+    auto entry = make_entry(mf, pLen, adata);
+    EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
+    auto status = add_entry(&entry);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+  {
+    std::string mf("\xff\xff\x00\x00", 4);
+    auto entry = make_entry(mf, pLen, adata);
+    EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _)).Times(0);
+    auto status = add_entry(&entry);
+    EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
+  }
+  {
+    std::string mf("\xff\xff\x0f\x00", 4);
+    auto entry = make_entry(mf, pLen, adata);
+    EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _)).Times(0);
+    auto status = add_entry(&entry);
+    EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
+  }
 }
 
 class TernaryTwoTest : public DeviceMgrTest {
