@@ -74,9 +74,13 @@ ietf-netconf                  | 2011-06-01 | Imported    |                     |
 ietf-netconf-acm              | 2012-02-22 | Imported    |                     |             |                               |
 ```
 
-The P4 Runtile server library that you get after that will be able to support
-gNMI subscriptions (`ONCE` mode only) for the openconfig-interfaces model. Here
-is an example of a supported subscription request from a Python client:
+The P4 Runtime server library that you get after that will be able to support
+the following gNMI operations:
+- `Subscribe` in `ONCE` and `STREAM` mode
+- `Get` and `Set` on leaves only
+
+Here is an example of a supported `ONCE` subscription request from a Python
+client:
 ```
 channel = grpc.insecure_channel(<SERVER_ADDR>)
 stub = gnmi_pb2.gNMIStub(channel)
