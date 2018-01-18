@@ -32,6 +32,7 @@ import ptf.testutils as testutils
 
 import grpc
 
+from google.rpc import status_pb2, code_pb2
 from p4 import p4runtime_pb2
 from p4.tmp import p4config_pb2
 from p4.config import p4info_pb2
@@ -45,6 +46,88 @@ def stringify(n, length):
     h = '%x' % n
     s = ('0'*(len(h) % 2) + h).zfill(length*2).decode('hex')
     return s
+
+def ipv4_to_binary(addr):
+    bytes_ = [int(b, 10) for b in addr.split('.')]
+    return "".join(chr(b) for b in bytes_)
+
+def mac_to_binary(addr):
+    bytes_ = [int(b, 16) for b in addr.split(':')]
+    return "".join(chr(b) for b in bytes_)
+
+# Used to indicate that the gRPC error Status object returned by the server has
+# an incorrect format.
+class P4RuntimeErrorFormatException(Exception):
+    def __init__(self, message):
+        super(P4RuntimeErrorFormatException, self).__init__(message)
+
+# Used to iterate over the p4.Error messages in a gRPC error Status object
+class P4RuntimeErrorIterator:
+    def __init__(self, grpc_error):
+        assert(grpc_error.code() == grpc.StatusCode.UNKNOWN)
+        self.grpc_error = grpc_error
+
+        error = None
+        # The gRPC Python package does not have a convenient way to access the
+        # binary details for the error: they are treated as trailing metadata.
+        for meta in self.grpc_error.trailing_metadata():
+            if meta[0] == "grpc-status-details-bin":
+                error = status_pb2.Status()
+                error.ParseFromString(meta[1])
+                break
+        if error is None:
+            raise P4RuntimeErrorFormatException("No binary details field")
+
+        if len(error.details) == 0:
+            raise P4RuntimeErrorFormatException(
+                "Binary details field has empty Any details repeated field")
+        self.errors = error.details
+        self.idx = 0
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        while self.idx < len(self.errors):
+            p4_error = p4runtime_pb2.Error()
+            one_error_any = self.errors[self.idx]
+            if not one_error_any.Unpack(p4_error):
+                raise P4RuntimeErrorFormatException(
+                    "Cannot convert Any message to p4.Error")
+            if p4_error.canonical_code == code_pb2.OK:
+                continue
+            v = (self.idx, p4_error)
+            self.idx += 1
+            return v
+        raise StopIteration
+
+# P4Runtime uses a 3-level message in case of an error during the processing of
+# a write batch. This means that if we do not wrap the grpc.RpcError inside a
+# custom exception, we can end-up with a non-helpful exception message in case
+# of failure as only the first level will be printed. In this custom exception
+# class, we extract the nested error message (one for each operation included in
+# the batch) in order to print error code + user-facing message.  See P4 Runtime
+# documentation for more details on error-reporting.
+class P4RuntimeWriteException(Exception):
+    def __init__(self, grpc_error):
+        assert(grpc_error.code() == grpc.StatusCode.UNKNOWN)
+        super(P4RuntimeWriteException, self).__init__()
+        self.errors = []
+        try:
+            error_iterator = P4RuntimeErrorIterator(grpc_error)
+            for error_tuple in error_iterator:
+                self.errors.append(error_tuple)
+        except P4RuntimeErrorFormatException:
+            raise  # just propagate exception for now
+
+    def __str__(self):
+        message = "Error(s) during Write:\n"
+        for idx, p4_error in self.errors:
+            code_name = code_pb2._CODE.values_by_number[
+                p4_error.canonical_code].name
+            message += "\t* At index {}: {}, '{}'\n".format(
+                idx, code_name, p4_error.message)
+        return message
 
 # Strongly inspired from _AssertRaisesContext in Python's unittest module
 class _AssertP4RuntimeErrorContext(object):
@@ -66,7 +149,7 @@ class _AssertP4RuntimeErrorContext(object):
                 exc_name = str(self.expected)
             raise self.failureException(
                 "{} not raised".format(exc_name))
-        if not issubclass(exc_type, grpc.RpcError):
+        if not issubclass(exc_type, P4RuntimeWriteException):
             # let unexpected exceptions pass through
             return False
         self.exception = exc_value  # store for later retrieval
@@ -74,22 +157,26 @@ class _AssertP4RuntimeErrorContext(object):
         if self.error_code is None:
             return True
 
-        if exc_value.code() != self.error_code:
+        expected_code_name = code_pb2._CODE.values_by_number[
+            self.error_code].name
+        # guaranteed to have at least one element
+        _, p4_error = exc_value.errors[0]
+        code_name = code_pb2._CODE.values_by_number[
+            p4_error.canonical_code].name
+        if p4_error.canonical_code != self.error_code:
             # not the expected error code
             raise self.failureException(
                 "Invalid P4Runtime error code: expected {} but got {}".format(
-                    self.error_code.name, exc_value.code().name))
+                    expected_code_name, code_name))
 
         if self.msg_regexp is None:
             return True
 
-        if not self.msg_regexp.search(exc_value.details()):
+        if not self.msg_regexp.search(p4_error.message):
             raise self.failureException(
                 "Invalid P4Runtime error msg: '{}' does not match '{}'".format(
-                self.msg_regexp.pattern, exc_value.details()))
+                self.msg_regexp.pattern, p4_error.message))
         return True
-
-StatusCode = grpc.StatusCode
 
 # This code is common to all tests. setUp() is invoked at the beginning of the
 # test and tearDown is called at the end, no matter whether the test passed /
@@ -301,8 +388,16 @@ class P4RuntimeTest(BaseTest):
     def set_action_entry(self, table_entry, a_name, params):
         self.set_action(table_entry.action.action, a_name, params)
 
+    def _write(self, req):
+        try:
+            return self.stub.Write(req)
+        except grpc.RpcError as e:
+            if e.code() != grpc.StatusCode.UNKNOWN:
+                raise e
+            raise P4RuntimeWriteException(e)
+
     def write_request(self, req, store=True):
-        rep = self.stub.Write(req)
+        rep = self._write(req)
         if store:
             self._reqs.append(req)
         return rep
@@ -449,7 +544,7 @@ class P4RuntimeTest(BaseTest):
         for update in updates:
             update.type = p4runtime_pb2.Update.DELETE
             new_req.updates.add().CopyFrom(update)
-        rep = self.stub.Write(new_req)
+        rep = self._write(new_req)
 
     def assertP4RuntimeError(self, code=None, msg_regexp=None):
         if msg_regexp is not None:

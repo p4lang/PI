@@ -25,7 +25,9 @@ import os
 from ptf import config
 import ptf.testutils as testutils
 
-from base_test import P4RuntimeTest, autocleanup, stringify, StatusCode
+from google.rpc import code_pb2
+
+from base_test import P4RuntimeTest, autocleanup, stringify, ipv4_to_binary
 
 class L3HostFwdTest(P4RuntimeTest):
     pass
@@ -34,7 +36,7 @@ class FwdTest(L3HostFwdTest):
     @autocleanup
     def runTest(self):
         ip_dst_addr = "10.0.0.1"
-        ip_dst_addr_str = "\x0a\x00\x00\x01"
+        ip_dst_addr_str = ipv4_to_binary(ip_dst_addr)
         ig_port = self.swports(1)
         eg_port = self.swports(2)
         # port is 9-bit in v1model, i.e. 2 bytes
@@ -93,7 +95,7 @@ class BadMatchKeyTest(L3HostFwdTest):
         dmac = "\xee\x30\xca\x9d\x1e\x00"
 
         # missing one byte
-        with self.assertP4RuntimeError(StatusCode.INVALID_ARGUMENT):
+        with self.assertP4RuntimeError(code_pb2.INVALID_ARGUMENT):
             self.send_request_add_entry_to_action(
                 "l3_host_fwd",
                 [self.Exact("hdr.ipv4.dst_addr", bad_ip_dst_addr_str)],
@@ -101,7 +103,7 @@ class BadMatchKeyTest(L3HostFwdTest):
                 [("port", eg_port_str), ("smac", smac), ("dmac", dmac)])
 
         # unexpected match type
-        with self.assertP4RuntimeError(StatusCode.INVALID_ARGUMENT):
+        with self.assertP4RuntimeError(code_pb2.INVALID_ARGUMENT):
             self.send_request_add_entry_to_action(
                 "l3_host_fwd",
                 [self.Lpm("hdr.ipv4.dst_addr", ip_dst_addr_str, 24)],
