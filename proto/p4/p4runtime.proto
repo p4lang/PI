@@ -58,8 +58,9 @@ service P4Runtime {
 //------------------------------------------------------------------------------
 message WriteRequest {
   uint64 device_id = 1;
-  Uint128 election_id = 2;
-  repeated Update updates = 3;
+  uint64 role_id = 2;
+  Uint128 election_id = 3;
+  repeated Update updates = 4;
 }
 
 message WriteResponse {
@@ -401,15 +402,29 @@ message PacketMetadata {
 
 message MasterArbitrationUpdate {
   uint64 device_id = 1;
+  // The role for which the mastership is being arbitrated. For use-cases where
+  // where multiple roles are not needed, the controller can leave this unset,
+  // implying default role and full pipeline access.
+  Role role = 2;
   // The stream RPC with the highest election_id is the master. The 'master'
   // controller instance populates this with its latest election_id. Switch
   // populates with the highest election ID it has received from all connected
   // controllers.
-  Uint128 election_id = 2;
+  Uint128 election_id = 3;
   // Switch populates this with OK for the client that is the master, and with
   // an error status for all other connected clients (at every mastership
   // change). The controller does not populate this field.
-  .google.rpc.Status status = 3;
+  .google.rpc.Status status = 4;
+}
+
+message Role {
+  // Role IDs are defined offline in agreement across the entire control plane.
+  uint64 id = 1;
+  // Describes the role configuration, i.e. what operations, P4 entities,
+  // behaviors, etc. are in the scope of a given role. If config is not set
+  // (default case), it implies all P4 objects and control behaviors are in scope,
+  // i.e. full pipeline access.
+  google.protobuf.Any config = 2;
 }
 
 message Uint128 {
@@ -449,9 +464,10 @@ message SetForwardingPipelineConfigRequest {
     RECONCILE_AND_COMMIT = 5;
   }
   uint64 device_id = 1;
-  Uint128 election_id = 2;
-  Action action = 3;
-  ForwardingPipelineConfig config = 4;
+  uint64 role_id = 2;
+  Uint128 election_id = 3;
+  Action action = 4;
+  ForwardingPipelineConfig config = 5;
 }
 
 message SetForwardingPipelineConfigResponse {
