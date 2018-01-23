@@ -168,6 +168,18 @@ message TableEntry {
   // default action of the table. If true, the "match" field must be empty and
   // the "action" field must be populated with a valid direct action.
   bool is_default_action = 8;
+  // The TTL for the entry, in nanoseconds. A value of 0 means that the table
+  // entry never "expires".
+  int64 idle_timeout_ns = 9;
+  message IdleTimeout {
+    // Time elapsed - in nanoseconds - since the table entry was last "hit" as
+    // part of a dataplane table lookup.
+    int64 elapsed_ns = 1;
+  }
+  // Table wite: this field should be left unset.
+  // Table read: if the table supports idle timeout and time_since_last_hit is
+  // set in the request, this field will be set in the response.
+  IdleTimeout time_since_last_hit = 10;
 }
 
 // field_match_type ::= exact | ternary | lpm | range | valid
@@ -448,6 +460,7 @@ message StreamMessageResponse {
     MasterArbitrationUpdate arbitration = 1;
     PacketIn packet = 2;
     DigestList digest = 3;
+    IdleTimeoutNotification idle_timeout_notification = 4;
   }
 }
 
@@ -507,6 +520,13 @@ message Role {
   // (default case), it implies all P4 objects and control behaviors are in scope,
   // i.e. full pipeline access.
   google.protobuf.Any config = 2;
+}
+
+message IdleTimeoutNotification {
+  repeated TableEntry table_entry = 1;
+  // Timestamp at which the server generated the message (in nanoseconds since
+  // Epoch)
+  int64 timestamp = 2;
 }
 
 message Uint128 {
