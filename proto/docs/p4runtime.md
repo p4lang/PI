@@ -141,12 +141,22 @@ table_entry {
 }
 ```
 
-If `match` for a field is not defined, then the field is treated as don't care
-when constructing the match key for the table entry. Note that leaving match field
-undefined is only allowed for ternary, LPM and range fields. The following table
-entry will program a flow in table `foo` (above) that matches all packets and
-performs action `baz`. Notice the missing fields for `match` and
-`is_default_action`.
+For "don't care" matches, the client should omit the match-field when building
+the `TableEntry` message. This requirement leads to smaller protobuf messages
+while maintaining a canonical representation for "don't care" matches, which is
+convenient for ensuring read-write symmetry.
+
+- A "don't care" ternary match is logically equivalent to a `mask` of zeros.
+- A "don't care" LPM match is logically equivalent to a `prefix_len` of zero.
+- A "don't care" range match is logically equivalent to a range which includes
+all possible values for the match-field.
+
+Note that omitting the match-field is only allowed for ternary, LPM and range
+matches.
+
+The following table entry will program a flow in table `foo` (above) that
+matches all packets and performs action `baz`. Notice the missing fields for
+`match` and `is_default_action`.
 
 ```
 table_entry {
@@ -181,6 +191,7 @@ switch(p4_type(match.field_id())) {
     assert(!match.ternary().value().empty() && !match.ternary().mask().empty())
     assert(parseInteger(match.ternary().value(), &value))
     assert(parseInteger(match.ternary().mask(), &mask))
+    assert(mask != 0)
     assert(value == (value & mask))
   case LPM:
     assert(match.has_lpm())
@@ -192,6 +203,8 @@ switch(p4_type(match.field_id())) {
     assert(match.has_range())
     assert(parseInteger(match.range().low(), &low))
     assert(parseInteger(match.range().high(), &hi))
+    assert(!(low == p4_min_value(match.field_id()) &&
+             high == p4_max_value(match.field_id())))
     assert(low <= high)
   case VALID:
     assert(match.has_valid())

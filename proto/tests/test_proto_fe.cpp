@@ -209,6 +209,14 @@ class DeviceMgrTest : public ::testing::Test {
     return status;
   }
 
+  DeviceMgr::Status read_table_entries(pi_p4_id_t t_id,
+                                       p4::ReadResponse *response) {
+    p4::Entity entity;
+    auto table_entry = entity.mutable_table_entry();
+    table_entry->set_table_id(t_id);
+    return mgr.read_one(entity, response);
+  }
+
   static constexpr const char *input_path = TESTDATADIR "/" "unittest.json";
   static pi_p4info_t *p4info;
   static p4::config::P4Info p4info_proto;
@@ -1701,6 +1709,15 @@ TEST_F(MatchKeyFormatTest, BadLeadingZeros) {
   EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
 }
 
+
+#define EXPECT_ONE_TABLE_ENTRY(repsonse, expected_entry) \
+  do {                                                   \
+    const auto &entities = response.entities();          \
+    ASSERT_EQ(1, entities.size());                       \
+    EXPECT_TRUE(MessageDifferencer::Equals(              \
+        expected_entry, entities.Get(0).table_entry())); \
+  } while (false)
+
 class TernaryOneTest : public DeviceMgrTest {
  protected:
   TernaryOneTest(const std::string &t_name, const std::string &f_name)
@@ -1712,17 +1729,21 @@ class TernaryOneTest : public DeviceMgrTest {
   TernaryOneTest()
       : TernaryOneTest("TernaryOne", "header_test.field32") { }
 
-  p4::TableEntry make_entry(const std::string &mf_v,
-                            const std::string &mask_v,
+  p4::TableEntry make_entry(const boost::optional<std::string> &mf_v,
+                            const boost::optional<std::string> &mask_v,
                             const std::string &param_v) {
     p4::TableEntry table_entry;
     table_entry.set_table_id(t_id);
-    auto mf = table_entry.add_match();
-    mf->set_field_id(pi_p4info_table_match_field_id_from_name(
-        p4info, t_id, f_name.c_str()));
-    auto mf_ternary = mf->mutable_ternary();
-    mf_ternary->set_value(mf_v);
-    mf_ternary->set_mask(mask_v);
+    // not supported by older versions of boost
+    // if (mf_v != boost::none) {
+    if (mf_v.is_initialized()) {
+      auto mf = table_entry.add_match();
+      mf->set_field_id(pi_p4info_table_match_field_id_from_name(
+          p4info, t_id, f_name.c_str()));
+      auto mf_ternary = mf->mutable_ternary();
+      mf_ternary->set_value(*mf_v);
+      mf_ternary->set_mask(*mask_v);
+    }
     auto entry = table_entry.mutable_action();
     auto action = entry->mutable_action();
 
@@ -1759,6 +1780,32 @@ TEST_F(TernaryOneTest, ValueEqValueAndMask) {
   }
 }
 
+TEST_F(TernaryOneTest, DontCare) {
+  std::string adata(6, '\x00');
+  {  // omitting match field: valid
+    auto entry = make_entry(boost::none, boost::none, adata);
+    EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
+    auto status = add_entry(&entry);
+    ASSERT_EQ(status.code(), Code::OK);
+
+    p4::ReadResponse response;
+    {
+      EXPECT_CALL(*mock, table_entries_fetch(t_id, _));
+      auto status = read_table_entries(t_id, &response);
+      ASSERT_EQ(status.code(), Code::OK);
+    }
+    EXPECT_ONE_TABLE_ENTRY(response, entry);
+  }
+  {  // zero mask: invalid
+    std::string mf("\x11\x01\x01\x00", 4);
+    std::string mask(4, '\x00');
+    auto entry = make_entry(mf, mask, adata);
+    EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _)).Times(0);
+    auto status = add_entry(&entry);
+    EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
+  }
+}
+
 class RangeOneTest : public DeviceMgrTest {
  protected:
   RangeOneTest(const std::string &t_name, const std::string &f_name)
@@ -1770,17 +1817,21 @@ class RangeOneTest : public DeviceMgrTest {
   RangeOneTest()
       : RangeOneTest("RangeOne", "header_test.field32") { }
 
-  p4::TableEntry make_entry(const std::string &low_v,
-                            const std::string &high_v,
+  p4::TableEntry make_entry(const boost::optional<std::string> &low_v,
+                            const boost::optional<std::string> &high_v,
                             const std::string &param_v) {
     p4::TableEntry table_entry;
     table_entry.set_table_id(t_id);
-    auto mf = table_entry.add_match();
-    mf->set_field_id(pi_p4info_table_match_field_id_from_name(
-        p4info, t_id, f_name.c_str()));
-    auto mf_range = mf->mutable_range();
-    mf_range->set_low(low_v);
-    mf_range->set_high(high_v);
+    // not supported by older versions of boost
+    // if (low_v != boost::none) {
+    if (low_v.is_initialized()) {
+      auto mf = table_entry.add_match();
+      mf->set_field_id(pi_p4info_table_match_field_id_from_name(
+          p4info, t_id, f_name.c_str()));
+      auto mf_range = mf->mutable_range();
+      mf_range->set_low(*low_v);
+      mf_range->set_high(*high_v);
+    }
     auto entry = table_entry.mutable_action();
     auto action = entry->mutable_action();
 
@@ -1825,6 +1876,32 @@ TEST_F(RangeOneTest, LowLeHigh) {
   }
 }
 
+TEST_F(RangeOneTest, DontCare) {
+  std::string adata(6, '\x00');
+  {  // omitting match field: valid
+    auto entry = make_entry(boost::none, boost::none, adata);
+    EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
+    auto status = add_entry(&entry);
+    ASSERT_EQ(status.code(), Code::OK);
+
+    p4::ReadResponse response;
+    {
+      EXPECT_CALL(*mock, table_entries_fetch(t_id, _));
+      auto status = read_table_entries(t_id, &response);
+      ASSERT_EQ(status.code(), Code::OK);
+    }
+    EXPECT_ONE_TABLE_ENTRY(response, entry);
+  }
+  {  // low=0, high=2**bitwidth-1: invalid
+    std::string low(4, '\x00');
+    std::string high(4, '\xff');
+    auto entry = make_entry(low, high, adata);
+    EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _)).Times(0);
+    auto status = add_entry(&entry);
+    EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
+  }
+}
+
 class LpmOneTest : public DeviceMgrTest {
  protected:
   LpmOneTest(const std::string &t_name, const std::string &f_name)
@@ -1836,16 +1913,20 @@ class LpmOneTest : public DeviceMgrTest {
   LpmOneTest()
       : LpmOneTest("LpmOne", "header_test.field32") { }
 
-  p4::TableEntry make_entry(const std::string &mf_v, int pLen,
+  p4::TableEntry make_entry(const boost::optional<std::string> &mf_v, int pLen,
                             const std::string &param_v) {
     p4::TableEntry table_entry;
     table_entry.set_table_id(t_id);
-    auto mf = table_entry.add_match();
-    mf->set_field_id(pi_p4info_table_match_field_id_from_name(
-        p4info, t_id, f_name.c_str()));
-    auto mf_lpm = mf->mutable_lpm();
-    mf_lpm->set_value(mf_v);
-    mf_lpm->set_prefix_len(pLen);
+    // not supported by older versions of boost
+    // if (mf_v != boost::none) {
+    if (mf_v.is_initialized()) {
+      auto mf = table_entry.add_match();
+      mf->set_field_id(pi_p4info_table_match_field_id_from_name(
+          p4info, t_id, f_name.c_str()));
+      auto mf_lpm = mf->mutable_lpm();
+      mf_lpm->set_value(*mf_v);
+      mf_lpm->set_prefix_len(pLen);
+    }
     auto entry = table_entry.mutable_action();
     auto action = entry->mutable_action();
 
@@ -1894,6 +1975,34 @@ TEST_F(LpmOneTest, TrailingZeros) {
     EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
   }
 }
+
+TEST_F(LpmOneTest, DontCare) {
+  std::string adata(6, '\x00');
+  int pLen(0);
+  {  // omitting match field: valid
+    auto entry = make_entry(boost::none, pLen, adata);
+    EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
+    auto status = add_entry(&entry);
+    ASSERT_EQ(status.code(), Code::OK);
+
+    p4::ReadResponse response;
+    {
+      EXPECT_CALL(*mock, table_entries_fetch(t_id, _));
+      auto status = read_table_entries(t_id, &response);
+      ASSERT_EQ(status.code(), Code::OK);
+    }
+    EXPECT_ONE_TABLE_ENTRY(response, entry);
+  }
+  {  // pLen=0: invalid
+    std::string mf("\xff\xf0\x00\x00", 4);
+    auto entry = make_entry(mf, pLen, adata);
+    EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _)).Times(0);
+    auto status = add_entry(&entry);
+    EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
+  }
+}
+
+#undef EXPECT_ONE_TABLE_ENTRY
 
 class TernaryTwoTest : public DeviceMgrTest {
  protected:

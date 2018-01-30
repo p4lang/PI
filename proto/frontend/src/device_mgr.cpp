@@ -23,6 +23,7 @@
 #include <PI/pi.h>
 #include <PI/proto/util.h>
 
+#include <algorithm>  // for std::all_of
 #include <memory>
 #include <string>
 #include <utility>  // for std::pair
@@ -125,6 +126,20 @@ class P4ErrorReporter {
   std::vector<std::pair<size_t, p4::Error> > errors{};
   size_t index{0};
 };
+
+bool ternary_match_is_dont_care(const p4::FieldMatch::Ternary &mf) {
+  const auto &mask = mf.mask();
+  return std::all_of(mask.begin(), mask.end(),
+                     [](std::string::value_type c) { return c == 0; });
+}
+
+bool range_match_is_dont_care(const p4::FieldMatch::Range &mf) {
+  const auto &low = mf.low();
+  const auto &high = mf.high();
+  auto bitwidth = static_cast<size_t>(low.size() * 8);
+  return low == common::range_default_lo(bitwidth) &&
+      high == common::range_default_hi(bitwidth);
+}
 
 }  // namespace
 
@@ -567,6 +582,9 @@ class DeviceMgrImp {
             int pLen;
             mk_reader.get_lpm(finfo->mf_id, lpm->mutable_value(), &pLen);
             lpm->set_prefix_len(pLen);
+            // if prefix length is 0, omit match field
+            if (pLen == 0)
+              entry->mutable_match()->RemoveLast();
           }
           break;
         case PI_P4INFO_MATCH_TYPE_TERNARY:
@@ -574,6 +592,9 @@ class DeviceMgrImp {
             auto ternary = mf->mutable_ternary();
             mk_reader.get_ternary(finfo->mf_id, ternary->mutable_value(),
                                   ternary->mutable_mask());
+            // if mask is 0, omit match field
+            if (ternary_match_is_dont_care(*ternary))
+              entry->mutable_match()->RemoveLast();
           }
           break;
         case PI_P4INFO_MATCH_TYPE_RANGE:
@@ -581,6 +602,9 @@ class DeviceMgrImp {
             auto range = mf->mutable_range();
             mk_reader.get_range(finfo->mf_id, range->mutable_low(),
                                 range->mutable_high());
+            // if range includes all values, omit match field
+            if (range_match_is_dont_care(*range))
+              entry->mutable_match()->RemoveLast();
           }
           break;
         default:
@@ -1082,6 +1106,12 @@ class DeviceMgrImp {
       RETURN_ERROR_STATUS(
           Code::INVALID_ARGUMENT, "Prefix length cannot be > bitwidth");
     }
+    if (pLen == 0) {
+      RETURN_ERROR_STATUS(
+          Code::INVALID_ARGUMENT,
+          "Invalid reprsentation of 'don't care' LPM match, "
+          "omit match field instead of using a prefix length of 0");
+    }
     // makes sure that value ends with zeros
     if (!common::check_prefix_trailing_zeros(value, pLen)) {
       RETURN_ERROR_STATUS(
@@ -1099,6 +1129,13 @@ class DeviceMgrImp {
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid bytestring format");
     if (check_proto_bytestring(mask, bitwidth) != Code::OK)
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid bytestring format");
+    // makes sure that mask is not 0 (otherwise mf should be omitted)
+    if (ternary_match_is_dont_care(mf)) {
+      RETURN_ERROR_STATUS(
+          Code::INVALID_ARGUMENT,
+          "Invalid representation of 'don't care' ternary match, "
+          "omit match field instead of using 0 mask");
+    }
     // makes sure that value == value & mask
     assert(value.size() == mask.size());
     for (size_t i = 0; i < value.size(); i++) {
@@ -1120,8 +1157,14 @@ class DeviceMgrImp {
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid bytestring format");
     if (check_proto_bytestring(high, bitwidth) != Code::OK)
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid bytestring format");
-    // makes sure that low <= high
     assert(low.size() == high.size());
+    if (range_match_is_dont_care(mf)) {
+      RETURN_ERROR_STATUS(
+          Code::INVALID_ARGUMENT,
+          "Invalid representation of 'don't care' range match, "
+          "omit match field instead of using low=0 and high=2**bitwidth-1");
+    }
+    // makes sure that low <= high
     if (std::memcmp(low.data(), high.data(), low.size()) > 0) {
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                             "Invalid range value, make sure low <= high");
@@ -1356,8 +1399,7 @@ class DeviceMgrImp {
     pi::MatchKey match_key(p4info.get(), table_id);
     {
       auto status = construct_match_key(table_entry, &match_key);
-      if (IS_ERROR(status))
-        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match key");
+      if (IS_ERROR(status)) return status;
     }
 
     pi::ActionEntry action_entry;
@@ -1397,8 +1439,7 @@ class DeviceMgrImp {
     pi::MatchKey match_key(p4info.get(), table_id);
     {
       auto status = construct_match_key(table_entry, &match_key);
-      if (IS_ERROR(status))
-        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match key");
+      if (IS_ERROR(status)) return status;
     }
 
     pi::ActionEntry action_entry;
@@ -1439,8 +1480,7 @@ class DeviceMgrImp {
     pi::MatchKey match_key(p4info.get(), table_id);
     {
       auto status = construct_match_key(table_entry, &match_key);
-      if (IS_ERROR(status))
-        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match key");
+      if (IS_ERROR(status)) return status;
     }
 
     auto table_lock = table_info_store.lock_table(table_id);
