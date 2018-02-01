@@ -28,11 +28,6 @@ pipeline access. This also implies that a default role has a `role.id` of 0 (def
 If using a default role, all RPCs (e.g. `Write`) that pass a `role_id` must set it to
 the default(0) value.
 
-If the server has an active session that is using a *default role*, and a new client
-tries to establish a session with a default(unset) `role.config` but non-zero `role.id`,
-the server should reject (i.e. termintate the stream) by returning an `INVALID_ARGUMENT`
-error. In other words, at most one client can have *default role* (full pipeline access).
-
 ### Election ID and Master selection
 The election ID is tied to a given role, and must be unique across clients belonging to the
 same role. The process through which election IDs are allocated to clients is out-of-scope
