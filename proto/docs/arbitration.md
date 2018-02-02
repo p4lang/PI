@@ -19,7 +19,7 @@ channel (details below). The P4Runtime server will use role ID for two purposes:
 - Enforce the validity (access control) of P4Runtime requests based on the role config
 
 To keep the protocol simple and extensible, `config` is defined as a `protobuf.Any`,
-and concerete defintions are currently outside the scope of P4Runtime.
+and concerete definitions are currently outside the scope of P4Runtime.
 
 ### *Default* Role
 To simplify for use-cases where multiple roles are not needed, the client can leave the
