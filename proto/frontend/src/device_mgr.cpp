@@ -1411,6 +1411,12 @@ class DeviceMgrImp {
 
     auto table_lock = table_info_store.lock_table(table_id);
 
+    if (table_info_store.get_entry(table_id, match_key) != nullptr) {
+      RETURN_ERROR_STATUS(
+          Code::ALREADY_EXISTS,
+          "Match entry exists, use MODIFY if you wish to change action");
+    }
+
     pi::MatchTable mt(session.get(), device_tgt, p4info.get(), table_id);
     pi_status_t pi_status;
     pi_entry_handle_t handle;
@@ -1455,7 +1461,7 @@ class DeviceMgrImp {
     // operation is successful
     auto entry_data = table_info_store.get_entry(table_id, match_key);
     if (entry_data == nullptr)
-      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Cannot find match entry");
+      RETURN_ERROR_STATUS(Code::NOT_FOUND, "Cannot find match entry");
 
     pi::MatchTable mt(session.get(), device_tgt, p4info.get(), table_id);
     pi_status_t pi_status;
@@ -1484,6 +1490,9 @@ class DeviceMgrImp {
     }
 
     auto table_lock = table_info_store.lock_table(table_id);
+
+    if (table_info_store.get_entry(table_id, match_key) == nullptr)
+      RETURN_ERROR_STATUS(Code::NOT_FOUND, "Cannot find match entry");
 
     pi::MatchTable mt(session.get(), device_tgt, p4info.get(), table_id);
     pi_status_t pi_status;

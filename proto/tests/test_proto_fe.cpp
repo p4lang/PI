@@ -532,16 +532,16 @@ TEST_P(MatchTableTest, AddAndRead) {
   auto mk_matcher = Truly(MatchKeyMatcher(t_id, mk_input.get_match_key()));
   auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _))
-      .Times(2);
+      .Times(AtLeast(1));
   DeviceMgr::Status status;
   uint64_t controller_metadata(0xab);
   auto entry = generic_make(t_id, mk_input.get_proto(mf_id), adata,
                             mk_input.get_priority(), controller_metadata);
   status = add_one(&entry);
-  ASSERT_EQ(status.code(), Code::OK);
+  EXPECT_EQ(status.code(), Code::OK);
   // second is error because duplicate match key
   status = add_one(&entry);
-  ASSERT_NE(status.code(), Code::OK);
+  EXPECT_EQ(status, OneExpectedError(Code::ALREADY_EXISTS));
 
   EXPECT_CALL(*mock, table_entries_fetch(t_id, _));
   p4::ReadResponse response;
@@ -552,7 +552,7 @@ TEST_P(MatchTableTest, AddAndRead) {
   ASSERT_EQ(status.code(), Code::OK);
   const auto &entities = response.entities();
   ASSERT_EQ(1, entities.size());
-  ASSERT_TRUE(MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
+  EXPECT_TRUE(MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
 }
 
 TEST_P(MatchTableTest, AddAndDelete) {
@@ -567,12 +567,13 @@ TEST_P(MatchTableTest, AddAndDelete) {
   status = add_one(&entry);
   ASSERT_EQ(status.code(), Code::OK);
 
-  EXPECT_CALL(*mock, table_entry_delete_wkey(t_id, mk_matcher)).Times(2);
+  EXPECT_CALL(*mock, table_entry_delete_wkey(t_id, mk_matcher))
+      .Times(AtLeast(1));
   status = remove(&entry);
   EXPECT_EQ(status.code(), Code::OK);
   // second call is error because match key has been removed already
   status = remove(&entry);
-  EXPECT_NE(status.code(), Code::OK);
+  EXPECT_EQ(status, OneExpectedError(Code::NOT_FOUND));
 }
 
 TEST_P(MatchTableTest, AddAndModify) {
@@ -721,8 +722,7 @@ TEST_P(MatchTableTest, WriteBatchWithError) {
     auto update = request.add_updates();
     update->set_type(p4::Update_Type_DELETE);
     update->mutable_entity()->mutable_table_entry()->CopyFrom(entry);
-    // TODO(antonin): should really be Code::NOT_FOUND if possible
-    expected_errors.push_back(Code::UNKNOWN);
+    expected_errors.push_back(Code::NOT_FOUND);
   }
   {
     auto update = request.add_updates();
@@ -734,8 +734,7 @@ TEST_P(MatchTableTest, WriteBatchWithError) {
     auto update = request.add_updates();
     update->set_type(p4::Update_Type_INSERT);
     update->mutable_entity()->mutable_table_entry()->CopyFrom(entry);
-    // TODO(antonin): should really be Code::ALREADY_EXISTS if possible
-    expected_errors.push_back(Code::UNKNOWN);
+    expected_errors.push_back(Code::ALREADY_EXISTS);
   }
   auto status = mgr.write(request);
   EXPECT_EQ(status, expected_errors);
