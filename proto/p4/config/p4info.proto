@@ -116,6 +116,8 @@ message Table {
   repeated uint32 direct_resource_ids = 7;
   int64 size = 8;  // max number of entries in table
   bool with_entry_timeout = 9;  // entry ageing is enabled for table
+  // table with static P4 entries, cannot be modified at runtime
+  bool is_const_table = 10;
 }
 
 // used to list all possible actions in a Table
