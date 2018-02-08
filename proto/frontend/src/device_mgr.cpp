@@ -1411,7 +1411,10 @@ class DeviceMgrImp {
 
     auto table_lock = table_info_store.lock_table(table_id);
 
-    if (table_info_store.get_entry(table_id, match_key) != nullptr) {
+    // TODO(antonin): remove !table_entry.is_default_action() condition once we
+    // support resetting the delete action with DELETE
+    if (table_info_store.get_entry(table_id, match_key) != nullptr &&
+        !table_entry.is_default_action()) {
       RETURN_ERROR_STATUS(
           Code::ALREADY_EXISTS,
           "Match entry exists, use MODIFY if you wish to change action");
