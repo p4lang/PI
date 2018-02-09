@@ -53,6 +53,16 @@ pi_status_t _pi_table_default_action_set(pi_session_handle_t session_handle,
   return PI_STATUS_SUCCESS;
 }
 
+pi_status_t _pi_table_default_action_reset(pi_session_handle_t session_handle,
+                                           pi_dev_tgt_t dev_tgt,
+                                           pi_p4_id_t table_id) {
+  (void)session_handle;
+  (void)dev_tgt;
+  (void)table_id;
+  func_counter_increment(__func__);
+  return PI_STATUS_SUCCESS;
+}
+
 pi_status_t _pi_table_default_action_get(pi_session_handle_t session_handle,
                                          pi_dev_id_t dev_id,
                                          pi_p4_id_t table_id,

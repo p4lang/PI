@@ -5,3 +5,6 @@ table_add ipv4_lpm 192.0.0.0/8 => set_nhop 192.168.0.1 4
 table_dump ipv4_lpm
 table_delete ipv4_lpm 0
 table_dump ipv4_lpm
+table_reset_default ipv4_lpm
+table_delete ipv4_lpm 1
+table_dump ipv4_lpm

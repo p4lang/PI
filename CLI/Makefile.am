@@ -15,6 +15,7 @@ table_delete.c \
 table_dump.c \
 table_modify.c \
 table_set_default.c \
+table_reset_default.c \
 error_codes.h \
 error_codes.c \
 utils.h \

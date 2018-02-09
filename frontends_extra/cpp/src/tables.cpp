@@ -656,6 +656,11 @@ MatchTable::default_entry_set(const ActionEntry &action_entry) {
 }
 
 pi_status_t
+MatchTable::default_entry_reset() {
+  return pi_table_default_action_reset(sess, dev_tgt, table_id);
+}
+
+pi_status_t
 MatchTable::default_entry_set(const ActionData &action_data) {
   pi_table_entry_t entry;
   entry.entry_type = PI_ACTION_ENTRY_TYPE_DATA;

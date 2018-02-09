@@ -47,6 +47,10 @@ extern char table_set_default_hs[];
 pi_cli_status_t do_table_set_default(char *subcmd);
 char *complete_table_set_default(const char *text, int state);
 
+extern char table_reset_default_hs[];
+pi_cli_status_t do_table_reset_default(char *subcmd);
+char *complete_table_reset_default(const char *text, int state);
+
 extern char table_dump_hs[];
 pi_cli_status_t do_table_dump(char *subcmd);
 char *complete_table_dump(const char *text, int state);
