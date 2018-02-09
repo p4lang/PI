@@ -1411,8 +1411,8 @@ class DeviceMgrImp {
 
     auto table_lock = table_info_store.lock_table(table_id);
 
-    // TODO(antonin): remove !table_entry.is_default_action() condition once we
-    // support resetting the delete action with DELETE
+    // TODO(antonin): should the default entry be treated like other match
+    // entries and trigger an error when added twice?
     if (table_info_store.get_entry(table_id, match_key) != nullptr &&
         !table_entry.is_default_action()) {
       RETURN_ERROR_STATUS(
@@ -1500,10 +1500,7 @@ class DeviceMgrImp {
     pi::MatchTable mt(session.get(), device_tgt, p4info.get(), table_id);
     pi_status_t pi_status;
     if (table_entry.is_default_action()) {
-      // we do not yet have the ability to clear a default entry, which is not a
-      // very interesting feature anyway
-      RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
-                          "Resetting default entry not supported yet");
+      pi_status = mt.default_entry_reset();
     } else {
       pi_status = mt.entry_delete_wkey(match_key);
     }

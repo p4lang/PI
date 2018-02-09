@@ -54,3 +54,15 @@ Dumping default entry
 Action entry: set_nhop - 08080808, 0009
 ==========
 ????
+Default entry was successfully reset.
+????
+Entry with handle 1 was successfully removed.
+????
+Successfully retrieved 0 entrie(s).
+==========
+TABLE ENTRIES
+==========
+Dumping default entry
+EMPTY
+==========
+????

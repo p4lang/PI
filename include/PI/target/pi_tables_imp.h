@@ -38,6 +38,10 @@ pi_status_t _pi_table_default_action_set(pi_session_handle_t session_handle,
                                          pi_p4_id_t table_id,
                                          const pi_table_entry_t *table_entry);
 
+pi_status_t _pi_table_default_action_reset(pi_session_handle_t session_handle,
+                                           pi_dev_tgt_t dev_tgt,
+                                           pi_p4_id_t table_id);
+
 pi_status_t _pi_table_default_action_get(pi_session_handle_t session_handle,
                                          pi_dev_id_t dev_id,
                                          pi_p4_id_t table_id,

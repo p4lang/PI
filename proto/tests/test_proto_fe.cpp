@@ -600,11 +600,31 @@ TEST_P(MatchTableTest, AddAndModify) {
 TEST_P(MatchTableTest, SetDefault) {
   std::string adata(6, '\x00');
   auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
-  EXPECT_CALL(*mock, table_default_action_set(t_id, entry_matcher));
+  EXPECT_CALL(*mock, table_default_action_set(t_id, entry_matcher))
+      .Times(AtLeast(1));
   auto entry = generic_make(t_id, boost::none, adata);
   entry.set_is_default_action(true);
-  auto status = add_one(&entry);
-  ASSERT_EQ(status.code(), Code::OK);
+  {
+    auto status = add_one(&entry);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+  // TODO(antonin): desired behavior?
+  // {
+  //   auto status = add_one(&entry);
+  //   EXPECT_EQ(status, OneExpectedError(Code::ALREADY_EXISTS));
+  // }
+
+  EXPECT_CALL(*mock, table_default_action_reset(t_id))
+      .Times(AtLeast(1));
+  {
+    auto status = remove(&entry);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+  // TODO(antonin): desired behavior?
+  // {
+  //   auto status = remove(&entry);
+  //   EXPECT_EQ(status, OneExpectedError(Code::NOT_FOUND));
+  // }
 }
 
 TEST_P(MatchTableTest, InvalidSetDefault) {

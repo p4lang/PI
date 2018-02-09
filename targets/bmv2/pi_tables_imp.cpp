@@ -430,6 +430,36 @@ pi_status_t _pi_table_default_action_set(pi_session_handle_t session_handle,
   return PI_STATUS_SUCCESS;
 }
 
+pi_status_t _pi_table_default_action_reset(pi_session_handle_t session_handle,
+                                           pi_dev_tgt_t dev_tgt,
+                                           pi_p4_id_t table_id) {
+  (void) session_handle;
+
+  pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_tgt.dev_id);
+  assert(d_info->assigned);
+  const pi_p4info_t *p4info = d_info->p4info;
+
+  std::string t_name(pi_p4info_table_name_from_id(p4info, table_id));
+  auto ap_id = pi_p4info_table_get_implementation(p4info, table_id);
+
+  auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_tgt.dev_id);
+
+  try {
+    if (ap_id == PI_INVALID_ID)
+      client.c->bm_mt_reset_default_entry(0, t_name);
+    else
+      client.c->bm_mt_indirect_reset_default_entry(0, t_name);
+  } catch (InvalidTableOperation &ito) {
+    const char *what =
+        _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
+    std::cout << "Invalid table (" << t_name << ") operation ("
+              << ito.code << "): " << what << std::endl;
+    return static_cast<pi_status_t>(PI_STATUS_TARGET_ERROR + ito.code);
+  }
+
+  return PI_STATUS_SUCCESS;
+}
+
 pi_status_t _pi_table_default_action_get(pi_session_handle_t session_handle,
                                          pi_dev_id_t dev_id,
                                          pi_p4_id_t table_id,

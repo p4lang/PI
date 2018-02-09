@@ -445,6 +445,21 @@ static void __pi_table_default_action_set(char *req) {
   send_status(status);
 }
 
+static void __pi_table_default_action_reset(char *req) {
+  printf("RPC: _pi_table_default_action_reset\n");
+
+  pi_session_handle_t sess;
+  req += retrieve_session_handle(req, &sess);
+  pi_dev_tgt_t dev_tgt;
+  req += retrieve_dev_tgt(req, &dev_tgt);
+  pi_p4_id_t table_id;
+  req += retrieve_p4_id(req, &table_id);
+
+  pi_status_t status = _pi_table_default_action_reset(sess, dev_tgt, table_id);
+
+  send_status(status);
+}
+
 static void __pi_table_default_action_get(char *req) {
   printf("RPC: _pi_table_default_action_get\n");
 
@@ -1098,6 +1113,9 @@ pi_status_t pi_rpc_server_run(const pi_remote_addr_t *remote_addr) {
         break;
       case PI_RPC_TABLE_DEFAULT_ACTION_SET:
         __pi_table_default_action_set(req_);
+        break;
+      case PI_RPC_TABLE_DEFAULT_ACTION_RESET:
+        __pi_table_default_action_reset(req_);
         break;
       case PI_RPC_TABLE_DEFAULT_ACTION_GET:
         __pi_table_default_action_get(req_);

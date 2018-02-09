@@ -193,6 +193,11 @@ class DummyTable {
     return PI_STATUS_SUCCESS;
   }
 
+  pi_status_t default_action_reset() {
+    default_entry.reset();
+    return PI_STATUS_SUCCESS;
+  }
+
   // TOFO(antonin): implement
   // TODO(antonin): support const default actions, how?
   pi_status_t default_action_get(pi_table_entry_t *table_entry) {
@@ -398,6 +403,10 @@ class DummySwitch {
     return get_table(table_id).default_action_set(table_entry);
   }
 
+  pi_status_t table_default_action_reset(pi_p4_id_t table_id) {
+    return get_table(table_id).default_action_reset();
+  }
+
   pi_status_t table_default_action_get(pi_p4_id_t table_id,
                                        pi_table_entry_t *table_entry) {
     return get_table(table_id).default_action_get(table_entry);
@@ -534,6 +543,8 @@ DummySwitchMock::DummySwitchMock(device_id_t device_id)
       .WillByDefault(Invoke(this, &DummySwitchMock::_table_entry_add));
   ON_CALL(*this, table_default_action_set(_, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::table_default_action_set));
+  ON_CALL(*this, table_default_action_reset(_))
+      .WillByDefault(Invoke(sw_, &DummySwitch::table_default_action_reset));
   ON_CALL(*this, table_default_action_get(_, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::table_default_action_get));
   ON_CALL(*this, table_entry_delete_wkey(_, _))
@@ -686,6 +697,13 @@ pi_status_t _pi_table_default_action_set(pi_session_handle_t,
                                          const pi_table_entry_t *table_entry) {
   return DeviceResolver::get_switch(dev_tgt.dev_id)->table_default_action_set(
       table_id, table_entry);
+}
+
+pi_status_t _pi_table_default_action_reset(pi_session_handle_t,
+                                           pi_dev_tgt_t dev_tgt,
+                                           pi_p4_id_t table_id) {
+  return DeviceResolver::get_switch(dev_tgt.dev_id)->table_default_action_reset(
+      table_id);
 }
 
 pi_status_t _pi_table_default_action_get(pi_session_handle_t,

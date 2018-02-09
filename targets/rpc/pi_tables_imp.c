@@ -122,6 +122,31 @@ pi_status_t _pi_table_default_action_set(pi_session_handle_t session_handle,
   return wait_for_status(req_id);
 }
 
+pi_status_t _pi_table_default_action_reset(pi_session_handle_t session_handle,
+                                           pi_dev_tgt_t dev_tgt,
+                                           pi_p4_id_t table_id) {
+  if (!state.init) return PI_STATUS_RPC_NOT_INIT;
+
+  typedef struct __attribute__((packed)) {
+    req_hdr_t hdr;
+    s_pi_session_handle_t sess;
+    s_pi_dev_tgt_t dev_tgt;
+    s_pi_p4_id_t table_id;
+  } req_t;
+  req_t req;
+  char *req_ = (char *)&req;
+  pi_rpc_id_t req_id = state.req_id++;
+  req_ += emit_req_hdr(req_, req_id, PI_RPC_TABLE_DEFAULT_ACTION_RESET);
+  req_ += emit_session_handle(req_, session_handle);
+  req_ += emit_dev_tgt(req_, dev_tgt);
+  req_ += emit_p4_id(req_, table_id);
+
+  int rc = nn_send(state.s, &req, sizeof(req), 0);
+  if (rc != sizeof(req)) return PI_STATUS_RPC_TRANSPORT_ERROR;
+
+  return wait_for_status(req_id);
+}
+
 pi_status_t _pi_table_default_action_get(pi_session_handle_t session_handle,
                                          pi_dev_id_t dev_id,
                                          pi_p4_id_t table_id,

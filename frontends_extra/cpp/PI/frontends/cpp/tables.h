@@ -289,6 +289,8 @@ class MatchTable {
 
   pi_status_t default_entry_set(const ActionEntry &action_entry);
 
+  pi_status_t default_entry_reset();
+
   // these overloads are mostly for backward-compatibility, try not to use in
   // new code
   pi_status_t entry_add(const MatchKey &match_key,
