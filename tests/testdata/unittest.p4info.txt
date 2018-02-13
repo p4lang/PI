@@ -1,0 +1,288 @@
+tables {
+  preamble {
+    id: 33582705
+    name: "ExactOne"
+    alias: "ExactOne"
+  }
+  match_fields {
+    id: 1
+    name: "header_test.field32"
+    bitwidth: 32
+    match_type: EXACT
+  }
+  action_refs {
+    id: 16783703
+  }
+  action_refs {
+    id: 16809468
+  }
+  action_refs {
+    id: 16800567
+    annotations: "@defaultonly()"
+  }
+  direct_resource_ids: 301991082
+  direct_resource_ids: 318772168
+  size: 512
+}
+tables {
+  preamble {
+    id: 33567650
+    name: "LpmOne"
+    alias: "LpmOne"
+  }
+  match_fields {
+    id: 1
+    name: "header_test.field32"
+    bitwidth: 32
+    match_type: LPM
+  }
+  action_refs {
+    id: 16783703
+  }
+  action_refs {
+    id: 16800567
+    annotations: "@defaultonly()"
+  }
+  size: 512
+}
+tables {
+  preamble {
+    id: 33584148
+    name: "TernaryOne"
+    alias: "TernaryOne"
+  }
+  match_fields {
+    id: 1
+    name: "header_test.field32"
+    bitwidth: 32
+    match_type: TERNARY
+  }
+  action_refs {
+    id: 16783703
+  }
+  action_refs {
+    id: 16800567
+    annotations: "@defaultonly()"
+  }
+  size: 512
+}
+tables {
+  preamble {
+    id: 33562808
+    name: "TernaryTwo"
+    alias: "TernaryTwo"
+  }
+  match_fields {
+    id: 1
+    name: "header_test.field32"
+    bitwidth: 32
+    match_type: TERNARY
+  }
+  match_fields {
+    id: 2
+    name: "header_test.field16"
+    bitwidth: 16
+    match_type: TERNARY
+  }
+  action_refs {
+    id: 16783703
+  }
+  action_refs {
+    id: 16800567
+    annotations: "@defaultonly()"
+  }
+  size: 512
+}
+tables {
+  preamble {
+    id: 33603558
+    name: "RangeOne"
+    alias: "RangeOne"
+  }
+  match_fields {
+    id: 1
+    name: "header_test.field32"
+    bitwidth: 32
+    match_type: RANGE
+  }
+  action_refs {
+    id: 16783703
+  }
+  action_refs {
+    id: 16800567
+    annotations: "@defaultonly()"
+  }
+  size: 512
+}
+tables {
+  preamble {
+    id: 33586101
+    name: "MixMany"
+    alias: "MixMany"
+  }
+  match_fields {
+    id: 1
+    name: "header_test.field32"
+    bitwidth: 32
+    match_type: EXACT
+  }
+  match_fields {
+    id: 2
+    name: "header_test.field16"
+    bitwidth: 16
+    match_type: LPM
+  }
+  match_fields {
+    id: 3
+    name: "header_test.field20"
+    bitwidth: 20
+    match_type: TERNARY
+  }
+  match_fields {
+    id: 4
+    name: "header_test.$valid$"
+    bitwidth: 1
+    match_type: EXACT
+  }
+  action_refs {
+    id: 16783703
+  }
+  action_refs {
+    id: 16827074
+  }
+  action_refs {
+    id: 16800567
+    annotations: "@defaultonly()"
+  }
+  size: 512
+}
+tables {
+  preamble {
+    id: 33586946
+    name: "IndirectWS"
+    alias: "IndirectWS"
+  }
+  match_fields {
+    id: 1
+    name: "header_test.field32"
+    bitwidth: 32
+    match_type: EXACT
+  }
+  action_refs {
+    id: 16783703
+  }
+  action_refs {
+    id: 16809468
+  }
+  action_refs {
+    id: 16800567
+    annotations: "@defaultonly()"
+  }
+  implementation_id: 285237193
+  size: 512
+}
+tables {
+  preamble {
+    id: 33574985
+    name: "ExactOneNonAligned"
+    alias: "ExactOneNonAligned"
+  }
+  match_fields {
+    id: 1
+    name: "header_test.field12"
+    bitwidth: 12
+    match_type: EXACT
+  }
+  action_refs {
+    id: 16783703
+  }
+  action_refs {
+    id: 16809468
+  }
+  action_refs {
+    id: 16800567
+    annotations: "@defaultonly()"
+  }
+  size: 512
+}
+actions {
+  preamble {
+    id: 16800567
+    name: "NoAction"
+    alias: "NoAction"
+  }
+}
+actions {
+  preamble {
+    id: 16783703
+    name: "actionA"
+    alias: "actionA"
+  }
+  params {
+    id: 1
+    name: "param"
+    bitwidth: 48
+  }
+}
+actions {
+  preamble {
+    id: 16809468
+    name: "actionB"
+    alias: "actionB"
+  }
+  params {
+    id: 1
+    name: "param"
+    bitwidth: 8
+  }
+}
+actions {
+  preamble {
+    id: 16827074
+    name: "actionC"
+    alias: "actionC"
+  }
+}
+action_profiles {
+  preamble {
+    id: 285237193
+    name: "ActProfWS"
+    alias: "ActProfWS"
+  }
+  table_ids: 33586946
+  with_selector: true
+  size: 128
+}
+counters {
+  preamble {
+    id: 302055013
+    name: "CounterA"
+    alias: "CounterA"
+  }
+  spec {
+    unit: PACKETS
+  }
+  size: 1024
+}
+direct_counters {
+  preamble {
+    id: 301991082
+    name: "ExactOne_counter"
+    alias: "ExactOne_counter"
+  }
+  spec {
+    unit: PACKETS
+  }
+  direct_table_id: 33582705
+}
+direct_meters {
+  preamble {
+    id: 318772168
+    name: "ExactOne_meter"
+    alias: "ExactOne_meter"
+  }
+  spec {
+    unit: BYTES
+  }
+  direct_table_id: 33582705
+}

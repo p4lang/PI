@@ -22,7 +22,9 @@
 
 #include <gmock/gmock.h>
 
+#include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <google/protobuf/util/message_differencer.h>
+#include <google/protobuf/text_format.h>
 
 #include <fstream>  // std::ifstream
 #include <iterator>  // std::distance
@@ -174,8 +176,10 @@ class DeviceMgrTest : public ::testing::Test {
 
   static void SetUpTestCase() {
     DeviceMgr::init(256);
-    pi_add_config_from_file(input_path, PI_CONFIG_TYPE_BMV2_JSON, &p4info);
-    p4info_proto = pi::p4info::p4info_serialize_to_proto(p4info);
+    std::ifstream istream(input_path);
+    google::protobuf::io::IstreamInputStream istream_(&istream);
+    google::protobuf::TextFormat::Parse(&istream_, &p4info_proto);
+    pi::p4info::p4info_proto_reader(p4info_proto, &p4info);
   }
 
   static void TearDownTestCase() {
@@ -217,7 +221,8 @@ class DeviceMgrTest : public ::testing::Test {
     return mgr.read_one(entity, response);
   }
 
-  static constexpr const char *input_path = TESTDATADIR "/" "unittest.json";
+  static constexpr const char *input_path =
+           TESTDATADIR "/" "unittest.p4info.txt";
   static pi_p4info_t *p4info;
   static p4::config::P4Info p4info_proto;
   static constexpr const char *invalid_p4_id_error_str = "Invalid P4 id";
