@@ -99,6 +99,7 @@ message Entity {
     CounterEntry counter_entry = 7;
     DirectCounterEntry direct_counter_entry = 8;
     PacketReplicationEngineEntry packet_replication_engine_entry = 9;
+    ValueSetEntry value_set_entry = 10;
   }
 }
 
@@ -354,6 +355,29 @@ message CloneSessionEntry {
   uint64 egress_port = 2;
   uint64 class_of_service = 3;
   uint64 packet_length_bytes = 4;
+}
+
+//------------------------------------------------------------------------------
+// For writing and reading values in a parser value set. It is OK for the value
+// set to have no entries, as a result of a write. A state transition matching
+// on an empty value set will never be taken. Values contained in a value set
+// must be unique.
+//
+// For Write Requests:
+//    INSERT will add the given values in the repeated field to the existing
+//    values in the value set.
+//    MODIFY will replace all existing values in the value set with the given
+//    values in the repeated field.
+//    DELETE will remove the values given in the repeated field from the value
+//    set if they exist, and will return error if given value(s) are not found.
+//    If only the value_set_id is specified (i.e. values_size() == 0), then all
+//    entries in the value set will be deleted.
+//
+// For Read Requests only the value_set_id should be specified and all the
+// entries in the value set should be returned in the read response.
+message ValueSetEntry {
+  uint32 value_set_id = 1;
+  repeated bytes values = 2;
 }
 
 //------------------------------------------------------------------------------
