@@ -69,7 +69,7 @@ testdata/ecmp.json \
 testdata/stats.json \
 testdata/l2_switch.json \
 testdata/pragmas.json \
-testdata/unittest.json \
+testdata/unittest.p4info.txt \
 testdata/id_collision.json \
 testdata/act_prof.json
 

@@ -13,183 +13,169 @@
  * limitations under the License.
  */
 
-header_type header_test_t {
-    fields {
-        field8 : 8;
-        field16 : 16;
-        field20 : 20;
-        field24 : 24;
-        field32 : 32;
-        field48 : 48;
-        field64 : 64;
-        field12 : 12;
-        field4 : 4;
+#include <v1model.p4>
+
+header header_test_t {
+    bit<8> field8;
+    bit<16> field16;
+    bit<20> field20;
+    bit<24> field24;
+    bit<32> field32;
+    bit<48> field48;
+    bit<64> field64;
+    bit<12> field12;
+    bit<4> field4;
+}
+
+struct headers_t {
+    @name(".header_test")
+    header_test_t header_test;
+}
+
+struct metadata_t { }
+
+parser ParserImpl(packet_in packet, out headers_t hdr, inout metadata_t meta,
+                  inout standard_metadata_t standard_metadata) {
+    state start {
+        transition accept;
     }
 }
 
-header header_test_t header_test;
-
-parser start {
-    return ingress;
-}
-
-action actionA(param) {
-    modify_field(header_test.field48, param);
-}
-
-action actionB(param) {
-    modify_field(header_test.field8, param);
-}
-
-action actionC() { }
-
-table ExactOne {
-    reads {
-        header_test.field32 : exact;
+control ingress(inout headers_t hdr, inout metadata_t meta, inout standard_metadata_t standard_metadata) {
+    @name(".actionA")
+    action actionA(bit<48> param) {
+        hdr.header_test.field48 = param;
     }
-    actions {
-        actionA; actionB;
+    @name(".actionB")
+    action actionB(bit<8> param) {
+        hdr.header_test.field8 = param;
     }
-    size: 512;
-}
+    @name(".actionC")
+    action actionC() { }
 
-counter ExactOne_counter {
-    type : packets;
-    direct : ExactOne;
-}
+    @name(".ExactOne_counter")
+    direct_counter(CounterType.packets) ExactOne_counter;
 
-meter ExactOne_meter {
-    type : bytes;
-    direct : ExactOne;
-    result : header_test.field16;
-}
+    // TODO(antonin): meter result should be read in ExactOne's actions; but the
+    // p4test backend does not seem to complain or optimize the meter out and
+    // the p4info is generated correctly.
+    @name(".ExactOne_meter")
+    direct_meter<bit<32> >(MeterType.bytes) ExactOne_meter;
 
-table LpmOne {
-    reads {
-        header_test.field32 : lpm;
+    @name(".ExactOne")
+    table ExactOne {
+        key = {
+            hdr.header_test.field32 : exact;
+        }
+        actions = { actionA; actionB; }
+        size = 512;
+        counters = ExactOne_counter;
+        meters = ExactOne_meter;
     }
-    actions {
-        actionA;
+
+    @name(".LpmOne")
+    table LpmOne {
+        key = {
+            hdr.header_test.field32 : lpm;
+        }
+        actions = { actionA; }
+        size = 512;
     }
-    size: 512;
+
+    @name(".TernaryOne")
+    table TernaryOne {
+        key = {
+            hdr.header_test.field32 : ternary;
+        }
+        actions = { actionA; }
+        size = 512;
+    }
+
+    @name(".TernaryTwo")
+    table TernaryTwo {
+        key = {
+            hdr.header_test.field32 : ternary;
+            hdr.header_test.field16 : ternary;
+        }
+        actions = { actionA; }
+        size = 512;
+    }
+
+    @name(".RangeOne")
+    table RangeOne {
+        key = {
+            hdr.header_test.field32 : range;
+        }
+        actions = { actionA; }
+        size = 512;
+    }
+
+    @name(".MixMany")
+    table MixMany {
+        key = {
+            hdr.header_test.field32 : exact;
+            hdr.header_test.field16 : lpm;
+            hdr.header_test.field20 : ternary;
+            hdr.header_test.isValid() : exact;
+        }
+        actions = { actionA; actionC; }
+        size = 512;
+    }
+
+    @name(".ActProfWS")
+    action_selector(HashAlgorithm.crc16, 32w128, 32w16) ActProfWS;
+
+    @name(".IndirectWS")
+    table IndirectWS {
+        key = {
+            hdr.header_test.field32 : exact;
+            hdr.header_test.field24 : selector;
+            hdr.header_test.field48 : selector;
+            hdr.header_test.field64 : selector;
+        }
+        actions = { actionA; actionB; }
+        implementation = ActProfWS;
+        size = 512;
+    }
+
+    @name(".ExactOneNonAligned")
+    table ExactOneNonAligned {
+        key = {
+            hdr.header_test.field12 : exact;
+        }
+        actions = { actionA; actionB; }
+        size = 512;
+    }
+
+    @name(".CounterA")
+    counter(32w1024, CounterType.packets) CounterA;
+
+    apply {
+        ExactOne.apply();
+        LpmOne.apply();
+        TernaryOne.apply();
+        TernaryTwo.apply();
+        RangeOne.apply();
+        MixMany.apply();
+        IndirectWS.apply();
+        ExactOneNonAligned.apply();
+        CounterA.count(32w128);
+    }
 }
 
-table TernaryOne {
-    reads {
-        header_test.field32 : ternary;
-    }
-    actions {
-        actionA;
-    }
-    size: 512;
+control egress(inout headers_t hdr, inout metadata_t meta, inout standard_metadata_t standard_metadata) {
+    apply { }
 }
 
-table TernaryTwo {
-    reads {
-        header_test.field32 : ternary;
-        header_test.field16 : ternary;
-    }
-    actions {
-        actionA;
-    }
-    size: 512;
+control DeparserImpl(packet_out packet, in headers_t hdr) {
+    apply { }
 }
 
-table RangeOne {
-    reads {
-        header_test.field32 : range;
-    }
-    actions {
-        actionA;
-    }
-    size: 512;
+control verifyChecksum(inout headers_t hdr, inout metadata_t meta) {
+    apply { }
 }
 
-table MixMany {
-    reads {
-        header_test.field32 : exact;
-        header_test.field16 : lpm;
-        header_test.field20 : ternary;
-        header_test : valid;
-    }
-    actions {
-        actionA; actionC;
-    }
-    size: 512;
+control computeChecksum(inout headers_t hdr, inout metadata_t meta) {
+    apply { }
 }
-
-table IndirectWS {
-    reads {
-        header_test.field32 : exact;
-    }
-    action_profile: ActProfWS;
-    size: 512;
-}
-
-action_profile ActProfWS {
-    actions {
-        actionA;
-        actionB;
-    }
-    size : 128;
-    dynamic_action_selection : Selector;
-}
-
-action_selector Selector {
-    selection_key : SelectorHash;
-}
-
-field_list HashFields {
-    header_test.field24;
-    header_test.field48;
-    header_test.field64;
-}
-
-field_list_calculation SelectorHash {
-    input { HashFields; }
-    algorithm : crc16;
-    output_width : 16;
-}
-
-table ExactOneNonAligned {
-    reads {
-        header_test.field12 : exact;
-    }
-    actions {
-        actionA; actionB;
-    }
-    size: 512;
-}
-
-counter CounterA {
-    type : packets;
-    instance_count : 1024;
-}
-
-action _CounterAAction() {
-    count(CounterA, 128);
-}
-
-table _CounterATable {
-    reads {
-         header_test.field32 : exact;
-    }
-    actions {
-        _CounterAAction;
-    }
-    size: 512;
-}
-
-control ingress {
-    apply(ExactOne);
-    apply(LpmOne);
-    apply(TernaryOne);
-    apply(TernaryTwo);
-    apply(RangeOne);
-    apply(MixMany);
-    apply(IndirectWS);
-    apply(ExactOneNonAligned);
-    apply(_CounterATable);
-}
-
-control egress { }
+V1Switch(ParserImpl(), verifyChecksum(), ingress(), egress(), computeChecksum(), DeparserImpl()) main;
