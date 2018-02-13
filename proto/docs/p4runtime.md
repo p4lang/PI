@@ -515,3 +515,92 @@ messages refer to singleton ports by default.
 
 *TODO: Discuss potential use of translation, resolution and watch annotations to
 support cases like multicast to LAGs or clone to arbitrary destination.*
+
+## PSA Metadata Translation
+
+The *Portable Standard Architecture* (PSA) defines intrinsic metadata, whose
+types are undefined, since they may be different on different PSA targets.
+In order to have uniform programming of multiple PSA
+targets, a centralized SDN controller may define its own types and numbering of
+such PSA intrinsic metadata. In particular, different PSA devices may have
+different types and numbering schemes for ports and class of service. For such
+metadata, a translation between the controller's metadata values and the
+corresponding target specific metadata values is required at runtime.
+
+![Controllers with P4Runtime channels to multiple PSA devices](sdn_controller.svg)
+
+The above figure illustrates a motivating example, where an SDN controller is
+controlling multiple P4 targets in a fabric. Switches 1, 2, 3 etc.
+are all targets with different PSA devices, each defining its own port and
+class of service types. In order to uniformly program the fabric, the
+SDN controller may define 32 bit type for ports and 8 bit type for class of
+service. The controller may also define a common number space for ports and
+cannonical classes of service across the fabric. The PSA devices may define
+much shorter bitwidths for these metadata in order to save precious on-chip
+memory in the switch silicon. Furthermore, the values of ports and classes of
+service in the dataplane are PSA device specific and may be different from the
+values used in the controller(s).
+
+In order to support such SDN use case, P4Runtime requires translation of port
+and class of service metadata values between the controller's space and the
+PSA device's space as needed. Such translation is enabled by a standard
+P4Runtime annotation `@p4runtime_translation`. The annotation value is a
+string identifying the metadata type to be translated. Specifically, we define
+* `@p4runtime_translation("port")` for port translation.
+* `@p4runtime_translation("cos")` for class of service translation.
+
+The actual translation logic resides in the configuration of the PSA target.
+The P4Runtime service on the target is expected to use the mapping defined
+in the configuration to perform runtime translation between the metadata
+values in the control plane and the dataplane for P4 objects that have the
+above annotations defined.
+
+The sub-sections below provide comprehensive examples for various translation
+scenarios.
+
+### Translation of Header Fields
+Port and class of service type fields can be part of header types. For example,
+a packet-out header from the controller to the switch may define the egress
+port of the packet as shown below.
+```
+@controller_header("packet_out")
+header PacketOut_t {
+  @p4runtime_translation("port")
+  PortIdInHeader_t egress_port;
+}
+```
+The top annotation `@controller_header` is also a standard P4Runtime annotation
+that identifies a header type for a controller packet-out. When the target
+receives a packet-out from the controller over the P4Runtime stream channel, it
+will normally expect packet-out metadata (`egress_port`) value of bitwidth as
+defined by the PSA target's `PortIdInHeader_t` type and in the space of the
+target's port numbers. However, the presence of the `@p4runtime_translation`
+annotation will signal to the p4runtime service that it should expect a
+controller defined type and value of `egress_port` metadata. The p4runtime
+service should use the target config to translate this value into PSA
+device-specific value of type `PortIdInHeader_t`.
+
+A similar reverse translation is required in the P4Runtime service for packets
+punted from the target to the controller as shown by the packet-in header
+example below.
+```
+@controller_header("packet_in")
+header PacketIn_t {
+  @p4runtime_translation("port")
+  PortIdInHeader_t ingress_port;
+  @p4runtime_translation("cos")
+  ClassOfServiceInHeader_t cos;
+}
+```
+A packet punted from the target's PSA device will be intercepted by the
+P4runtime service before being sent to the controller. Normally, the P4Runtime
+service will extract the values of `ingress_port` and `cos` from the header and
+insert them in the packet-in metadata fields before sending the packet over the
+stream channel to the controller. However, the presence of the
+`@p4runtime_translation` annotations will be a signal to the P4Runtime service
+to replace these values with equivalent controller-defined numbers from the
+target config.
+
+### Translation of Match Fields
+### Translation of Action Parameters
+### Translation of Action Selector Watch Field
