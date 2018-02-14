@@ -89,7 +89,7 @@ void read_tables(const p4::config::P4Info &p4info_proto, pi_p4info_t *p4info) {
     const auto &pre = table.preamble();
     pi_p4info_table_add(p4info, pre.id(), pre.name().c_str(),
                         table.match_fields().size(), table.action_refs().size(),
-                        table.size());
+                        table.size(), table.is_const_table());
 
     for (const auto &mf : table.match_fields()) {
       auto match_type_convert = [&mf]() {
@@ -356,6 +356,8 @@ void p4info_serialize_tables(const pi_p4info_t *p4info,
       table->add_direct_resource_ids(direct_res_ids[i]);
 
     table->set_size(pi_p4info_table_max_size(p4info, id));
+
+    table->set_is_const_table(pi_p4info_table_is_const(p4info, id));
   }
 }
 

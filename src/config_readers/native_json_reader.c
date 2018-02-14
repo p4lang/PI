@@ -120,9 +120,14 @@ static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
     item = cJSON_GetObjectItem(table, "max_size");
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
     size_t max_size = item->valueint;
+    item = cJSON_GetObjectItem(table, "is_const");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    if (item->type != cJSON_True && item->type != cJSON_False)
+      return PI_STATUS_CONFIG_READER_ERROR;
+    bool is_const = (item->type == cJSON_True);
 
     pi_p4info_table_add(p4info, pi_id, name, num_match_fields, num_actions,
-                        max_size);
+                        max_size, is_const);
 
     import_common(table, p4info, pi_id);
 

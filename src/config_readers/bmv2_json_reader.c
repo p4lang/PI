@@ -508,9 +508,14 @@ static pi_status_t read_tables(reader_state_t *state, cJSON *root,
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
     size_t max_size = item->valueint;
 
+    cJSON *entries_array = cJSON_GetObjectItem(table, "entries");
+    // true iff the table is immutable and entries cannot be added / modified at
+    // runtime
+    bool is_const = (entries_array && cJSON_GetArraySize(entries_array) > 0);
+
     PI_LOG_DEBUG("Adding table '%s'\n", name);
     pi_p4info_table_add(p4info, pi_id, name, num_match_fields, num_actions,
-                        max_size);
+                        max_size, is_const);
 
     import_pragmas(table, p4info, pi_id);
 

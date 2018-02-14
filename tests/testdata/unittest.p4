@@ -13,6 +13,10 @@
  * limitations under the License.
  */
 
+// To re-generate the P4Info (unittest.p4info.txt) and the static table entries
+// (unittest.entries.txt), run:
+// p4test unittest.p4 --p4-16 --p4runtime-format text --p4runtime-file unittest.p4info.txt --p4runtime-entries-file unittest.entries.txt
+
 #include <v1model.p4>
 
 header header_test_t {
@@ -150,6 +154,19 @@ control ingress(inout headers_t hdr, inout metadata_t meta, inout standard_metad
     @name(".CounterA")
     counter(32w1024, CounterType.packets) CounterA;
 
+    @name(".ConstTable")
+    table ConstTable {
+        key = {
+            hdr.header_test.field16 : exact;
+        }
+        actions = { actionA; actionB; }
+        const entries = {
+            (0x01) : actionB(8w01);
+            (0x02) : actionB(8w02);
+            (0x03) : actionB(8w03);
+        }
+    }
+
     apply {
         ExactOne.apply();
         LpmOne.apply();
@@ -160,6 +177,7 @@ control ingress(inout headers_t hdr, inout metadata_t meta, inout standard_metad
         IndirectWS.apply();
         ExactOneNonAligned.apply();
         CounterA.count(32w128);
+        ConstTable.apply();
     }
 }
 

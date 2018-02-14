@@ -1,0 +1,69 @@
+updates {
+  type: INSERT
+  entity {
+    table_entry {
+      table_id: 33618629
+      match {
+        field_id: 1
+        exact {
+          value: "\000\001"
+        }
+      }
+      action {
+        action {
+          action_id: 16809468
+          params {
+            param_id: 1
+            value: "\001"
+          }
+        }
+      }
+    }
+  }
+}
+updates {
+  type: INSERT
+  entity {
+    table_entry {
+      table_id: 33618629
+      match {
+        field_id: 1
+        exact {
+          value: "\000\002"
+        }
+      }
+      action {
+        action {
+          action_id: 16809468
+          params {
+            param_id: 1
+            value: "\002"
+          }
+        }
+      }
+    }
+  }
+}
+updates {
+  type: INSERT
+  entity {
+    table_entry {
+      table_id: 33618629
+      match {
+        field_id: 1
+        exact {
+          value: "\000\003"
+        }
+      }
+      action {
+        action {
+          action_id: 16809468
+          params {
+            param_id: 1
+            value: "\003"
+          }
+        }
+      }
+    }
+  }
+}

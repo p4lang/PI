@@ -205,6 +205,31 @@ tables {
   }
   size: 512
 }
+tables {
+  preamble {
+    id: 33618629
+    name: "ConstTable"
+    alias: "ConstTable"
+  }
+  match_fields {
+    id: 1
+    name: "header_test.field16"
+    bitwidth: 16
+    match_type: EXACT
+  }
+  action_refs {
+    id: 16783703
+  }
+  action_refs {
+    id: 16809468
+  }
+  action_refs {
+    id: 16800567
+    annotations: "@defaultonly()"
+  }
+  size: 1024
+  is_const_table: true
+}
 actions {
   preamble {
     id: 16800567
