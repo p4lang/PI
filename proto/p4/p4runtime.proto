@@ -374,7 +374,7 @@ message CloneSessionEntry {
 // For Read Requests:
 //    All matches for all value-set entries if value_set_id = 0
 //    All matches of the value-set if a valid value_set_id is specified
-//    The 'values' field must never be set in the ReadRequest
+//    The 'match' field must never be set in the ReadRequest
 message ValueSetEntry {
   uint32 value_set_id = 1;
   repeated FieldMatch match = 2;
