@@ -71,6 +71,7 @@ typedef struct _table_data_s {
   } direct_resources;
   size_t max_size;
   size_t match_key_size;
+  bool is_const;  // immutable table with program-provided entries
 } _table_data_t;
 
 static _table_data_t *get_table(const pi_p4info_t *p4info,
@@ -196,6 +197,8 @@ void pi_p4info_table_serialize(cJSON *root, const pi_p4info_t *p4info) {
 
     cJSON_AddNumberToObject(tObject, "max_size", table->max_size);
 
+    cJSON_AddBoolToObject(tObject, "is_const", table->is_const);
+
     p4info_common_serialize(tObject, &table->common);
 
     cJSON_AddItemToArray(tArray, tObject);
@@ -210,7 +213,7 @@ void pi_p4info_table_init(pi_p4info_t *p4info, size_t num_tables) {
 
 void pi_p4info_table_add(pi_p4info_t *p4info, pi_p4_id_t table_id,
                          const char *name, size_t num_match_fields,
-                         size_t num_actions, size_t max_size) {
+                         size_t num_actions, size_t max_size, bool is_const) {
   _table_data_t *table = p4info_add_res(p4info, table_id, name);
   table->name = strdup(name);
   table->table_id = table_id;
@@ -233,6 +236,7 @@ void pi_p4info_table_add(pi_p4info_t *p4info, pi_p4_id_t table_id,
   table->match_fields_added = 0;
   table->max_size = max_size;
   table->match_key_size = 0;
+  table->is_const = is_const;
 }
 
 static char get_byte0_mask(size_t bitwidth) {
@@ -467,6 +471,11 @@ size_t pi_p4info_table_max_size(const pi_p4info_t *p4info,
                                 pi_p4_id_t table_id) {
   _table_data_t *table = get_table(p4info, table_id);
   return table->max_size;
+}
+
+bool pi_p4info_table_is_const(const pi_p4info_t *p4info, pi_p4_id_t table_id) {
+  _table_data_t *table = get_table(p4info, table_id);
+  return table->is_const;
 }
 
 pi_p4_id_t pi_p4info_table_begin(const pi_p4info_t *p4info) {

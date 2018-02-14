@@ -683,20 +683,29 @@ class DeviceMgrImp {
       if (code != Code::OK) break;
       code = parse_action_entry(table_id, &entry.entry, table_entry);
       if (code != Code::OK) break;
-      // TODO(antonin): what I really want to do here is a heterogeneous lookup;
-      // instead I make a copy of the match key in the right format and I use
-      // this for the lookup. If this is a performance issue, we can find a
-      // better solution.
-      mk.from(entry.match_key);
-      auto entry_data = table_info_store.get_entry(table_id, mk);
-      // this would point to a serious bug in the implementation, and shoudn't
-      // occur given that we keep the local state in sync with lower level state
-      // thanks to our per-table lock.
-      if (entry_data == nullptr) {
-        Logger::get()->critical("Table state out-of-sync with target");
-        assert(0 && "Invalid state");
+
+      // If table is const (immutable P4 table), it is possible that the entries
+      // were added out-of-band, i.e. without the P4Runtime service. In this
+      // case, the entries would not be found in the table_info_store, and
+      // anyway there would be no point in looking since there can be no
+      // controller metadata for these immutable entries.
+      bool table_is_const = pi_p4info_table_is_const(p4info.get(), table_id);
+      if (!table_is_const) {
+        // TODO(antonin): what I really want to do here is a heterogeneous
+        // lookup; instead I make a copy of the match key in the right format
+        // and I use this for the lookup. If this is a performance issue, we can
+        // find a better solution.
+        mk.from(entry.match_key);
+        auto entry_data = table_info_store.get_entry(table_id, mk);
+        // this would point to a serious bug in the implementation, and shoudn't
+        // occur given that we keep the local state in sync with lower level
+        // state thanks to our per-table lock.
+        if (entry_data == nullptr) {
+          Logger::get()->critical("Table state out-of-sync with target");
+          assert(0 && "Invalid state");
+        }
+        table_entry->set_controller_metadata(entry_data->controller_metadata);
       }
-      table_entry->set_controller_metadata(entry_data->controller_metadata);
     }
 
     pi_table_entries_fetch_done(session.get(), res);
