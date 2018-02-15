@@ -6,6 +6,7 @@ AM_CPPFLAGS = \
 -I$(top_srcdir)/frontend \
 -isystem$(top_builddir)/cpp_out \
 -isystem$(top_builddir)/grpc_out \
+-I$(top_srcdir)/../frontends_extra/cpp \
 -I$(top_srcdir)/p4info \
 -I$(top_srcdir)/server \
 -I$(top_srcdir)/../third_party/googletest/googletest/include \
