@@ -361,8 +361,7 @@ message CloneSessionEntry {
 // For writing and reading matches in a parser value set. A state transition
 // on an empty value set will never be taken. The number of matches must be at
 // most the size of the value set as specified by the @size annotation in P4
-// program. The priority of matches (high to low) is the order in which they
-// have been defined in the repeated field.
+// program.
 //
 // For Write Requests:
 //    INSERT will write the given matches in the repeated field to the value
