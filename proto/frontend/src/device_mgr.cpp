@@ -343,6 +343,10 @@ class DeviceMgrImp {
           status = ERROR_STATUS(Code::UNIMPLEMENTED,
                                 "Writing to PRE is not supported yet");
           break;
+        case p4::Entity::kValueSetEntry:  // TODO(antonin)
+          status = ERROR_STATUS(Code::UNIMPLEMENTED,
+                                "ValueSet writes are not supported yet");
+          break;
         default:
           status = ERROR_STATUS(Code::UNKNOWN, "Incorrect entity type");
           break;
@@ -397,6 +401,10 @@ class DeviceMgrImp {
         status = ERROR_STATUS(Code::UNIMPLEMENTED,
                               "Reading from PRE is not supported yet");
         break;
+        case p4::Entity::kValueSetEntry:  // TODO(antonin)
+          status = ERROR_STATUS(Code::UNIMPLEMENTED,
+                                "ValueSet reads are not supported yet");
+          break;
       default:
         status = ERROR_STATUS(Code::UNKNOWN, "Incorrect entity type");
         break;
