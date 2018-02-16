@@ -69,17 +69,6 @@ auto p4info_deleter = [](pi_p4info_t *p4info) {
 };
 using P4InfoWrapper = std::unique_ptr<pi_p4info_t, decltype(p4info_deleter)>;
 
-pi_meter_spec_t meter_spec_proto_to_pi(const p4::MeterConfig &config) {
-  pi_meter_spec_t pi_meter_spec;
-  pi_meter_spec.cir = static_cast<uint64_t>(config.cir());
-  pi_meter_spec.cburst = static_cast<uint32_t>(config.cburst());
-  pi_meter_spec.pir = static_cast<uint64_t>(config.pir());
-  pi_meter_spec.pburst = static_cast<uint32_t>(config.pburst());
-  pi_meter_spec.meter_unit = PI_METER_UNIT_DEFAULT;
-  pi_meter_spec.meter_type = PI_METER_TYPE_DEFAULT;
-  return pi_meter_spec;
-}
-
 class P4ErrorReporter {
  public:
   void push_back(const p4::Error &error) {
@@ -331,13 +320,12 @@ class DeviceMgrImp {
               update.type(), entity.direct_meter_entry(), session);
           break;
         case p4::Entity::kCounterEntry:
-          status = ERROR_STATUS(Code::UNIMPLEMENTED,
-                                "Writing to counters is not supported yet");
+          status = counter_write(
+              update.type(), entity.counter_entry(), session);
           break;
         case p4::Entity::kDirectCounterEntry:
-          status = ERROR_STATUS(
-              Code::UNIMPLEMENTED,
-              "Writing to direct counters is not supported yet");
+          status = direct_counter_write(
+              update.type(), entity.direct_counter_entry(), session);
           break;
         case p4::Entity::kPacketReplicationEngineEntry:
           status = ERROR_STATUS(Code::UNIMPLEMENTED,
@@ -409,10 +397,7 @@ class DeviceMgrImp {
                      const SessionTemp &session) {
     if (!check_p4_id(table_entry.table_id(), P4ResourceType::TABLE))
       return make_invalid_p4_id_status();
-    if (table_entry.has_meter_config() || table_entry.has_counter_data()) {
-      RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
-                          "Direct resources not supported in TableEntry yet");
-    }
+
     Status status;
     switch (update) {
       case p4::Update_Type_UNSPECIFIED:
@@ -443,7 +428,8 @@ class DeviceMgrImp {
                             "INSERT update type not supported for meters");
       case p4::Update_Type_MODIFY:
         {
-          auto pi_meter_spec = meter_spec_proto_to_pi(meter_entry.config());
+          auto pi_meter_spec = meter_spec_proto_to_pi(
+              meter_entry.config(), meter_entry.meter_id());
           auto pi_status = pi_meter_set(session.get(), device_tgt,
                                         meter_entry.meter_id(),
                                         meter_entry.index(),
@@ -519,7 +505,8 @@ class DeviceMgrImp {
                             "INSERT update type not supported for meters");
       case p4::Update_Type_MODIFY:
         {
-          auto pi_meter_spec = meter_spec_proto_to_pi(meter_entry.config());
+          auto pi_meter_spec = meter_spec_proto_to_pi(
+              meter_entry.config(), table_direct_meter_id);
           auto pi_status = pi_meter_set_direct(session.get(), device_tgt,
                                                table_direct_meter_id,
                                                entry_handle,
@@ -946,6 +933,111 @@ class DeviceMgrImp {
     packet_io.packet_in_register_cb(std::move(cb), cookie);
   }
 
+  Status counter_write(p4::Update_Type update,
+                       const p4::CounterEntry &counter_entry,
+                       const SessionTemp &session) {
+    if (!check_p4_id(counter_entry.counter_id(), P4ResourceType::COUNTER))
+      return make_invalid_p4_id_status();
+    switch (update) {
+      case p4::Update_Type_UNSPECIFIED:
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
+      case p4::Update_Type_INSERT:
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                            "INSERT update type not supported for counters");
+      case p4::Update_Type_MODIFY:
+        {
+          auto pi_counter_data = counter_data_proto_to_pi(
+              counter_entry.data(), counter_entry.counter_id());
+          auto pi_status = pi_counter_write(session.get(), device_tgt,
+                                            counter_entry.counter_id(),
+                                            counter_entry.index(),
+                                            &pi_counter_data);
+          if (pi_status != PI_STATUS_SUCCESS)
+            RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when writing to counter");
+        }
+        break;
+      case p4::Update_Type_DELETE:  // TODO(antonin): return error instead?
+        {
+          pi_counter_data_t pi_counter_data =
+              {PI_COUNTER_UNIT_PACKETS | PI_COUNTER_UNIT_BYTES, 0u, 0u};
+          auto pi_status = pi_counter_write(session.get(), device_tgt,
+                                            counter_entry.counter_id(),
+                                            counter_entry.index(),
+                                            &pi_counter_data);
+          if (pi_status != PI_STATUS_SUCCESS)
+            RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when writing to counter");
+        }
+        break;
+      default:
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
+    }
+    RETURN_OK_STATUS();
+  }
+
+  Status direct_counter_write(p4::Update_Type update,
+                              const p4::DirectCounterEntry &counter_entry,
+                              const SessionTemp &session) {
+    if (!counter_entry.has_table_entry()) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "Missing table_entry field in DirectCounterEntry");
+    }
+    const auto &table_entry = counter_entry.table_entry();
+    if (!check_p4_id(table_entry.table_id(), P4ResourceType::TABLE))
+      return make_invalid_p4_id_status();
+    auto table_lock = table_info_store.lock_table(table_entry.table_id());
+
+    pi_entry_handle_t entry_handle = 0;
+    {
+      auto status = entry_handle_from_table_entry(table_entry, &entry_handle);
+      if (IS_ERROR(status)) return status;
+    }
+
+    p4_id_t table_direct_counter_id = pi_get_table_direct_resource_p4_id(
+        table_entry.table_id(), P4ResourceType::COUNTER);
+    if (table_direct_counter_id == PI_INVALID_ID) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "Table has no direct counters");
+    }
+    switch (update) {
+      case p4::Update_Type_UNSPECIFIED:
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
+      case p4::Update_Type_INSERT:
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                            "INSERT update type not supported for counters");
+      case p4::Update_Type_MODIFY:
+        {
+          auto pi_counter_data = counter_data_proto_to_pi(
+              counter_entry.data(), table_direct_counter_id);
+          auto pi_status = pi_counter_write_direct(session.get(), device_tgt,
+                                                   table_direct_counter_id,
+                                                   entry_handle,
+                                                   &pi_counter_data);
+          if (pi_status != PI_STATUS_SUCCESS) {
+            RETURN_ERROR_STATUS(Code::UNKNOWN,
+                                "Error when writing to direct counter");
+          }
+        }
+        break;
+      case p4::Update_Type_DELETE:  // TODO(antonin): return error instead?
+        {
+          pi_counter_data_t pi_counter_data =
+              {PI_COUNTER_UNIT_PACKETS | PI_COUNTER_UNIT_BYTES, 0u, 0u};
+          auto pi_status = pi_counter_write_direct(session.get(), device_tgt,
+                                                   table_direct_counter_id,
+                                                   entry_handle,
+                                                   &pi_counter_data);
+          if (pi_status != PI_STATUS_SUCCESS) {
+            RETURN_ERROR_STATUS(Code::UNKNOWN,
+                                "Error when writing to direct counter");
+          }
+        }
+        break;
+      default:
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
+    }
+    RETURN_OK_STATUS();
+  }
+
   Status counter_read_one(p4_id_t counter_id,
                           const p4::CounterEntry &counter_entry,
                           const SessionTemp &session,
@@ -1030,7 +1122,7 @@ class DeviceMgrImp {
       }
       auto entry = response->add_entities()->mutable_direct_counter_entry();
       entry->mutable_table_entry()->CopyFrom(table_entry);
-      convert_counter_data(counter_data, entry->mutable_data());
+      counter_data_pi_to_proto(counter_data, entry->mutable_data());
       RETURN_OK_STATUS();
     }
     // read all direct counters in table
@@ -1402,6 +1494,38 @@ class DeviceMgrImp {
     }
   }
 
+  // takes storage for meter_spec and counter_data to enable using stack storage
+  Status construct_direct_resources(const p4::TableEntry &table_entry,
+                                    pi::ActionEntry *action_entry,
+                                    pi_meter_spec_t *meter_spec,
+                                    pi_counter_data_t *counter_data) {
+    if (table_entry.has_meter_config()) {
+      p4_id_t meter_id = pi_get_table_direct_resource_p4_id(
+          table_entry.table_id(), P4ResourceType::METER);
+      if (meter_id == PI_INVALID_ID) {
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                            "Table has no direct meters");
+      }
+      *meter_spec = meter_spec_proto_to_pi(
+          table_entry.meter_config(), meter_id);
+      action_entry->add_direct_res_config(meter_id, meter_spec);
+    }
+
+    if (table_entry.has_counter_data()) {
+      p4_id_t counter_id = pi_get_table_direct_resource_p4_id(
+          table_entry.table_id(), P4ResourceType::COUNTER);
+      if (counter_id == PI_INVALID_ID) {
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                            "Table has no direct counters");
+      }
+      *counter_data = counter_data_proto_to_pi(
+          table_entry.counter_data(), counter_id);
+      action_entry->add_direct_res_config(counter_id, counter_data);
+    }
+
+    RETURN_OK_STATUS();
+  }
+
   Status table_insert(const p4::TableEntry &table_entry,
                       const SessionTemp &session) {
     const auto table_id = table_entry.table_id();
@@ -1412,9 +1536,17 @@ class DeviceMgrImp {
     }
 
     pi::ActionEntry action_entry;
+    pi_meter_spec_t _meter_spec_storage;
+    pi_counter_data_t _counter_data_storage;
     {
       auto status = construct_action_entry(
           table_id, table_entry.action(), &action_entry);
+      if (IS_ERROR(status)) return status;
+    }
+    {
+      auto status = construct_direct_resources(
+          table_entry, &action_entry,
+          &_meter_spec_storage, &_counter_data_storage);
       if (IS_ERROR(status)) return status;
     }
 
@@ -1461,9 +1593,17 @@ class DeviceMgrImp {
     }
 
     pi::ActionEntry action_entry;
+    pi_meter_spec_t _meter_spec_storage;
+    pi_counter_data_t _counter_data_storage;
     {
       auto status = construct_action_entry(
           table_id, table_entry.action(), &action_entry);
+      if (IS_ERROR(status)) return status;
+    }
+    {
+      auto status = construct_direct_resources(
+          table_entry, &action_entry,
+          &_meter_spec_storage, &_counter_data_storage);
       if (IS_ERROR(status)) return status;
     }
 
@@ -1528,12 +1668,49 @@ class DeviceMgrImp {
     return (it == action_profs.end()) ? nullptr : it->second.get();
   }
 
-  void convert_counter_data(const pi_counter_data_t &pi_data,
-                            p4::CounterData *data) const {
+  void counter_data_pi_to_proto(const pi_counter_data_t &pi_data,
+                                p4::CounterData *data) const {
     if (pi_data.valid & PI_COUNTER_UNIT_PACKETS)
       data->set_packet_count(pi_data.packets);
     if (pi_data.valid & PI_COUNTER_UNIT_BYTES)
       data->set_byte_count(pi_data.bytes);
+  }
+
+  pi_counter_data_t counter_data_proto_to_pi(const p4::CounterData &data,
+                                             pi_p4_id_t counter_id) const {
+    pi_counter_data_t pi_data;
+    switch (pi_p4info_counter_get_unit(p4info.get(), counter_id)) {
+      case PI_P4INFO_COUNTER_UNIT_BYTES:
+        pi_data.valid = PI_COUNTER_UNIT_BYTES;
+        pi_data.bytes = data.byte_count();
+        break;
+      case PI_P4INFO_COUNTER_UNIT_PACKETS:
+        pi_data.valid = PI_COUNTER_UNIT_PACKETS;
+        pi_data.packets = data.packet_count();
+        break;
+      case PI_P4INFO_COUNTER_UNIT_BOTH:
+        pi_data.valid = PI_COUNTER_UNIT_BYTES | PI_COUNTER_UNIT_PACKETS;
+        pi_data.bytes = data.byte_count();
+        pi_data.packets = data.packet_count();
+        break;
+    }
+    return pi_data;
+  }
+
+  pi_meter_spec_t meter_spec_proto_to_pi(const p4::MeterConfig &config,
+                                         pi_p4_id_t meter_id) const {
+    pi_meter_spec_t pi_meter_spec;
+    pi_meter_spec.cir = static_cast<uint64_t>(config.cir());
+    pi_meter_spec.cburst = static_cast<uint32_t>(config.cburst());
+    pi_meter_spec.pir = static_cast<uint64_t>(config.pir());
+    pi_meter_spec.pburst = static_cast<uint32_t>(config.pburst());
+    // pi_meter_spec.meter_unit = PI_METER_UNIT_DEFAULT;
+    pi_meter_spec.meter_unit =
+        (pi_meter_unit_t)pi_p4info_meter_get_unit(p4info.get(), meter_id);
+    // pi_meter_spec.meter_type = PI_METER_TYPE_DEFAULT;
+    pi_meter_spec.meter_type =
+        (pi_meter_type_t)pi_p4info_meter_get_type(p4info.get(), meter_id);
+    return pi_meter_spec;
   }
 
   Status counter_read_one_index(const SessionTemp &session, uint32_t counter_id,
@@ -1549,7 +1726,7 @@ class DeviceMgrImp {
       RETURN_ERROR_STATUS(Code::UNKNOWN,
                           "Error when reading counter from target");
     }
-    convert_counter_data(counter_data, entry->mutable_data());
+    counter_data_pi_to_proto(counter_data, entry->mutable_data());
     RETURN_OK_STATUS();
   }
 
