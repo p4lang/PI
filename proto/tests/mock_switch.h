@@ -113,11 +113,15 @@ class DummySwitchMock {
                            const pi_meter_spec_t *));
 
   MOCK_METHOD4(counter_read,
-               pi_status_t(pi_p4_id_t, size_t, int,
-                           pi_counter_data_t *counter_data));
+               pi_status_t(pi_p4_id_t, size_t, int, pi_counter_data_t *));
+  MOCK_METHOD3(counter_write,
+               pi_status_t(pi_p4_id_t, size_t, const pi_counter_data_t *));
   MOCK_METHOD4(counter_read_direct,
                pi_status_t(pi_p4_id_t, pi_entry_handle_t, int,
-                           pi_counter_data_t *counter_data));
+                           pi_counter_data_t *));
+  MOCK_METHOD3(counter_write_direct,
+               pi_status_t(pi_p4_id_t, pi_entry_handle_t,
+                           const pi_counter_data_t *));
 
   MOCK_METHOD2(packetout_send, pi_status_t(const char *, size_t));
 

@@ -373,15 +373,32 @@ class DummyMeter {
 
 class DummyCounter {
  public:
-  // TODO(antonin): write API
+  using Counters = std::unordered_map<uint64_t, pi_counter_data_t>;
+  static_assert(sizeof(Counters::key_type) >= sizeof(uint64_t),
+                "Key cannot fit uint64");
+  static_assert(sizeof(Counters::key_type) >= sizeof(pi_entry_handle_t),
+                "Key cannot fit entry handle");
+
   template <typename T>
   pi_status_t read(T index, pi_counter_data_t *counter_data) {
-    (void) index;
-    counter_data->valid = PI_COUNTER_UNIT_PACKETS | PI_COUNTER_UNIT_BYTES;
-    counter_data->bytes = 0;
-    counter_data->packets = 0;
+    auto it = counters.find(static_cast<Counters::key_type>(index));
+    if (it == counters.end()) {
+      counter_data->valid = PI_COUNTER_UNIT_PACKETS | PI_COUNTER_UNIT_BYTES;
+      counter_data->bytes = 0;
+      counter_data->packets = 0;
+    } else {
+      *counter_data = it->second;
+    }
     return PI_STATUS_SUCCESS;
   }
+
+  template <typename T>
+  pi_status_t write(T index, const pi_counter_data_t *counter_data) {
+    counters[static_cast<Counters::key_type>(index)] = *counter_data;
+    return PI_STATUS_SUCCESS;
+  }
+
+  Counters counters{};
 };
 
 }  // namespace
@@ -492,11 +509,22 @@ class DummySwitch {
     return counters[counter_id].read(index, counter_data);
   }
 
+  pi_status_t counter_write(pi_p4_id_t counter_id, size_t index,
+                            const pi_counter_data_t *counter_data) {
+    return counters[counter_id].write(index, counter_data);
+  }
+
   pi_status_t counter_read_direct(pi_p4_id_t counter_id,
                                   pi_entry_handle_t entry_handle, int flags,
                                   pi_counter_data_t *counter_data) {
     (void) flags;
     return counters[counter_id].read(entry_handle, counter_data);
+  }
+
+  pi_status_t counter_write_direct(pi_p4_id_t counter_id,
+                                   pi_entry_handle_t entry_handle,
+                                   const pi_counter_data_t *counter_data) {
+    return counters[counter_id].write(entry_handle, counter_data);
   }
 
   pi_status_t packetout_send(const char *, size_t) {
@@ -584,8 +612,12 @@ DummySwitchMock::DummySwitchMock(device_id_t device_id)
 
   ON_CALL(*this, counter_read(_, _, _, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::counter_read));
+  ON_CALL(*this, counter_write(_, _, _))
+      .WillByDefault(Invoke(sw_, &DummySwitch::counter_write));
   ON_CALL(*this, counter_read_direct(_, _, _, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::counter_read_direct));
+  ON_CALL(*this, counter_write_direct(_, _, _))
+      .WillByDefault(Invoke(sw_, &DummySwitch::counter_write_direct));
 
   ON_CALL(*this, packetout_send(_, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::packetout_send));
@@ -844,12 +876,30 @@ pi_status_t _pi_counter_read(pi_session_handle_t,
       counter_id, index, flags, counter_data);
 }
 
+pi_status_t _pi_counter_write(pi_session_handle_t,
+                              pi_dev_tgt_t dev_tgt, pi_p4_id_t counter_id,
+                              size_t index,
+                              const pi_counter_data_t *counter_data) {
+  return DeviceResolver::get_switch(dev_tgt.dev_id)->counter_write(
+      counter_id, index, counter_data);
+}
+
 pi_status_t _pi_counter_read_direct(pi_session_handle_t,
                                     pi_dev_tgt_t dev_tgt, pi_p4_id_t counter_id,
                                     pi_entry_handle_t entry_handle, int flags,
                                     pi_counter_data_t *counter_data) {
   return DeviceResolver::get_switch(dev_tgt.dev_id)->counter_read_direct(
       counter_id, entry_handle, flags, counter_data);
+}
+
+
+pi_status_t _pi_counter_write_direct(pi_session_handle_t,
+                                     pi_dev_tgt_t dev_tgt,
+                                     pi_p4_id_t counter_id,
+                                     pi_entry_handle_t entry_handle,
+                                     const pi_counter_data_t *counter_data) {
+  return DeviceResolver::get_switch(dev_tgt.dev_id)->counter_write_direct(
+      counter_id, entry_handle, counter_data);
 }
 
 pi_status_t _pi_counter_hw_sync(pi_session_handle_t,

@@ -258,10 +258,21 @@ class ActionEntry {
       return (tag != Tag::NONE);
   }
 
+  // caller still owns config
+  template <typename T>
+  void add_direct_res_config(pi_p4_id_t res_id, T *config) {
+    _configs.push_back({res_id, static_cast<void *>(config)});
+    direct_config.num_configs = _configs.size();
+    direct_config.configs = _configs.data();
+  }
+
  private:
   enum class Tag { NONE, ACTION_DATA, INDIRECT_HANDLE } tag;
 
   Tag type() const { return tag; }
+
+  std::vector<pi_direct_res_config_one_t> _configs;
+  pi_direct_res_config_t direct_config{0u, nullptr};
 
   union {
     ActionData _action_data;

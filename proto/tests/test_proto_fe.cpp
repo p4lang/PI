@@ -1349,15 +1349,23 @@ TEST_F(DirectMeterTest, Write) {
   }
 }
 
-// TODO(antonin)
 TEST_F(DirectMeterTest, WriteInTableEntry) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
   std::string adata(6, '\x00');
   auto entry = make_entry(mf, adata);
-  auto meter_config = entry.mutable_meter_config();
-  (void) meter_config;
+  auto *meter_config = entry.mutable_meter_config();
+  *meter_config = make_meter_config();
+
+  auto mk_matcher = CorrectMatchKey(t_id, mf);
+  auto *entry_matcher_ = new TableEntryMatcher_Direct(a_id, adata);
+  // expected meter spec as per the P4 program
+  entry_matcher_->add_direct_meter(
+      m_id, *meter_config, PI_METER_UNIT_BYTES, PI_METER_TYPE_COLOR_UNAWARE);
+  auto entry_matcher = ::testing::MakeMatcher(entry_matcher_);
+
+  EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
   auto status = add_entry(&entry);
-  EXPECT_EQ(status, OneExpectedError(Code::UNIMPLEMENTED));
+  EXPECT_EQ(status.code(), Code::OK);
 }
 
 TEST_F(DirectMeterTest, InvalidTableEntry) {
@@ -1393,14 +1401,25 @@ class DirectCounterTest : public ExactOneTest {
     c_id = pi_p4info_counter_id_from_name(p4info, "ExactOne_counter");
   }
 
-  // sends a read request for a DirectCounterEntry; returns the RPC status;
-  // ignores the returned counter value(s)
-  DeviceMgr::Status read_counter(p4::DirectCounterEntry *direct_counter_entry) {
+  // sends a read request for a DirectCounterEntry; returns the RPC status
+  DeviceMgr::Status read_counter(p4::DirectCounterEntry *direct_counter_entry,
+                                 p4::ReadResponse *response) {
     p4::ReadRequest request;
-    p4::ReadResponse response;
     auto entity = request.add_entities();
     entity->set_allocated_direct_counter_entry(direct_counter_entry);
-    auto status = mgr.read(request, &response);
+    auto status = mgr.read(request, response);
+    entity->release_direct_counter_entry();
+    return status;
+  }
+
+  DeviceMgr::Status write_counter(
+      p4::DirectCounterEntry *direct_counter_entry) {
+    p4::WriteRequest request;
+    auto update = request.add_updates();
+    update->set_type(p4::Update_Type_MODIFY);
+    auto entity = update->mutable_entity();
+    entity->set_allocated_direct_counter_entry(direct_counter_entry);
+    auto status = mgr.write(request);
     entity->release_direct_counter_entry();
     return status;
   }
@@ -1428,11 +1447,28 @@ TEST_F(DirectCounterTest, WriteAndRead) {
   auto entry_h = mock->get_table_entry_handle();
 
   auto counter_entry = make_counter_entry(&entry);
-  EXPECT_CALL(*mock, counter_read_direct(c_id, entry_h, _, _));
+  auto *counter_data = counter_entry.mutable_data();
+  counter_data->set_packet_count(3);
+  // check packets, but not bytes, as per P4 program (packet-only counter)
+  auto counter_matcher = CorrectCounterData(*counter_data, false, true);
+  EXPECT_CALL(*mock, counter_write_direct(c_id, entry_h, counter_matcher));
   {
-    auto status = read_counter(&counter_entry);
+    auto status = write_counter(&counter_entry);
     ASSERT_EQ(status.code(), Code::OK);
   }
+  EXPECT_CALL(*mock, counter_read_direct(c_id, entry_h, _, _));
+  p4::ReadResponse response;
+  {
+    auto status = read_counter(&counter_entry, &response);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+  const auto &entities = response.entities();
+  ASSERT_EQ(1, entities.size());
+  const auto &read_counter_entry = entities.Get(0).direct_counter_entry();
+  EXPECT_TRUE(MessageDifferencer::Equals(entry,
+                                         read_counter_entry.table_entry()));
+  EXPECT_EQ(read_counter_entry.data().byte_count(), 0);
+  EXPECT_EQ(read_counter_entry.data().packet_count(), 3);
 }
 
 TEST_F(DirectCounterTest, InvalidTableEntry) {
@@ -1451,7 +1487,8 @@ TEST_F(DirectCounterTest, InvalidTableEntry) {
   auto entry_1 = make_entry(mf_1, adata);
   auto counter_entry = make_counter_entry(&entry_1);
   {
-    auto status = read_counter(&counter_entry);
+    p4::ReadResponse response;
+    auto status = read_counter(&counter_entry, &response);
     ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
   }
 }
@@ -1469,35 +1506,45 @@ TEST_F(DirectCounterTest, ReadAllFromTable) {
     ASSERT_EQ(status.code(), Code::OK);
   }
 
+  p4::ReadResponse response;
   p4::DirectCounterEntry counter_entry;
   counter_entry.mutable_table_entry()->set_table_id(entry.table_id());
-  auto status = read_counter(&counter_entry);
+  auto status = read_counter(&counter_entry, &response);
   ASSERT_EQ(status.code(), Code::UNIMPLEMENTED);
 }
 
 TEST_F(DirectCounterTest, MissingTableEntry) {
+  p4::ReadResponse response;
   p4::DirectCounterEntry counter_entry;
-  auto status = read_counter(&counter_entry);
+  auto status = read_counter(&counter_entry, &response);
   EXPECT_EQ(status.code(), Code::INVALID_ARGUMENT);
 }
 
 // TODO(antonin)
 TEST_F(DirectCounterTest, ReadAll) {
+  p4::ReadResponse response;
   p4::DirectCounterEntry counter_entry;
   counter_entry.mutable_table_entry();
-  auto status = read_counter(&counter_entry);
+  auto status = read_counter(&counter_entry, &response);
   ASSERT_EQ(status.code(), Code::UNIMPLEMENTED);
 }
 
-// TODO(antonin)
 TEST_F(DirectCounterTest, WriteInTableEntry) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
   std::string adata(6, '\x00');
   auto entry = make_entry(mf, adata);
   auto counter_data = entry.mutable_counter_data();
-  (void) counter_data;
+  counter_data->set_packet_count(3);
+
+  auto mk_matcher = CorrectMatchKey(t_id, mf);
+  auto *entry_matcher_ = new TableEntryMatcher_Direct(a_id, adata);
+  // check packets, but not bytes, as per P4 program (packet-only counter)
+  entry_matcher_->add_direct_counter(c_id, *counter_data, false, true);
+  auto entry_matcher = ::testing::MakeMatcher(entry_matcher_);
+
+  EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
   auto status = add_entry(&entry);
-  EXPECT_EQ(status, OneExpectedError(Code::UNIMPLEMENTED));
+  EXPECT_EQ(status.code(), Code::OK);
 }
 
 class IndirectCounterTest : public DeviceMgrTest  {
@@ -1507,51 +1554,79 @@ class IndirectCounterTest : public DeviceMgrTest  {
     c_size = pi_p4info_counter_get_size(p4info, c_id);
   }
 
+  // sends a read request for a CounterEntry; returns the RPC status
+  DeviceMgr::Status read_counter(p4::CounterEntry *counter_entry,
+                                 p4::ReadResponse *response) {
+    p4::ReadRequest request;
+    auto entity = request.add_entities();
+    entity->set_allocated_counter_entry(counter_entry);
+    auto status = mgr.read(request, response);
+    entity->release_counter_entry();
+    return status;
+  }
+
+  DeviceMgr::Status write_counter(p4::CounterEntry *counter_entry) {
+    p4::WriteRequest request;
+    auto update = request.add_updates();
+    update->set_type(p4::Update_Type_MODIFY);
+    auto entity = update->mutable_entity();
+    entity->set_allocated_counter_entry(counter_entry);
+    auto status = mgr.write(request);
+    entity->release_counter_entry();
+    return status;
+  }
+
   pi_p4_id_t c_id{0};
   size_t c_size{0};
 };
 
-TEST_F(IndirectCounterTest, Read) {
+TEST_F(IndirectCounterTest, WriteAndRead) {
   int index = 66;
-  p4::ReadRequest request;
   p4::ReadResponse response;
-  auto entity = request.add_entities();
-  auto counter_entry = entity->mutable_counter_entry();
-  counter_entry->set_counter_id(c_id);
-  counter_entry->set_index(index);
+  p4::CounterEntry counter_entry;
+  counter_entry.set_counter_id(c_id);
+  counter_entry.set_index(index);
+  auto *counter_data = counter_entry.mutable_data();
+  counter_data->set_packet_count(3);
+  // check packets, but not bytes, as per P4 program (packet-only counter)
+  auto counter_matcher = CorrectCounterData(*counter_data, false, true);
+  EXPECT_CALL(*mock, counter_write(c_id, index, counter_matcher));
+  {
+    auto status = write_counter(&counter_entry);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
 
   EXPECT_CALL(*mock, counter_read(c_id, index, _, _));
-  auto status = mgr.read(request, &response);
-  ASSERT_EQ(status.code(), Code::OK);
+  {
+    auto status = read_counter(&counter_entry, &response);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
   const auto &entities = response.entities();
   ASSERT_EQ(1, entities.size());
-  auto counter_data = counter_entry->mutable_data();
-  counter_data->set_byte_count(0);
-  counter_data->set_packet_count(0);
-  ASSERT_TRUE(MessageDifferencer::Equals(*counter_entry,
-                                         entities.Get(0).counter_entry()));
+  const auto &read_counter_entry = entities.Get(0).counter_entry();
+  EXPECT_EQ(read_counter_entry.counter_id(), c_id);
+  EXPECT_EQ(read_counter_entry.data().byte_count(), 0);
+  EXPECT_EQ(read_counter_entry.data().packet_count(), 3);
 }
 
 TEST_F(IndirectCounterTest, ReadAll) {
-  p4::ReadRequest request;
   p4::ReadResponse response;
-  auto entity = request.add_entities();
-  auto counter_entry = entity->mutable_counter_entry();
-  counter_entry->set_counter_id(c_id);
+  p4::CounterEntry counter_entry;
+  counter_entry.set_counter_id(c_id);
 
   // TODO(antonin): match index?
   EXPECT_CALL(*mock, counter_read(c_id, _, _, _)).Times(c_size);
-  auto status = mgr.read(request, &response);
+  auto status = read_counter(&counter_entry, &response);
   ASSERT_EQ(status.code(), Code::OK);
   const auto &entities = response.entities();
   ASSERT_EQ(c_size, static_cast<size_t>(entities.size()));
-  auto counter_data = counter_entry->mutable_data();
+  auto counter_data = counter_entry.mutable_data();
   counter_data->set_byte_count(0);
   counter_data->set_packet_count(0);
   for (size_t i = 0; i < c_size; i++) {
     const auto &entry = entities.Get(i).counter_entry();
-    counter_entry->set_index(i);
-    ASSERT_TRUE(MessageDifferencer::Equals(*counter_entry, entry));
+    counter_entry.set_index(i);
+    ASSERT_TRUE(MessageDifferencer::Equals(counter_entry, entry));
   }
 }
 
