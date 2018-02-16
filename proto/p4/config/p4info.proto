@@ -30,6 +30,7 @@ message P4Info {
   repeated Meter meters = 7;
   repeated DirectMeter direct_meters = 8;
   repeated ControllerPacketMetadata controller_packet_metadata = 9;
+  repeated ValueSet value_sets = 10;
 }
 
 message Preamble {
@@ -222,4 +223,12 @@ message ControllerPacketMetadata {
   // Ordered based on header layout.
   // This is a constraint on the generator of this P4Info.
   repeated Metadata metadata = 2;
+}
+
+message ValueSet {
+  Preamble preamble = 1;
+  int32 bitwidth = 2;
+  // The value set size should be extracted from the @size annotation into the
+  // field below. The @size annotation will also appear in the preamble.
+  int32 size = 3;
 }
