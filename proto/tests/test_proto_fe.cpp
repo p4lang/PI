@@ -46,6 +46,7 @@
 
 #include "google/rpc/code.pb.h"
 
+#include "matchers.h"
 #include "mock_switch.h"
 
 // Needs to be in same namespace as google::rpc::Status for ADL
@@ -80,8 +81,6 @@ using Code = ::google::rpc::Code;
 using google::protobuf::util::MessageDifferencer;
 
 using ::testing::_;
-using ::testing::Truly;
-using ::testing::Pointee;
 using ::testing::AnyNumber;
 using ::testing::AtLeast;
 
@@ -467,76 +466,11 @@ MatchTableTest::default_mf() const {
   return boost::none;  // unreachable
 }
 
-// started out using a lambda in the test cases, but it was too much duplicated
-// code
-// TODO(antonin): build a matcher using googlemock base matchers (e.g. Field...)
-// instead?
-struct MatchKeyMatcher {
- public:
-  MatchKeyMatcher(pi_p4_id_t t_id, const std::string &v)
-      : t_id(t_id), v(v) { }
-
-  bool operator()(const pi_match_key_t *mk) const {
-    return (mk->table_id == t_id
-            && mk->data_size == v.size()
-            && !std::memcmp(mk->data, v.data(), v.size()));
-  }
-
- private:
-  pi_p4_id_t t_id;
-  std::string v;
-};
-
-struct ActionDataMatcher {
- public:
-  ActionDataMatcher(pi_p4_id_t a_id, const std::string &v)
-      : a_id(a_id), v(v) { }
-
-  bool operator()(const pi_action_data_t *action_data) const {
-    return (action_data->action_id == a_id
-            && action_data->data_size == v.size()
-            && !std::memcmp(action_data->data, v.data(), v.size()));
-  }
-
- private:
-  pi_p4_id_t a_id;
-  std::string v;
-};
-
-struct TableEntryMatcher_Direct {
- public:
-  TableEntryMatcher_Direct(pi_p4_id_t a_id, const std::string &v)
-      : action_data_matcher(a_id, v) { }
-
-  bool operator()(const pi_table_entry_t *t_entry) const {
-    if (t_entry->entry_type != PI_ACTION_ENTRY_TYPE_DATA) return false;
-    const auto action_data = t_entry->entry.action_data;
-    return action_data_matcher(action_data);
-  }
-
- private:
-  ActionDataMatcher action_data_matcher;
-};
-
-struct TableEntryMatcher_Indirect {
- public:
-  explicit TableEntryMatcher_Indirect(pi_indirect_handle_t h)
-      : h(h) { }
-
-  bool operator()(const pi_table_entry_t *t_entry) const {
-    if (t_entry->entry_type != PI_ACTION_ENTRY_TYPE_INDIRECT) return false;
-    return (t_entry->entry.indirect_handle == h);
-  }
-
- private:
-  pi_indirect_handle_t h;
-};
-
 TEST_P(MatchTableTest, AddAndRead) {
   std::string adata(6, '\x00');
   auto mk_input = std::get<1>(GetParam());
-  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mk_input.get_match_key()));
-  auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
+  auto mk_matcher = CorrectMatchKey(t_id, mk_input.get_match_key());
+  auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _))
       .Times(AtLeast(1));
   DeviceMgr::Status status;
@@ -564,8 +498,8 @@ TEST_P(MatchTableTest, AddAndRead) {
 TEST_P(MatchTableTest, AddAndDelete) {
   std::string adata(6, '\x00');
   auto mk_input = std::get<1>(GetParam());
-  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mk_input.get_match_key()));
-  auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
+  auto mk_matcher = CorrectMatchKey(t_id, mk_input.get_match_key());
+  auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
   DeviceMgr::Status status;
   auto entry = generic_make(
@@ -585,8 +519,8 @@ TEST_P(MatchTableTest, AddAndDelete) {
 TEST_P(MatchTableTest, AddAndModify) {
   std::string adata(6, '\x00');
   auto mk_input = std::get<1>(GetParam());
-  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mk_input.get_match_key()));
-  auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
+  auto mk_matcher = CorrectMatchKey(t_id, mk_input.get_match_key());
+  auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
   DeviceMgr::Status status;
   auto entry = generic_make(
@@ -595,7 +529,7 @@ TEST_P(MatchTableTest, AddAndModify) {
   ASSERT_EQ(status.code(), Code::OK);
 
   std::string new_adata(6, '\xaa');
-  auto new_entry_matcher = Truly(TableEntryMatcher_Direct(a_id, new_adata));
+  auto new_entry_matcher = CorrectTableEntryDirect(a_id, new_adata);
   auto new_entry = generic_make(
       t_id, mk_input.get_proto(mf_id), adata, mk_input.get_priority());
   EXPECT_CALL(*mock, table_entry_modify_wkey(t_id, mk_matcher, entry_matcher));
@@ -605,7 +539,7 @@ TEST_P(MatchTableTest, AddAndModify) {
 
 TEST_P(MatchTableTest, SetDefault) {
   std::string adata(6, '\x00');
-  auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
+  auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
   EXPECT_CALL(*mock, table_default_action_set(t_id, entry_matcher))
       .Times(AtLeast(1));
   auto entry = generic_make(t_id, boost::none, adata);
@@ -716,9 +650,8 @@ TEST_P(MatchTableTest, MissingMatchField) {
   std::string adata(6, '\x00');
   auto mk_input = default_mf();
   if (mk_input.is_initialized()) {  // omitting field supported for match type
-    auto mk_matcher = Truly(MatchKeyMatcher(
-        t_id, mk_input.get().get_match_key()));
-    auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
+    auto mk_matcher = CorrectMatchKey(t_id, mk_input.get().get_match_key());
+    auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
     EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
     auto entry = generic_make(t_id, boost::none, adata);
     auto status = add_one(&entry);
@@ -733,8 +666,8 @@ TEST_P(MatchTableTest, MissingMatchField) {
 TEST_P(MatchTableTest, WriteBatchWithError) {
   std::string adata(6, '\x00');
   auto mk_input = std::get<1>(GetParam());
-  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mk_input.get_match_key()));
-  auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
+  auto mk_matcher = CorrectMatchKey(t_id, mk_input.get_match_key());
+  auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
   EXPECT_CALL(*mock, table_entry_delete_wkey(t_id, mk_matcher))
       .Times(AnyNumber());
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _))
@@ -893,8 +826,8 @@ TEST_F(ActionProfTest, Member) {
   uint32_t member_id_1 = 123, member_id_2 = 234;  // can be arbitrary
   std::string adata_1(6, '\x00');
   std::string adata_2(6, '\x11');
-  auto ad_matcher_1 = Truly(ActionDataMatcher(a_id, adata_1));
-  auto ad_matcher_2 = Truly(ActionDataMatcher(a_id, adata_2));
+  auto ad_matcher_1 = CorrectActionData(a_id, adata_1);
+  auto ad_matcher_2 = CorrectActionData(a_id, adata_2);
 
   // add one member
   auto member_1 = make_member(member_id_1, adata_1);
@@ -1258,8 +1191,8 @@ TEST_F(MatchTableIndirectTest, Member) {
   std::string adata(6, '\x00');
   create_member(member_id, adata);
   auto mbr_h = mock->get_action_prof_handle();
-  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mf));
-  auto entry_matcher = Truly(TableEntryMatcher_Indirect(mbr_h));
+  auto mk_matcher = CorrectMatchKey(t_id, mf);
+  auto entry_matcher = CorrectTableEntryIndirect(mbr_h);
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
   auto entry = make_indirect_entry_to_member(mf, member_id);
   auto status = add_indirect_entry(&entry);
@@ -1286,8 +1219,8 @@ TEST_F(MatchTableIndirectTest, Group) {
   create_member(member_id, adata);
   create_group(group_id, member_id);
   auto grp_h = mock->get_action_prof_handle();
-  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mf));
-  auto entry_matcher = Truly(TableEntryMatcher_Indirect(grp_h));
+  auto mk_matcher = CorrectMatchKey(t_id, mf);
+  auto entry_matcher = CorrectTableEntryIndirect(grp_h);
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
   auto entry = make_indirect_entry_to_group(mf, group_id);
   auto status = add_indirect_entry(&entry);
@@ -1391,33 +1324,12 @@ class DirectMeterTest : public ExactOneTest {
   pi_p4_id_t m_id;
 };
 
-struct MeterSpecMatcher {
- public:
-  MeterSpecMatcher(const p4::MeterConfig &config,
-                   pi_meter_unit_t meter_unit, pi_meter_type_t meter_type)
-      : config(config), meter_unit(meter_unit), meter_type(meter_type) { }
-
-  bool operator()(const pi_meter_spec_t *spec) const {
-    return (spec->cir == static_cast<uint64_t>(config.cir()))
-        && (spec->cburst == static_cast<uint32_t>(config.cburst()))
-        && (spec->pir == static_cast<uint64_t>(config.pir()))
-        && (spec->pburst == static_cast<uint32_t>(config.pburst()))
-        && (spec->meter_unit == meter_unit)
-        && (spec->meter_type == meter_type);
-  }
-
- private:
-  p4::MeterConfig config;
-  pi_meter_unit_t meter_unit;
-  pi_meter_type_t meter_type;
-};
-
 TEST_F(DirectMeterTest, Write) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
   std::string adata(6, '\x00');
   auto entry = make_entry(mf, adata);
-  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mf));
-  auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
+  auto mk_matcher = CorrectMatchKey(t_id, mf);
+  auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
   {
     auto status = add_entry(&entry);
@@ -1428,8 +1340,8 @@ TEST_F(DirectMeterTest, Write) {
   auto config = make_meter_config();
   auto meter_entry = make_meter_entry(entry, config);
   // as per the P4 program
-  auto meter_spec_matcher = Truly(MeterSpecMatcher(
-      config, PI_METER_UNIT_BYTES, PI_METER_TYPE_COLOR_UNAWARE));
+  auto meter_spec_matcher = CorrectMeterSpec(
+      config, PI_METER_UNIT_BYTES, PI_METER_TYPE_COLOR_UNAWARE);
   EXPECT_CALL(*mock, meter_set_direct(m_id, entry_h, meter_spec_matcher));
   {
     auto status = set_meter(&meter_entry);
@@ -1502,12 +1414,12 @@ class DirectCounterTest : public ExactOneTest {
   pi_p4_id_t c_id;
 };
 
-TEST_F(DirectCounterTest, Read) {
+TEST_F(DirectCounterTest, WriteAndRead) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
   std::string adata(6, '\x00');
   auto entry = make_entry(mf, adata);
-  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mf));
-  auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
+  auto mk_matcher = CorrectMatchKey(t_id, mf);
+  auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
   {
     auto status = add_entry(&entry);
@@ -1527,8 +1439,8 @@ TEST_F(DirectCounterTest, InvalidTableEntry) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
   std::string adata(6, '\x00');
   auto entry = make_entry(mf, adata);
-  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mf));
-  auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
+  auto mk_matcher = CorrectMatchKey(t_id, mf);
+  auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
   {
     auto status = add_entry(&entry);
@@ -1549,8 +1461,8 @@ TEST_F(DirectCounterTest, ReadAllFromTable) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
   std::string adata(6, '\x00');
   auto entry = make_entry(mf, adata);
-  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mf));
-  auto entry_matcher = Truly(TableEntryMatcher_Direct(a_id, adata));
+  auto mk_matcher = CorrectMatchKey(t_id, mf);
+  auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
   {
     auto status = add_entry(&entry);
@@ -2096,7 +2008,7 @@ TEST_F(TernaryTwoTest, MissingMatchField) {
   auto entry = make_entry(mf1_v, mask1_v, mf2_v, mask2_v, param_v);
   const std::string zeros(4, '\x00');
   auto mk = make_match_key(zeros, zeros, mf2_v, mask2_v);
-  auto mk_matcher = Truly(MatchKeyMatcher(t_id, mk));
+  auto mk_matcher = CorrectMatchKey(t_id, mk);
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, _, _));
   auto status = add_entry(&entry);
   ASSERT_EQ(status.code(), Code::OK);
