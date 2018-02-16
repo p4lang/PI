@@ -2212,6 +2212,33 @@ TEST_F(ReadConstTableTest, OutOfBandEntries) {
   EXPECT_EQ(status.code(), Code::OK);
 }
 
+
+// Placeholder for PVS (Parser Value Set) tests: for now there is no support in
+// DeviceMgr
+class PVSTest : public DeviceMgrTest { };
+
+TEST_F(PVSTest, Write) {
+  p4::WriteRequest request;
+  auto *update = request.add_updates();
+  update->set_type(p4::Update_Type_MODIFY);
+  auto *entity = update->mutable_entity();
+  auto *pvs_entry = entity->mutable_value_set_entry();
+  (void) pvs_entry;
+  auto status = mgr.write(request);
+  EXPECT_EQ(status, OneExpectedError(Code::UNIMPLEMENTED));
+}
+
+TEST_F(PVSTest, Read) {
+  p4::ReadRequest request;
+  p4::ReadResponse response;
+  auto *entity = request.add_entities();
+  // set oneof to PVS
+  auto *pvs_entry = entity->mutable_value_set_entry();
+  (void) pvs_entry;
+  auto status = mgr.read(request, &response);
+  EXPECT_EQ(status.code(), Code::UNIMPLEMENTED);
+}
+
 }  // namespace
 }  // namespace testing
 }  // namespace proto
