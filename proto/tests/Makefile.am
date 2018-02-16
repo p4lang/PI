@@ -41,7 +41,11 @@ $(top_builddir)/../src/libpip4info.la \
 $(common_libs) \
 $(PROTOBUF_LIBS)
 
-proto_fe_common_source = $(common_source) mock_switch.h mock_switch.cpp
+proto_fe_common_source = $(common_source) \
+mock_switch.h \
+mock_switch.cpp \
+matchers.h \
+matchers.cpp
 
 test_proto_fe_SOURCES = $(proto_fe_common_source) test_proto_fe.cpp
 test_proto_fe_packet_io_SOURCES = $(proto_fe_common_source) \
