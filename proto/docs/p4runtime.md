@@ -607,8 +607,8 @@ key as shown in the example below:
 ```
 table t {
   key = {
-    istd.ingress\_port: exact @p4runtime_translation("port");
-    istd.class\_of\_service: ternary @p4runtime_translation("cos");
+    istd.ingress_port: exact @p4runtime_translation("port");
+    istd.class_of_service: ternary @p4runtime_translation("cos");
   }
   actions = {
     drop;
@@ -634,10 +634,10 @@ or don't care (0 mask for ternary and 0 prefix length for lpm).
 Port and class of service type parameters can be part of a P4 action definition
 as shown in the example below:
 ```
-action a(@p4runtime_translation("port") PortId\_t p,
-	 @p4runtime_translation("cos") ClassOfService\_t c) {
-  istd.egress\_port = p;
-  istd.class\_of\_service = c;
+action a(@p4runtime_translation("port") PortId_t p,
+	 @p4runtime_translation("cos") ClassOfService_t c) {
+  istd.egress_port = p;
+  istd.class_of_service = c;
 }
 table t {
   key = {
@@ -665,7 +665,7 @@ port returns to being up, the P4Runtime service can re-enable the member in the
 group. The watch field is of type `uint32`.
 ```
 @p4runtime_translation("port")
-action\_selector(HashAlgorithm.crc32, 32w1024, 32w32) as;
+action_selector(HashAlgorithm.crc32, 32w1024, 32w32) as;
 ```
 An action profile group write request to action selector `as` (above) will
 define `uint32` watch port values for each member. These values must refer to
