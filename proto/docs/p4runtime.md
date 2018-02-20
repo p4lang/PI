@@ -602,5 +602,77 @@ to replace these values with equivalent controller-defined numbers from the
 target config.
 
 ### Translation of Match Fields
+Port and class of service type match fields can be part of a P4 table's match
+key as shown in the example below:
+```
+table t {
+  key = {
+    istd.ingress\_port: exact @p4runtime_translation("port");
+    istd.class\_of\_service: ternary @p4runtime_translation("cos");
+  }
+  actions = {
+    drop;
+  }
+}
+```
+Table `t` has an `exact` match on ingress port and `ternary` match on class of
+service metadata. A P4Runtime write request from the controller will have
+the values of the match fields set to controller-specific values. The
+`@p4runtime_translation` annotation on the match fields is a signal to the
+P4Runtime service to intercept these write requests and use the configuration
+data to translate the values to respective device-specific values. Similarly,
+the P4Runtime service should translate the device-specific values to
+controller-specific values when returning the read response for table `t`.
+
+Note that it may be infeasible to translate the value-mask pair for `ternary`
+matches and the value-prefix-length pair for `lpm` matches. Therefore, the
+P4Runtime service may require that the match be effectively either exact (all-1
+mask for ternary and prefix-length of the field's controller-bitwidth for lpm)
+or don't care (0 mask for ternary and 0 prefix length for lpm).
+
 ### Translation of Action Parameters
-### Translation of Action Selector Watch Field
+Port and class of service type parameters can be part of a P4 action definition
+as shown in the example below:
+```
+action a(@p4runtime_translation("port") PortId\_t p,
+	 @p4runtime_translation("cos") ClassOfService\_t c) {
+  istd.egress\_port = p;
+  istd.class\_of\_service = c;
+}
+table t {
+  key = {
+    hdr.h.f: exact;
+  }
+  actions = {
+    a;
+  }
+}
+```
+The controller may write entries in table `t` with action `a` to set the egress
+port and the class of service as shown in the P4 code above. The action
+parameter values will require translation by the P4Runtime service as indicated
+by the `@p4runtime_translation` annotations on the parameters. Similar to the
+entries for tables with annotated match fields, the P4Runtime service will use
+the switch configuration to translate action parameter values between the
+controller and the target device.
+
+### Action Selector Watch Field
+The P4Runtime API for action profile groups provides a `watch` field per member
+in the group. This field is used to implement fast-failover in the target,
+where if a port is down, the P4Runtime service can effectively prune the member
+from the group without intervention from the controller. Conversely, if the
+port returns to being up, the P4Runtime service can re-enable the member in the
+group. The watch field is of type `uint32`.
+```
+@p4runtime_translation("port")
+action\_selector(HashAlgorithm.crc32, 32w1024, 32w32) as;
+```
+An action profile group write request to action selector `as` (above) will
+define `uint32` watch port values for each member. These values must refer to
+the controller-defined port values as indicated by the `@p4runtime_translation`
+annotation on the action selector instance. If the annotation is not present,
+the watch field values are interpreted as specific to the target device by the
+P4Runtime service.
+
+*TODO: Consider making the watch field more generic.*
+
