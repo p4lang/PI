@@ -241,6 +241,17 @@ message ActionProfileGroup {
   int32 max_size = 4;  // cannot be modified after a group has been created
 }
 
+// An index as a protobuf message. In proto3, fields cannot be optional and
+// there is no difference between an unset integer field and an integer field
+// set to 0. This is inconvenient for reading from P4 array-like structures,
+// such as indirect counters and meters. We need a way to do a wildcard read on
+// these but we cannot use a default zero index value to do so, as zero is a
+// valid index (first entry in the array). We therefore wrap the index in a
+// message.
+message Index {
+  int64 index = 1;
+}
+
 //------------------------------------------------------------------------------
 // For WriteRequest, Update.Type must be MODIFY.
 // For ReadRequest, the scope is defined as follows:
@@ -248,7 +259,7 @@ message ActionProfileGroup {
 // - All meter cells for given meter_id if index = 0 (default).
 message MeterEntry {
   uint32 meter_id = 1;
-  int64 index = 2;
+  Index index = 2;
   MeterConfig config = 3;
 }
 
@@ -293,7 +304,7 @@ message MeterConfig {
 // - All counter cells for given counter_id if index = 0 (default).
 message CounterEntry {
   uint32 counter_id = 1;
-  int64 index = 2;
+  Index index = 2;
   CounterData data = 3;
 }
 

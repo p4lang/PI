@@ -653,7 +653,8 @@ SimpleRouterMgr::query_counter_(const std::string &counter_name, size_t index,
   auto entity = request.add_entities();
   auto counter_entry = entity->mutable_counter_entry();
   counter_entry->set_counter_id(counter_id);
-  counter_entry->set_index(index);
+  auto index_msg = counter_entry->mutable_index();
+  index_msg->set_index(index);
 
   p4::ReadResponse rep;
   ClientContext context;
@@ -662,7 +663,7 @@ SimpleRouterMgr::query_counter_(const std::string &counter_name, size_t index,
     for (const auto &entity : rep.entities()) {
       const auto &rep_entry = entity.counter_entry();
       if (rep_entry.counter_id() == counter_id &&
-          static_cast<size_t>(rep_entry.index()) == index) {
+          static_cast<size_t>(rep_entry.index().index()) == index) {
         counter_data->CopyFrom(rep_entry.data());
         return 0;
       }

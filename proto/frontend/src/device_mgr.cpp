@@ -427,6 +427,16 @@ class DeviceMgrImp {
                      const SessionTemp &session) {
     if (!check_p4_id(meter_entry.meter_id(), P4ResourceType::METER))
       return make_invalid_p4_id_status();
+    if (!meter_entry.has_index()) {
+      RETURN_ERROR_STATUS(
+          Code::UNIMPLEMENTED,
+          "Wildcard write is not supported for indirect meters yet");
+    }
+    if (meter_entry.index().index() < 0) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "A negative number is not a valid index value");
+    }
+    auto index = static_cast<size_t>(meter_entry.index().index());
     switch (update) {
       case p4::Update_Type_UNSPECIFIED:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
@@ -439,7 +449,7 @@ class DeviceMgrImp {
               meter_entry.config(), meter_entry.meter_id());
           auto pi_status = pi_meter_set(session.get(), device_tgt,
                                         meter_entry.meter_id(),
-                                        meter_entry.index(),
+                                        index,
                                         &pi_meter_spec);
           if (pi_status != PI_STATUS_SUCCESS)
             RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when writing meter spec");
@@ -451,7 +461,7 @@ class DeviceMgrImp {
               {0, 0, 0, 0, PI_METER_UNIT_DEFAULT, PI_METER_TYPE_DEFAULT};
           auto pi_status = pi_meter_set(session.get(), device_tgt,
                                         meter_entry.meter_id(),
-                                        meter_entry.index(),
+                                        index,
                                         &pi_meter_spec);
           if (pi_status != PI_STATUS_SUCCESS)
             RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when writing meter spec");
@@ -550,19 +560,22 @@ class DeviceMgrImp {
                         p4::ReadResponse *response) const {
     assert(pi_p4info_meter_get_direct(p4info.get(), meter_id) ==
            PI_INVALID_ID);
-    if (meter_entry.index() != 0) {
+    if (meter_entry.has_index()) {
+      if (meter_entry.index().index() < 0) {
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                            "A negative number is not a valid index value");
+      }
       auto entry = response->add_entities()->mutable_meter_entry();
       entry->CopyFrom(meter_entry);
       return meter_read_one_index(session, meter_id, entry);
     }
     // default index, read all
-    // TODO(antonin): change this code when we introduce Index wrapper message
-    // (see issue #309)
     auto meter_size = pi_p4info_meter_get_size(p4info.get(), meter_id);
     for (size_t index = 0; index < meter_size; index++) {
       auto entry = response->add_entities()->mutable_meter_entry();
       entry->set_meter_id(meter_id);
-      entry->set_index(index);
+      auto index_msg = entry->mutable_index();
+      index_msg->set_index(index);
       auto status = meter_read_one_index(session, meter_id, entry);
       if (IS_ERROR(status)) return status;
     }
@@ -1049,6 +1062,16 @@ class DeviceMgrImp {
                        const SessionTemp &session) {
     if (!check_p4_id(counter_entry.counter_id(), P4ResourceType::COUNTER))
       return make_invalid_p4_id_status();
+    if (!counter_entry.has_index()) {
+      RETURN_ERROR_STATUS(
+          Code::UNIMPLEMENTED,
+          "Wildcard write is not supported for indirect counters yet");
+    }
+    if (counter_entry.index().index() < 0) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "A negative number is not a valid index value");
+    }
+    auto index = static_cast<size_t>(counter_entry.index().index());
     switch (update) {
       case p4::Update_Type_UNSPECIFIED:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
@@ -1061,7 +1084,7 @@ class DeviceMgrImp {
               counter_entry.data(), counter_entry.counter_id());
           auto pi_status = pi_counter_write(session.get(), device_tgt,
                                             counter_entry.counter_id(),
-                                            counter_entry.index(),
+                                            index,
                                             &pi_counter_data);
           if (pi_status != PI_STATUS_SUCCESS)
             RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when writing to counter");
@@ -1073,7 +1096,7 @@ class DeviceMgrImp {
               {PI_COUNTER_UNIT_PACKETS | PI_COUNTER_UNIT_BYTES, 0u, 0u};
           auto pi_status = pi_counter_write(session.get(), device_tgt,
                                             counter_entry.counter_id(),
-                                            counter_entry.index(),
+                                            index,
                                             &pi_counter_data);
           if (pi_status != PI_STATUS_SUCCESS)
             RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when writing to counter");
@@ -1155,14 +1178,16 @@ class DeviceMgrImp {
                           p4::ReadResponse *response) const {
     assert(pi_p4info_counter_get_direct(p4info.get(), counter_id) ==
            PI_INVALID_ID);
-    if (counter_entry.index() != 0) {
+    if (counter_entry.has_index()) {
+      if (counter_entry.index().index() < 0) {
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                            "A negative number is not a valid index value");
+      }
       auto entry = response->add_entities()->mutable_counter_entry();
       entry->CopyFrom(counter_entry);
       return counter_read_one_index(session, counter_id, entry, true);
     }
     // default index, read all
-    // TODO(antonin): change this code when we introduce Index wrapper message
-    // (see issue #309)
     auto counter_size = pi_p4info_counter_get_size(p4info.get(), counter_id);
     {  // sync the entire counter array with HW
       auto pi_status = pi_counter_hw_sync(
@@ -1173,7 +1198,8 @@ class DeviceMgrImp {
     for (size_t index = 0; index < counter_size; index++) {
       auto entry = response->add_entities()->mutable_counter_entry();
       entry->set_counter_id(counter_id);
-      entry->set_index(index);
+      auto index_msg = entry->mutable_index();
+      index_msg->set_index(index);
       auto status = counter_read_one_index(session, counter_id, entry);
       if (IS_ERROR(status)) return status;
     }
@@ -1837,7 +1863,9 @@ class DeviceMgrImp {
   Status counter_read_one_index(const SessionTemp &session, uint32_t counter_id,
                                 p4::CounterEntry *entry,
                                 bool hw_sync = false) const {
-    auto index = entry->index();
+    // checked by caller
+    assert(entry->has_index() && entry->index().index() >= 0);
+    auto index = static_cast<size_t>(entry->index().index());
     int flags = hw_sync ? PI_COUNTER_FLAGS_HW_SYNC : PI_COUNTER_FLAGS_NONE;
     pi_counter_data_t counter_data;
     pi_status_t pi_status = pi_counter_read(session.get(), device_tgt,
@@ -1853,7 +1881,9 @@ class DeviceMgrImp {
 
   Status meter_read_one_index(const SessionTemp &session, uint32_t meter_id,
                               p4::MeterEntry *entry) const {
-    auto index = entry->index();
+    // checked by caller
+    assert(entry->has_index() && entry->index().index() >= 0);
+    auto index = static_cast<size_t>(entry->index().index());
     pi_meter_spec_t meter_spec;
     pi_status_t pi_status = pi_meter_read(session.get(), device_tgt,
                                           meter_id, index, &meter_spec);
