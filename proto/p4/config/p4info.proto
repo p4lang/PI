@@ -21,7 +21,7 @@ import "google/protobuf/any.proto";
 package p4.config;
 
 message P4Info {
-  repeated Extern externs = 1;
+  PkgInfo pkg_info = 1;
   repeated Table tables = 2;
   repeated Action actions = 3;
   repeated ActionProfile action_profiles = 4;
@@ -31,6 +31,35 @@ message P4Info {
   repeated DirectMeter direct_meters = 8;
   repeated ControllerPacketMetadata controller_packet_metadata = 9;
   repeated ValueSet value_sets = 10;
+  repeated Extern externs = 100;
+}
+
+message Documentation {
+  // A brief description of something, e.g. one sentence
+  string brief = 1;
+  // A more verbose description of something. Multiline is accepted. Markup format (if any) is TBD.
+  string description = 2;
+}
+
+// Top-level package documentation describing the forwarding pipeline config
+// Can be used to manage multiple P4 packages.
+message PkgInfo {
+    // a definitive name for this configuration, e.g. switch.p4_v1.0
+    string name = 1;
+    // configuration version, free-format string
+    string version = 2;
+    // brief and detailed descriptions
+    Documentation doc = 3;
+    // Miscellaneous metadata, free-form; a way to extend PkgInfo
+    repeated string annotations = 4;
+    // the target architecture, e.g. "psa"
+    string arch = 5;
+    // organization which produced the configuration, e.g. "p4.org"
+    string organization = 6;
+    // contact info for support,e.g. "tech-support@acme.org"
+    string contact = 7;
+    // url for more information, e.g. "http://support.p4.org/ref/p4/switch.p4_v1.0"
+    string url = 8;
 }
 
 message Preamble {
@@ -55,6 +84,8 @@ message Preamble {
   // application should be able to indiscriminately use the name or the alias.
   string alias = 3;
   repeated string annotations = 4;
+  // Documentation of the entity
+  Documentation doc = 5;
 }
 
 // used to group all extern instances of the same type in one message
@@ -89,6 +120,8 @@ message MatchField {
     RANGE = 5;
   }
   MatchType match_type = 5;
+  // Documentation of the match field
+  Documentation doc = 6;
 }
 
 message Table {
@@ -134,6 +167,8 @@ message Action {
     string name = 2;
     repeated string annotations = 3;
     int32 bitwidth = 4;
+    // Documentation of the Param
+    Documentation doc = 5;
   }
   repeated Param params = 2;
 }
