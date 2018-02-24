@@ -371,12 +371,11 @@ class DeviceMgrImp {
             entity.action_profile_group(), session, response);
         break;
       case p4::Entity::kMeterEntry:
-        status = ERROR_STATUS(Code::UNIMPLEMENTED,
-                              "Reading meter spec is not supported yet");
+        status = meter_read(entity.meter_entry(), session, response);
         break;
       case p4::Entity::kDirectMeterEntry:
-        status = ERROR_STATUS(Code::UNIMPLEMENTED,
-                              "Reading direct meter spec is not supported yet");
+        status = direct_meter_read(
+            entity.direct_meter_entry(), session, response);
         break;
       case p4::Entity::kCounterEntry:
         status = counter_read(entity.counter_entry(), session, response);
@@ -543,6 +542,110 @@ class DeviceMgrImp {
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
     }
     RETURN_OK_STATUS();
+  }
+
+  Status meter_read_one(p4_id_t meter_id,
+                        const p4::MeterEntry &meter_entry,
+                        const SessionTemp &session,
+                        p4::ReadResponse *response) const {
+    assert(pi_p4info_meter_get_direct(p4info.get(), meter_id) ==
+           PI_INVALID_ID);
+    if (meter_entry.index() != 0) {
+      auto entry = response->add_entities()->mutable_meter_entry();
+      entry->CopyFrom(meter_entry);
+      return meter_read_one_index(session, meter_id, entry);
+    }
+    // default index, read all
+    // TODO(antonin): change this code when we introduce Index wrapper message
+    // (see issue #309)
+    auto meter_size = pi_p4info_meter_get_size(p4info.get(), meter_id);
+    for (size_t index = 0; index < meter_size; index++) {
+      auto entry = response->add_entities()->mutable_meter_entry();
+      entry->set_meter_id(meter_id);
+      entry->set_index(index);
+      auto status = meter_read_one_index(session, meter_id, entry);
+      if (IS_ERROR(status)) return status;
+    }
+    RETURN_OK_STATUS();
+  }
+
+  Status meter_read(const p4::MeterEntry &meter_entry,
+                    const SessionTemp &session,
+                    p4::ReadResponse *response) const {
+    auto meter_id = meter_entry.meter_id();
+    if (meter_id == 0) {  // read all entries for all meters
+      for (auto m_id = pi_p4info_meter_begin(p4info.get());
+           m_id != pi_p4info_meter_end(p4info.get());
+           m_id = pi_p4info_meter_next(p4info.get(), m_id)) {
+        if (pi_p4info_meter_get_direct(p4info.get(), m_id) != PI_INVALID_ID)
+          continue;
+        auto status = meter_read_one(m_id, meter_entry, session, response);
+        if (IS_ERROR(status)) return status;
+      }
+    } else {  // read for a single meter
+      if (!check_p4_id(meter_id, P4ResourceType::METER))
+        return make_invalid_p4_id_status();
+      if (pi_p4info_meter_get_direct(p4info.get(), meter_id) != PI_INVALID_ID) {
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                            "Cannot use MeterEntry with a direct meter");
+      }
+      auto status = meter_read_one(meter_id, meter_entry, session, response);
+      if (IS_ERROR(status)) return status;
+    }
+    RETURN_OK_STATUS();
+  }
+
+  Status direct_meter_read_one(const p4::TableEntry &table_entry,
+                               const SessionTemp &session,
+                               p4::ReadResponse *response) const {
+    if (table_entry.match_size() > 0) {
+      auto table_lock = table_info_store.lock_table(table_entry.table_id());
+
+      pi_entry_handle_t entry_handle = 0;
+      {
+        auto status = entry_handle_from_table_entry(table_entry, &entry_handle);
+        if (IS_ERROR(status)) return status;
+      }
+      p4_id_t table_direct_meter_id = pi_get_table_direct_resource_p4_id(
+        table_entry.table_id(), P4ResourceType::METER);
+      if (table_direct_meter_id == PI_INVALID_ID) {
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                            "Table has no direct meters");
+      }
+      pi_meter_spec_t meter_spec;
+      auto pi_status = pi_meter_read_direct(
+          session.get(), device_tgt, table_direct_meter_id, entry_handle,
+          &meter_spec);
+      if (pi_status != PI_STATUS_SUCCESS) {
+        RETURN_ERROR_STATUS(Code::UNKNOWN,
+                            "Error when reading meter from target");
+      }
+      auto entry = response->add_entities()->mutable_direct_meter_entry();
+      entry->mutable_table_entry()->CopyFrom(table_entry);
+      meter_spec_pi_to_proto(meter_spec, entry->mutable_config());
+      RETURN_OK_STATUS();
+    }
+    // read all direct meters in table
+    RETURN_ERROR_STATUS(
+        Code::UNIMPLEMENTED,
+        "Reading ALL direct meters in a table is not supported yet");
+  }
+
+  Status direct_meter_read(const p4::DirectMeterEntry &meter_entry,
+                           const SessionTemp &session,
+                           p4::ReadResponse *response) const {
+    if (!meter_entry.has_table_entry()) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "Missing table_entry field in DirectMeterEntry");
+    }
+    const auto &table_entry = meter_entry.table_entry();
+    if (table_entry.table_id() == 0) {
+      RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
+        "Reading ALL direct meters for all tables is not supported yet");
+    }
+    if (!check_p4_id(table_entry.table_id(), P4ResourceType::TABLE))
+      return make_invalid_p4_id_status();
+    return direct_meter_read_one(table_entry, session, response);
   }
 
   Code parse_match_key(p4_id_t table_id, const pi_match_key_t *match_key,
@@ -1058,6 +1161,8 @@ class DeviceMgrImp {
       return counter_read_one_index(session, counter_id, entry, true);
     }
     // default index, read all
+    // TODO(antonin): change this code when we introduce Index wrapper message
+    // (see issue #309)
     auto counter_size = pi_p4info_counter_get_size(p4info.get(), counter_id);
     {  // sync the entire counter array with HW
       auto pi_status = pi_counter_hw_sync(
@@ -1721,6 +1826,14 @@ class DeviceMgrImp {
     return pi_meter_spec;
   }
 
+  void meter_spec_pi_to_proto(const pi_meter_spec_t &pi_meter_spec,
+                              p4::MeterConfig *config) const {
+    config->set_cir(pi_meter_spec.cir);
+    config->set_cburst(pi_meter_spec.cburst);
+    config->set_pir(pi_meter_spec.pir);
+    config->set_pburst(pi_meter_spec.pburst);
+  }
+
   Status counter_read_one_index(const SessionTemp &session, uint32_t counter_id,
                                 p4::CounterEntry *entry,
                                 bool hw_sync = false) const {
@@ -1735,6 +1848,20 @@ class DeviceMgrImp {
                           "Error when reading counter from target");
     }
     counter_data_pi_to_proto(counter_data, entry->mutable_data());
+    RETURN_OK_STATUS();
+  }
+
+  Status meter_read_one_index(const SessionTemp &session, uint32_t meter_id,
+                              p4::MeterEntry *entry) const {
+    auto index = entry->index();
+    pi_meter_spec_t meter_spec;
+    pi_status_t pi_status = pi_meter_read(session.get(), device_tgt,
+                                          meter_id, index, &meter_spec);
+    if (pi_status != PI_STATUS_SUCCESS) {
+      RETURN_ERROR_STATUS(Code::UNKNOWN,
+                          "Error when reading meter spec from target");
+    }
+    meter_spec_pi_to_proto(meter_spec, entry->mutable_config());
     RETURN_OK_STATUS();
   }
 

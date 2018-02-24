@@ -106,8 +106,12 @@ class DummySwitchMock {
   MOCK_METHOD2(action_prof_entries_fetch,
                pi_status_t(pi_p4_id_t, pi_act_prof_fetch_res_t *));
 
+  MOCK_METHOD3(meter_read,
+               pi_status_t(pi_p4_id_t, size_t, pi_meter_spec_t *));
   MOCK_METHOD3(meter_set,
                pi_status_t(pi_p4_id_t, size_t, const pi_meter_spec_t *));
+  MOCK_METHOD3(meter_read_direct,
+               pi_status_t(pi_p4_id_t, pi_entry_handle_t, pi_meter_spec_t *));
   MOCK_METHOD3(meter_set_direct,
                pi_status_t(pi_p4_id_t, pi_entry_handle_t,
                            const pi_meter_spec_t *));

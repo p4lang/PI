@@ -154,6 +154,9 @@ control ingress(inout headers_t hdr, inout metadata_t meta, inout standard_metad
     @name(".CounterA")
     counter(32w1024, CounterType.packets) CounterA;
 
+    @name(".MeterA")
+    meter(32w1024, MeterType.packets) MeterA;
+
     @name(".ConstTable")
     table ConstTable {
         key = {
@@ -177,6 +180,7 @@ control ingress(inout headers_t hdr, inout metadata_t meta, inout standard_metad
         IndirectWS.apply();
         ExactOneNonAligned.apply();
         CounterA.count(32w128);
+        MeterA.execute_meter(32w128, hdr.header_test.field4);
         ConstTable.apply();
     }
 }
