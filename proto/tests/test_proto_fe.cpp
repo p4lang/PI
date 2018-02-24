@@ -1321,10 +1321,20 @@ class DirectMeterTest : public ExactOneTest {
     return config;
   }
 
+  DeviceMgr::Status read_meter(p4::DirectMeterEntry *direct_meter_entry,
+                               p4::ReadResponse *response) {
+    p4::ReadRequest request;
+    auto entity = request.add_entities();
+    entity->set_allocated_direct_meter_entry(direct_meter_entry);
+    auto status = mgr.read(request, response);
+    entity->release_direct_meter_entry();
+    return status;
+  }
+
   pi_p4_id_t m_id;
 };
 
-TEST_F(DirectMeterTest, Write) {
+TEST_F(DirectMeterTest, WriteAndRead) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
   std::string adata(6, '\x00');
   auto entry = make_entry(mf, adata);
@@ -1347,6 +1357,17 @@ TEST_F(DirectMeterTest, Write) {
     auto status = set_meter(&meter_entry);
     ASSERT_EQ(status.code(), Code::OK);
   }
+
+  EXPECT_CALL(*mock, meter_read_direct(m_id, entry_h, _));
+  p4::ReadResponse response;
+  {
+    auto status = read_meter(&meter_entry, &response);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+  const auto &entities = response.entities();
+  ASSERT_EQ(1, entities.size());
+  const auto &read_meter_entry = entities.Get(0).direct_meter_entry();
+  EXPECT_TRUE(MessageDifferencer::Equals(meter_entry, read_meter_entry));
 }
 
 TEST_F(DirectMeterTest, WriteInTableEntry) {
@@ -1392,6 +1413,75 @@ TEST_F(DirectMeterTest, MissingTableEntry) {
   p4::DirectMeterEntry meter_entry;
   auto status = set_meter(&meter_entry);
   EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
+}
+
+class IndirectMeterTest : public DeviceMgrTest  {
+ protected:
+  IndirectMeterTest() {
+    m_id = pi_p4info_meter_id_from_name(p4info, "MeterA");
+    m_size = pi_p4info_meter_get_size(p4info, m_id);
+  }
+
+  DeviceMgr::Status read_meter(p4::MeterEntry *meter_entry,
+                               p4::ReadResponse *response) {
+    p4::ReadRequest request;
+    auto entity = request.add_entities();
+    entity->set_allocated_meter_entry(meter_entry);
+    auto status = mgr.read(request, response);
+    entity->release_meter_entry();
+    return status;
+  }
+
+  DeviceMgr::Status write_meter(p4::MeterEntry *meter_entry) {
+    p4::WriteRequest request;
+    auto update = request.add_updates();
+    update->set_type(p4::Update_Type_MODIFY);
+    auto entity = update->mutable_entity();
+    entity->set_allocated_meter_entry(meter_entry);
+    auto status = mgr.write(request);
+    entity->release_meter_entry();
+    return status;
+  }
+
+  p4::MeterConfig make_meter_config() const {
+    p4::MeterConfig config;
+    config.set_cir(10);
+    config.set_cburst(5);
+    config.set_pir(100);
+    config.set_pburst(250);
+    return config;
+  }
+
+  pi_p4_id_t m_id{0};
+  size_t m_size{0};
+};
+
+TEST_F(IndirectMeterTest, WriteAndRead) {
+  int index = 66;
+  p4::ReadResponse response;
+  p4::MeterEntry meter_entry;
+  meter_entry.set_meter_id(m_id);
+  meter_entry.set_index(index);
+  auto meter_config = make_meter_config();
+  meter_entry.mutable_config()->CopyFrom(meter_config);
+  // meter type & unit as per the P4 program
+  auto meter_matcher = CorrectMeterSpec(
+      meter_config, PI_METER_UNIT_PACKETS, PI_METER_TYPE_COLOR_UNAWARE);
+  EXPECT_CALL(*mock, meter_set(m_id, index, meter_matcher));
+  {
+    auto status = write_meter(&meter_entry);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+
+  EXPECT_CALL(*mock, meter_read(m_id, index, _));
+  {
+    auto status = read_meter(&meter_entry, &response);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+  const auto &entities = response.entities();
+  ASSERT_EQ(1, entities.size());
+  const auto &read_meter_entry = entities.Get(0).meter_entry();
+  EXPECT_TRUE(MessageDifferencer::Equals(meter_entry, read_meter_entry));
 }
 
 class DirectCounterTest : public ExactOneTest {

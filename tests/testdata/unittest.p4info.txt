@@ -300,6 +300,17 @@ direct_counters {
   }
   direct_table_id: 33582705
 }
+meters {
+  preamble {
+    id: 318820171
+    name: "MeterA"
+    alias: "MeterA"
+  }
+  spec {
+    unit: PACKETS
+  }
+  size: 1024
+}
 direct_meters {
   preamble {
     id: 318772168

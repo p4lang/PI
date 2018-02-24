@@ -362,13 +362,29 @@ class DummyActionProf {
 
 class DummyMeter {
  public:
-  // TODO(antonin): store meter_spec for read API
+  using Meters = std::unordered_map<uint64_t, pi_meter_spec_t>;
+  static_assert(sizeof(Meters::key_type) >= sizeof(uint64_t),
+                "Key cannot fit uint64");
+  static_assert(sizeof(Meters::key_type) >= sizeof(pi_entry_handle_t),
+                "Key cannot fit entry handle");
+
   template <typename T>
-  pi_status_t set(T index, const pi_meter_spec_t *meter_spec) {
-    (void) index;
-    (void) meter_spec;
+  pi_status_t read(T index, pi_meter_spec_t *meter_spec) {
+    auto it = meters.find(static_cast<Meters::key_type>(index));
+    if (it == meters.end())
+      *meter_spec = {0, 0, 0, 0, PI_METER_UNIT_DEFAULT, PI_METER_TYPE_DEFAULT};
+    else
+      *meter_spec = it->second;
     return PI_STATUS_SUCCESS;
   }
+
+  template <typename T>
+  pi_status_t set(T index, const pi_meter_spec_t *meter_spec) {
+    meters[static_cast<Meters::key_type>(index)] = *meter_spec;
+    return PI_STATUS_SUCCESS;
+  }
+
+  Meters meters{};
 };
 
 class DummyCounter {
@@ -492,9 +508,20 @@ class DummySwitch {
     return action_profs[act_prof_id].entries_fetch(res);
   }
 
+  pi_status_t meter_read(pi_p4_id_t meter_id, size_t index,
+                         pi_meter_spec_t *meter_spec) {
+    return meters[meter_id].read(index, meter_spec);
+  }
+
   pi_status_t meter_set(pi_p4_id_t meter_id, size_t index,
                         const pi_meter_spec_t *meter_spec) {
     return meters[meter_id].set(index, meter_spec);
+  }
+
+  pi_status_t meter_read_direct(pi_p4_id_t meter_id,
+                                pi_entry_handle_t entry_handle,
+                                pi_meter_spec_t *meter_spec) {
+    return meters[meter_id].read(entry_handle, meter_spec);
   }
 
   pi_status_t meter_set_direct(pi_p4_id_t meter_id,
@@ -605,8 +632,12 @@ DummySwitchMock::DummySwitchMock(device_id_t device_id)
   ON_CALL(*this, action_prof_entries_fetch(_, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::action_prof_entries_fetch));
 
+  ON_CALL(*this, meter_read(_, _, _))
+      .WillByDefault(Invoke(sw_, &DummySwitch::meter_read));
   ON_CALL(*this, meter_set(_, _, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::meter_set));
+  ON_CALL(*this, meter_read_direct(_, _, _))
+      .WillByDefault(Invoke(sw_, &DummySwitch::meter_read_direct));
   ON_CALL(*this, meter_set_direct(_, _, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::meter_set_direct));
 
@@ -853,11 +884,26 @@ pi_status_t _pi_act_prof_entries_fetch_done(pi_session_handle_t,
   return PI_STATUS_SUCCESS;
 }
 
+pi_status_t pi_meter_read(pi_session_handle_t,
+                          pi_dev_tgt_t dev_tgt, pi_p4_id_t meter_id,
+                          size_t index, pi_meter_spec_t *meter_spec) {
+  return DeviceResolver::get_switch(dev_tgt.dev_id)->meter_read(
+      meter_id, index, meter_spec);
+}
+
 pi_status_t _pi_meter_set(pi_session_handle_t,
                           pi_dev_tgt_t dev_tgt, pi_p4_id_t meter_id,
                           size_t index, const pi_meter_spec_t *meter_spec) {
   return DeviceResolver::get_switch(dev_tgt.dev_id)->meter_set(
       meter_id, index, meter_spec);
+}
+
+pi_status_t pi_meter_read_direct(pi_session_handle_t,
+                                 pi_dev_tgt_t dev_tgt, pi_p4_id_t meter_id,
+                                 pi_entry_handle_t entry_handle,
+                                 pi_meter_spec_t *meter_spec) {
+  return DeviceResolver::get_switch(dev_tgt.dev_id)->meter_read_direct(
+      meter_id, entry_handle, meter_spec);
 }
 
 pi_status_t _pi_meter_set_direct(pi_session_handle_t,
