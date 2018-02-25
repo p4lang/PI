@@ -256,7 +256,7 @@ message Index {
 // For WriteRequest, Update.Type must be MODIFY.
 // For ReadRequest, the scope is defined as follows:
 // - All meter cells for all meters if meter_id = 0 (default).
-// - All meter cells for given meter_id if index = 0 (default).
+// - All meter cells for given meter_id if index is unset (default).
 message MeterEntry {
   uint32 meter_id = 1;
   Index index = 2;
@@ -301,7 +301,7 @@ message MeterConfig {
 // For WriteRequest, Update.Type must be MODIFY.
 // For ReadRequest, the scope is defined as follows:
 // - All counter cells for all meters if counter_id = 0 (default).
-// - All counter cells for given counter_id if index = 0 (default).
+// - All counter cells for given counter_id if index is unset (default).
 message CounterEntry {
   uint32 counter_id = 1;
   Index index = 2;
