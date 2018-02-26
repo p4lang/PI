@@ -1452,6 +1452,11 @@ class IndirectMeterTest : public DeviceMgrTest  {
     return config;
   }
 
+  void set_index(p4::MeterEntry *meter_entry, int index) const {
+    auto *index_msg = meter_entry->mutable_index();
+    index_msg->set_index(index);
+  }
+
   pi_p4_id_t m_id{0};
   size_t m_size{0};
 };
@@ -1461,7 +1466,7 @@ TEST_F(IndirectMeterTest, WriteAndRead) {
   p4::ReadResponse response;
   p4::MeterEntry meter_entry;
   meter_entry.set_meter_id(m_id);
-  meter_entry.set_index(index);
+  set_index(&meter_entry, index);
   auto meter_config = make_meter_config();
   meter_entry.mutable_config()->CopyFrom(meter_config);
   // meter type & unit as per the P4 program
@@ -1666,6 +1671,11 @@ class IndirectCounterTest : public DeviceMgrTest  {
     return status;
   }
 
+  void set_index(p4::CounterEntry *counter_entry, int index) const {
+    auto *index_msg = counter_entry->mutable_index();
+    index_msg->set_index(index);
+  }
+
   pi_p4_id_t c_id{0};
   size_t c_size{0};
 };
@@ -1675,7 +1685,7 @@ TEST_F(IndirectCounterTest, WriteAndRead) {
   p4::ReadResponse response;
   p4::CounterEntry counter_entry;
   counter_entry.set_counter_id(c_id);
-  counter_entry.set_index(index);
+  set_index(&counter_entry, index);
   auto *counter_data = counter_entry.mutable_data();
   counter_data->set_packet_count(3);
   // check packets, but not bytes, as per P4 program (packet-only counter)
@@ -1715,7 +1725,7 @@ TEST_F(IndirectCounterTest, ReadAll) {
   counter_data->set_packet_count(0);
   for (size_t i = 0; i < c_size; i++) {
     const auto &entry = entities.Get(i).counter_entry();
-    counter_entry.set_index(i);
+    set_index(&counter_entry, i);
     ASSERT_TRUE(MessageDifferencer::Equals(counter_entry, entry));
   }
 }
