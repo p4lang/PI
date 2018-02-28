@@ -93,6 +93,10 @@ returns *error* otherwise:
 bytestring_length = (num_bits_in_bitfield_in_p4_program + 7) / 8
 ```
 
+The only exception is the case of fields and parameters annotated with
+`@p4runtime_translate`, where the configuration defined
+[SDN type](#psa-metadata-translation) is used instead of the native P4 type.
+
 ### Byte order
 
 For all byte strings with size larger than 0 P4Runtime uses big endian (i.e.,
@@ -455,7 +459,8 @@ them to be used as follows:
   retry the Write RPC automatically after resolving the dependency issue.
 - `ABORTED (10)`: The Write RPC was explicitly aborted. The client is expected
   to retry the Write RPC automatically once the underlying issue is resolved.
-- `OUT_OF_RANGE(11)`: TBD. We generally don't expect this error to be set.
+- `OUT_OF_RANGE(11)`: The Write RPC failed because a field or parameter value
+  in the request was out of range.
 - `UNIMPLEMENTED (12)`: The Write RPC failed because the feature is not
   implemented in the switch. The client should not retry the Write RPC. A human
   intervention (e.g. a bug fix or upgrading the switch software) is needed.
@@ -538,7 +543,7 @@ service. The controller may also define a common number space for ports and
 cannonical classes of service across the fabric. The PSA devices may define
 much shorter bitwidths for these metadata in order to save precious on-chip
 memory in the switch silicon. Furthermore, the values of ports and classes of
-service in the dataplane are PSA device specific and may be different from the
+service in the dataplane are PSA device-specific and may be different from the
 values used in the controller(s).
 
 In order to support such SDN use case, P4Runtime requires translation of port
@@ -549,11 +554,21 @@ string identifying the metadata type to be translated. Specifically, we define
 * `@p4runtime_translation("port")` for port translation.
 * `@p4runtime_translation("cos")` for class of service translation.
 
-The actual translation logic resides in the configuration of the PSA target.
-The P4Runtime service on the target is expected to use the mapping defined
+The controller's port/cos bitwidth, the valid SDN port/cos numbers, and their
+mapping to device specific port/cos numbers should be captured in the switch
+config. The P4Runtime service on the target is expected to use the mapping defined
 in the configuration to perform runtime translation between the metadata
 values in the control plane and the dataplane for P4 objects that have the
-above annotations defined.
+above annotations defined. The annotation should be used by the P4Runtime
+service to relax it's bitwidth checking on the field's value. In other words,
+for such annotated fields or parameters, the configuration-defined type should
+be used instead of the P4 defined type. The P4Runtime service must be specific
+when populating the `error details` in it's response to write operations on
+annotated fields and parameters. For example, it must use error codes:
+* `OUT_OF_RANGE(11)` if the given SDN value does not fit in config-defined type
+  or if the obtained device-specific value does not fit in the native P4 type
+* `INVALID_ARGUMENT(3)` if the given SDN value cannot be translated to a
+   device-specific value
 
 The sub-sections below provide comprehensive examples for various translation
 scenarios.
@@ -575,10 +590,10 @@ receives a packet-out from the controller over the P4Runtime stream channel, it
 will normally expect packet-out metadata (`egress_port`) value of bitwidth as
 defined by the PSA target's `PortIdInHeader_t` type and in the space of the
 target's port numbers. However, the presence of the `@p4runtime_translation`
-annotation will signal to the p4runtime service that it should expect a
-controller defined type and value of `egress_port` metadata. The p4runtime
-service should use the target config to translate this value into PSA
-device-specific value of type `PortIdInHeader_t`.
+annotation will signal to the P4Runtime service that it should expect a
+controller defined type and value of `egress_port` metadata. The P4Runtime
+service should use the target config to translate this value into the
+corresponding PSA device-specific value of type `PortIdInHeader_t`.
 
 A similar reverse translation is required in the P4Runtime service for packets
 punted from the target to the controller as shown by the packet-in header
@@ -593,7 +608,7 @@ header PacketIn_t {
 }
 ```
 A packet punted from the target's PSA device will be intercepted by the
-P4runtime service before being sent to the controller. Normally, the P4Runtime
+P4Runtime service before being sent to the controller. Normally, the P4Runtime
 service will extract the values of `ingress_port` and `cos` from the header and
 insert them in the packet-in metadata fields before sending the packet over the
 stream channel to the controller. However, the presence of the
@@ -628,7 +643,9 @@ Note that it may be infeasible to translate the value-mask pair for `ternary`
 matches and the value-prefix-length pair for `lpm` matches. Therefore, the
 P4Runtime service may require that the match be effectively either exact (all-1
 mask for ternary and prefix-length of the field's controller-bitwidth for lpm)
-or don't care (0 mask for ternary and 0 prefix length for lpm).
+or don't care (0 mask for ternary and 0 prefix length for lpm). Translation
+may also be infeasible for match of type `range` unless the `low` and `high`
+fields of the range match are identical.
 
 ### Translation of Action Parameters
 Port and class of service type parameters can be part of a P4 action definition
