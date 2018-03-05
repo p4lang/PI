@@ -768,11 +768,8 @@ class DeviceMgrImp {
                              table_action->mutable_action());
   }
 
-  // An is a functor which will be called on entries and needs to append a new
-  // p4::TableEntry to entries and return a pointer to it
-  template <typename T, typename Accessor>
-  Status table_read_common(p4_id_t table_id, const SessionTemp &session,
-                           T *entries, Accessor An) const {
+  Status table_read_one(p4_id_t table_id, const SessionTemp &session,
+                        p4::ReadResponse *response) const {
     pi_table_fetch_res_t *res;
     auto table_lock = table_info_store.lock_table(table_id);
     auto pi_status = pi_table_entries_fetch(session.get(), device_id,
@@ -788,7 +785,7 @@ class DeviceMgrImp {
     pi::MatchKey mk(p4info.get(), table_id);
     for (size_t i = 0; i < num_entries; i++) {
       pi_table_entries_next(res, &entry, &entry_handle);
-      auto table_entry = An(entries);
+      auto *table_entry = response->add_entities()->mutable_table_entry();
       table_entry->set_table_id(table_id);
       code = parse_match_key(table_id, entry.match_key, table_entry);
       if (code != Code::OK) break;
@@ -822,14 +819,6 @@ class DeviceMgrImp {
     pi_table_entries_fetch_done(session.get(), res);
 
     RETURN_STATUS(code);
-  }
-
-  Status table_read_one(p4_id_t table_id, const SessionTemp &session,
-                        p4::ReadResponse *response) const {
-    return table_read_common(
-        table_id, session, response,
-        [] (decltype(response) r) {
-          return r->add_entities()->mutable_table_entry(); });
   }
 
   // TODO(antonin): full filtering on the match key, action, ...
