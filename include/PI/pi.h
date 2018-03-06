@@ -120,7 +120,7 @@ pi_status_t pi_packetout_send(pi_dev_id_t dev_id, const char *pkt, size_t size);
 // TODO(antonin): move this to pi_tables?
 // When adding a table entry, the configuration for direct resources associated
 // with the entry can be provided. The config is then passed as a generic void *
-// pointer. For the sake of the messaging system, we need a way to seriralize /
+// pointer. For the sake of the messaging system, we need a way to serialize /
 // de-serialize the config, thus the need for these:
 // size when serialized
 typedef size_t (*PIDirectResMsgSizeFn)(const void *config);

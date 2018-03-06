@@ -47,7 +47,7 @@ static inline pi_p4_id_t pi_make_meter_id(uint16_t index) {
   return (PI_METER_ID << 24) | index;
 }
 
-#define PI_GET_TYPE_ID(id) (id >> 24)
+#define PI_GET_TYPE_ID(id) ((id) >> 24)
 
 // TODO(antonin): find a better location
 static inline size_t get_match_key_size_one_field(
@@ -93,11 +93,14 @@ struct pi_table_fetch_res_s {
   size_t curr;
   size_t entries_size;
   char *entries;
-  // just pointers to entries byte array
-  struct pi_match_key_s *match_keys;
-  struct pi_action_data_s *action_datas;
-  struct pi_entry_properties_s *properties;
-  // direct resources
+
+  // byte buffer to store structs used to represent entries in contiguous memory
+  // includes pointers to entries byte buffer
+  char *data;
+  // size reserved for each entry in data byte buffer
+  size_t data_size_per_entry;
+  size_t num_direct_resources;
+  size_t max_size_of_direct_resources;
 };
 
 struct pi_act_prof_fetch_res_s {

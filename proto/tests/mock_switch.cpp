@@ -26,6 +26,7 @@
 #include <boost/optional.hpp>
 
 #include <algorithm>  // std::copy
+#include <map>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -114,6 +115,63 @@ class ActionData {
   std::vector<char> data;
 };
 
+class DummyMeter {
+ public:
+  using Meters = std::unordered_map<uint64_t, pi_meter_spec_t>;
+  static_assert(sizeof(Meters::key_type) >= sizeof(uint64_t),
+                "Key cannot fit uint64");
+  static_assert(sizeof(Meters::key_type) >= sizeof(pi_entry_handle_t),
+                "Key cannot fit entry handle");
+
+  template <typename T>
+  pi_status_t read(T index, pi_meter_spec_t *meter_spec) {
+    auto it = meters.find(static_cast<Meters::key_type>(index));
+    if (it == meters.end())
+      *meter_spec = {0, 0, 0, 0, PI_METER_UNIT_DEFAULT, PI_METER_TYPE_DEFAULT};
+    else
+      *meter_spec = it->second;
+    return PI_STATUS_SUCCESS;
+  }
+
+  template <typename T>
+  pi_status_t set(T index, const pi_meter_spec_t *meter_spec) {
+    meters[static_cast<Meters::key_type>(index)] = *meter_spec;
+    return PI_STATUS_SUCCESS;
+  }
+
+  Meters meters{};
+};
+
+class DummyCounter {
+ public:
+  using Counters = std::unordered_map<uint64_t, pi_counter_data_t>;
+  static_assert(sizeof(Counters::key_type) >= sizeof(uint64_t),
+                "Key cannot fit uint64");
+  static_assert(sizeof(Counters::key_type) >= sizeof(pi_entry_handle_t),
+                "Key cannot fit entry handle");
+
+  template <typename T>
+  pi_status_t read(T index, pi_counter_data_t *counter_data) {
+    auto it = counters.find(static_cast<Counters::key_type>(index));
+    if (it == counters.end()) {
+      counter_data->valid = PI_COUNTER_UNIT_PACKETS | PI_COUNTER_UNIT_BYTES;
+      counter_data->bytes = 0;
+      counter_data->packets = 0;
+    } else {
+      *counter_data = it->second;
+    }
+    return PI_STATUS_SUCCESS;
+  }
+
+  template <typename T>
+  pi_status_t write(T index, const pi_counter_data_t *counter_data) {
+    counters[static_cast<Counters::key_type>(index)] = *counter_data;
+    return PI_STATUS_SUCCESS;
+  }
+
+  Counters counters{};
+};
+
 // TODO(antonin): support resources...
 class DummyTableEntry {
  public:
@@ -144,6 +202,7 @@ class DummyTableEntry {
         s += emit_indirect_handle(dst + s, indirect_h);
         break;
     }
+    s += emit_uint32(dst + s, 0);  // properties
     return s;
   }
 
@@ -168,6 +227,14 @@ class DummyTable {
   DummyTable(pi_p4_id_t table_id, const pi_p4info_t *p4info)
       : table_id(table_id), p4info(p4info) { }
 
+  void add_counter(pi_p4_id_t c_id, DummyCounter *counter) {
+    counters[c_id] = counter;
+  }
+
+  void add_meter(pi_p4_id_t m_id, DummyMeter *meter) {
+    meters[m_id] = meter;
+  }
+
   pi_status_t entry_add(const pi_match_key_t *match_key,
                         const pi_table_entry_t *table_entry,
                         pi_entry_handle_t *entry_handle) {
@@ -181,7 +248,28 @@ class DummyTable {
     entries.emplace(
         entry_counter,
         Entry(std::move(dmk), DummyTableEntry(table_entry)));
+
+    // direct resources
+    if (table_entry->direct_res_config) {
+      auto *configs = table_entry->direct_res_config->configs;
+      for (size_t i = 0; i < table_entry->direct_res_config->num_configs; i++) {
+        pi_p4_id_t res_id = configs[i].res_id;
+        if (pi_is_counter_id(res_id)) {
+          counters[res_id]->write(
+              entry_counter,
+              static_cast<const pi_counter_data_t *>(configs[i].config));
+        } else if (pi_is_meter_id(res_id)) {
+          meters[res_id]->set(
+              entry_counter,
+              static_cast<const pi_meter_spec_t *>(configs[i].config));
+        } else {
+          assert(0 && "Unsupported direct resource id");
+        }
+      }
+    }
+
     *entry_handle = entry_counter++;
+
     return PI_STATUS_SUCCESS;
   }
 
@@ -238,7 +326,7 @@ class DummyTable {
       res->mkey_nbytes = p.second.mk.nbytes();
       buf_ptr += p.second.mk.emit(buf_ptr);
       buf_ptr += p.second.entry.emit(buf_ptr);
-      buf_ptr += emit_uint32(buf_ptr, 0);  // direct resources
+      buf_ptr += emit_direct_configs(buf_ptr, p.first);
     }
     res->entries = buf;
     res->entries_size = std::distance(buf, buf_ptr);
@@ -257,6 +345,37 @@ class DummyTable {
     return false;
   }
 
+  size_t emit_direct_configs(char *dst, pi_entry_handle_t h) const {
+    size_t s = 0;
+    s += emit_uint32(dst, counters.size() + meters.size());
+    // TODO(antonin): generic code for all direct resources
+    {
+      PIDirectResMsgSizeFn msg_size_fn;
+      PIDirectResEmitFn emit_fn;
+      pi_direct_res_get_fns(PI_COUNTER_ID, &msg_size_fn, &emit_fn, NULL, NULL);
+      for (const auto &p : counters) {
+        s += emit_p4_id(dst + s, p.first);
+        pi_counter_data_t config;
+        p.second->read(h, &config);
+        s += emit_uint32(dst + s, msg_size_fn(&config));
+        s += emit_fn(dst + s, &config);
+      }
+    }
+    {
+      PIDirectResMsgSizeFn msg_size_fn;
+      PIDirectResEmitFn emit_fn;
+      pi_direct_res_get_fns(PI_METER_ID, &msg_size_fn, &emit_fn, NULL, NULL);
+      for (const auto &p : meters) {
+        s += emit_p4_id(dst + s, p.first);
+        pi_meter_spec_t config;
+        p.second->read(h, &config);
+        s += emit_uint32(dst + s, msg_size_fn(&config));
+        s += emit_fn(dst + s, &config);
+      }
+    }
+    return s;
+  }
+
   const pi_p4_id_t table_id;
   const pi_p4info_t *p4info;
   std::unordered_map<pi_entry_handle_t, Entry> entries{};
@@ -264,6 +383,8 @@ class DummyTable {
   key_to_handle{};
   boost::optional<DummyTableEntry> default_entry;
   size_t entry_counter{0};
+  std::map<pi_p4_id_t, DummyCounter *> counters{};
+  std::map<pi_p4_id_t, DummyMeter *> meters{};
 };
 
 class DummyActionProf {
@@ -358,63 +479,6 @@ class DummyActionProf {
   std::unordered_map<pi_indirect_handle_t, GroupMembers> groups{};
   size_t member_counter{0};
   size_t group_counter{1 << 24};
-};
-
-class DummyMeter {
- public:
-  using Meters = std::unordered_map<uint64_t, pi_meter_spec_t>;
-  static_assert(sizeof(Meters::key_type) >= sizeof(uint64_t),
-                "Key cannot fit uint64");
-  static_assert(sizeof(Meters::key_type) >= sizeof(pi_entry_handle_t),
-                "Key cannot fit entry handle");
-
-  template <typename T>
-  pi_status_t read(T index, pi_meter_spec_t *meter_spec) {
-    auto it = meters.find(static_cast<Meters::key_type>(index));
-    if (it == meters.end())
-      *meter_spec = {0, 0, 0, 0, PI_METER_UNIT_DEFAULT, PI_METER_TYPE_DEFAULT};
-    else
-      *meter_spec = it->second;
-    return PI_STATUS_SUCCESS;
-  }
-
-  template <typename T>
-  pi_status_t set(T index, const pi_meter_spec_t *meter_spec) {
-    meters[static_cast<Meters::key_type>(index)] = *meter_spec;
-    return PI_STATUS_SUCCESS;
-  }
-
-  Meters meters{};
-};
-
-class DummyCounter {
- public:
-  using Counters = std::unordered_map<uint64_t, pi_counter_data_t>;
-  static_assert(sizeof(Counters::key_type) >= sizeof(uint64_t),
-                "Key cannot fit uint64");
-  static_assert(sizeof(Counters::key_type) >= sizeof(pi_entry_handle_t),
-                "Key cannot fit entry handle");
-
-  template <typename T>
-  pi_status_t read(T index, pi_counter_data_t *counter_data) {
-    auto it = counters.find(static_cast<Counters::key_type>(index));
-    if (it == counters.end()) {
-      counter_data->valid = PI_COUNTER_UNIT_PACKETS | PI_COUNTER_UNIT_BYTES;
-      counter_data->bytes = 0;
-      counter_data->packets = 0;
-    } else {
-      *counter_data = it->second;
-    }
-    return PI_STATUS_SUCCESS;
-  }
-
-  template <typename T>
-  pi_status_t write(T index, const pi_counter_data_t *counter_data) {
-    counters[static_cast<Counters::key_type>(index)] = *counter_data;
-    return PI_STATUS_SUCCESS;
-  }
-
-  Counters counters{};
 };
 
 }  // namespace
@@ -570,8 +634,21 @@ class DummySwitch {
   DummyTable &get_table(pi_p4_id_t table_id) {
     auto t_it = tables.find(table_id);
     if (t_it == tables.end()) {
-      return tables.emplace(
+      auto &table = tables.emplace(
           table_id, DummyTable(table_id, p4info)).first->second;
+      // add pointers to direct resources to DummyTable
+      size_t num_direct_resources;
+      auto *res_ids = pi_p4info_table_get_direct_resources(
+          p4info, table_id, &num_direct_resources);
+      for (size_t i = 0; i < num_direct_resources; i++) {
+        if (pi_is_counter_id(res_ids[i]))
+          table.add_counter(res_ids[i], &counters[res_ids[i]]);
+        else if (pi_is_meter_id(res_ids[i]))
+          table.add_meter(res_ids[i], &meters[res_ids[i]]);
+        else
+          assert(0 && "Unsupported direct resource id");
+      }
+      return table;
     } else {
       return t_it->second;
     }

@@ -459,6 +459,12 @@ bool pi_p4info_table_is_direct_resource_of(const pi_p4info_t *p4info,
   return false;
 }
 
+size_t pi_p4info_table_num_direct_resources(const pi_p4info_t *p4info,
+                                            pi_p4_id_t table_id) {
+  _table_data_t *table = get_table(p4info, table_id);
+  return table->num_direct_resources;
+}
+
 const pi_p4_id_t *pi_p4info_table_get_direct_resources(
     const pi_p4info_t *p4info, pi_p4_id_t table_id,
     size_t *num_direct_resources) {

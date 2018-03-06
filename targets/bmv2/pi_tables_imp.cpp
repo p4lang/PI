@@ -639,6 +639,7 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
   data_size += entries.size() * sizeof(s_pi_action_entry_type_t);
   data_size += entries.size() * sizeof(uint32_t);  // for priority
   data_size += entries.size() * sizeof(uint32_t);  // for properties
+  data_size += entries.size() * sizeof(uint32_t);  // for direct resources
 
   res->mkey_nbytes = pi_p4info_table_match_key_size(p4info, table_id);
   data_size += entries.size() * res->mkey_nbytes;
@@ -743,7 +744,8 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
         break;
     }
 
-    data += emit_uint32(data, 0);
+    data += emit_uint32(data, 0);  // properties
+    data += emit_uint32(data, 0);  // TODO(antonin): direct resources
   }
 
   return PI_STATUS_SUCCESS;
