@@ -221,6 +221,15 @@ class DeviceMgrTest : public ::testing::Test {
     return mgr.read_one(entity, response);
   }
 
+  DeviceMgr::Status read_table_entry(p4::TableEntry *table_entry,
+                                     p4::ReadResponse *response) {
+    p4::Entity entity;
+    entity.set_allocated_table_entry(table_entry);
+    auto status = mgr.read_one(entity, response);
+    entity.release_table_entry();
+    return status;
+  }
+
   static constexpr const char *input_path =
            TESTDATADIR "/" "unittest.p4info.txt";
   static pi_p4info_t *p4info;
@@ -473,26 +482,40 @@ TEST_P(MatchTableTest, AddAndRead) {
   auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _))
       .Times(AtLeast(1));
-  DeviceMgr::Status status;
   uint64_t controller_metadata(0xab);
   auto entry = generic_make(t_id, mk_input.get_proto(mf_id), adata,
                             mk_input.get_priority(), controller_metadata);
-  status = add_one(&entry);
-  EXPECT_EQ(status.code(), Code::OK);
+  {
+    auto status = add_one(&entry);
+    EXPECT_EQ(status.code(), Code::OK);
+  }
   // second is error because duplicate match key
-  status = add_one(&entry);
-  EXPECT_EQ(status, OneExpectedError(Code::ALREADY_EXISTS));
+  {
+    auto status = add_one(&entry);
+    EXPECT_EQ(status, OneExpectedError(Code::ALREADY_EXISTS));
+  }
 
-  EXPECT_CALL(*mock, table_entries_fetch(t_id, _));
-  p4::ReadResponse response;
-  p4::Entity entity;
-  auto table_entry = entity.mutable_table_entry();
-  table_entry->set_table_id(t_id);
-  status = mgr.read_one(entity, &response);
-  ASSERT_EQ(status.code(), Code::OK);
-  const auto &entities = response.entities();
-  ASSERT_EQ(1, entities.size());
-  EXPECT_TRUE(MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
+  EXPECT_CALL(*mock, table_entries_fetch(t_id, _)).Times(2);
+  // 2 different reads: first one is wildcard read on the table, other filters
+  // on the match key.
+  {
+    p4::ReadResponse response;
+    auto status = read_table_entries(t_id, &response);
+    ASSERT_EQ(status.code(), Code::OK);
+    const auto &entities = response.entities();
+    ASSERT_EQ(1, entities.size());
+    EXPECT_TRUE(
+        MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
+  }
+  {
+    p4::ReadResponse response;
+    auto status = read_table_entry(&entry, &response);
+    ASSERT_EQ(status.code(), Code::OK);
+    const auto &entities = response.entities();
+    ASSERT_EQ(1, entities.size());
+    EXPECT_TRUE(
+        MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
+  }
 }
 
 TEST_P(MatchTableTest, AddAndDelete) {
@@ -1358,16 +1381,34 @@ TEST_F(DirectMeterTest, WriteAndRead) {
     ASSERT_EQ(status.code(), Code::OK);
   }
 
+  // read with DirectMeterEntry
   EXPECT_CALL(*mock, meter_read_direct(m_id, entry_h, _));
-  p4::ReadResponse response;
   {
+    p4::ReadResponse response;
     auto status = read_meter(&meter_entry, &response);
     ASSERT_EQ(status.code(), Code::OK);
+    const auto &entities = response.entities();
+    ASSERT_EQ(1, entities.size());
+    const auto &read_entry = entities.Get(0).direct_meter_entry();
+    EXPECT_TRUE(MessageDifferencer::Equals(meter_entry, read_entry));
   }
-  const auto &entities = response.entities();
-  ASSERT_EQ(1, entities.size());
-  const auto &read_meter_entry = entities.Get(0).direct_meter_entry();
-  EXPECT_TRUE(MessageDifferencer::Equals(meter_entry, read_meter_entry));
+
+  // read with TableEntry
+  EXPECT_CALL(*mock, table_entries_fetch(t_id, _));
+  {
+    p4::ReadResponse response;
+    p4::Entity entity;
+    auto table_entry = entity.mutable_table_entry();
+    table_entry->set_table_id(t_id);
+    table_entry->mutable_meter_config();
+    auto status = mgr.read_one(entity, &response);
+
+    ASSERT_EQ(status.code(), Code::OK);
+    const auto &entities = response.entities();
+    ASSERT_EQ(1, entities.size());
+    const auto &read_entry = entities.Get(0).table_entry();
+    EXPECT_TRUE(MessageDifferencer::Equals(config, read_entry.meter_config()));
+  }
 }
 
 TEST_F(DirectMeterTest, WriteInTableEntry) {
@@ -1551,19 +1592,38 @@ TEST_F(DirectCounterTest, WriteAndRead) {
     auto status = write_counter(&counter_entry);
     ASSERT_EQ(status.code(), Code::OK);
   }
+
+  // read with DirectCounterEntry
   EXPECT_CALL(*mock, counter_read_direct(c_id, entry_h, _, _));
-  p4::ReadResponse response;
   {
+    p4::ReadResponse response;
     auto status = read_counter(&counter_entry, &response);
     ASSERT_EQ(status.code(), Code::OK);
+    const auto &entities = response.entities();
+    ASSERT_EQ(1, entities.size());
+    const auto &read_entry = entities.Get(0).direct_counter_entry();
+    EXPECT_TRUE(MessageDifferencer::Equals(entry, read_entry.table_entry()));
+    EXPECT_EQ(read_entry.data().byte_count(), 0);
+    EXPECT_EQ(read_entry.data().packet_count(), 3);
   }
-  const auto &entities = response.entities();
-  ASSERT_EQ(1, entities.size());
-  const auto &read_counter_entry = entities.Get(0).direct_counter_entry();
-  EXPECT_TRUE(MessageDifferencer::Equals(entry,
-                                         read_counter_entry.table_entry()));
-  EXPECT_EQ(read_counter_entry.data().byte_count(), 0);
-  EXPECT_EQ(read_counter_entry.data().packet_count(), 3);
+
+  // read with TableEntry
+  EXPECT_CALL(*mock, table_entries_fetch(t_id, _));
+  {
+    p4::ReadResponse response;
+    p4::Entity entity;
+    auto table_entry = entity.mutable_table_entry();
+    table_entry->set_table_id(t_id);
+    table_entry->mutable_counter_data();
+    auto status = mgr.read_one(entity, &response);
+
+    ASSERT_EQ(status.code(), Code::OK);
+    const auto &entities = response.entities();
+    ASSERT_EQ(1, entities.size());
+    const auto &read_entry = entities.Get(0).table_entry();
+    EXPECT_EQ(read_entry.counter_data().byte_count(), 0);
+    EXPECT_EQ(read_entry.counter_data().packet_count(), 3);
+  }
 }
 
 TEST_F(DirectCounterTest, InvalidTableEntry) {
@@ -1822,7 +1882,7 @@ TEST_F(MatchKeyFormatTest, BadLeadingZeros) {
 }
 
 
-#define EXPECT_ONE_TABLE_ENTRY(repsonse, expected_entry) \
+#define EXPECT_ONE_TABLE_ENTRY(response, expected_entry) \
   do {                                                   \
     const auto &entities = response.entities();          \
     ASSERT_EQ(1, entities.size());                       \

@@ -167,6 +167,9 @@ pi_status_t pi_table_entry_modify_wkey(pi_session_handle_t session_handle,
                                      match_key, table_entry);
 }
 
+#define ALIGN 16
+#define ALIGN_SIZE(s) (((s) + (ALIGN - 1)) & (~(ALIGN - 1)))
+
 pi_status_t pi_table_entries_fetch(pi_session_handle_t session_handle,
                                    pi_dev_id_t dev_id, pi_p4_id_t table_id,
                                    pi_table_fetch_res_t **res) {
@@ -177,10 +180,44 @@ pi_status_t pi_table_entries_fetch(pi_session_handle_t session_handle,
   res_->table_id = table_id;
   res_->idx = 0;
   res_->curr = 0;
-  // TODO(antonin): use contiguous memory
-  res_->match_keys = malloc(res_->num_entries * sizeof(pi_match_key_t));
-  res_->action_datas = malloc(res_->num_entries * sizeof(pi_action_data_t));
-  res_->properties = malloc(res_->num_entries * sizeof(pi_entry_properties_t));
+
+  // we allocate one big memory block for all the structures owned by
+  // pi_table_fetch_res_t; we use contiguous memory for all the data relative to
+  // a specific table entry.
+
+  size_t size_per_entry = 0;
+  size_per_entry += sizeof(pi_match_key_t);
+  size_per_entry = ALIGN_SIZE(size_per_entry);
+  size_per_entry += sizeof(pi_action_data_t);
+  size_per_entry = ALIGN_SIZE(size_per_entry);
+  size_per_entry += sizeof(pi_entry_properties_t);
+  size_per_entry = ALIGN_SIZE(size_per_entry);
+
+  // direct resources
+  const pi_p4_id_t *res_ids = pi_p4info_table_get_direct_resources(
+      res_->p4info, table_id, &res_->num_direct_resources);
+  res_->max_size_of_direct_resources = 0;
+  for (size_t i = 0; i < res_->num_direct_resources; i++) {
+    size_t size_of;
+    pi_direct_res_get_fns(PI_GET_TYPE_ID(res_ids[i]), NULL, NULL, &size_of,
+                          NULL);
+    size_of = ALIGN_SIZE(size_of);
+    if (size_of > res_->max_size_of_direct_resources)
+      res_->max_size_of_direct_resources = size_of;
+  }
+  if (res_->num_direct_resources > 0) {
+    size_per_entry += sizeof(pi_direct_res_config_t);
+    size_per_entry = ALIGN_SIZE(size_per_entry);
+    size_per_entry +=
+        res_->num_direct_resources * sizeof(pi_direct_res_config_one_t);
+    size_per_entry = ALIGN_SIZE(size_per_entry);
+    size_per_entry +=
+        res_->num_direct_resources * res_->max_size_of_direct_resources;
+  }
+
+  res_->data_size_per_entry = size_per_entry;
+  res_->data = malloc(res_->num_entries * size_per_entry);
+
   *res = res_;
   return status;
 }
@@ -190,12 +227,7 @@ pi_status_t pi_table_entries_fetch_done(pi_session_handle_t session_handle,
   pi_status_t status = _pi_table_entries_fetch_done(session_handle, res);
   if (status != PI_STATUS_SUCCESS) return status;
 
-  assert(res->match_keys);
-  free(res->match_keys);
-  assert(res->action_datas);
-  free(res->action_datas);
-  assert(res->properties);
-  free(res->properties);
+  if (res->data) free(res->data);
   free(res);
   return PI_STATUS_SUCCESS;
 }
@@ -211,7 +243,12 @@ size_t pi_table_entries_next(pi_table_fetch_res_t *res,
 
   res->curr += retrieve_entry_handle(res->entries + res->curr, entry_handle);
 
-  entry->match_key = &res->match_keys[res->idx];
+  char *entry_data = res->data + res->idx * res->data_size_per_entry;
+  size_t entry_data_cnt = 0;
+
+  entry->match_key = (pi_match_key_t *)(entry_data + entry_data_cnt);
+  entry_data_cnt += sizeof(pi_match_key_t);
+  entry_data_cnt = ALIGN_SIZE(entry_data_cnt);
   entry->match_key->p4info = res->p4info;
   entry->match_key->table_id = res->table_id;
   res->curr +=
@@ -231,7 +268,10 @@ size_t pi_table_entries_next(pi_table_fetch_res_t *res,
       res->curr += retrieve_p4_id(res->entries + res->curr, &action_id);
       uint32_t nbytes;
       res->curr += retrieve_uint32(res->entries + res->curr, &nbytes);
-      pi_action_data_t *action_data = &res->action_datas[res->idx];
+      pi_action_data_t *action_data =
+          (pi_action_data_t *)(entry_data + entry_data_cnt);
+      entry_data_cnt += sizeof(pi_action_data_t);
+      entry_data_cnt = ALIGN_SIZE(entry_data_cnt);
       t_entry->entry.action_data = action_data;
       action_data->p4info = res->p4info;
       action_data->action_id = action_id;
@@ -247,12 +287,52 @@ size_t pi_table_entries_next(pi_table_fetch_res_t *res,
     } break;
   }
 
-  pi_entry_properties_t *properties = res->properties + res->idx;
+  pi_entry_properties_t *properties =
+      (pi_entry_properties_t *)(entry_data + entry_data_cnt);
+  entry_data_cnt += sizeof(pi_entry_properties_t);
+  entry_data_cnt = ALIGN_SIZE(entry_data_cnt);
   t_entry->entry_properties = properties;
   res->curr +=
       retrieve_uint32(res->entries + res->curr, &properties->valid_properties);
   if (properties->valid_properties & (1 << PI_ENTRY_PROPERTY_TYPE_TTL)) {
     res->curr += retrieve_uint32(res->entries + res->curr, &properties->ttl);
+  }
+
+  // direct resources
+  // num_configs | res_id_1 | num_bytes_1 | config_1 | res_id_2 | ...
+  uint32_t num_configs;
+  res->curr += retrieve_uint32(res->entries + res->curr, &num_configs);
+  // res->num_direct_resources == 0 => num_configs == 0
+  assert(num_configs == 0 || res->num_direct_resources > 0);
+  if (num_configs > 0) {
+    pi_direct_res_config_t *direct_config_array =
+        (pi_direct_res_config_t *)(entry_data + entry_data_cnt);
+    entry_data_cnt += sizeof(pi_direct_res_config_t);
+    entry_data_cnt = ALIGN_SIZE(entry_data_cnt);
+    t_entry->direct_res_config = direct_config_array;
+    direct_config_array->num_configs = num_configs;
+
+    pi_direct_res_config_one_t *direct_config =
+        (pi_direct_res_config_one_t *)(entry_data + entry_data_cnt);
+    entry_data_cnt +=
+        res->num_direct_resources * sizeof(pi_direct_res_config_one_t);
+    entry_data_cnt = ALIGN_SIZE(entry_data_cnt);
+    direct_config_array->configs = direct_config;
+
+    for (size_t i = 0; i < num_configs; i++) {
+      res->curr +=
+          retrieve_p4_id(res->entries + res->curr, &direct_config[i].res_id);
+      res->curr += sizeof(uint32_t);  // skip size
+      pi_res_type_id_t type = PI_GET_TYPE_ID(direct_config[i].res_id);
+      PIDirectResRetrieveFn retrieve_fn;
+      pi_direct_res_get_fns(type, NULL, NULL, NULL, &retrieve_fn);
+      direct_config[i].config =
+          entry_data + entry_data_cnt + res->max_size_of_direct_resources * i;
+      res->curr +=
+          retrieve_fn(res->entries + res->curr, direct_config[i].config);
+    }
+  } else {
+    t_entry->direct_res_config = NULL;
   }
 
   return res->idx++;

@@ -768,11 +768,16 @@ class DeviceMgrImp {
                              table_action->mutable_action());
   }
 
-  // An is a functor which will be called on entries and needs to append a new
-  // p4::TableEntry to entries and return a pointer to it
-  template <typename T, typename Accessor>
-  Status table_read_common(p4_id_t table_id, const SessionTemp &session,
-                           T *entries, Accessor An) const {
+  Status table_read_one(p4_id_t table_id,
+                        const p4::TableEntry &requested_entry,
+                        const SessionTemp &session,
+                        p4::ReadResponse *response) const {
+    pi::MatchKey expected_match_key(p4info.get(), table_id);
+    if (requested_entry.match_size() > 0) {
+      auto status = construct_match_key(requested_entry, &expected_match_key);
+      if (IS_ERROR(status)) return status;
+    }
+
     pi_table_fetch_res_t *res;
     auto table_lock = table_info_store.lock_table(table_id);
     auto pi_status = pi_table_entries_fetch(session.get(), device_id,
@@ -788,12 +793,57 @@ class DeviceMgrImp {
     pi::MatchKey mk(p4info.get(), table_id);
     for (size_t i = 0; i < num_entries; i++) {
       pi_table_entries_next(res, &entry, &entry_handle);
-      auto table_entry = An(entries);
+
+      // Very Very naive solution to filter on a specific match key: we iterate
+      // over ALL entries and compare the match key for each one.
+      // We require equality for every field, even priority, so this is reqlly
+      // just meant to be used as a very inefficient way to retrieve a single
+      // table entry...
+
+      // TODO(antonin): what I really want to do here is a heterogeneous lookup
+      // / comparison; instead I make a copy of the match key in the right
+      // format and I use this for the lookup. If this is a performance issue,
+      // we can find a better solution.
+      mk.from(entry.match_key);
+      if (requested_entry.match_size() > 0 &&
+          !pi::MatchKeyEq()(mk, expected_match_key)) {
+        continue;
+      }
+
+      auto *table_entry = response->add_entities()->mutable_table_entry();
       table_entry->set_table_id(table_id);
       code = parse_match_key(table_id, entry.match_key, table_entry);
       if (code != Code::OK) break;
       code = parse_action_entry(table_id, &entry.entry, table_entry);
       if (code != Code::OK) break;
+
+      // direct resources
+      auto *direct_configs = entry.entry.direct_res_config;
+      if (direct_configs != nullptr) {
+        for (size_t j = 0; j < direct_configs->num_configs; j++) {
+          const auto &config = direct_configs->configs[j];
+          if (pi_is_counter_id(config.res_id)) {
+            // TODO(antonin): according to a p4runtime.proto comment, we are
+            // supposed to include counter data if the table has a direct
+            // counter, irrespective of whether or not the counter_data field
+            // was set. However, it breaks some existing unit tests, so we use
+            // this if statement for the moment.
+            if (requested_entry.has_counter_data()) {
+              counter_data_pi_to_proto(
+                  *static_cast<pi_counter_data_t *>(config.config),
+                  table_entry->mutable_counter_data());
+            }
+          } else if (pi_is_meter_id(config.res_id)) {
+            if (requested_entry.has_meter_config()) {
+              meter_spec_pi_to_proto(
+                  *static_cast<pi_meter_spec_t *>(config.config),
+                  table_entry->mutable_meter_config());
+            }
+          } else {
+            RETURN_ERROR_STATUS(Code::INTERNAL, "Unknown direct resource type");
+          }
+        }
+      }
 
       // If table is const (immutable P4 table), it is possible that the entries
       // were added out-of-band, i.e. without the P4Runtime service. In this
@@ -802,11 +852,6 @@ class DeviceMgrImp {
       // controller metadata for these immutable entries.
       bool table_is_const = pi_p4info_table_is_const(p4info.get(), table_id);
       if (!table_is_const) {
-        // TODO(antonin): what I really want to do here is a heterogeneous
-        // lookup; instead I make a copy of the match key in the right format
-        // and I use this for the lookup. If this is a performance issue, we can
-        // find a better solution.
-        mk.from(entry.match_key);
         auto entry_data = table_info_store.get_entry(table_id, mk);
         // this would point to a serious bug in the implementation, and shoudn't
         // occur given that we keep the local state in sync with lower level
@@ -824,16 +869,7 @@ class DeviceMgrImp {
     RETURN_STATUS(code);
   }
 
-  Status table_read_one(p4_id_t table_id, const SessionTemp &session,
-                        p4::ReadResponse *response) const {
-    return table_read_common(
-        table_id, session, response,
-        [] (decltype(response) r) {
-          return r->add_entities()->mutable_table_entry(); });
-  }
-
   // TODO(antonin): full filtering on the match key, action, ...
-  // TODO(antonin): direct resources
   Status table_read(const p4::TableEntry &table_entry,
                     const SessionTemp &session,
                     p4::ReadResponse *response) const {
@@ -841,13 +877,14 @@ class DeviceMgrImp {
       for (auto t_id = pi_p4info_table_begin(p4info.get());
            t_id != pi_p4info_table_end(p4info.get());
            t_id = pi_p4info_table_next(p4info.get(), t_id)) {
-        auto status = table_read_one(t_id, session, response);
+        auto status = table_read_one(t_id, table_entry, session, response);
         if (IS_ERROR(status)) return status;
       }
     } else {  // read for a single table
       if (!check_p4_id(table_entry.table_id(), P4ResourceType::TABLE))
         return make_invalid_p4_id_status();
-      auto status = table_read_one(table_entry.table_id(), session, response);
+      auto status = table_read_one(
+          table_entry.table_id(), table_entry, session, response);
       if (IS_ERROR(status)) return status;
     }
     RETURN_OK_STATUS();
