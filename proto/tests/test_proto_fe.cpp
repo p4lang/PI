@@ -482,26 +482,40 @@ TEST_P(MatchTableTest, AddAndRead) {
   auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _))
       .Times(AtLeast(1));
-  DeviceMgr::Status status;
   uint64_t controller_metadata(0xab);
   auto entry = generic_make(t_id, mk_input.get_proto(mf_id), adata,
                             mk_input.get_priority(), controller_metadata);
-  status = add_one(&entry);
-  EXPECT_EQ(status.code(), Code::OK);
+  {
+    auto status = add_one(&entry);
+    EXPECT_EQ(status.code(), Code::OK);
+  }
   // second is error because duplicate match key
-  status = add_one(&entry);
-  EXPECT_EQ(status, OneExpectedError(Code::ALREADY_EXISTS));
+  {
+    auto status = add_one(&entry);
+    EXPECT_EQ(status, OneExpectedError(Code::ALREADY_EXISTS));
+  }
 
-  EXPECT_CALL(*mock, table_entries_fetch(t_id, _));
-  p4::ReadResponse response;
-  p4::Entity entity;
-  auto table_entry = entity.mutable_table_entry();
-  table_entry->set_table_id(t_id);
-  status = mgr.read_one(entity, &response);
-  ASSERT_EQ(status.code(), Code::OK);
-  const auto &entities = response.entities();
-  ASSERT_EQ(1, entities.size());
-  EXPECT_TRUE(MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
+  EXPECT_CALL(*mock, table_entries_fetch(t_id, _)).Times(2);
+  // 2 different reads: first one is wildcard read on the table, other filters
+  // on the match key.
+  {
+    p4::ReadResponse response;
+    auto status = read_table_entries(t_id, &response);
+    ASSERT_EQ(status.code(), Code::OK);
+    const auto &entities = response.entities();
+    ASSERT_EQ(1, entities.size());
+    EXPECT_TRUE(
+        MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
+  }
+  {
+    p4::ReadResponse response;
+    auto status = read_table_entry(&entry, &response);
+    ASSERT_EQ(status.code(), Code::OK);
+    const auto &entities = response.entities();
+    ASSERT_EQ(1, entities.size());
+    EXPECT_TRUE(
+        MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
+  }
 }
 
 TEST_P(MatchTableTest, AddAndDelete) {

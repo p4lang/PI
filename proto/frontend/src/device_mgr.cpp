@@ -772,6 +772,12 @@ class DeviceMgrImp {
                         const p4::TableEntry &requested_entry,
                         const SessionTemp &session,
                         p4::ReadResponse *response) const {
+    pi::MatchKey expected_match_key(p4info.get(), table_id);
+    if (requested_entry.match_size() > 0) {
+      auto status = construct_match_key(requested_entry, &expected_match_key);
+      if (IS_ERROR(status)) return status;
+    }
+
     pi_table_fetch_res_t *res;
     auto table_lock = table_info_store.lock_table(table_id);
     auto pi_status = pi_table_entries_fetch(session.get(), device_id,
@@ -787,6 +793,23 @@ class DeviceMgrImp {
     pi::MatchKey mk(p4info.get(), table_id);
     for (size_t i = 0; i < num_entries; i++) {
       pi_table_entries_next(res, &entry, &entry_handle);
+
+      // Very Very naive solution to filter on a specific match key: we iterate
+      // over ALL entries and compare the match key for each one.
+      // We require equality for every field, even priority, so this is reqlly
+      // just meant to be used as a very inefficient way to retrieve a single
+      // table entry...
+
+      // TODO(antonin): what I really want to do here is a heterogeneous lookup
+      // / comparison; instead I make a copy of the match key in the right
+      // format and I use this for the lookup. If this is a performance issue,
+      // we can find a better solution.
+      mk.from(entry.match_key);
+      if (requested_entry.match_size() > 0 &&
+          !pi::MatchKeyEq()(mk, expected_match_key)) {
+        continue;
+      }
+
       auto *table_entry = response->add_entities()->mutable_table_entry();
       table_entry->set_table_id(table_id);
       code = parse_match_key(table_id, entry.match_key, table_entry);
@@ -829,11 +852,6 @@ class DeviceMgrImp {
       // controller metadata for these immutable entries.
       bool table_is_const = pi_p4info_table_is_const(p4info.get(), table_id);
       if (!table_is_const) {
-        // TODO(antonin): what I really want to do here is a heterogeneous
-        // lookup; instead I make a copy of the match key in the right format
-        // and I use this for the lookup. If this is a performance issue, we can
-        // find a better solution.
-        mk.from(entry.match_key);
         auto entry_data = table_info_store.get_entry(table_id, mk);
         // this would point to a serious bug in the implementation, and shoudn't
         // occur given that we keep the local state in sync with lower level
