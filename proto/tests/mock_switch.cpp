@@ -115,64 +115,58 @@ class ActionData {
   std::vector<char> data;
 };
 
-class DummyMeter {
+// CRTP seems overkill here, since we only need to access one static method in
+// the derived classes...
+template <typename T, typename ConfigType>
+class DummyResource {
  public:
-  using Meters = std::unordered_map<uint64_t, pi_meter_spec_t>;
-  static_assert(sizeof(Meters::key_type) >= sizeof(uint64_t),
-                "Key cannot fit uint64");
-  static_assert(sizeof(Meters::key_type) >= sizeof(pi_entry_handle_t),
-                "Key cannot fit entry handle");
+  using config_type = ConfigType;
 
-  template <typename T>
-  pi_status_t read(T index, pi_meter_spec_t *meter_spec) {
-    auto it = meters.find(static_cast<Meters::key_type>(index));
-    if (it == meters.end())
-      *meter_spec = {0, 0, 0, 0, PI_METER_UNIT_DEFAULT, PI_METER_TYPE_DEFAULT};
+  template <typename I>
+  pi_status_t read(I index, ConfigType *config) const {
+    auto it = resources.find(static_cast<typename Resources::key_type>(index));
+    if (it == resources.end())
+      *config = T::get_default();
     else
-      *meter_spec = it->second;
+      *config = it->second;
     return PI_STATUS_SUCCESS;
   }
 
-  template <typename T>
-  pi_status_t set(T index, const pi_meter_spec_t *meter_spec) {
-    meters[static_cast<Meters::key_type>(index)] = *meter_spec;
+  template <typename I>
+  pi_status_t write(I index, const ConfigType *config) {
+    resources[static_cast<typename Resources::key_type>(index)] = *config;
     return PI_STATUS_SUCCESS;
   }
 
-  Meters meters{};
-};
-
-class DummyCounter {
- public:
-  using Counters = std::unordered_map<uint64_t, pi_counter_data_t>;
-  static_assert(sizeof(Counters::key_type) >= sizeof(uint64_t),
+ private:
+  using Resources = std::unordered_map<uint64_t, ConfigType>;
+  using key_type = typename Resources::key_type;
+  static_assert(sizeof(key_type) >= sizeof(uint64_t),
                 "Key cannot fit uint64");
-  static_assert(sizeof(Counters::key_type) >= sizeof(pi_entry_handle_t),
+  static_assert(sizeof(key_type) >= sizeof(pi_entry_handle_t),
                 "Key cannot fit entry handle");
 
-  template <typename T>
-  pi_status_t read(T index, pi_counter_data_t *counter_data) {
-    auto it = counters.find(static_cast<Counters::key_type>(index));
-    if (it == counters.end()) {
-      counter_data->valid = PI_COUNTER_UNIT_PACKETS | PI_COUNTER_UNIT_BYTES;
-      counter_data->bytes = 0;
-      counter_data->packets = 0;
-    } else {
-      *counter_data = it->second;
-    }
-    return PI_STATUS_SUCCESS;
-  }
-
-  template <typename T>
-  pi_status_t write(T index, const pi_counter_data_t *counter_data) {
-    counters[static_cast<Counters::key_type>(index)] = *counter_data;
-    return PI_STATUS_SUCCESS;
-  }
-
-  Counters counters{};
+  Resources resources;
 };
 
-// TODO(antonin): support resources...
+class DummyMeter : public DummyResource<DummyMeter, pi_meter_spec_t> {
+ public:
+  static constexpr pi_res_type_id_t res_type = PI_METER_ID;
+
+  static pi_meter_spec_t get_default() {
+    return {0, 0, 0, 0, PI_METER_UNIT_DEFAULT, PI_METER_TYPE_DEFAULT};
+  }
+};
+
+class DummyCounter : public DummyResource<DummyCounter, pi_counter_data_t> {
+ public:
+  static constexpr pi_res_type_id_t res_type = PI_COUNTER_ID;
+
+  static pi_counter_data_t get_default() {
+    return {PI_COUNTER_UNIT_PACKETS | PI_COUNTER_UNIT_BYTES, 0u, 0u};
+  }
+};
+
 class DummyTableEntry {
  public:
   explicit DummyTableEntry(const pi_table_entry_t *table_entry)
@@ -250,6 +244,9 @@ class DummyTable {
         Entry(std::move(dmk), DummyTableEntry(table_entry)));
 
     // direct resources
+    // my original plan was to support them in DummyTableEntry, but because I
+    // need to access the Dummy instances for the resources, it seems easier to
+    // do it here.
     if (table_entry->direct_res_config) {
       auto *configs = table_entry->direct_res_config->configs;
       for (size_t i = 0; i < table_entry->direct_res_config->num_configs; i++) {
@@ -259,7 +256,7 @@ class DummyTable {
               entry_counter,
               static_cast<const pi_counter_data_t *>(configs[i].config));
         } else if (pi_is_meter_id(res_id)) {
-          meters[res_id]->set(
+          meters[res_id]->write(
               entry_counter,
               static_cast<const pi_meter_spec_t *>(configs[i].config));
         } else {
@@ -345,34 +342,30 @@ class DummyTable {
     return false;
   }
 
+  template <typename T, typename It>
+  size_t emit_direct_resources_one_type(char *dst, pi_entry_handle_t h,
+                                        const It first, const It last) const {
+    size_t s = 0;
+    PIDirectResMsgSizeFn msg_size_fn;
+    PIDirectResEmitFn emit_fn;
+    pi_direct_res_get_fns(T::res_type, &msg_size_fn, &emit_fn, NULL, NULL);
+    for (auto it = first; it != last; ++it) {
+      s += emit_p4_id(dst + s, it->first);
+      typename T::config_type config;
+      it->second->read(h, &config);
+      s += emit_uint32(dst + s, msg_size_fn(&config));
+      s += emit_fn(dst + s, &config);
+    }
+    return s;
+  }
+
   size_t emit_direct_configs(char *dst, pi_entry_handle_t h) const {
     size_t s = 0;
     s += emit_uint32(dst, counters.size() + meters.size());
-    // TODO(antonin): generic code for all direct resources
-    {
-      PIDirectResMsgSizeFn msg_size_fn;
-      PIDirectResEmitFn emit_fn;
-      pi_direct_res_get_fns(PI_COUNTER_ID, &msg_size_fn, &emit_fn, NULL, NULL);
-      for (const auto &p : counters) {
-        s += emit_p4_id(dst + s, p.first);
-        pi_counter_data_t config;
-        p.second->read(h, &config);
-        s += emit_uint32(dst + s, msg_size_fn(&config));
-        s += emit_fn(dst + s, &config);
-      }
-    }
-    {
-      PIDirectResMsgSizeFn msg_size_fn;
-      PIDirectResEmitFn emit_fn;
-      pi_direct_res_get_fns(PI_METER_ID, &msg_size_fn, &emit_fn, NULL, NULL);
-      for (const auto &p : meters) {
-        s += emit_p4_id(dst + s, p.first);
-        pi_meter_spec_t config;
-        p.second->read(h, &config);
-        s += emit_uint32(dst + s, msg_size_fn(&config));
-        s += emit_fn(dst + s, &config);
-      }
-    }
+    s += emit_direct_resources_one_type<DummyCounter>(
+        dst + s, h, counters.begin(), counters.end());
+    s += emit_direct_resources_one_type<DummyMeter>(
+        dst + s, h, meters.begin(), meters.end());
     return s;
   }
 
@@ -579,7 +572,7 @@ class DummySwitch {
 
   pi_status_t meter_set(pi_p4_id_t meter_id, size_t index,
                         const pi_meter_spec_t *meter_spec) {
-    return meters[meter_id].set(index, meter_spec);
+    return meters[meter_id].write(index, meter_spec);
   }
 
   pi_status_t meter_read_direct(pi_p4_id_t meter_id,
@@ -591,7 +584,7 @@ class DummySwitch {
   pi_status_t meter_set_direct(pi_p4_id_t meter_id,
                                pi_entry_handle_t entry_handle,
                                const pi_meter_spec_t *meter_spec) {
-    return meters[meter_id].set(entry_handle, meter_spec);
+    return meters[meter_id].write(entry_handle, meter_spec);
   }
 
   pi_status_t counter_read(pi_p4_id_t counter_id, size_t index, int flags,
