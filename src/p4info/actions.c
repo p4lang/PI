@@ -249,7 +249,11 @@ size_t pi_p4info_action_param_bitwidth(const pi_p4info_t *p4info,
                                        pi_p4_id_t action_id,
                                        pi_p4_id_t param_id) {
   _action_data_t *action = get_action(p4info, action_id);
-  return get_param_data_at(action, param_id)->bitwidth;
+  _action_param_data_t *param = get_param_data_at(action, param_id);
+  if (param == NULL)
+    return (size_t)(-1);
+  else
+    return param->bitwidth;
 }
 
 char pi_p4info_action_param_byte0_mask(const pi_p4info_t *p4info,
