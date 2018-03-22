@@ -475,7 +475,7 @@ them to be used as follows:
 
 ## Packet Replication Engine (PRE) API
 
-PRE is a P4Runtime-configurable block in the *Portable Standard Architecture*
+PRE is a P4Runtime-configurable block in the *Portable Switch Architecture*
 (PSA). It provides the dataplane functionality for cloning, multicasting,
 resubmitting and recirculating packets. The P4Runtime API provides mechanisms
 to program the PRE to control packet replication in the P4 pipeline. For detailed
