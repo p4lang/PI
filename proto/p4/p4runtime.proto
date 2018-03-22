@@ -17,6 +17,7 @@ syntax = "proto3";
 import "google/protobuf/any.proto";
 import "google/rpc/status.proto";
 import "p4/config/p4info.proto";
+import "p4/p4types.proto";
 
 // P4_14 spec: http://p4.org/wp-content/uploads/2015/04/p4-latest.pdf
 
@@ -100,6 +101,7 @@ message Entity {
     DirectCounterEntry direct_counter_entry = 8;
     PacketReplicationEngineEntry packet_replication_engine_entry = 9;
     ValueSetEntry value_set_entry = 10;
+    RegisterEntry register_entry = 11;
   }
 }
 
@@ -389,6 +391,12 @@ message CloneSessionEntry {
 message ValueSetEntry {
   uint32 value_set_id = 1;
   repeated FieldMatch match = 2;
+}
+
+message RegisterEntry {
+  uint32 register_id = 1;
+  Index index = 2;
+  P4Data data = 3;
 }
 
 //------------------------------------------------------------------------------
