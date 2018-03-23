@@ -72,7 +72,7 @@ For all P4_16 compound types (`tuple`, `struct`, `header`, and `header_union`),
 the order of members in the `repeated` field of the Protobuf type specification
 is guaranteed to be the same as the order of the members in the corresponding
 P4_16 declaration. The same goes for the order of members of an `enum` or
-members of `error`, as well as for the order of entries is a `stack`.
+members of `error`, as well as for the order of entries in a `stack`.
 
 ## P4 data in p4runtime.proto
 P4Runtime uses the `P4Data` message to represent values with arbitrary
