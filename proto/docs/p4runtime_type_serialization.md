@@ -68,6 +68,12 @@ the `P4BitstringLikeTypeSpec` message, since they are the only sub-types allowed
 in headers and values with one of these types are represented similarly in
 P4Runtime (with binary strings).
 
+For all P4_16 compound types (`tuple`, `struct`, `header`, and `header_union`),
+the order of members in the `repeated` field of the Protobuf type specification
+is guaranteed to be the same as the order of the members in the corresponding
+P4_16 declaration. The same goes for the order of members of an `enum` or
+members of `error`, as well as for the order of entries is a `stack`.
+
 ## P4 data in p4runtime.proto
 P4Runtime uses the `P4Data` message to represent values with arbitrary
 types. The P4Runtime client must generate correct `P4Data` messages based on the
@@ -77,6 +83,12 @@ most common case (P4_16 `bit<W>` type).
 
 Just like its `P4Info` counterpart `P4DataTypeSpec`, `P4Data` uses a `oneof` to
 represent all possible values.
+
+The order of `members` in `P4StructLike`, the order of `bitstrings` in
+`P4Header`, and the order of `entries` in `P4HeaderStack` and
+`P4HeaderUnionStack` must match the order in the corresponding `p4info.proto`
+type specification and hence the order in the corresponding P4_16 type
+declaration.
 
 ### `enum` and `error`
 We currently use human-readable `string` in `P4Data` to represent `enum` and
@@ -91,6 +103,7 @@ include a mapping from name to integer value in the `P4TypeInfo` message.
 For the v1.0 release of P4Runtime, the Working Group has decided not to replace
 occurences of `bytes` with `P4Data` in the `FieldMatch` message, which is used
 to represent table and value set entries. This is to avoid breaking
-already-existing implementations of P4Runtime. However `P4Data` is used whenever
-appropriate for PSA externs and we encourage the use of `P4Data` in
+already-existing implementations of P4Runtime. Similarly it has been decided to
+keep using `bytes` to provide action parameter values. However `P4Data` is used
+whenever appropriate for PSA externs and we encourage the use of `P4Data` in
 architecture-specific extensions.

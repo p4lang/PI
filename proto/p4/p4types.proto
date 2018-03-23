@@ -42,12 +42,12 @@ package p4;
  */
 
 // These P4 types (struct, header_type, header_union and enum) are guaranteed to
-// be "named" (e.g. you cannot use an anonymous struct to declare a variable,
-// like in C). Instead of duplicating the type spec for these every time the
-// type is used, we include the type spec once in this P4TypeInfo message and
-// refer to the types by name in the P4DataTypeSpec message. We also support
-// annotations for these type specs which can be useful, e.g. to identify
-// well-known headers (such as ipv4).
+// have a fully-qualified name (e.g. you cannot use an anonymous struct to
+// declare a variable like in C). Instead of duplicating the type spec for these
+// every time the type is used, we include the type spec once in this P4TypeInfo
+// message and refer to the types by name in the P4DataTypeSpec message. We also
+// support annotations for these type specs which can be useful, e.g. to
+// identify well-known headers (such as ipv4).
 message P4TypeInfo {
   map<string, P4StructTypeSpec> structs = 1;
   map<string, P4HeaderTypeSpec> headers = 2;
@@ -61,8 +61,6 @@ message P4DataTypeSpec {
   oneof type_spec {
     P4BitstringLikeTypeSpec bitstring = 1;
     P4BoolType bool = 2;
-    // From the P4_16 spec: "A tuple is similar to a struct, in that it holds
-    // multiple values. Unlike a struct type, tuples have no named fields."
     P4TupleTypeSpec tuple = 3;
     P4NamedType struct = 4;
     P4NamedType header = 5;
@@ -90,7 +88,7 @@ message P4BitstringLikeTypeSpec {
     P4IntTypeSpec int = 2;  // int<W>
     P4VarbitTypeSpec varbit = 3;  // varbit<W>
   }
-  // Useful to identify well-know types, such as IP address or Ethernet MAC
+  // Useful to identify well-known types, such as IP address or Ethernet MAC
   // address.
   repeated string annotations = 4;
 }
@@ -107,6 +105,8 @@ message P4VarbitTypeSpec {
   int32 max_bitwidth = 1;
 }
 
+// From the P4_16 spec: "A tuple is similar to a struct, in that it holds
+// multiple values. Unlike a struct type, tuples have no named fields."
 message P4TupleTypeSpec {
   repeated P4DataTypeSpec members = 1;
 }
