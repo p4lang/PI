@@ -154,7 +154,11 @@ message P4HeaderUnionStackTypeSpec {
 // this message (mapping from member names to integer values). This is dependent
 // on future versions of the P4 language.
 message P4EnumTypeSpec {
-  repeated string members = 1;
+  message Member {
+    string name = 1;
+    repeated string annotations = 2;
+  }
+  repeated Member members = 1;
   repeated string annotations = 2;
 }
 
