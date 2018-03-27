@@ -47,6 +47,13 @@ AS_IF([test "$PYTHON" != :], [
 ])
 AM_CONDITIONAL([HAVE_GRPC_PY_PLUGIN], [test "x$GRPC_PY_PLUGIN" != x])
 
+AX_BOOST_BASE([1.54.0], [], [AC_MSG_ERROR(
+              [Please install boost >= 1.54.0 (thread and system)])])
+AX_BOOST_THREAD
+AX_BOOST_SYSTEM
+AC_SUBST([BOOST_THREAD_LIB])
+AC_SUBST([BOOST_SYSTEM_LIB])
+
 want_bmv2=no
 AC_ARG_WITH([bmv2],
     AS_HELP_STRING([--with-bmv2], [Build for bmv2 target]),
@@ -59,7 +66,6 @@ AC_CHECK_LIB([microhttpd], [MHD_start_daemon], [], [
     AC_MSG_WARN([microhttpd library not found, will not compile demo])
     with_proto_demo=no
 ])
-# TODO(antonin): demo also uses boost_system
 
 AM_CONDITIONAL([WITH_PROTO_DEMO], [test "$with_proto_demo" = yes])
 

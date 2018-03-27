@@ -1,0 +1,55 @@
+tables {
+  preamble {
+    id: 33582705
+    name: "T2"
+    alias: "T2"
+  }
+  match_fields {
+    id: 1
+    name: "mf1"
+    bitwidth: 8
+    match_type: EXACT
+  }
+  action_refs {
+    id: 16783703
+  }
+  action_refs {
+    id: 16783704
+  }
+  action_refs {
+    id: 16800567
+    annotations: "@defaultonly()"
+  }
+  size: 64
+}
+actions {
+  preamble {
+    id: 16800567
+    name: "NoAction"
+    alias: "NoAction"
+  }
+}
+actions {
+  preamble {
+    id: 16783703
+    name: "actionA"
+    alias: "actionA"
+  }
+  params {
+    id: 1
+    name: "p1"
+    bitwidth: 8
+  }
+}
+actions {
+  preamble {
+    id: 16783703
+    name: "actionB"
+    alias: "actionB"
+  }
+  params {
+    id: 1
+    name: "p1"
+    bitwidth: 8
+  }
+}

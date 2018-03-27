@@ -674,7 +674,12 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
   for (const auto &e : entries) {
     data += emit_entry_handle(data, e.entry_handle);
     const auto &options = e.options;
-    if (options.__isset.priority) {
+    // TODO(antonin): temporary hack; for match types which do not require a
+    // priority, bmv2 actually returns -1 instead of not setting the field, but
+    // the PI tends to expect 0, which is a problem for looking up entry state
+    // in the PI software. A more robust solution may be to ignore this value in
+    // the PI based on the key match type.
+    if (options.__isset.priority && options.priority != -1) {
       data += emit_uint32(data, options.priority);
     } else {
       data += emit_uint32(data, 0);

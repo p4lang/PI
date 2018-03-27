@@ -26,11 +26,13 @@
 #include <google/protobuf/text_format.h>
 #include <google/protobuf/util/message_differencer.h>
 
+#include <atomic>
 #include <fstream>  // std::ifstream
 #include <iterator>  // std::distance
 #include <memory>
 #include <ostream>
 #include <string>
+#include <thread>
 #include <tuple>
 #include <vector>
 
@@ -197,7 +199,6 @@ class DeviceMgrTest : public ::testing::Test {
     // assert is false
     config.release_p4info();
     ASSERT_EQ(status.code(), Code::OK);
-    mock->set_p4info(p4info);
   }
 
   void TearDown() override { }
@@ -2384,6 +2385,122 @@ TEST_F(PVSTest, Read) {
   (void) pvs_entry;
   auto status = mgr.read(request, &response);
   EXPECT_EQ(status.code(), Code::UNIMPLEMENTED);
+}
+
+// This test verifies that the ReadRequest gets a unique lock (no concurrent
+// writes).
+// We inherit from MatchTableIndirectTest as a convenience (to access all table
+// / action profile modifiers).
+class ReadExclusiveAccess : public MatchTableIndirectTest {
+ public:
+  ReadExclusiveAccess() {
+    t_id = pi_p4info_table_id_from_name(p4info, "IndirectWS");
+    act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
+  }
+
+ protected:
+  pi_p4_id_t t_id;
+  pi_p4_id_t act_prof_id;
+};
+
+TEST_F(ReadExclusiveAccess, ConcurrentReadAndWrites) {
+  // one thread 1) adds action profile member, 2) adds table entry pointing to
+  // this member, 3) deletes table entry and 4) deletes member
+  // another thread reads action profile and table entry
+  // the test ensures that in the read response, we either have a) an empty
+  // table and an empty action profile, b) both the member and the table
+  // entry, or c) just the member. Based on read semantics, we cannot have just
+  // the table entry!!!
+
+  auto do_write = [this](size_t iters) {
+    EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _))
+        .Times(iters);
+    EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _)).Times(iters);
+    EXPECT_CALL(*mock, table_entry_delete_wkey(t_id, _)).Times(iters);
+    EXPECT_CALL(*mock, action_prof_member_delete(act_prof_id, _)).Times(iters);
+
+    uint32_t member_id = 123;
+    std::string mf("\xaa\xbb\xcc\xdd", 4);
+    std::string adata(6, '\x00');
+    auto member = make_member(member_id, adata);
+    auto entry = make_indirect_entry_to_member(mf, member_id);
+
+    std::vector<p4::WriteRequest> requests(4);
+    {
+      auto &request = requests.at(0);
+      auto *update = request.add_updates();
+      update->set_type(p4::Update_Type_INSERT);
+      auto *entity = update->mutable_entity();
+      entity->mutable_action_profile_member()->CopyFrom(member);
+    }
+    {
+      auto &request = requests.at(1);
+      auto *update = request.add_updates();
+      update->set_type(p4::Update_Type_INSERT);
+      auto *entity = update->mutable_entity();
+      entity->mutable_table_entry()->CopyFrom(entry);
+    }
+    {
+      auto &request = requests.at(2);
+      auto *update = request.add_updates();
+      update->set_type(p4::Update_Type_DELETE);
+      auto *entity = update->mutable_entity();
+      entity->mutable_table_entry()->CopyFrom(entry);
+    }
+    {
+      auto &request = requests.at(3);
+      auto *update = request.add_updates();
+      update->set_type(p4::Update_Type_DELETE);
+      auto *entity = update->mutable_entity();
+      entity->mutable_action_profile_member()->CopyFrom(member);
+    }
+
+    for (size_t i = 0; i < iters; i++) {
+      for (const auto &request : requests) {
+        auto status = mgr.write(request);
+        EXPECT_EQ(status.code(), Code::OK);
+      }
+    }
+  };
+
+  std::atomic<bool> stop{false};
+
+  auto do_read = [this, &stop]() {
+    EXPECT_CALL(*mock, table_entries_fetch(t_id, _)).Times(AtLeast(1));
+    EXPECT_CALL(*mock, action_prof_entries_fetch(act_prof_id, _))
+        .Times(AtLeast(1));
+    p4::ReadRequest request;
+    {
+      auto *entity = request.add_entities();
+      auto *entry = entity->mutable_table_entry();
+      entry->set_table_id(t_id);
+    }
+    {
+      auto *entity = request.add_entities();
+      auto *member = entity->mutable_action_profile_member();
+      member->set_action_profile_id(act_prof_id);
+    }
+    while (!stop) {
+      p4::ReadResponse response;
+      auto status = mgr.read(request, &response);
+      ASSERT_EQ(status.code(), Code::OK);
+      const auto num_objects = response.entities_size();
+      ASSERT_TRUE(num_objects == 0 ||
+                  num_objects == 2 ||
+                  (num_objects == 1 &&
+                   response.mutable_entities(0)->has_action_profile_member()));
+    }
+  };
+
+  // 10,000 iterations
+  size_t iterations = 10000u;
+
+  std::thread t2(do_read);  // make sure we start reading before writing
+  std::thread t1(do_write, iterations);
+
+  t1.join();
+  stop = true;
+  t2.join();
 }
 
 }  // namespace
