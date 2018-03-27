@@ -31,7 +31,8 @@ $(top_builddir)/../frontends_extra/cpp/libpifecpp.la \
 $(top_builddir)/p4info/libpiconvertproto.la \
 $(top_builddir)/libpiprotobuf.la \
 $(top_builddir)/../src/libpip4info.la \
-$(top_builddir)/third_party/libfmt.la
+$(top_builddir)/third_party/libfmt.la \
+$(BOOST_THREAD_LIB)
 
 nobase_include_HEADERS = \
 PI/frontends/proto/device_mgr.h \

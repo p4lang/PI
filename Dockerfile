@@ -20,10 +20,12 @@ ENV PI_DEPS automake \
             g++ \
             libboost-dev \
             libboost-system-dev \
+            libboost-thread-dev \
             libtool \
             pkg-config \
             libjudy-dev
 ENV PI_RUNTIME_DEPS libboost-system1.58.0 \
+                    libboost-thread1.58.0 \
                     libjudydebian1 \
                     python
 

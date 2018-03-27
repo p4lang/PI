@@ -57,5 +57,5 @@ $(top_builddir)/../src/libpip4info.la \
 $(top_builddir)/libpiprotogrpc.la \
 $(top_builddir)/libpiprotobuf.la \
 $(top_builddir)/p4info/libpiconvertproto.la \
--lmicrohttpd -lboost_system \
+-lmicrohttpd $(BOOST_SYSTEM_LIB) \
 $(PROTOBUF_LIBS) $(GRPC_LIBS)

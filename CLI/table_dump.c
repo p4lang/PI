@@ -138,8 +138,8 @@ static pi_cli_status_t dump_entries(pi_p4_id_t t_id,
     }
 
     uint32_t priority = pi_match_key_get_priority(entry.match_key);
-    // TODO(antonin): bmv2 quirk, for tables with no priority, -1 is returned
-    if (priority != (uint32_t)-1) printf("Priority: %u\n", priority);
+    // TODO(antonin): 0 means no priority?
+    if (priority != 0) printf("Priority: %u\n", priority);
 
     print_action_entry(&entry.entry);
   }

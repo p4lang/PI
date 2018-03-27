@@ -1,0 +1,35 @@
+tables {
+  preamble {
+    id: 33582705
+    name: "T3"
+    alias: "T3"
+  }
+  match_fields {
+    id: 1
+    name: "mf1"
+    bitwidth: 8
+    match_type: EXACT
+  }
+  action_refs {
+    id: 16783703
+  }
+  action_refs {
+    id: 16800567
+    annotations: "@defaultonly()"
+  }
+  size: 64
+}
+actions {
+  preamble {
+    id: 16800567
+    name: "NoAction"
+    alias: "NoAction"
+  }
+}
+actions {
+  preamble {
+    id: 16783703
+    name: "actionA"
+    alias: "actionA"
+  }
+}

@@ -623,6 +623,13 @@ class DummySwitch {
     this->p4info = p4info;
   }
 
+  void reset() {
+    tables.clear();
+    action_profs.clear();
+    counters.clear();
+    meters.clear();
+  }
+
  private:
   DummyTable &get_table(pi_p4_id_t table_id) {
     auto t_it = tables.find(table_id);
@@ -774,6 +781,11 @@ DummySwitchMock::set_p4info(const pi_p4info_t *p4info) {
   sw->set_p4info(p4info);
 }
 
+void
+DummySwitchMock::reset() {
+  sw->reset();
+}
+
 namespace {
 
 // here we implement the _pi_* methods which are needed for our tests
@@ -783,13 +795,20 @@ pi_status_t _pi_init(void *) { return PI_STATUS_SUCCESS; }
 
 pi_status_t _pi_destroy() { return PI_STATUS_SUCCESS; }
 
-pi_status_t _pi_assign_device(pi_dev_id_t, const pi_p4info_t *,
+pi_status_t _pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
                               pi_assign_extra_t *) {
+  auto *sw = DeviceResolver::get_switch(dev_id);
+  sw->reset();
+  sw->set_p4info(p4info);
   return PI_STATUS_SUCCESS;
 }
 
-pi_status_t _pi_update_device_start(pi_dev_id_t, const pi_p4info_t *,
+pi_status_t _pi_update_device_start(pi_dev_id_t dev_id,
+                                    const pi_p4info_t *p4info,
                                     const char *, size_t) {
+  auto *sw = DeviceResolver::get_switch(dev_id);
+  sw->reset();
+  sw->set_p4info(p4info);
   return PI_STATUS_SUCCESS;
 }
 
