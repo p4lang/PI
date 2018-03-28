@@ -27,6 +27,7 @@
 #include <PI/proto/util.h>
 
 #include <algorithm>  // for std::all_of
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>  // for std::pair
@@ -391,6 +392,8 @@ class DeviceMgrImp {
                             "INSERT update type not supported for meters");
       case p4::Update_Type_MODIFY:
         {
+          auto status = validate_meter_spec(meter_entry.config());
+          if (IS_ERROR(status)) return status;
           auto pi_meter_spec = meter_spec_proto_to_pi(
               meter_entry.config(), meter_entry.meter_id());
           auto pi_status = pi_meter_set(session.get(), device_tgt,
@@ -468,6 +471,8 @@ class DeviceMgrImp {
                             "INSERT update type not supported for meters");
       case p4::Update_Type_MODIFY:
         {
+          auto status = validate_meter_spec(meter_entry.config());
+          if (IS_ERROR(status)) return status;
           auto pi_meter_spec = meter_spec_proto_to_pi(
               meter_entry.config(), table_direct_meter_id);
           auto pi_status = pi_meter_set_direct(session.get(), device_tgt,
@@ -1741,6 +1746,8 @@ class DeviceMgrImp {
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                             "Table has no direct meters");
       }
+      auto status = validate_meter_spec(table_entry.meter_config());
+      if (IS_ERROR(status)) return status;
       *meter_spec = meter_spec_proto_to_pi(
           table_entry.meter_config(), meter_id);
       action_entry->add_direct_res_config(meter_id, meter_spec);
@@ -1932,6 +1939,25 @@ class DeviceMgrImp {
     return pi_data;
   }
 
+  static Status validate_meter_spec(const p4::MeterConfig &config) {
+    // as per P4Runtime spec, -1 is a valid value and means that the packet is
+    // always marked "green"
+    if (config.cir() < 0 && config.cir() != -1)
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Negative meter CIR");
+    if (config.cburst() < 0 && config.cburst() != -1)
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Negative meter CBurst");
+    if (config.pir() < 0 && config.cir() != -1)
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Negative meter PIR");
+    if (config.pburst() < 0 && config.pburst() != -1)
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Negative meter PBurst");
+    auto max_burst = std::numeric_limits<uint32_t>::max();
+    if (config.cburst() > static_cast<decltype(config.cburst())>(max_burst))
+      RETURN_ERROR_STATUS(Code::UNIMPLEMENTED, "CBurst too large");
+    if (config.pburst() > static_cast<decltype(config.pburst())>(max_burst))
+      RETURN_ERROR_STATUS(Code::UNIMPLEMENTED, "Pburst too large");
+    RETURN_OK_STATUS();
+  }
+
   pi_meter_spec_t meter_spec_proto_to_pi(const p4::MeterConfig &config,
                                          pi_p4_id_t meter_id) const {
     pi_meter_spec_t pi_meter_spec;
@@ -1951,9 +1977,15 @@ class DeviceMgrImp {
   void meter_spec_pi_to_proto(const pi_meter_spec_t &pi_meter_spec,
                               p4::MeterConfig *config) const {
     config->set_cir(pi_meter_spec.cir);
-    config->set_cburst(pi_meter_spec.cburst);
+    if (pi_meter_spec.cburst == static_cast<decltype(pi_meter_spec.cburst)>(-1))
+      config->set_cburst(-1);
+    else
+      config->set_cburst(pi_meter_spec.cburst);
     config->set_pir(pi_meter_spec.pir);
-    config->set_pburst(pi_meter_spec.pburst);
+    if (pi_meter_spec.pburst == static_cast<decltype(pi_meter_spec.pburst)>(-1))
+      config->set_pburst(-1);
+    else
+      config->set_pburst(pi_meter_spec.pburst);
   }
 
   Status counter_read_one_index(const SessionTemp &session, uint32_t counter_id,
