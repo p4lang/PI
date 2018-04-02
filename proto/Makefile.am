@@ -18,6 +18,7 @@ PROTOFLAGS = -I$(abs_srcdir) -I$(abs_builddir)
 
 # Absolute paths are needed here for 'make distcheck' to work properly
 protos = \
+$(abs_srcdir)/p4/p4types.proto \
 $(abs_srcdir)/p4/p4runtime.proto \
 $(abs_srcdir)/p4/config/p4info.proto \
 $(abs_srcdir)/google/rpc/status.proto \
@@ -28,6 +29,7 @@ $(abs_srcdir)/gnmi/gnmi.proto
 # Somehow, using an absolute path above prevents me from using EXTRA_DIST =
 # $(protos)
 EXTRA_DIST = \
+p4/p4types.proto \
 p4/p4runtime.proto \
 p4/config/p4info.proto \
 google/rpc/status.proto \
@@ -36,6 +38,8 @@ p4/tmp/p4config.proto \
 gnmi/gnmi.proto
 
 proto_cpp_files = \
+cpp_out/p4/p4types.pb.cc \
+cpp_out/p4/p4types.pb.h \
 cpp_out/p4/p4runtime.pb.cc \
 cpp_out/p4/p4runtime.pb.h \
 cpp_out/p4/config/p4info.pb.cc \
@@ -50,6 +54,8 @@ cpp_out/gnmi/gnmi.pb.cc \
 cpp_out/gnmi/gnmi.pb.h
 
 proto_grpc_files = \
+grpc_out/p4/p4types.grpc.pb.cc \
+grpc_out/p4/p4types.grpc.pb.h \
 grpc_out/p4/p4runtime.grpc.pb.cc \
 grpc_out/p4/p4runtime.grpc.pb.h \
 grpc_out/p4/config/p4info.grpc.pb.cc \
@@ -65,6 +71,8 @@ grpc_out/gnmi/gnmi.grpc.pb.h
 
 includep4dir = $(includedir)/p4/
 nodist_includep4_HEADERS = \
+cpp_out/p4/p4types.pb.h \
+grpc_out/p4/p4types.grpc.pb.h \
 cpp_out/p4/p4runtime.pb.h \
 grpc_out/p4/p4runtime.grpc.pb.h
 
@@ -98,6 +106,7 @@ BUILT_SOURCES = $(proto_cpp_files) $(proto_grpc_files)
 if HAVE_GRPC_PY_PLUGIN
 p4pydir = $(pythondir)/p4
 nodist_p4py_PYTHON = \
+py_out/p4/p4types_pb2.py \
 py_out/p4/p4runtime_pb2.py \
 py_out/p4/__init__.py
 

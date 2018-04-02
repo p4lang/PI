@@ -15,6 +15,7 @@
 syntax = "proto3";
 
 import "google/protobuf/any.proto";
+import "p4/p4types.proto";
 
 // This package and its contents are a work-in-progress.
 
@@ -31,7 +32,9 @@ message P4Info {
   repeated DirectMeter direct_meters = 8;
   repeated ControllerPacketMetadata controller_packet_metadata = 9;
   repeated ValueSet value_sets = 10;
+  repeated Register registers = 11;
   repeated Extern externs = 100;
+  P4TypeInfo type_info = 200;
 }
 
 message Documentation {
@@ -265,5 +268,11 @@ message ValueSet {
   int32 bitwidth = 2;
   // The value set size should be extracted from the @size annotation into the
   // field below. The @size annotation will also appear in the preamble.
+  int32 size = 3;
+}
+
+message Register {
+  Preamble preamble = 1;
+  P4DataTypeSpec type_spec = 2;
   int32 size = 3;
 }
