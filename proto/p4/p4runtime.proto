@@ -302,7 +302,7 @@ message MeterConfig {
 //------------------------------------------------------------------------------
 // For WriteRequest, Update.Type must be MODIFY.
 // For ReadRequest, the scope is defined as follows:
-// - All counter cells for all meters if counter_id = 0 (default).
+// - All counter cells for all counters if counter_id = 0 (default).
 // - All counter cells for given counter_id if index is unset (default).
 message CounterEntry {
   uint32 counter_id = 1;
