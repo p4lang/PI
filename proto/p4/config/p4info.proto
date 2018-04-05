@@ -65,6 +65,40 @@ message PkgInfo {
     string url = 8;
 }
 
+// wrapping the enum in a message to avoid name collisions in C++, where "enum
+// values are siblings of their type, not children of it"
+message P4Ids {
+    // ids are allocated in such a way that it is possible based on an id to
+    // deduce the resource type (e.g. table, action, counter, ...). The
+    // most-significant byte of the 32-bit id encodes the resource type. The
+    // purpose of this enum is to define which value is used as the
+    // most-significant byte for each resource type. The P4 compiler must use
+    // these values when allocating ids for P4 objects. Other users of P4Info
+    // can refer to this enum to identify a resource type based on its id.
+    enum Prefix {
+        UNSPECIFIED = 0;
+
+        // P4 language built-ins
+        ACTION = 0x01;
+        TABLE = 0x02;
+        VALUE_SET = 0x03;
+
+        // PSA externs
+        PSA_EXTERNS_START = 0x10;
+        ACTION_PROFILE = 0x11;
+        COUNTER = 0x12;
+        METER = 0x13;
+
+        // externs for other architectures (vendor extensions)
+        OTHER_EXTERNS_START = 0x80;
+
+        // max value for an unsigned 8-bit byte
+        MAX = 0xff;
+        // requires protoc >= 3.5.0
+        // reserved 0x100 to max;
+    }
+}
+
 message Preamble {
   // ids share the same number-space; e.g. table ids cannot overlap with counter
   // ids. Even though this is irrelevant to this proto definition, the ids are
