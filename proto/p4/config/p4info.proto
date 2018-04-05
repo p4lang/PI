@@ -87,7 +87,9 @@ message P4Ids {
         PSA_EXTERNS_START = 0x10;
         ACTION_PROFILE = 0x11;
         COUNTER = 0x12;
-        METER = 0x13;
+        DIRECT_COUNTER = 0x13;
+        METER = 0x14;
+        DIRECT_METER = 0x15;
 
         // externs for other architectures (vendor extensions)
         OTHER_EXTERNS_START = 0x80;
