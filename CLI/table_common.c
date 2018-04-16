@@ -205,7 +205,7 @@ pi_cli_status_t read_match_key_with_priority(char *in, pi_p4_id_t t_id,
   } else if (pri_status == 3 || priority < 0) {
     return PI_CLI_STATUS_INVALID_COMMAND_FORMAT;
   } else {  // success
-    pi_match_key_set_priority(mk, priority);
+    pi_match_key_set_priority(mk, (pi_priority_t)priority);
   }
   return PI_CLI_STATUS_SUCCESS;
 }
