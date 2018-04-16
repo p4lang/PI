@@ -25,6 +25,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -42,6 +43,22 @@ extern conn_mgr_t *conn_mgr_state;
 }  // namespace pibmv2
 
 namespace {
+
+// We check which of pi_priority_t (PI type) and int32_t (bmv2 Thrift type) can
+// fit the largest unsigned integer. If it is priority_t, BM_MAX_PRIORITY is set
+// to the max value for an int32_t. If it is int32_t_t, BM_MAX_PRIORITY is set
+// to the max value for a priority_t. BM_MAX_PRIORITY is then used as a pivot to
+// invert priority values passed by PI.
+static constexpr pi_priority_t BM_MAX_PRIORITY =
+    (static_cast<uintmax_t>(std::numeric_limits<pi_priority_t>::max()) >=
+     static_cast<uintmax_t>(std::numeric_limits<int32_t>::max())) ?
+    static_cast<pi_priority_t>(std::numeric_limits<int32_t>::max()) :
+    std::numeric_limits<pi_priority_t>::max();
+
+int32_t invert_priority(pi_priority_t from) {
+  assert(from <= BM_MAX_PRIORITY);
+  return BM_MAX_PRIORITY - from;
+}
 
 std::vector<BmMatchParam> build_key(pi_p4_id_t table_id,
                                     const pi_match_key_t *match_key,
@@ -131,7 +148,8 @@ void build_key_and_options(pi_p4_id_t table_id,
                            BmMatchParams *mkey, BmAddEntryOptions *options) {
   bool requires_priority = false;
   *mkey = build_key(table_id, match_key, p4info, &requires_priority);
-  if (requires_priority) options->__set_priority(match_key->priority);
+  if (requires_priority)
+    options->__set_priority(invert_priority(match_key->priority));
 }
 
 
@@ -310,6 +328,8 @@ pi_status_t retrieve_entry_wkey(pi_dev_id_t dev_id, pi_p4_id_t table_id,
   assert(d_info->assigned);
   const pi_p4info_t *p4info = d_info->p4info;
 
+  if (match_key->priority > BM_MAX_PRIORITY)
+    return PI_STATUS_UNSUPPORTED_ENTRY_PRIORITY;
   BmMatchParams mkey;
   BmAddEntryOptions options;
   build_key_and_options(table_id, match_key, p4info, &mkey, &options);
@@ -349,6 +369,8 @@ pi_status_t _pi_table_entry_add(pi_session_handle_t session_handle,
   assert(d_info->assigned);
   const pi_p4info_t *p4info = d_info->p4info;
 
+  if (match_key->priority > BM_MAX_PRIORITY)
+    return PI_STATUS_UNSUPPORTED_ENTRY_PRIORITY;
   BmMatchParams mkey;
   BmAddEntryOptions options;
   build_key_and_options(table_id, match_key, p4info, &mkey, &options);
@@ -680,7 +702,7 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
     // in the PI software. A more robust solution may be to ignore this value in
     // the PI based on the key match type.
     if (options.__isset.priority && options.priority != -1) {
-      data += emit_uint32(data, options.priority);
+      data += emit_uint32(data, invert_priority(options.priority));
     } else {
       data += emit_uint32(data, 0);
     }

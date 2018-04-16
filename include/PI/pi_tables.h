@@ -63,6 +63,8 @@ typedef uint64_t pi_entry_handle_t;
 
 typedef uint64_t pi_indirect_handle_t;
 
+typedef uint32_t pi_priority_t;
+
 //! Forward declaration for a match key.
 typedef struct pi_match_key_s pi_match_key_t;
 

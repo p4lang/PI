@@ -39,9 +39,9 @@ pi_status_t pi_match_key_allocate(const pi_p4info_t *p4info,
 //! allocation.
 pi_status_t pi_match_key_init(pi_match_key_t *key);
 
-void pi_match_key_set_priority(pi_match_key_t *key, uint32_t priority);
+void pi_match_key_set_priority(pi_match_key_t *key, pi_priority_t priority);
 
-uint32_t pi_match_key_get_priority(pi_match_key_t *key);
+pi_priority_t pi_match_key_get_priority(pi_match_key_t *key);
 
 pi_status_t pi_match_key_exact_set(pi_match_key_t *key, const pi_netv_t *fv);
 pi_status_t pi_match_key_exact_get(const pi_match_key_t *key, pi_p4_id_t fid,

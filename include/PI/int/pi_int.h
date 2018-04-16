@@ -72,7 +72,7 @@ static inline size_t get_match_key_size_one_field(
 struct pi_match_key_s {
   const pi_p4info_t *p4info;
   pi_p4_id_t table_id;
-  uint32_t priority;
+  pi_priority_t priority;
   size_t data_size;
   char *data;
 };

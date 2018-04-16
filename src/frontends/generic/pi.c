@@ -123,11 +123,11 @@ pi_status_t pi_match_key_init(pi_match_key_t *key) {
   return PI_STATUS_SUCCESS;
 }
 
-void pi_match_key_set_priority(pi_match_key_t *key, uint32_t priority) {
+void pi_match_key_set_priority(pi_match_key_t *key, pi_priority_t priority) {
   key->priority = priority;
 }
 
-uint32_t pi_match_key_get_priority(pi_match_key_t *key) {
+pi_priority_t pi_match_key_get_priority(pi_match_key_t *key) {
   return key->priority;
 }
 
