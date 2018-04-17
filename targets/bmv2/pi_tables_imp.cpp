@@ -46,8 +46,8 @@ namespace {
 
 // We check which of pi_priority_t (PI type) and int32_t (bmv2 Thrift type) can
 // fit the largest unsigned integer. If it is priority_t, BM_MAX_PRIORITY is set
-// to the max value for an int32_t. If it is int32_t_t, BM_MAX_PRIORITY is set
-// to the max value for a priority_t. BM_MAX_PRIORITY is then used as a pivot to
+// to the max value for an int32_t. If it is int32_t, BM_MAX_PRIORITY is set to
+// the max value for a priority_t. BM_MAX_PRIORITY is then used as a pivot to
 // invert priority values passed by PI.
 static constexpr pi_priority_t BM_MAX_PRIORITY =
     (static_cast<uintmax_t>(std::numeric_limits<pi_priority_t>::max()) >=
@@ -55,10 +55,18 @@ static constexpr pi_priority_t BM_MAX_PRIORITY =
     static_cast<pi_priority_t>(std::numeric_limits<int32_t>::max()) :
     std::numeric_limits<pi_priority_t>::max();
 
-int32_t invert_priority(pi_priority_t from) {
-  assert(from <= BM_MAX_PRIORITY);
-  return BM_MAX_PRIORITY - from;
-}
+class PriorityInverter {
+ public:
+  PriorityInverter() = delete;
+  static int32_t pi_to_bm(pi_priority_t from) {
+    assert(from <= BM_MAX_PRIORITY);
+    return BM_MAX_PRIORITY - from;
+  }
+  static pi_priority_t bm_to_pi(int32_t from) {
+    assert(from >= 0 && static_cast<uintmax_t>(from) <= BM_MAX_PRIORITY);
+    return BM_MAX_PRIORITY - static_cast<pi_priority_t>(from);
+  }
+};
 
 std::vector<BmMatchParam> build_key(pi_p4_id_t table_id,
                                     const pi_match_key_t *match_key,
@@ -149,7 +157,7 @@ void build_key_and_options(pi_p4_id_t table_id,
   bool requires_priority = false;
   *mkey = build_key(table_id, match_key, p4info, &requires_priority);
   if (requires_priority)
-    options->__set_priority(invert_priority(match_key->priority));
+    options->__set_priority(PriorityInverter::pi_to_bm(match_key->priority));
 }
 
 
@@ -702,7 +710,7 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
     // in the PI software. A more robust solution may be to ignore this value in
     // the PI based on the key match type.
     if (options.__isset.priority && options.priority != -1) {
-      data += emit_uint32(data, invert_priority(options.priority));
+      data += emit_uint32(data, PriorityInverter::bm_to_pi(options.priority));
     } else {
       data += emit_uint32(data, 0);
     }
