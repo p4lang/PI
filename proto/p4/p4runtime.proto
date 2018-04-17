@@ -405,8 +405,9 @@ message DigestEntry {
   uint32 digest_id = 1;
   // a DigestList message is streamed when the following conditions are met:
   //   - there is at least one digest ready
-  //   - the oldest digest in the list has been waiting for at least timeout_ns
-  //     nanoseconds or we have gathered max_list_size digests already
+  //   - the oldest digest in the list has been waiting for at least
+  //     max_timeout_ns nanoseconds or we have gathered max_list_size digests
+  //     already
   message Config {
     int64 max_timeout_ns = 1;  // max timeout for outstanding digest data
     int32 max_list_size = 2;  // max size for a digest list
@@ -435,7 +436,7 @@ message PacketOut {
 
 // Used by the controller to ack a DigestList message. To avoid flooding the
 // controller, the switch must not generate digest notifications for the same
-// data until a DigestLickAck message with the same list_id is received or the
+// data until a DigestListAck message with the same list_id is received or the
 // ack timeout (ack_timeout_ns field in DigestEntry.Config) expires.
 message DigestListAck {
   uint32 digest_id = 1;
@@ -465,6 +466,9 @@ message DigestList {
   // List of entries: each call to the Digest<T>::pack() method corresponds to
   // one entry and we can have as little as one entry.
   repeated P4Data data = 3;
+  // Timestamp at which the server generated the message (in nanoseconds since
+  // Epoch)
+  int64 timestamp = 4;
 }
 
 // Any metadata associated with Packet-IO (controller Packet-In or Packet-Out)
