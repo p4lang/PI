@@ -33,6 +33,7 @@ message P4Info {
   repeated ControllerPacketMetadata controller_packet_metadata = 9;
   repeated ValueSet value_sets = 10;
   repeated Register registers = 11;
+  repeated Digest digests = 12;
   repeated Extern externs = 100;
   P4TypeInfo type_info = 200;
 }
@@ -311,4 +312,9 @@ message Register {
   Preamble preamble = 1;
   P4DataTypeSpec type_spec = 2;
   int32 size = 3;
+}
+
+message Digest {
+  Preamble preamble = 1;
+  P4DataTypeSpec type_spec = 2;
 }
