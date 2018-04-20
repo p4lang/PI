@@ -1332,10 +1332,18 @@ class DeviceMgrImp {
         status = ERROR_STATUS(Code::UNIMPLEMENTED,
                               "Reading from PRE is not supported yet");
         break;
-        case p4::Entity::kValueSetEntry:  // TODO(antonin)
-          status = ERROR_STATUS(Code::UNIMPLEMENTED,
-                                "ValueSet reads are not supported yet");
-          break;
+      case p4::Entity::kValueSetEntry:  // TODO(antonin)
+        status = ERROR_STATUS(Code::UNIMPLEMENTED,
+                              "ValueSet reads are not supported yet");
+        break;
+      case p4::Entity::kRegisterEntry:
+        status = ERROR_STATUS(Code::UNIMPLEMENTED,
+                              "Register reads are not supported yet");
+        break;
+      case p4::Entity::kDigestEntry:
+        status = ERROR_STATUS(Code::UNIMPLEMENTED,
+                              "Digest config reads are not supported yet");
+        break;
       default:
         status = ERROR_STATUS(Code::UNKNOWN, "Incorrect entity type");
         break;
@@ -1389,6 +1397,14 @@ class DeviceMgrImp {
         case p4::Entity::kValueSetEntry:  // TODO(antonin)
           status = ERROR_STATUS(Code::UNIMPLEMENTED,
                                 "ValueSet writes are not supported yet");
+          break;
+        case p4::Entity::kRegisterEntry:
+          status = ERROR_STATUS(Code::UNIMPLEMENTED,
+                                "Register writes are not supported yet");
+          break;
+        case p4::Entity::kDigestEntry:
+          status = ERROR_STATUS(Code::UNIMPLEMENTED,
+                                "Digest config writes are not supported yet");
           break;
         default:
           status = ERROR_STATUS(Code::UNKNOWN, "Incorrect entity type");

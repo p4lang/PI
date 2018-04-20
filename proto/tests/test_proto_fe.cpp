@@ -2387,6 +2387,54 @@ TEST_F(PVSTest, Read) {
   EXPECT_EQ(status.code(), Code::UNIMPLEMENTED);
 }
 
+// Placeholder for Register tests: for now there is no support in DeviceMgr
+class RegisterTest : public DeviceMgrTest { };
+
+TEST_F(RegisterTest, Write) {
+  p4::WriteRequest request;
+  auto *update = request.add_updates();
+  update->set_type(p4::Update_Type_MODIFY);
+  auto *entity = update->mutable_entity();
+  auto *register_entry = entity->mutable_register_entry();
+  (void) register_entry;
+  auto status = mgr.write(request);
+  EXPECT_EQ(status, OneExpectedError(Code::UNIMPLEMENTED));
+}
+
+TEST_F(RegisterTest, Read) {
+  p4::ReadRequest request;
+  p4::ReadResponse response;
+  auto *entity = request.add_entities();
+  auto *register_entry = entity->mutable_register_entry();
+  (void) register_entry;
+  auto status = mgr.read(request, &response);
+  EXPECT_EQ(status.code(), Code::UNIMPLEMENTED);
+}
+
+// Placeholder for Digest tests: for now there is no support in DeviceMgr
+class DigestTest : public DeviceMgrTest { };
+
+TEST_F(DigestTest, Write) {
+  p4::WriteRequest request;
+  auto *update = request.add_updates();
+  update->set_type(p4::Update_Type_MODIFY);
+  auto *entity = update->mutable_entity();
+  auto *register_entry = entity->mutable_register_entry();
+  (void) register_entry;
+  auto status = mgr.write(request);
+  EXPECT_EQ(status, OneExpectedError(Code::UNIMPLEMENTED));
+}
+
+TEST_F(DigestTest, Read) {
+  p4::ReadRequest request;
+  p4::ReadResponse response;
+  auto *entity = request.add_entities();
+  auto *register_entry = entity->mutable_register_entry();
+  (void) register_entry;
+  auto status = mgr.read(request, &response);
+  EXPECT_EQ(status.code(), Code::UNIMPLEMENTED);
+}
+
 // This test verifies that the ReadRequest gets a unique lock (no concurrent
 // writes).
 // We inherit from MatchTableIndirectTest as a convenience (to access all table

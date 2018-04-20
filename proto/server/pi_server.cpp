@@ -476,6 +476,11 @@ class P4RuntimeServiceImpl : public p4::P4Runtime::Service {
                 connection_status.connection.get(), request.packet());
           }
           break;
+        case p4::StreamMessageRequest::kDigestAck:
+          // DigestAck not supported, and not expected either since we do not
+          // support generating DigestList notifications yet.
+          SIMPLELOG << "DigestAck not supported yet\n";
+          break;
         default:
           break;
       }
