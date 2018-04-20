@@ -117,7 +117,7 @@ message Preamble {
   // an alias for the P4 object, probably shorter than its name. The only
   // constraint is for it to be unique with respect to other P4 objects of the
   // same type. By default, the compiler uses the shortest suffix of the name
-  // that uniquely indentifies the object. For example if the P4 program
+  // that uniquely identifies the object. For example if the P4 program
   // contains two tables with names s.c1.t and s.c2.t, the default aliases will
   // respectively be c1.t and c2.t. The P4 programmer may also override the
   // default alias for any P4 object (TBD). When resolving a P4 object id, an
