@@ -225,9 +225,8 @@ ActionProfMgr::group_delete(const p4::ActionProfileGroup &group,
 
 bool
 ActionProfMgr::check_p4_action_id(pi_p4_id_t p4_id) const {
-  using pi::proto::util::P4ResourceType;
   using pi::proto::util::resource_type_from_id;
-  return (resource_type_from_id(p4_id) == P4ResourceType::ACTION)
+  return (resource_type_from_id(p4_id) == p4::config::P4Ids::ACTION)
       && pi_p4info_is_valid_id(p4info, p4_id);
 }
 

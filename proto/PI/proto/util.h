@@ -21,6 +21,8 @@
 #ifndef PI_PROTO_UTIL_H_
 #define PI_PROTO_UTIL_H_
 
+#include <p4/config/p4info.pb.h>
+
 #include <cstdint>
 
 namespace pi {
@@ -31,23 +33,9 @@ namespace util {
 
 using p4_id_t = uint32_t;
 
-// we use the same integral value as the PI internally, but this is not a
-// requirement
-enum class P4ResourceType {
-  INVALID = 0x00,
-
-  ACTION = 0x01,
-  TABLE = 0x02,
-  ACTION_PROFILE = 0x11,
-  COUNTER = 0x12,
-  METER = 0x13,
-
-  INVALID_MAX = 0x100,
-};
-
 constexpr p4_id_t invalid_id() { return 0; }
 
-P4ResourceType resource_type_from_id(p4_id_t p4_id);
+p4::config::P4Ids::Prefix resource_type_from_id(p4_id_t p4_id);
 
 }  // namespace util
 

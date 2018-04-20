@@ -1,3 +1,4 @@
+
 /* Copyright 2013-present Barefoot Networks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -37,7 +38,9 @@ extern pi_session_handle_t sess;
 #define NEXT_ENTRY_TOKEN "NEXT_ENTRY"
 
 static char *complete_meter(const char *text, int state) {
-  return complete_one_name(text, state, PI_METER_ID);
+  static pi_res_type_id_t meter_types[] = {PI_METER_ID, PI_DIRECT_METER_ID};
+  return complete_one_name(
+      text, state, sizeof(meter_types) / sizeof(pi_res_type_id_t), meter_types);
 }
 
 static const char *meter_unit_to_string(pi_meter_unit_t unit) {

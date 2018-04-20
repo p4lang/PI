@@ -18,8 +18,6 @@
  *
  */
 
-#include <PI/pi_base.h>
-
 #include <PI/proto/util.h>
 
 namespace pi {
@@ -28,21 +26,29 @@ namespace proto {
 
 namespace util {
 
-P4ResourceType
+p4::config::P4Ids::Prefix
 resource_type_from_id(p4_id_t p4_id) {
   switch (p4_id >> 24) {
-    case PI_ACTION_ID:
-      return P4ResourceType::ACTION;
-    case PI_TABLE_ID:
-      return P4ResourceType::TABLE;
-    case PI_ACT_PROF_ID:
-      return P4ResourceType::ACTION_PROFILE;
-    case PI_COUNTER_ID:
-      return P4ResourceType::COUNTER;
-    case PI_METER_ID:
-      return P4ResourceType::METER;
+    case static_cast<p4_id_t>(p4::config::P4Ids::UNSPECIFIED):
+      return p4::config::P4Ids::UNSPECIFIED;
+    case static_cast<p4_id_t>(p4::config::P4Ids::ACTION):
+      return p4::config::P4Ids::ACTION;
+    case static_cast<p4_id_t>(p4::config::P4Ids::TABLE):
+      return p4::config::P4Ids::TABLE;
+    case static_cast<p4_id_t>(p4::config::P4Ids::VALUE_SET):
+      return p4::config::P4Ids::VALUE_SET;
+    case static_cast<p4_id_t>(p4::config::P4Ids::ACTION_PROFILE):
+      return p4::config::P4Ids::ACTION_PROFILE;
+    case static_cast<p4_id_t>(p4::config::P4Ids::COUNTER):
+      return p4::config::P4Ids::COUNTER;
+    case static_cast<p4_id_t>(p4::config::P4Ids::DIRECT_COUNTER):
+      return p4::config::P4Ids::DIRECT_COUNTER;
+    case static_cast<p4_id_t>(p4::config::P4Ids::METER):
+      return p4::config::P4Ids::METER;
+    case static_cast<p4_id_t>(p4::config::P4Ids::DIRECT_METER):
+      return p4::config::P4Ids::DIRECT_METER;
     default:
-      return P4ResourceType::INVALID;
+      return p4::config::P4Ids::UNSPECIFIED;
   }
 }
 

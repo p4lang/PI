@@ -248,7 +248,7 @@ p4::config::P4Info DeviceMgrTest::p4info_proto;
 constexpr const char *DeviceMgrTest::invalid_p4_id_error_str;
 
 TEST_F(DeviceMgrTest, ResourceTypeFromId) {
-  using Type = pi::proto::util::P4ResourceType;
+  using Type = p4::config::P4Ids;
   using pi::proto::util::resource_type_from_id;
   auto a_id = pi_p4info_action_id_from_name(p4info, "actionA");
   ASSERT_EQ(Type::ACTION, resource_type_from_id(a_id));
@@ -256,11 +256,15 @@ TEST_F(DeviceMgrTest, ResourceTypeFromId) {
   ASSERT_EQ(Type::TABLE, resource_type_from_id(t_id));
   auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
   ASSERT_EQ(Type::ACTION_PROFILE, resource_type_from_id(act_prof_id));
-  auto c_id = pi_p4info_counter_id_from_name(p4info, "ExactOne_counter");
+  auto dc_id = pi_p4info_counter_id_from_name(p4info, "ExactOne_counter");
+  ASSERT_EQ(Type::DIRECT_COUNTER, resource_type_from_id(dc_id));
+  auto dm_id = pi_p4info_meter_id_from_name(p4info, "ExactOne_meter");
+  ASSERT_EQ(Type::DIRECT_METER, resource_type_from_id(dm_id));
+  auto c_id = pi_p4info_counter_id_from_name(p4info, "CounterA");
   ASSERT_EQ(Type::COUNTER, resource_type_from_id(c_id));
-  auto m_id = pi_p4info_meter_id_from_name(p4info, "ExactOne_meter");
+  auto m_id = pi_p4info_meter_id_from_name(p4info, "MeterA");
   ASSERT_EQ(Type::METER, resource_type_from_id(m_id));
-  ASSERT_EQ(Type::INVALID,
+  ASSERT_EQ(Type::UNSPECIFIED,
             resource_type_from_id(pi::proto::util::invalid_id()));
 }
 

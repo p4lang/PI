@@ -43,8 +43,16 @@ static inline pi_p4_id_t pi_make_counter_id(uint16_t index) {
   return (PI_COUNTER_ID << 24) | index;
 }
 
+static inline pi_p4_id_t pi_make_direct_counter_id(uint16_t index) {
+  return (PI_DIRECT_COUNTER_ID << 24) | index;
+}
+
 static inline pi_p4_id_t pi_make_meter_id(uint16_t index) {
   return (PI_METER_ID << 24) | index;
+}
+
+static inline pi_p4_id_t pi_make_direct_meter_id(uint16_t index) {
+  return (PI_DIRECT_METER_ID << 24) | index;
 }
 
 #define PI_GET_TYPE_ID(id) ((id) >> 24)

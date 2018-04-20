@@ -95,12 +95,13 @@ static size_t direct_res_meter_retrieve(const char *src, void *config) {
 
 static void register_std_direct_res() {
   pi_status_t status;
-  status = pi_direct_res_register(
-      PI_COUNTER_ID, direct_res_counter_msg_size, direct_res_counter_emit,
-      sizeof(pi_counter_data_t), direct_res_counter_retrieve);
+  status =
+      pi_direct_res_register(PI_DIRECT_COUNTER_ID, direct_res_counter_msg_size,
+                             direct_res_counter_emit, sizeof(pi_counter_data_t),
+                             direct_res_counter_retrieve);
   assert(status == PI_STATUS_SUCCESS);
   status = pi_direct_res_register(
-      PI_METER_ID, direct_res_meter_msg_size, direct_res_meter_emit,
+      PI_DIRECT_METER_ID, direct_res_meter_msg_size, direct_res_meter_emit,
       sizeof(pi_meter_spec_t), direct_res_meter_retrieve);
   assert(status == PI_STATUS_SUCCESS);
 }
@@ -230,7 +231,15 @@ bool pi_is_counter_id(pi_p4_id_t id) {
   return PI_GET_TYPE_ID(id) == PI_COUNTER_ID;
 }
 
+bool pi_is_direct_counter_id(pi_p4_id_t id) {
+  return PI_GET_TYPE_ID(id) == PI_DIRECT_COUNTER_ID;
+}
+
 bool pi_is_meter_id(pi_p4_id_t id) { return PI_GET_TYPE_ID(id) == PI_METER_ID; }
+
+bool pi_is_direct_meter_id(pi_p4_id_t id) {
+  return PI_GET_TYPE_ID(id) == PI_DIRECT_METER_ID;
+}
 
 pi_status_t pi_direct_res_register(pi_res_type_id_t res_type,
                                    PIDirectResMsgSizeFn msg_size_fn,

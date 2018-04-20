@@ -37,7 +37,11 @@ extern pi_session_handle_t sess;
 #define NEXT_ENTRY_TOKEN "NEXT_ENTRY"
 
 static char *complete_counter(const char *text, int state) {
-  return complete_one_name(text, state, PI_COUNTER_ID);
+  static pi_res_type_id_t counter_types[] = {PI_COUNTER_ID,
+                                             PI_DIRECT_COUNTER_ID};
+  return complete_one_name(text, state,
+                           sizeof(counter_types) / sizeof(pi_res_type_id_t),
+                           counter_types);
 }
 
 static void print_counter_data(const pi_counter_data_t *counter_data) {
@@ -178,7 +182,7 @@ static pi_cli_status_t store_direct_counter_config(
   pi_p4_id_t direct_t_id = pi_p4info_counter_get_direct(p4info_curr, c_id);
   if (direct_t_id == PI_INVALID_ID) {
     printf("Cannot hold resource spec with " NEXT_ENTRY_TOKEN
-           " for none-direct resources.\n");
+           " for non-direct resources.\n");
     return PI_CLI_STATUS_ERROR;
   }
   pi_counter_data_t *counter_data_copy = malloc(sizeof(*counter_data));

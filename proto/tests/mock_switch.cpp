@@ -151,7 +151,7 @@ class DummyResource {
 
 class DummyMeter : public DummyResource<DummyMeter, pi_meter_spec_t> {
  public:
-  static constexpr pi_res_type_id_t res_type = PI_METER_ID;
+  static constexpr pi_res_type_id_t direct_res_type = PI_DIRECT_METER_ID;
 
   static pi_meter_spec_t get_default() {
     return {0, 0, 0, 0, PI_METER_UNIT_DEFAULT, PI_METER_TYPE_DEFAULT};
@@ -160,7 +160,7 @@ class DummyMeter : public DummyResource<DummyMeter, pi_meter_spec_t> {
 
 class DummyCounter : public DummyResource<DummyCounter, pi_counter_data_t> {
  public:
-  static constexpr pi_res_type_id_t res_type = PI_COUNTER_ID;
+  static constexpr pi_res_type_id_t direct_res_type = PI_DIRECT_COUNTER_ID;
 
   static pi_counter_data_t get_default() {
     return {PI_COUNTER_UNIT_PACKETS | PI_COUNTER_UNIT_BYTES, 0u, 0u};
@@ -251,11 +251,11 @@ class DummyTable {
       auto *configs = table_entry->direct_res_config->configs;
       for (size_t i = 0; i < table_entry->direct_res_config->num_configs; i++) {
         pi_p4_id_t res_id = configs[i].res_id;
-        if (pi_is_counter_id(res_id)) {
+        if (pi_is_direct_counter_id(res_id)) {
           counters[res_id]->write(
               entry_counter,
               static_cast<const pi_counter_data_t *>(configs[i].config));
-        } else if (pi_is_meter_id(res_id)) {
+        } else if (pi_is_direct_meter_id(res_id)) {
           meters[res_id]->write(
               entry_counter,
               static_cast<const pi_meter_spec_t *>(configs[i].config));
@@ -348,7 +348,8 @@ class DummyTable {
     size_t s = 0;
     PIDirectResMsgSizeFn msg_size_fn;
     PIDirectResEmitFn emit_fn;
-    pi_direct_res_get_fns(T::res_type, &msg_size_fn, &emit_fn, NULL, NULL);
+    pi_direct_res_get_fns(
+        T::direct_res_type, &msg_size_fn, &emit_fn, NULL, NULL);
     for (auto it = first; it != last; ++it) {
       s += emit_p4_id(dst + s, it->first);
       typename T::config_type config;
@@ -641,9 +642,9 @@ class DummySwitch {
       auto *res_ids = pi_p4info_table_get_direct_resources(
           p4info, table_id, &num_direct_resources);
       for (size_t i = 0; i < num_direct_resources; i++) {
-        if (pi_is_counter_id(res_ids[i]))
+        if (pi_is_direct_counter_id(res_ids[i]))
           table.add_counter(res_ids[i], &counters[res_ids[i]]);
-        else if (pi_is_meter_id(res_ids[i]))
+        else if (pi_is_direct_meter_id(res_ids[i]))
           table.add_meter(res_ids[i], &meters[res_ids[i]]);
         else
           assert(0 && "Unsupported direct resource id");

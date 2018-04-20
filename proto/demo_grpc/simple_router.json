@@ -1,7 +1,7 @@
 {
   "program" : "simple_router.p4",
   "__meta__" : {
-    "version" : [2, 7],
+    "version" : [2, 18],
     "compiler" : "https://github.com/p4lang/p4c"
   },
   "header_types" : [
@@ -83,17 +83,8 @@
         ["drop", 1, false],
         ["recirculate_port", 16, false],
         ["packet_length", 32, false],
-        ["enq_timestamp", 32, false],
-        ["enq_qdepth", 19, false],
-        ["deq_timedelta", 32, false],
-        ["deq_qdepth", 19, false],
-        ["ingress_global_timestamp", 48, false],
-        ["lf_field_list", 32, false],
-        ["mcast_grp", 16, false],
-        ["resubmit_flag", 1, false],
-        ["egress_rid", 16, false],
         ["checksum_error", 1, false],
-        ["_padding", 4, false]
+        ["_padding", 3, false]
       ]
     }
   ],
@@ -230,11 +221,13 @@
           ],
           "transitions" : [
             {
+              "type" : "hexstr",
               "value" : "0x0800",
               "mask" : null,
               "next_state" : "parse_ipv4"
             },
             {
+              "type" : "hexstr",
               "value" : "0x0806",
               "mask" : null,
               "next_state" : "parse_arp"
@@ -321,6 +314,7 @@
           ],
           "transitions" : [
             {
+              "type" : "hexstr",
               "value" : "0x0000000000000000",
               "mask" : null,
               "next_state" : "parse_cpu_header"
@@ -341,6 +335,7 @@
       ]
     }
   ],
+  "parse_vsets" : [],
   "deparsers" : [
     {
       "name" : "deparser",
@@ -999,6 +994,7 @@
           "key" : [
             {
               "match_type" : "lpm",
+              "name" : "ipv4.dstAddr",
               "target" : ["ipv4", "dstAddr"],
               "mask" : null
             }
@@ -1035,6 +1031,7 @@
           "key" : [
             {
               "match_type" : "exact",
+              "name" : "routing_metadata.nhop_ipv4",
               "target" : ["routing_metadata", "nhop_ipv4"],
               "mask" : null
             }
@@ -1075,14 +1072,11 @@
           "expression" : {
             "type" : "expression",
             "value" : {
-              "op" : "==",
-              "left" : {
+              "op" : "d2b",
+              "left" : null,
+              "right" : {
                 "type" : "field",
                 "value" : ["cpu_header", "$valid$"]
-              },
-              "right" : {
-                "type" : "hexstr",
-                "value" : "0x01"
               }
             }
           },
@@ -1101,14 +1095,11 @@
           "expression" : {
             "type" : "expression",
             "value" : {
-              "op" : "==",
-              "left" : {
+              "op" : "d2b",
+              "left" : null,
+              "right" : {
                 "type" : "field",
                 "value" : ["arp", "$valid$"]
-              },
-              "right" : {
-                "type" : "hexstr",
-                "value" : "0x01"
               }
             }
           },
@@ -1131,14 +1122,11 @@
               "left" : {
                 "type" : "expression",
                 "value" : {
-                  "op" : "==",
-                  "left" : {
+                  "op" : "d2b",
+                  "left" : null,
+                  "right" : {
                     "type" : "field",
                     "value" : ["ipv4", "$valid$"]
-                  },
-                  "right" : {
-                    "type" : "hexstr",
-                    "value" : "0x01"
                   }
                 }
               },
@@ -1180,6 +1168,7 @@
           "key" : [
             {
               "match_type" : "exact",
+              "name" : "standard_metadata.egress_port",
               "target" : ["standard_metadata", "egress_port"],
               "mask" : null
             }
@@ -1213,20 +1202,24 @@
           "source_info" : {
             "filename" : "simple_router.p4",
             "line" : 242,
-            "column" : 12,
-            "source_fragment" : "valid(cpu_header)"
+            "column" : 8,
+            "source_fragment" : "not"
           },
           "expression" : {
             "type" : "expression",
             "value" : {
-              "op" : "!=",
-              "left" : {
-                "type" : "field",
-                "value" : ["cpu_header", "$valid$"]
-              },
+              "op" : "not",
+              "left" : null,
               "right" : {
-                "type" : "hexstr",
-                "value" : "0x01"
+                "type" : "expression",
+                "value" : {
+                  "op" : "d2b",
+                  "left" : null,
+                  "right" : {
+                    "type" : "field",
+                    "value" : ["cpu_header", "$valid$"]
+                  }
+                }
               }
             }
           },
@@ -1242,54 +1235,25 @@
       "id" : 0,
       "target" : ["ipv4", "hdrChecksum"],
       "type" : "generic",
-      "calculation" : "calc"
+      "calculation" : "calc",
+      "if_cond" : {
+        "type" : "bool",
+        "value" : true
+      }
     },
     {
       "name" : "cksum_0",
       "id" : 1,
       "target" : ["ipv4", "hdrChecksum"],
       "type" : "generic",
-      "calculation" : "calc_0"
+      "calculation" : "calc_0",
+      "if_cond" : {
+        "type" : "bool",
+        "value" : true
+      }
     }
   ],
   "force_arith" : [],
   "extern_instances" : [],
-  "field_aliases" : [
-    [
-      "queueing_metadata.enq_timestamp",
-      ["standard_metadata", "enq_timestamp"]
-    ],
-    [
-      "queueing_metadata.enq_qdepth",
-      ["standard_metadata", "enq_qdepth"]
-    ],
-    [
-      "queueing_metadata.deq_timedelta",
-      ["standard_metadata", "deq_timedelta"]
-    ],
-    [
-      "queueing_metadata.deq_qdepth",
-      ["standard_metadata", "deq_qdepth"]
-    ],
-    [
-      "intrinsic_metadata.ingress_global_timestamp",
-      ["standard_metadata", "ingress_global_timestamp"]
-    ],
-    [
-      "intrinsic_metadata.lf_field_list",
-      ["standard_metadata", "lf_field_list"]
-    ],
-    [
-      "intrinsic_metadata.mcast_grp",
-      ["standard_metadata", "mcast_grp"]
-    ],
-    [
-      "intrinsic_metadata.resubmit_flag",
-      ["standard_metadata", "resubmit_flag"]
-    ],
-    [
-      "intrinsic_metadata.egress_rid",
-      ["standard_metadata", "egress_rid"]
-    ]
-  ]
+  "field_aliases" : []
 }

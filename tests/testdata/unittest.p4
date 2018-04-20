@@ -15,7 +15,7 @@
 
 // To re-generate the P4Info (unittest.p4info.txt) and the static table entries
 // (unittest.entries.txt), run:
-// p4test unittest.p4 --p4-16 --p4runtime-format text --p4runtime-file unittest.p4info.txt --p4runtime-entries-file unittest.entries.txt
+// p4test unittest.p4 --std p4-16 --p4runtime-format text --p4runtime-file unittest.p4info.txt --p4runtime-entries-file unittest.entries.txt
 
 #include <v1model.p4>
 

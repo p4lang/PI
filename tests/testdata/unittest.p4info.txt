@@ -20,8 +20,8 @@ tables {
     id: 16800567
     annotations: "@defaultonly()"
   }
-  direct_resource_ids: 301991082
-  direct_resource_ids: 318772168
+  direct_resource_ids: 318768298
+  direct_resource_ids: 352326600
   size: 512
 }
 tables {
@@ -291,7 +291,7 @@ counters {
 }
 direct_counters {
   preamble {
-    id: 301991082
+    id: 318768298
     name: "ExactOne_counter"
     alias: "ExactOne_counter"
   }
@@ -302,7 +302,7 @@ direct_counters {
 }
 meters {
   preamble {
-    id: 318820171
+    id: 335597387
     name: "MeterA"
     alias: "MeterA"
   }
@@ -313,7 +313,7 @@ meters {
 }
 direct_meters {
   preamble {
-    id: 318772168
+    id: 352326600
     name: "ExactOne_meter"
     alias: "ExactOne_meter"
   }

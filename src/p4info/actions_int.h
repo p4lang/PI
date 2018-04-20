@@ -38,9 +38,6 @@ void pi_p4info_action_add_param(pi_p4info_t *p4info, pi_p4_id_t action_id,
                                 pi_p4_id_t param_id, const char *name,
                                 size_t bitwidth);
 
-typedef struct cJSON cJSON;
-void pi_p4info_action_serialize(cJSON *root, const pi_p4info_t *p4info);
-
 #ifdef __cplusplus
 }
 #endif
