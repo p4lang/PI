@@ -83,6 +83,7 @@ message P4Ids {
     ACTION = 0x01;
     TABLE = 0x02;
     VALUE_SET = 0x03;
+    CONTROLLER_HEADER = 0x04;
 
     // PSA externs
     PSA_EXTERNS_START = 0x10;
@@ -91,6 +92,8 @@ message P4Ids {
     DIRECT_COUNTER = 0x13;
     METER = 0x14;
     DIRECT_METER = 0x15;
+    REGISTER = 0x16;
+    DIGEST = 0x17;
 
     // externs for other architectures (vendor extensions)
     OTHER_EXTERNS_START = 0x80;
