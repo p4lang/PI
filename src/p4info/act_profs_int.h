@@ -38,9 +38,6 @@ void pi_p4info_act_prof_add(pi_p4info_t *p4info, pi_p4_id_t act_prof_id,
 void pi_p4info_act_prof_add_table(pi_p4info_t *p4info, pi_p4_id_t act_prof_id,
                                   pi_p4_id_t table_id);
 
-typedef struct cJSON cJSON;
-void pi_p4info_act_prof_serialize(cJSON *root, const pi_p4info_t *p4info);
-
 #ifdef __cplusplus
 }
 #endif

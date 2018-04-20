@@ -40,7 +40,8 @@ typedef struct _counter_data_s {
 
 static _counter_data_t *get_counter(const pi_p4info_t *p4info,
                                     pi_p4_id_t counter_id) {
-  assert(PI_GET_TYPE_ID(counter_id) == PI_COUNTER_ID);
+  assert(PI_GET_TYPE_ID(counter_id) == PI_COUNTER_ID ||
+         PI_GET_TYPE_ID(counter_id) == PI_DIRECT_COUNTER_ID);
   return p4info_get_at(p4info, counter_id);
 }
 
@@ -56,9 +57,9 @@ static void free_counter_data(void *data) {
   p4info_common_destroy(&counter->common);
 }
 
-void pi_p4info_counter_serialize(cJSON *root, const pi_p4info_t *p4info) {
+static void counter_serialize(cJSON *root, const vector_t *counters,
+                              const char *node_name) {
   cJSON *cArray = cJSON_CreateArray();
-  const vector_t *counters = p4info->counters->vec;
   for (size_t i = 0; i < vector_size(counters); i++) {
     _counter_data_t *counter = vector_at(counters, i);
     cJSON *cObject = cJSON_CreateObject();
@@ -73,7 +74,19 @@ void pi_p4info_counter_serialize(cJSON *root, const pi_p4info_t *p4info) {
 
     cJSON_AddItemToArray(cArray, cObject);
   }
-  cJSON_AddItemToObject(root, "counters", cArray);
+  cJSON_AddItemToObject(root, node_name, cArray);
+}
+
+static void pi_p4info_counter_serialize(cJSON *root,
+                                        const pi_p4info_t *p4info) {
+  const vector_t *counters = p4info->counters->vec;
+  counter_serialize(root, counters, "counters");
+}
+
+static void pi_p4info_direct_counter_serialize(cJSON *root,
+                                               const pi_p4info_t *p4info) {
+  const vector_t *direct_counters = p4info->direct_counters->vec;
+  counter_serialize(root, direct_counters, "direct_counters");
 }
 
 void pi_p4info_counter_init(pi_p4info_t *p4info, size_t num_counters) {
@@ -82,28 +95,50 @@ void pi_p4info_counter_init(pi_p4info_t *p4info, size_t num_counters) {
                   pi_p4info_counter_serialize);
 }
 
-void pi_p4info_counter_add(pi_p4info_t *p4info, pi_p4_id_t counter_id,
-                           const char *name,
-                           pi_p4info_counter_unit_t counter_unit, size_t size) {
+void pi_p4info_direct_counter_init(pi_p4info_t *p4info,
+                                   size_t num_direct_counters) {
+  p4info_init_res(p4info, PI_DIRECT_COUNTER_ID, num_direct_counters,
+                  sizeof(_counter_data_t), retrieve_name, free_counter_data,
+                  pi_p4info_direct_counter_serialize);
+}
+
+static _counter_data_t *counter_add(pi_p4info_t *p4info, pi_p4_id_t counter_id,
+                                    const char *name,
+                                    pi_p4info_counter_unit_t counter_unit,
+                                    size_t size) {
   _counter_data_t *counter = p4info_add_res(p4info, counter_id, name);
   counter->name = strdup(name);
   counter->counter_id = counter_id;
   counter->counter_unit = counter_unit;
   counter->direct_table = PI_INVALID_ID;
   counter->size = size;
+  return counter;
 }
 
-void pi_p4info_counter_make_direct(pi_p4info_t *p4info, pi_p4_id_t counter_id,
-                                   pi_p4_id_t direct_table_id) {
-  _counter_data_t *counter = get_counter(p4info, counter_id);
-  // TODO(antonin): cannot make direct twice, improve
-  assert(counter->direct_table == PI_INVALID_ID);
+void pi_p4info_counter_add(pi_p4info_t *p4info, pi_p4_id_t counter_id,
+                           const char *name,
+                           pi_p4info_counter_unit_t counter_unit, size_t size) {
+  counter_add(p4info, counter_id, name, counter_unit, size);
+}
+
+void pi_p4info_direct_counter_add(pi_p4info_t *p4info, pi_p4_id_t counter_id,
+                                  const char *name,
+                                  pi_p4info_counter_unit_t counter_unit,
+                                  size_t size, pi_p4_id_t direct_table_id) {
+  _counter_data_t *counter =
+      counter_add(p4info, counter_id, name, counter_unit, size);
   counter->direct_table = direct_table_id;
 }
 
 pi_p4_id_t pi_p4info_counter_id_from_name(const pi_p4info_t *p4info,
                                           const char *name) {
-  return p4info_name_map_get(&p4info->counters->name_map, name);
+  // TODO(antonin): ugly hack so that we can keep a unique function to query the
+  // id of a counter. In P4_16 all objects are guaranteed to have unique names,
+  // so maybe we could keep a single name map for all objects instead of having
+  // a map per resource type (but then what about aliases?).
+  pi_p4_id_t id = p4info_name_map_get(&p4info->counters->name_map, name);
+  if (id != PI_INVALID_ID) return id;
+  return p4info_name_map_get(&p4info->direct_counters->name_map, name);
 }
 
 const char *pi_p4info_counter_name_from_id(const pi_p4info_t *p4info,
@@ -140,4 +175,17 @@ pi_p4_id_t pi_p4info_counter_next(const pi_p4info_t *p4info, pi_p4_id_t id) {
 
 pi_p4_id_t pi_p4info_counter_end(const pi_p4info_t *p4info) {
   return pi_p4info_any_end(p4info, PI_COUNTER_ID);
+}
+
+pi_p4_id_t pi_p4info_direct_counter_begin(const pi_p4info_t *p4info) {
+  return pi_p4info_any_begin(p4info, PI_DIRECT_COUNTER_ID);
+}
+
+pi_p4_id_t pi_p4info_direct_counter_next(const pi_p4info_t *p4info,
+                                         pi_p4_id_t id) {
+  return pi_p4info_any_next(p4info, id);
+}
+
+pi_p4_id_t pi_p4info_direct_counter_end(const pi_p4info_t *p4info) {
+  return pi_p4info_any_end(p4info, PI_DIRECT_COUNTER_ID);
 }

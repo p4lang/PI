@@ -56,6 +56,11 @@ pi_p4_id_t pi_p4info_counter_begin(const pi_p4info_t *p4info);
 pi_p4_id_t pi_p4info_counter_next(const pi_p4info_t *p4info, pi_p4_id_t id);
 pi_p4_id_t pi_p4info_counter_end(const pi_p4info_t *p4info);
 
+pi_p4_id_t pi_p4info_direct_counter_begin(const pi_p4info_t *p4info);
+pi_p4_id_t pi_p4info_direct_counter_next(const pi_p4info_t *p4info,
+                                         pi_p4_id_t id);
+pi_p4_id_t pi_p4info_direct_counter_end(const pi_p4info_t *p4info);
+
 #ifdef __cplusplus
 }
 #endif

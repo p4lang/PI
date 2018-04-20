@@ -226,13 +226,7 @@ static pi_status_t read_act_profs(cJSON *root, pi_p4info_t *p4info) {
   return PI_STATUS_SUCCESS;
 }
 
-static pi_status_t read_counters(cJSON *root, pi_p4info_t *p4info) {
-  assert(root);
-  cJSON *counters = cJSON_GetObjectItem(root, "counters");
-  if (!counters) return PI_STATUS_CONFIG_READER_ERROR;
-  size_t num_counters = cJSON_GetArraySize(counters);
-  pi_p4info_counter_init(p4info, num_counters);
-
+static pi_status_t read_counters_generic(cJSON *counters, pi_p4info_t *p4info) {
   cJSON *counter;
   cJSON_ArrayForEach(counter, counters) {
     const cJSON *item;
@@ -252,24 +246,37 @@ static pi_status_t read_counters(cJSON *root, pi_p4info_t *p4info) {
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
     size_t size = item->valueint;
 
-    pi_p4info_counter_add(p4info, pi_id, name, counter_unit, size);
+    if (direct_tid != PI_INVALID_ID) {
+      pi_p4info_direct_counter_add(p4info, pi_id, name, counter_unit, size,
+                                   direct_tid);
+    } else {
+      pi_p4info_counter_add(p4info, pi_id, name, counter_unit, size);
+    }
 
     import_common(counter, p4info, pi_id);
-
-    if (direct_tid != PI_INVALID_ID)
-      pi_p4info_counter_make_direct(p4info, pi_id, direct_tid);
   }
-
   return PI_STATUS_SUCCESS;
 }
 
-static pi_status_t read_meters(cJSON *root, pi_p4info_t *p4info) {
+static pi_status_t read_counters(cJSON *root, pi_p4info_t *p4info) {
   assert(root);
-  cJSON *meters = cJSON_GetObjectItem(root, "meters");
-  if (!meters) return PI_STATUS_CONFIG_READER_ERROR;
-  size_t num_meters = cJSON_GetArraySize(meters);
-  pi_p4info_meter_init(p4info, num_meters);
+  cJSON *counters = cJSON_GetObjectItem(root, "counters");
+  if (!counters) return PI_STATUS_CONFIG_READER_ERROR;
+  size_t num_counters = cJSON_GetArraySize(counters);
+  pi_p4info_counter_init(p4info, num_counters);
+  return read_counters_generic(counters, p4info);
+}
 
+static pi_status_t read_direct_counters(cJSON *root, pi_p4info_t *p4info) {
+  assert(root);
+  cJSON *counters = cJSON_GetObjectItem(root, "direct_counters");
+  if (!counters) return PI_STATUS_CONFIG_READER_ERROR;
+  size_t num_counters = cJSON_GetArraySize(counters);
+  pi_p4info_direct_counter_init(p4info, num_counters);
+  return read_counters_generic(counters, p4info);
+}
+
+static pi_status_t read_meters_generic(cJSON *meters, pi_p4info_t *p4info) {
   cJSON *meter;
   cJSON_ArrayForEach(meter, meters) {
     const cJSON *item;
@@ -292,15 +299,35 @@ static pi_status_t read_meters(cJSON *root, pi_p4info_t *p4info) {
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
     size_t size = item->valueint;
 
-    pi_p4info_meter_add(p4info, pi_id, name, meter_unit, meter_type, size);
+    if (direct_tid != PI_INVALID_ID) {
+      pi_p4info_direct_meter_add(p4info, pi_id, name, meter_unit, meter_type,
+                                 size, direct_tid);
+    } else {
+      pi_p4info_meter_add(p4info, pi_id, name, meter_unit, meter_type, size);
+    }
 
     import_common(meter, p4info, pi_id);
-
-    if (direct_tid != PI_INVALID_ID)
-      pi_p4info_meter_make_direct(p4info, pi_id, direct_tid);
   }
 
   return PI_STATUS_SUCCESS;
+}
+
+static pi_status_t read_meters(cJSON *root, pi_p4info_t *p4info) {
+  assert(root);
+  cJSON *meters = cJSON_GetObjectItem(root, "meters");
+  if (!meters) return PI_STATUS_CONFIG_READER_ERROR;
+  size_t num_meters = cJSON_GetArraySize(meters);
+  pi_p4info_meter_init(p4info, num_meters);
+  return read_meters_generic(meters, p4info);
+}
+
+static pi_status_t read_direct_meters(cJSON *root, pi_p4info_t *p4info) {
+  assert(root);
+  cJSON *meters = cJSON_GetObjectItem(root, "direct_meters");
+  if (!meters) return PI_STATUS_CONFIG_READER_ERROR;
+  size_t num_meters = cJSON_GetArraySize(meters);
+  pi_p4info_direct_meter_init(p4info, num_meters);
+  return read_meters_generic(meters, p4info);
 }
 
 pi_status_t pi_native_json_reader(const char *config, pi_p4info_t *p4info) {
@@ -325,7 +352,15 @@ pi_status_t pi_native_json_reader(const char *config, pi_p4info_t *p4info) {
     return status;
   }
 
+  if ((status = read_direct_counters(root, p4info)) != PI_STATUS_SUCCESS) {
+    return status;
+  }
+
   if ((status = read_meters(root, p4info)) != PI_STATUS_SUCCESS) {
+    return status;
+  }
+
+  if ((status = read_direct_meters(root, p4info)) != PI_STATUS_SUCCESS) {
     return status;
   }
 

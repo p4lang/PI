@@ -40,11 +40,11 @@ void parse_kv_pair(char *s, char **k, char **v);
 
 int param_to_bytes(const char *param, char *bytes, size_t bitwidth);
 
-char *complete_p4_res(const char *text, int len, int state,
-                      pi_res_type_id_t res_type);
-
-// meant to be used when the completion only involves one resource name
-char *complete_one_name(const char *text, int state, pi_res_type_id_t res_type);
+// meant to be used when the completion only involves one resource name;
+// multiple resource types can be provided (e.g. direct & indirect) and the
+// completion function will iterate over all resources for each provided type.
+char *complete_one_name(const char *text, int state, size_t num_res_types,
+                        const pi_res_type_id_t *res_types);
 
 void print_hexstr(const char *bytes, size_t nbytes);
 

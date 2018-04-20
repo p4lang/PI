@@ -215,20 +215,29 @@ int param_to_bytes(const char *param, char *bytes, size_t bitwidth) {
   return hexstr_to_bytes(param_copy, bytes, s);
 }
 
-char *complete_p4_res(const char *text, int len, int state,
-                      pi_res_type_id_t res_type) {
+static char *complete_p4_res(const char *text, int len, int state,
+                             size_t num_res_types,
+                             const pi_res_type_id_t *res_types) {
   static pi_p4_id_t id;
-  if (!state) id = pi_p4info_any_begin(p4info_curr, res_type);
-  while (id != pi_p4info_any_end(p4info_curr, res_type)) {
-    const char *name = pi_p4info_any_name_from_id(p4info_curr, id);
-    id = pi_p4info_any_next(p4info_curr, id);
-    if (!strncmp(name, text, len)) return strdup(name);
+  static size_t res_type_idx;
+  if (!state) {
+    res_type_idx = 0;
+    id = pi_p4info_any_begin(p4info_curr, res_types[0]);
+  }
+  while (res_type_idx < num_res_types) {
+    while (id != pi_p4info_any_end(p4info_curr, res_types[res_type_idx])) {
+      const char *name = pi_p4info_any_name_from_id(p4info_curr, id);
+      id = pi_p4info_any_next(p4info_curr, id);
+      if (!strncmp(name, text, len)) return strdup(name);
+    }
+    res_type_idx++;
+    id = pi_p4info_any_begin(p4info_curr, res_types[res_type_idx]);
   }
   return NULL;
 }
 
-char *complete_one_name(const char *text, int state,
-                        pi_res_type_id_t res_type) {
+char *complete_one_name(const char *text, int state, size_t num_res_types,
+                        const pi_res_type_id_t *res_types) {
   static int token_count;
   static int len;
 
@@ -240,7 +249,7 @@ char *complete_one_name(const char *text, int state,
   if (token_count == 0) {  // just the cmd
     return NULL;
   } else if (token_count == 1) {
-    return complete_p4_res(text, len, state, res_type);
+    return complete_p4_res(text, len, state, num_res_types, res_types);
   }
   return NULL;
 }

@@ -309,14 +309,14 @@ void set_direct_resources(const pi_p4info_t *p4info, pi_dev_id_t dev_id,
     pi_direct_res_config_one_t *config = &direct_res_config->configs[i];
     pi_res_type_id_t type = PI_GET_TYPE_ID(config->res_id);
     switch (type) {
-      case PI_COUNTER_ID:
+      case PI_DIRECT_COUNTER_ID:
         {
           auto value = pibmv2::convert_from_counter_data(
               reinterpret_cast<pi_counter_data_t *>(config->config));
           client.c->bm_mt_write_counter(0, t_name, entry_handle, value);
         }
         break;
-      case PI_METER_ID:
+      case PI_DIRECT_METER_ID:
         {
           auto rates = pibmv2::convert_from_meter_spec(
               reinterpret_cast<pi_meter_spec_t *>(config->config));

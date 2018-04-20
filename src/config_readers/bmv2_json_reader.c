@@ -587,18 +587,39 @@ static pi_status_t read_counters(reader_state_t *state, cJSON *root,
   assert(root);
   cJSON *counters = cJSON_GetObjectItem(root, "counter_arrays");
   if (!counters) return PI_STATUS_CONFIG_READER_ERROR;
-  pre_reserve_ids(state, PI_COUNTER_ID, counters);
-  size_t num_counters = cJSON_GetArraySize(counters);
-  pi_p4info_counter_init(p4info, num_counters);
-
   cJSON *counter;
+
+  // first pass needed because PI treats indirect & direct counters differently:
+  // we need to count and pre-reserve ids for counters of each type before we
+  // actually add them to p4info.
+  cJSON *counters_ = cJSON_CreateArray();
+  cJSON *direct_counters_ = cJSON_CreateArray();
+  size_t num_counters = 0, num_direct_counters = 0;
+  cJSON_ArrayForEach(counter, counters) {
+    const cJSON *item = cJSON_GetObjectItem(counter, "is_direct");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    bool is_direct = item->valueint;
+    if (is_direct) {
+      num_direct_counters++;
+      cJSON_AddItemReferenceToArray(direct_counters_, counter);
+    } else {
+      num_counters++;
+      cJSON_AddItemReferenceToArray(counters_, counter);
+    }
+  }
+  pre_reserve_ids(state, PI_COUNTER_ID, counters_);
+  cJSON_Delete(counters_);
+  pi_p4info_counter_init(p4info, num_counters);
+  pre_reserve_ids(state, PI_DIRECT_COUNTER_ID, direct_counters_);
+  cJSON_Delete(direct_counters_);
+  pi_p4info_direct_counter_init(p4info, num_direct_counters);
+
   sort_json_array(counters);
   cJSON_ArrayForEach(counter, counters) {
     const cJSON *item;
     item = cJSON_GetObjectItem(counter, "name");
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
     const char *name = item->valuestring;
-    pi_p4_id_t pi_id = request_id(state, counter, PI_COUNTER_ID);
 
     item = cJSON_GetObjectItem(counter, "is_direct");
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
@@ -608,19 +629,24 @@ static pi_status_t read_counters(reader_state_t *state, cJSON *root,
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
     size_t size = item->valueint;
 
-    PI_LOG_DEBUG("Adding counter '%s'\n", name);
-    pi_p4info_counter_add(p4info, pi_id, name, PI_P4INFO_COUNTER_UNIT_BOTH,
-                          size);
-
+    pi_p4_id_t pi_id;
     if (is_direct) {
+      pi_id = request_id(state, counter, PI_DIRECT_COUNTER_ID);
+      PI_LOG_DEBUG("Adding direct counter '%s'\n", name);
       item = cJSON_GetObjectItem(counter, "binding");
       if (!item) return PI_STATUS_CONFIG_READER_ERROR;
       const char *direct_tname = item->valuestring;
       pi_p4_id_t direct_tid =
           pi_p4info_table_id_from_name(p4info, direct_tname);
       if (direct_tid == PI_INVALID_ID) return PI_STATUS_CONFIG_READER_ERROR;
-      pi_p4info_counter_make_direct(p4info, pi_id, direct_tid);
+      pi_p4info_direct_counter_add(
+          p4info, pi_id, name, PI_P4INFO_COUNTER_UNIT_BOTH, size, direct_tid);
       pi_p4info_table_add_direct_resource(p4info, direct_tid, pi_id);
+    } else {
+      pi_id = request_id(state, counter, PI_COUNTER_ID);
+      PI_LOG_DEBUG("Adding counter '%s'\n", name);
+      pi_p4info_counter_add(p4info, pi_id, name, PI_P4INFO_COUNTER_UNIT_BOTH,
+                            size);
     }
 
     import_pragmas(counter, p4info, pi_id);
@@ -643,18 +669,39 @@ static pi_status_t read_meters(reader_state_t *state, cJSON *root,
   assert(root);
   cJSON *meters = cJSON_GetObjectItem(root, "meter_arrays");
   if (!meters) return PI_STATUS_CONFIG_READER_ERROR;
-  pre_reserve_ids(state, PI_METER_ID, meters);
-  size_t num_meters = cJSON_GetArraySize(meters);
-  pi_p4info_meter_init(p4info, num_meters);
-
   cJSON *meter;
+
+  // first pass needed because PI treats indirect & direct meters differently:
+  // we need to count and pre-reserve ids for meters of each type before we
+  // actually add them to p4info.
+  cJSON *meters_ = cJSON_CreateArray();
+  cJSON *direct_meters_ = cJSON_CreateArray();
+  size_t num_meters = 0, num_direct_meters = 0;
+  cJSON_ArrayForEach(meter, meters) {
+    const cJSON *item = cJSON_GetObjectItem(meter, "is_direct");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    bool is_direct = item->valueint;
+    if (is_direct) {
+      num_direct_meters++;
+      cJSON_AddItemReferenceToArray(direct_meters_, meter);
+    } else {
+      num_meters++;
+      cJSON_AddItemReferenceToArray(meters_, meter);
+    }
+  }
+  pre_reserve_ids(state, PI_METER_ID, meters_);
+  cJSON_Delete(meters_);
+  pi_p4info_meter_init(p4info, num_meters);
+  pre_reserve_ids(state, PI_DIRECT_METER_ID, direct_meters_);
+  cJSON_Delete(direct_meters_);
+  pi_p4info_direct_meter_init(p4info, num_direct_meters);
+
   sort_json_array(meters);
   cJSON_ArrayForEach(meter, meters) {
     const cJSON *item;
     item = cJSON_GetObjectItem(meter, "name");
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
     const char *name = item->valuestring;
-    pi_p4_id_t pi_id = request_id(state, meter, PI_METER_ID);
 
     item = cJSON_GetObjectItem(meter, "is_direct");
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
@@ -669,20 +716,27 @@ static pi_status_t read_meters(reader_state_t *state, cJSON *root,
     const char *meter_unit_str = item->valuestring;
     pi_p4info_meter_unit_t meter_unit = meter_unit_from_str(meter_unit_str);
 
-    PI_LOG_DEBUG("Adding meter '%s'\n", name);
-    // color unaware by default
-    pi_p4info_meter_add(p4info, pi_id, name, meter_unit,
-                        PI_P4INFO_METER_TYPE_COLOR_UNAWARE, size);
-
+    pi_p4_id_t pi_id;
     if (is_direct) {
+      pi_id = request_id(state, meter, PI_DIRECT_METER_ID);
+      PI_LOG_DEBUG("Adding direct meter '%s'\n", name);
       item = cJSON_GetObjectItem(meter, "binding");
       if (!item) return PI_STATUS_CONFIG_READER_ERROR;
       const char *direct_tname = item->valuestring;
       pi_p4_id_t direct_tid =
           pi_p4info_table_id_from_name(p4info, direct_tname);
       if (direct_tid == PI_INVALID_ID) return PI_STATUS_CONFIG_READER_ERROR;
-      pi_p4info_meter_make_direct(p4info, pi_id, direct_tid);
+      // color unaware by default
+      pi_p4info_direct_meter_add(p4info, pi_id, name, meter_unit,
+                                 PI_P4INFO_METER_TYPE_COLOR_UNAWARE, size,
+                                 direct_tid);
       pi_p4info_table_add_direct_resource(p4info, direct_tid, pi_id);
+    } else {
+      pi_id = request_id(state, meter, PI_METER_ID);
+      PI_LOG_DEBUG("Adding meter '%s'\n", name);
+      // color unaware by default
+      pi_p4info_meter_add(p4info, pi_id, name, meter_unit,
+                          PI_P4INFO_METER_TYPE_COLOR_UNAWARE, size);
     }
 
     import_pragmas(meter, p4info, pi_id);

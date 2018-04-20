@@ -28,16 +28,16 @@ extern "C" {
 #endif
 
 void pi_p4info_meter_init(pi_p4info_t *p4info, size_t num_meters);
+void pi_p4info_direct_meter_init(pi_p4info_t *p4info, size_t num_direct_meters);
 
 void pi_p4info_meter_add(pi_p4info_t *p4info, pi_p4_id_t meter_id,
                          const char *name, pi_p4info_meter_unit_t meter_unit,
                          pi_p4info_meter_type_t meter_type, size_t size);
-
-void pi_p4info_meter_make_direct(pi_p4info_t *p4info, pi_p4_id_t meter_id,
-                                 pi_p4_id_t direct_table_id);
-
-typedef struct cJSON cJSON;
-void pi_p4info_meter_serialize(cJSON *root, const pi_p4info_t *p4info);
+void pi_p4info_direct_meter_add(pi_p4info_t *p4info, pi_p4_id_t meter_id,
+                                const char *name,
+                                pi_p4info_meter_unit_t meter_unit,
+                                pi_p4info_meter_type_t meter_type, size_t size,
+                                pi_p4_id_t direct_table_id);
 
 #ifdef __cplusplus
 }
