@@ -523,6 +523,8 @@ message Role {
 }
 
 message IdleTimeoutNotification {
+  // Only "key" fields are required to be set in each TableEntry: table_id,
+  // match and priority.
   repeated TableEntry table_entry = 1;
   // Timestamp at which the server generated the message (in nanoseconds since
   // Epoch)
