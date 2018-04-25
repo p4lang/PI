@@ -170,7 +170,7 @@ EXTRA_CFLAGS=""
 AS_IF([test "x$CLANG" = "xyes"],
       [EXTRA_CFLAGS="$EXTRA_CFLAGS -Wno-tautological-constant-out-of-range-compare"])
 
-AC_SUBST([AM_CPPFLAGS], ["-DPI_LOG_ON -I$INCLUDE_DIR"])
+AC_SUBST([AM_CPPFLAGS], ["-DPI_LOG_ON -isystem$INCLUDE_DIR"])
 AC_SUBST([AM_LDFLAGS], ["-L$LIB_DIR"])
 
 # Enable all warnings. -Wno-tautological-constant-out-of-range-compare is
