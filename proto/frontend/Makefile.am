@@ -6,6 +6,7 @@ AM_CPPFLAGS = \
 -I$(top_srcdir)/../include \
 -I$(top_builddir)/cpp_out \
 -I$(top_srcdir)/../frontends_extra/cpp \
+-I$(top_srcdir) \
 -I$(top_srcdir)/p4info \
 -I$(top_srcdir)/third_party
 
