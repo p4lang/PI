@@ -99,7 +99,8 @@ cpp_out/gnmi/gnmi.pb.h \
 grpc_out/gnmi/gnmi.grpc.pb.h
 
 AM_CPPFLAGS = -Icpp_out -Igrpc_out \
--I$(top_srcdir)/../include
+-I$(top_srcdir)/../include \
+-I$(top_srcdir)
 
 BUILT_SOURCES = $(proto_cpp_files) $(proto_grpc_files)
 
