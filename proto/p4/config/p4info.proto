@@ -192,7 +192,15 @@ message Table {
   // added in the future
   repeated uint32 direct_resource_ids = 7;
   int64 size = 8;  // max number of entries in table
-  bool with_entry_timeout = 9;  // entry ageing is enabled for table
+  // this enum can be extended in the future with other behaviors, such as
+  // "HARD_EVICTION"
+  enum IdleTimeoutBehavior {
+    UNSPECIFIED = 0;
+    NO_TIMEOUT = 1;
+    NOTIFY_CONTROL = 2;
+  }
+  // is idle timeout supported for this table?
+  IdleTimeoutBehavior idle_timeout_behavior = 9;
   // table with static P4 entries, cannot be modified at runtime
   bool is_const_table = 10;
 }
