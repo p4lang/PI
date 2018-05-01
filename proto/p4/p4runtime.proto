@@ -561,10 +561,16 @@ message SetForwardingPipelineConfigRequest {
     // type. Returns an error if no saved config is found or if a config is
     // provided with this message.
     COMMIT = 4;
-    // Verify, save and realize the given config. Preserve the forwarding
-    // state in the target. Returns error if no config is provided, or if the
-    // existing forwarding state in the target cannot be preserved for the
-    // given config.
+    // Verify, save and realize the given config, while preserving the
+    // forwarding state in the target. This is an advanced use case to enable
+    // changes to the P4 forwarding pipeline configuration with minimal traffic
+    // loss. P4Runtime does not impose any constraints on the duration of the
+    // traffic loss. The support for this option is not expected to be uniform
+    // across all P4Runtime targets. A target that does not support this option
+    // may return an UNIMPLEMENTED error. For targets that support this option,
+    // an INVALID_ARGUMENT error is returned if no config is provided, or if
+    // the existing forwarding state cannot be preserved for the given config
+    // by the target.
     RECONCILE_AND_COMMIT = 5;
   }
   uint64 device_id = 1;
