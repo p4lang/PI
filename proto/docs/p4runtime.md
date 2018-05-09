@@ -67,7 +67,7 @@ def Equal(map_like_x, map_like_y):
     map_x[i] = v
 
   map_y = dict()
-  for i, v := map_like_x:
+  for i, v := map_like_y:
     map_y[i] = v
 
   # Check map equivalence.
