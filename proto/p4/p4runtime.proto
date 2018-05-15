@@ -353,6 +353,12 @@ message PacketReplicationEngineEntry {
   }
 }
 
+// Used for replicas created for cloning and multicasting actions.
+message Replica {
+  uint64 egress_port = 1;
+  uint64 instance = 2;
+}
+
 // The (egress_port, instance) pair must be unique for each replica in a given
 // multicast group entry. A packet may be multicast by setting the
 // multicast_group field of PSA ingress output metadata to multicast_group_id
@@ -361,24 +367,25 @@ message PacketReplicationEngineEntry {
 // programmed in the multicast group entry.
 message MulticastGroupEntry {
   uint64 multicast_group_id = 1;
-  message Replica {
-    uint64 egress_port = 1;
-    uint64 instance = 2;
-  }
   repeated Replica replicas = 2;
 }
 
 // A packet may be cloned by setting the clone_session_id field of PSA
 // ingress/egress output metadata to session_id of a programmed clone session
-// entry. The egress_port and class_of_service fields of the clone's egress
-// input metadata will be set to the respective values programmed in the clone
-// session entry. The packet_length_bytes field must be set to a non-zero value
-// if the clone packet should be truncated to the given value (in bytes). If
-// the packet_length_bytes field is 0, no truncation on the clone will be
+// entry. Multiple clones may be created via a single clone session entry by
+// using the replica message. The clones may be distinguished in the egress
+// using the instance field. The class_of_service field of the clone's egress
+// input metadata will be set to the respective value programmed in the clone
+// session entry. Note that in case of multiple clones, all clones, defined
+// for a clone session, will get the same class of service. The
+// packet_length_bytes field must be set to a non-zero value if the clone
+// packet(s) should be truncated to the given value (in bytes). The packet
+// length is also common to all clones in the clone session. If the
+// packet_length_bytes field is 0, no truncation on the clone(s) will be
 // performed.
 message CloneSessionEntry {
   uint64 session_id = 1;
-  uint64 egress_port = 2;
+  repeated Replica replicas = 2;
   uint64 class_of_service = 3;
   uint64 packet_length_bytes = 4;
 }
