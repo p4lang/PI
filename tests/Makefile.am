@@ -71,7 +71,10 @@ testdata/l2_switch.json \
 testdata/pragmas.json \
 testdata/unittest.p4info.txt \
 testdata/id_collision.json \
-testdata/act_prof.json
+testdata/act_prof.json \
+testdata/reconcile_1.p4info.txt \
+testdata/reconcile_2.p4info.txt \
+testdata/reconcile_3.p4info.txt
 
 # cleaning up the file created by the dummy target (function call counters)
 clean-local:

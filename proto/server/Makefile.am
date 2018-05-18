@@ -19,7 +19,8 @@ gnmi_dummy.cpp \
 log.h \
 pi_server.cpp \
 uint128.h \
-uint128.cpp
+uint128.cpp \
+pi_server_testing.h
 
 if WITH_SYSREPO
 libpigrpcserver_la_SOURCES += \

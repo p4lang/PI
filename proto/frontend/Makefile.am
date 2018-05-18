@@ -25,7 +25,8 @@ src/packet_io_mgr.cpp \
 src/common.h \
 src/common.cpp \
 src/logger.h \
-src/logging.cpp
+src/logging.cpp \
+src/report_error.h
 
 libpifeproto_la_LIBADD = \
 $(top_builddir)/../frontends_extra/cpp/libpifecpp.la \
