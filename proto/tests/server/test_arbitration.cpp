@@ -24,7 +24,7 @@
 #include <gtest/gtest.h>
 
 #include <google/rpc/code.pb.h>
-#include <p4/p4runtime.grpc.pb.h>
+#include <p4/v1/p4runtime.grpc.pb.h>
 
 #include <string>
 #include <vector>
@@ -34,6 +34,8 @@
 
 #include "mock_switch.h"
 #include "utils.h"
+
+namespace p4rt = ::p4::v1;
 
 namespace pi {
 namespace proto {
@@ -58,7 +60,7 @@ class TestArbitration : public ::testing::Test {
   TestArbitration()
       : p4runtime_channel(grpc::CreateChannel(
             server->bind_addr(), grpc::InsecureChannelCredentials())),
-        p4runtime_stub(p4::P4Runtime::NewStub(p4runtime_channel)),
+        p4runtime_stub(p4rt::P4Runtime::NewStub(p4runtime_channel)),
         mock(wrapper.sw()) { }
 
   static void SetUpTestCase() {
@@ -69,14 +71,14 @@ class TestArbitration : public ::testing::Test {
     delete server;
   }
 
-  using ReaderWriter = ::grpc::ClientReaderWriter<p4::StreamMessageRequest,
-                                                  p4::StreamMessageResponse>;
+  using ReaderWriter = ::grpc::ClientReaderWriter<p4rt::StreamMessageRequest,
+                                                  p4rt::StreamMessageResponse>;
 
-  static ::Uint128 convert_election_id(const p4::Uint128 &from) {
+  static ::Uint128 convert_election_id(const p4rt::Uint128 &from) {
     return ::Uint128(from.high(), from.low());
   }
 
-  static void set_election_id(const ::Uint128 &from, p4::Uint128 *to) {
+  static void set_election_id(const ::Uint128 &from, p4rt::Uint128 *to) {
     to->set_high(from.high());
     to->set_low(from.low());
   }
@@ -84,7 +86,7 @@ class TestArbitration : public ::testing::Test {
   std::unique_ptr<ReaderWriter> stream_setup(ClientContext *context,
                                              const ::Uint128 &election_id) {
     auto stream = p4runtime_stub->StreamChannel(context);
-    p4::StreamMessageRequest request;
+    p4rt::StreamMessageRequest request;
     auto arbitration = request.mutable_arbitration();
     arbitration->set_device_id(device_id);
     set_election_id(election_id, arbitration->mutable_election_id());
@@ -94,16 +96,16 @@ class TestArbitration : public ::testing::Test {
 
   Status stream_teardown(std::unique_ptr<ReaderWriter> stream) {
     stream->WritesDone();
-    p4::StreamMessageResponse response;
+    p4rt::StreamMessageResponse response;
     while (stream->Read(&response))  // check that no extra messages
       grpc::Status status(StatusCode::UNKNOWN, "");
     return stream->Finish();
   }
 
   ::google::rpc::Status read_arbitration_status(ReaderWriter *stream) {
-    p4::StreamMessageResponse response;
+    p4rt::StreamMessageResponse response;
     while (stream->Read(&response)) {
-      if (response.update_case() != p4::StreamMessageResponse::kArbitration)
+      if (response.update_case() != p4rt::StreamMessageResponse::kArbitration)
         break;
       return response.arbitration().status();
     }
@@ -113,9 +115,9 @@ class TestArbitration : public ::testing::Test {
   }
 
   bool read_packet_in(ReaderWriter *stream) {
-    p4::StreamMessageResponse response;
+    p4rt::StreamMessageResponse response;
     while (stream->Read(&response)) {
-      if (response.update_case() != p4::StreamMessageResponse::kPacket)
+      if (response.update_case() != p4rt::StreamMessageResponse::kPacket)
         break;
       return true;
     }
@@ -123,16 +125,16 @@ class TestArbitration : public ::testing::Test {
   }
 
   Status do_write(const Uint128 &election_id) {
-    p4::WriteRequest request;
+    p4rt::WriteRequest request;
     request.set_device_id(device_id);
     set_election_id(election_id, request.mutable_election_id());
     ClientContext context;
-    p4::WriteResponse rep;
+    p4rt::WriteResponse rep;
     return p4runtime_stub->Write(&context, request, &rep);
   }
 
   void send_packet_out(ReaderWriter *stream, const std::string &payload) {
-    p4::StreamMessageRequest request;
+    p4rt::StreamMessageRequest request;
     auto packet = request.mutable_packet();
     packet->set_payload(payload);
     stream->Write(request);
@@ -140,7 +142,7 @@ class TestArbitration : public ::testing::Test {
 
   int device_id{0};
   std::shared_ptr<grpc::Channel> p4runtime_channel;
-  std::unique_ptr<p4::P4Runtime::Stub> p4runtime_stub;
+  std::unique_ptr<p4rt::P4Runtime::Stub> p4runtime_stub;
   DummySwitchWrapper wrapper{};
   DummySwitchMock *mock;
 
@@ -152,10 +154,10 @@ TestServer *TestArbitration::server = nullptr;
 TEST_F(TestArbitration, WriteNoMaster) {
   // no streams, empty election id, should go through
   {
-    p4::WriteRequest request;
+    p4rt::WriteRequest request;
     request.set_device_id(device_id);
     ClientContext context;
-    p4::WriteResponse rep;
+    p4rt::WriteResponse rep;
     auto status = p4runtime_stub->Write(&context, request, &rep);
     // expect FAILED_PRECONDITION (and not PERMISSION_DENIED)
     EXPECT_EQ(StatusCode::FAILED_PRECONDITION, status.error_code());
@@ -198,7 +200,7 @@ TEST_F(TestArbitration, WriteAndPacketInAndPacketOut) {
   };
 
   auto check_packet_in = [this, &payload](ReaderWriter *stream) {
-    p4::PacketIn packet;
+    p4rt::PacketIn packet;
     packet.set_payload(payload);
     ::pi::server::testing::send_packet_in(device_id, &packet);
     EXPECT_TRUE(read_packet_in(stream));

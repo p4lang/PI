@@ -15,11 +15,11 @@
 syntax = "proto3";
 
 import "google/protobuf/any.proto";
-import "p4/p4types.proto";
+import "p4/config/v1/p4types.proto";
 
 // This package and its contents are a work-in-progress.
 
-package p4.config;
+package p4.config.v1;
 
 message P4Info {
   PkgInfo pkg_info = 1;

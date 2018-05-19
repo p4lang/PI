@@ -23,7 +23,9 @@
 
 #include "google/rpc/code.pb.h"
 #include "google/rpc/status.pb.h"
-#include "p4/p4runtime.pb.h"
+#include "p4/v1/p4runtime.pb.h"
+
+namespace p4rt = ::p4::v1;
 
 namespace pi {
 
@@ -34,7 +36,7 @@ namespace proto {
 using Code = ::google::rpc::Code;
 using common::check_proto_bytestring;
 
-Status validate_action_data(pi_p4info_t *p4info, const p4::Action &action) {
+Status validate_action_data(pi_p4info_t *p4info, const p4rt::Action &action) {
   Status status;
   Code code;
   size_t exp_num_params = pi_p4info_action_num_params(

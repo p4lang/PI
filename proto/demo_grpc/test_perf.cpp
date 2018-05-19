@@ -17,7 +17,10 @@
 
 #include "p4info_to_and_from_proto.h"  // for p4info_serialize_to_proto
 
-#include "p4/p4runtime.grpc.pb.h"
+#include "p4/v1/p4runtime.grpc.pb.h"
+
+namespace p4rt = ::p4::v1;
+namespace p4config = ::p4::config::v1;
 
 using grpc::Channel;
 using grpc::ClientContext;
@@ -88,10 +91,10 @@ int parse_opts(int argc, char *const argv[]) {
 class P4RuntimeClient {
  public:
   P4RuntimeClient(std::shared_ptr<Channel> channel)
-      : stub_(p4::P4Runtime::NewStub(channel)) { }
+      : stub_(p4rt::P4Runtime::NewStub(channel)) { }
 
-  int write(const p4::WriteRequest &request) {
-    p4::WriteResponse rep;
+  int write(const p4rt::WriteRequest &request) {
+    p4rt::WriteResponse rep;
     ClientContext context;
     auto status = stub_->Write(&context, request, &rep);
     assert(status.ok());
@@ -99,14 +102,14 @@ class P4RuntimeClient {
   }
 
   int assign_device(int device_id, const pi_p4info_t *p4info) {
-    p4::SetForwardingPipelineConfigRequest request;
+    p4rt::SetForwardingPipelineConfigRequest request;
     request.set_device_id(device_id);
     request.set_action(
-        p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT);
+        p4rt::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT);
     auto config = request.mutable_config();
     auto p4info_proto = pi::p4info::p4info_serialize_to_proto(p4info);
     config->set_allocated_p4info(&p4info_proto);
-    p4::SetForwardingPipelineConfigResponse rep;
+    p4rt::SetForwardingPipelineConfigResponse rep;
     ClientContext context;
     auto status = stub_->SetForwardingPipelineConfig(&context, request, &rep);
     config->release_p4info();
@@ -115,7 +118,7 @@ class P4RuntimeClient {
   }
 
  private:
-  std::unique_ptr<p4::P4Runtime::Stub> stub_;
+  std::unique_ptr<p4rt::P4Runtime::Stub> stub_;
 };
 
 namespace {
@@ -139,7 +142,7 @@ std::string uint_to_string<uint32_t>(uint32_t i) {
 class StreamChannelSync {
  public:
   StreamChannelSync(std::shared_ptr<Channel> channel)
-      : stub_(p4::P4Runtime::NewStub(channel)) {
+      : stub_(p4rt::P4Runtime::NewStub(channel)) {
     stream = stub_->StreamChannel(&context);
   }
 
@@ -147,7 +150,7 @@ class StreamChannelSync {
   void recv_packet_in(F f) {
     stop_f = false;
     recv_thread = std::thread([this, &f]() {
-        p4::StreamMessageResponse packet_in;
+        p4rt::StreamMessageResponse packet_in;
         while (!stop_f && stream->Read(&packet_in)) {
           f();
         }
@@ -156,14 +159,14 @@ class StreamChannelSync {
 
   void send_init(int device_id) {
     std::cout << "Sending init\n";
-    p4::StreamMessageRequest packet_out_init;
+    p4rt::StreamMessageRequest packet_out_init;
     packet_out_init.mutable_arbitration()->set_device_id(device_id);
     stream->Write(packet_out_init);
   }
 
   void send_packet_out(std::string bytes) {
     std::cout << "Sending packet out\n";
-    p4::StreamMessageRequest packet_out;
+    p4rt::StreamMessageRequest packet_out;
     packet_out.mutable_packet()->set_payload(std::move(bytes));
     stream->Write(packet_out);
   }
@@ -176,11 +179,11 @@ class StreamChannelSync {
 
  private:
   std::atomic<bool> stop_f{false};
-  std::unique_ptr<p4::P4Runtime::Stub> stub_;
+  std::unique_ptr<p4rt::P4Runtime::Stub> stub_;
   std::thread recv_thread;
   ClientContext context;
-  std::unique_ptr<ClientReaderWriter<p4::StreamMessageRequest,
-                                     p4::StreamMessageResponse> > stream;
+  std::unique_ptr<ClientReaderWriter<p4rt::StreamMessageRequest,
+                                     p4rt::StreamMessageResponse> > stream;
 };
 
 class Tester {
@@ -217,13 +220,13 @@ class Tester {
       for (size_t i = 0; i < iters; i++) {
         // when arenas are enabled in p4runtime.proto
         // Arena arena;
-        // p4::TableWriteRequest *request =
-        //     Arena::CreateMessage<p4::TableWriteRequest>(&arena);
-        p4::WriteRequest request;
+        // p4rt::TableWriteRequest *request =
+        //     Arena::CreateMessage<p4rt::TableWriteRequest>(&arena);
+        p4rt::WriteRequest request;
         request.set_device_id(device_id);
         for (size_t j = 0; j < batch_size; j++) {
           auto update = request.add_updates();
-          update->set_type(p4::Update_Type_INSERT);
+          update->set_type(p4rt::Update_Type_INSERT);
           auto entity = update->mutable_entity();
           auto table_entry = entity->mutable_table_entry();
           table_entry->set_table_id(t_id);

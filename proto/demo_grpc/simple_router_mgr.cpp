@@ -35,6 +35,9 @@
 
 #include "google/rpc/code.pb.h"
 
+namespace p4rt = ::p4::v1;
+namespace p4config = ::p4::config::v1;
+
 using grpc::ClientContext;
 using grpc::Status;
 using grpc::ClientReaderWriter;
@@ -140,12 +143,12 @@ struct CounterQueryHandler : public MgrHandler {
   CounterQueryHandler(SimpleRouterMgr *mgr,
                       const std::string &counter_name,
                       size_t index,
-                      std::promise<p4::CounterData> &promise)
+                      std::promise<p4rt::CounterData> &promise)
       : MgrHandler(mgr), counter_name(counter_name), index(index),
         promise(promise) { }
 
   void operator()() {
-    p4::CounterData d;
+    p4rt::CounterData d;
     int rc = simple_router_mgr->query_counter_(counter_name, index, &d);
     if (rc) {
       d.set_packet_count(
@@ -156,7 +159,7 @@ struct CounterQueryHandler : public MgrHandler {
 
   std::string counter_name;
   size_t index;
-  std::promise<p4::CounterData> &promise;
+  std::promise<p4rt::CounterData> &promise;
 };
 
 struct ConfigUpdateHandler : public MgrHandler {
@@ -182,13 +185,13 @@ class StreamChannelSyncClient {
   StreamChannelSyncClient(SimpleRouterMgr *simple_router_mgr,
                           std::shared_ptr<Channel> channel)
       : simple_router_mgr(simple_router_mgr),
-        stub_(p4::P4Runtime::NewStub(channel)) {
+        stub_(p4rt::P4Runtime::NewStub(channel)) {
     stream = stub_->StreamChannel(&context);
   }
 
   void recv_packet_in() {
     recv_thread = std::thread([this]() {
-        p4::StreamMessageResponse packet_in;
+        p4rt::StreamMessageResponse packet_in;
         while (stream->Read(&packet_in)) {
           std::cout << "Received packet in bro!\n";
           const auto &packet = packet_in.packet();
@@ -202,32 +205,32 @@ class StreamChannelSyncClient {
 
   void send_init(int device_id) {
     std::cout << "Sending init\n";
-    p4::StreamMessageRequest packet_out_init;
+    p4rt::StreamMessageRequest packet_out_init;
     packet_out_init.mutable_arbitration()->set_device_id(device_id);
     stream->Write(packet_out_init);
   }
 
   void send_packet_out(std::string bytes) {
     std::cout << "Sending packet out\n";
-    p4::StreamMessageRequest packet_out;
+    p4rt::StreamMessageRequest packet_out;
     packet_out.mutable_packet()->set_payload(std::move(bytes));
     stream->Write(packet_out);
   }
 
  private:
   SimpleRouterMgr *simple_router_mgr{nullptr};
-  std::unique_ptr<p4::P4Runtime::Stub> stub_;
+  std::unique_ptr<p4rt::P4Runtime::Stub> stub_;
   std::thread recv_thread;
   ClientContext context;
-  std::unique_ptr<ClientReaderWriter<p4::StreamMessageRequest,
-                                     p4::StreamMessageResponse> > stream;
+  std::unique_ptr<ClientReaderWriter<p4rt::StreamMessageRequest,
+                                     p4rt::StreamMessageResponse> > stream;
 };
 
 SimpleRouterMgr::SimpleRouterMgr(int dev_id,
                                  boost::asio::io_service &io_service,
                                  std::shared_ptr<Channel> channel)
     : dev_id(dev_id), io_service(io_service),
-      pi_stub_(p4::P4Runtime::NewStub(channel)),
+      pi_stub_(p4rt::P4Runtime::NewStub(channel)),
       packet_io_client(new StreamChannelSyncClient(this, channel)) {
 }
 
@@ -238,7 +241,7 @@ SimpleRouterMgr::assign(const std::string &config_buffer,
                         const std::string *p4info_buffer) {
   if (assigned) return 0;
 
-  p4::config::P4Info p4info_proto;
+  p4config::P4Info p4info_proto;
   if (!p4info_buffer) {
     pi_add_config(config_buffer.c_str(), PI_CONFIG_TYPE_BMV2_JSON, &p4info);
     p4info_proto = pi::p4info::p4info_serialize_to_proto(p4info);
@@ -248,10 +251,10 @@ SimpleRouterMgr::assign(const std::string &config_buffer,
     pi::p4info::p4info_proto_reader(p4info_proto, &p4info);
   }
 
-  p4::SetForwardingPipelineConfigRequest request;
+  p4rt::SetForwardingPipelineConfigRequest request;
   request.set_device_id(dev_id);
   request.set_action(
-      p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT);
+      p4rt::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT);
   auto config = request.mutable_config();
   config->set_allocated_p4info(&p4info_proto);
   p4::tmp::P4DeviceConfig device_config;
@@ -264,7 +267,7 @@ SimpleRouterMgr::assign(const std::string &config_buffer,
   device_config.set_device_data(config_buffer);
   device_config.SerializeToString(config->mutable_p4_device_config());
 
-  p4::SetForwardingPipelineConfigResponse rep;
+  p4rt::SetForwardingPipelineConfigResponse rep;
   ClientContext context;
   auto status = pi_stub_->SetForwardingPipelineConfig(&context, request, &rep);
   config->release_p4info();
@@ -295,15 +298,15 @@ std::string uint_to_string<uint32_t>(uint32_t i) {
 }  // namespace
 
 int
-SimpleRouterMgr::add_one_entry(p4::TableEntry *match_action_entry) {
-  p4::WriteRequest request;
+SimpleRouterMgr::add_one_entry(p4rt::TableEntry *match_action_entry) {
+  p4rt::WriteRequest request;
   request.set_device_id(dev_id);
   auto update = request.add_updates();
-  update->set_type(p4::Update_Type_INSERT);
+  update->set_type(p4rt::Update_Type_INSERT);
   auto entity = update->mutable_entity();
   entity->set_allocated_table_entry(match_action_entry);
 
-  p4::WriteResponse rep;
+  p4rt::WriteResponse rep;
   ClientContext context;
   Status status = pi_stub_->Write(&context, request, &rep);
 
@@ -320,7 +323,7 @@ SimpleRouterMgr::add_route_(uint32_t prefix, int pLen, uint32_t nhop,
     pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, "ipv4_lpm");
     pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, "set_nhop");
 
-    p4::TableEntry match_action_entry;
+    p4rt::TableEntry match_action_entry;
     match_action_entry.set_table_id(t_id);
 
     auto mf = match_action_entry.add_match();
@@ -371,7 +374,7 @@ SimpleRouterMgr::add_arp_entry(uint32_t addr,
   pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, "forward");
   pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, "set_dmac");
 
-  p4::TableEntry match_action_entry;
+  p4rt::TableEntry match_action_entry;
   match_action_entry.set_table_id(t_id);
 
   auto mf = match_action_entry.add_match();
@@ -400,7 +403,7 @@ SimpleRouterMgr::assign_mac_addr(uint16_t port,
   pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, "send_frame");
   pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, "rewrite_mac");
 
-  p4::TableEntry match_action_entry;
+  p4rt::TableEntry match_action_entry;
   match_action_entry.set_table_id(t_id);
 
   auto mf = match_action_entry.add_match();
@@ -425,8 +428,8 @@ SimpleRouterMgr::assign_mac_addr(uint16_t port,
 
 int
 SimpleRouterMgr::set_one_default_entry(pi_p4_id_t t_id,
-                                       p4::Action *action) {
-  p4::TableEntry match_action_entry;
+                                       p4rt::Action *action) {
+  p4rt::TableEntry match_action_entry;
   match_action_entry.set_table_id(t_id);
   auto entry = match_action_entry.mutable_action();
   entry->set_allocated_action(action);
@@ -442,7 +445,7 @@ SimpleRouterMgr::set_default_entries() {
   {
     pi_p4_id_t t_id = pi_p4info_table_id_from_name(p4info, "forward");
     pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info, "_drop");
-    p4::TableEntry match_action_entry;
+    p4rt::TableEntry match_action_entry;
     match_action_entry.set_table_id(t_id);
 
     auto mf = match_action_entry.add_match();
@@ -623,12 +626,12 @@ SimpleRouterMgr::add_iface(uint16_t port_num, uint32_t ip_addr,
 int
 SimpleRouterMgr::query_counter(const std::string &counter_name, size_t index,
                                uint64_t *packets, uint64_t *bytes) {
-  std::promise<p4::CounterData> promise;
+  std::promise<p4rt::CounterData> promise;
   auto future = promise.get_future();
   CounterQueryHandler h(this, counter_name, index, promise);
   post_event(std::move(h));
   future.wait();
-  p4::CounterData counter_data = future.get();
+  p4rt::CounterData counter_data = future.get();
   if (counter_data.packet_count() ==
       std::numeric_limits<decltype(counter_data.packet_count())>::max()) {
     return 1;
@@ -640,7 +643,7 @@ SimpleRouterMgr::query_counter(const std::string &counter_name, size_t index,
 
 int
 SimpleRouterMgr::query_counter_(const std::string &counter_name, size_t index,
-                                p4::CounterData *counter_data) {
+                                p4rt::CounterData *counter_data) {
   pi_p4_id_t counter_id = pi_p4info_counter_id_from_name(p4info,
                                                          counter_name.c_str());
   if (counter_id == PI_INVALID_ID) {
@@ -648,7 +651,7 @@ SimpleRouterMgr::query_counter_(const std::string &counter_name, size_t index,
     return 1;
   }
 
-  p4::ReadRequest request;
+  p4rt::ReadRequest request;
   request.set_device_id(dev_id);
   auto entity = request.add_entities();
   auto counter_entry = entity->mutable_counter_entry();
@@ -656,7 +659,7 @@ SimpleRouterMgr::query_counter_(const std::string &counter_name, size_t index,
   auto index_msg = counter_entry->mutable_index();
   index_msg->set_index(index);
 
-  p4::ReadResponse rep;
+  p4rt::ReadResponse rep;
   ClientContext context;
   auto reader = pi_stub_->Read(&context, request);
   while (reader->Read(&rep)) {
@@ -690,7 +693,7 @@ SimpleRouterMgr::update_config_(const std::string &config_buffer,
                                 const std::string *p4info_buffer) {
   std::cout << "Updating config\n";
 
-  p4::config::P4Info p4info_proto;
+  p4config::P4Info p4info_proto;
   pi_p4info_t *p4info_new;
   if (!p4info_buffer) {
     pi_add_config(config_buffer.c_str(), PI_CONFIG_TYPE_BMV2_JSON, &p4info_new);
@@ -705,16 +708,16 @@ SimpleRouterMgr::update_config_(const std::string &config_buffer,
   if (p4info_prev) pi_destroy_config(p4info_prev);
 
   {
-    p4::SetForwardingPipelineConfigRequest request;
+    p4rt::SetForwardingPipelineConfigRequest request;
     request.set_device_id(dev_id);
     request.set_action(
-        p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_SAVE);
+        p4rt::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_SAVE);
     auto config = request.mutable_config();
     config->set_allocated_p4info(&p4info_proto);
     p4::tmp::P4DeviceConfig device_config;
     device_config.set_device_data(config_buffer);
     device_config.SerializeToString(config->mutable_p4_device_config());
-    p4::SetForwardingPipelineConfigResponse rep;
+    p4rt::SetForwardingPipelineConfigResponse rep;
     ClientContext context;
     auto status = pi_stub_->SetForwardingPipelineConfig(
         &context, request, &rep);
@@ -728,10 +731,10 @@ SimpleRouterMgr::update_config_(const std::string &config_buffer,
   // static_config_(UpdateMode::CONTROLLER_STATE);
 
   {
-    p4::SetForwardingPipelineConfigRequest request;
+    p4rt::SetForwardingPipelineConfigRequest request;
     request.set_device_id(dev_id);
-    request.set_action(p4::SetForwardingPipelineConfigRequest_Action_COMMIT);
-    p4::SetForwardingPipelineConfigResponse rep;
+    request.set_action(p4rt::SetForwardingPipelineConfigRequest_Action_COMMIT);
+    p4rt::SetForwardingPipelineConfigResponse rep;
     ClientContext context;
     auto status = pi_stub_->SetForwardingPipelineConfig(
         &context, request, &rep);

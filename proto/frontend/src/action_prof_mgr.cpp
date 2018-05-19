@@ -33,6 +33,9 @@
 #include "logger.h"
 #include "report_error.h"
 
+namespace p4rt = ::p4::v1;
+namespace p4config = ::p4::config::v1;
+
 namespace pi {
 
 namespace fe {
@@ -107,7 +110,7 @@ ActionProfMgr::ActionProfMgr(pi_dev_tgt_t device_tgt, pi_p4_id_t act_prof_id,
     : device_tgt(device_tgt), act_prof_id(act_prof_id), p4info(p4info) { }
 
 Status
-ActionProfMgr::member_create(const p4::ActionProfileMember &member,
+ActionProfMgr::member_create(const p4rt::ActionProfileMember &member,
                              const SessionTemp &session) {
   {
     auto status = validate_action(member.action());
@@ -131,7 +134,7 @@ ActionProfMgr::member_create(const p4::ActionProfileMember &member,
 }
 
 Status
-ActionProfMgr::group_create(const p4::ActionProfileGroup &group,
+ActionProfMgr::group_create(const p4rt::ActionProfileGroup &group,
                             const SessionTemp &session) {
   Lock lock(mutex);
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
@@ -151,7 +154,7 @@ ActionProfMgr::group_create(const p4::ActionProfileGroup &group,
 }
 
 Status
-ActionProfMgr::member_modify(const p4::ActionProfileMember &member,
+ActionProfMgr::member_modify(const p4rt::ActionProfileMember &member,
                              const SessionTemp &session) {
   auto status = validate_action(member.action());
   if (IS_ERROR(status)) return status;
@@ -173,7 +176,7 @@ ActionProfMgr::member_modify(const p4::ActionProfileMember &member,
 // we stop as soon as there is an error, but make sure to keep consistency
 // between device and local state
 Status
-ActionProfMgr::group_modify(const p4::ActionProfileGroup &group,
+ActionProfMgr::group_modify(const p4rt::ActionProfileGroup &group,
                             const SessionTemp &session) {
   Lock lock(mutex);
   auto group_id = group.group_id();
@@ -188,7 +191,7 @@ ActionProfMgr::group_modify(const p4::ActionProfileGroup &group,
 }
 
 Status
-ActionProfMgr::member_delete(const p4::ActionProfileMember &member,
+ActionProfMgr::member_delete(const p4rt::ActionProfileMember &member,
                              const SessionTemp &session) {
   Lock lock(mutex);
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
@@ -206,7 +209,7 @@ ActionProfMgr::member_delete(const p4::ActionProfileMember &member,
 }
 
 Status
-ActionProfMgr::group_delete(const p4::ActionProfileGroup &group,
+ActionProfMgr::group_delete(const p4rt::ActionProfileGroup &group,
                             const SessionTemp &session) {
   Lock lock(mutex);
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
@@ -226,12 +229,12 @@ ActionProfMgr::group_delete(const p4::ActionProfileGroup &group,
 bool
 ActionProfMgr::check_p4_action_id(pi_p4_id_t p4_id) const {
   using pi::proto::util::resource_type_from_id;
-  return (resource_type_from_id(p4_id) == p4::config::P4Ids::ACTION)
+  return (resource_type_from_id(p4_id) == p4config::P4Ids::ACTION)
       && pi_p4info_is_valid_id(p4info, p4_id);
 }
 
 pi::ActionData
-ActionProfMgr::construct_action_data(const p4::Action &action) {
+ActionProfMgr::construct_action_data(const p4rt::Action &action) {
   pi::ActionData action_data(p4info, action.action_id());
   for (const auto &p : action.params()) {
     action_data.set_arg(p.param_id(), p.value().data(), p.value().size());
@@ -240,7 +243,7 @@ ActionProfMgr::construct_action_data(const p4::Action &action) {
 }
 
 Status
-ActionProfMgr::validate_action(const p4::Action &action) {
+ActionProfMgr::validate_action(const p4rt::Action &action) {
   auto action_id = action.action_id();
   if (!check_p4_action_id(action_id))
     return make_invalid_p4_id_status();
@@ -258,12 +261,12 @@ ActionProfMgr::update_group_membership(const Id &removed_member_id) {
 
 Code
 ActionProfMgr::group_update_members(pi::ActProf &ap,
-                                    const p4::ActionProfileGroup &group) {
+                                    const p4rt::ActionProfileGroup &group) {
   Code code;
   std::vector<Id> new_membership(group.members().size());
   std::transform(
       group.members().begin(), group.members().end(), new_membership.begin(),
-      [](const p4::ActionProfileGroup::Member &m) { return m.member_id(); });
+      [](const p4rt::ActionProfileGroup::Member &m) { return m.member_id(); });
   std::sort(new_membership.begin(), new_membership.end());
   auto group_id = group.group_id();
   auto &membership = group_members.at(group_id);

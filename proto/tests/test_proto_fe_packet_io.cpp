@@ -31,6 +31,9 @@
 
 #include "mock_switch.h"
 
+namespace p4rt = ::p4::v1;
+namespace p4config = ::p4::config::v1;
+
 namespace pi {
 namespace proto {
 namespace testing {
@@ -58,10 +61,10 @@ class DeviceMgrPacketIOTest : public ::testing::Test {
   }
 
   void SetUp() override {
-    p4::ForwardingPipelineConfig config;
+    p4rt::ForwardingPipelineConfig config;
     config.set_allocated_p4info(&p4info_proto);
     auto status = mgr.pipeline_config_set(
-        p4::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT,
+        p4rt::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT,
         config);
     // releasing resource before the assert to avoid double free in case the
     // assert is false
@@ -71,7 +74,7 @@ class DeviceMgrPacketIOTest : public ::testing::Test {
 
   void TearDown() override { }
 
-  p4::config::P4Info p4info_proto;
+  p4config::P4Info p4info_proto;
 
   DummySwitchWrapper wrapper{};
   DummySwitchMock *mock;
@@ -83,9 +86,9 @@ class DeviceMgrPacketIOTest : public ::testing::Test {
 class DeviceMgrPacketIORegTest : public DeviceMgrPacketIOTest { };
 
 TEST_F(DeviceMgrPacketIORegTest, PacketIn) {
-  p4::PacketIn packet_in;
+  p4rt::PacketIn packet_in;
   bool received = false;
-  auto cb_fn = [&packet_in, &received](device_id_t, p4::PacketIn *p, void *) {
+  auto cb_fn = [&packet_in, &received](device_id_t, p4rt::PacketIn *p, void *) {
     packet_in.CopyFrom(*p);
     received = true;
   };
@@ -99,7 +102,7 @@ TEST_F(DeviceMgrPacketIORegTest, PacketIn) {
 }
 
 TEST_F(DeviceMgrPacketIORegTest, PacketOut) {
-  p4::PacketOut packet_out;
+  p4rt::PacketOut packet_out;
   std::string payload(10, '\xab');
   packet_out.set_payload(payload);
   EXPECT_CALL(*mock, packetout_send(StrEq(payload.c_str()), payload.size()));
@@ -215,7 +218,7 @@ class DeviceMgrPacketIOMetadataTest : public DeviceMgrPacketIOTest {
 
  protected:
   DeviceMgrPacketIOMetadataTest() {
-    p4::config::ControllerPacketMetadata header;
+    p4config::ControllerPacketMetadata header;
     uint32_t id = 1;
     for (auto bw : bitwidths) {
       auto metadata = header.add_metadata();
@@ -281,9 +284,9 @@ TEST_F(DeviceMgrPacketIOMetadataTest, PacketIn) {
   std::string payload(10, '\xab');
   ValueIterator<VType> values(bitwidths, steps);
   std::vector<std::string> binary_strs(num);
-  p4::PacketIn packet_in;
+  p4rt::PacketIn packet_in;
   bool received;
-  auto cb_fn = [&packet_in, &received](device_id_t, p4::PacketIn *p, void *) {
+  auto cb_fn = [&packet_in, &received](device_id_t, p4rt::PacketIn *p, void *) {
     packet_in.CopyFrom(*p);
     received = true;
   };
@@ -311,7 +314,7 @@ TEST_F(DeviceMgrPacketIOMetadataTest, PacketOut) {
   ValueIterator<VType> values(bitwidths, steps);
   std::vector<std::string> binary_strs(num);
   for (const auto &v : values) {
-    p4::PacketOut packet_out;
+    p4rt::PacketOut packet_out;
     packet_out.set_payload(payload);
     BitPattern pattern;
     for (uint32_t id = 0; id < num; id++) {

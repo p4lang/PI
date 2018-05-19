@@ -27,6 +27,9 @@
 
 #include "google/rpc/code.pb.h"
 
+namespace p4rt = ::p4::v1;
+namespace p4config = ::p4::config::v1;
+
 namespace pi {
 
 namespace fe {
@@ -37,7 +40,7 @@ using Code = ::google::rpc::Code;
 
 namespace {
 
-using p4::config::ControllerPacketMetadata;
+using p4config::ControllerPacketMetadata;
 
 size_t compute_nbytes(const ControllerPacketMetadata &metadata_hdr) {
   size_t nbits = 0;
@@ -152,7 +155,7 @@ class PacketInMutate {
   }
 
   bool operator ()(const char *pkt, size_t size,
-                   p4::PacketIn *packet_in) const {
+                   p4rt::PacketIn *packet_in) const {
     if (size < nbytes) return false;
     packet_in->set_payload(pkt + nbytes, size - nbytes);
     int bit_offset = 0;
@@ -215,7 +218,7 @@ class PacketOutMutate {
     nbytes = compute_nbytes(metadata_hdr);
   }
 
-  bool operator ()(const p4::PacketOut &packet_out, std::string *pkt) const {
+  bool operator ()(const p4rt::PacketOut &packet_out, std::string *pkt) const {
     pkt->clear();
     const auto &payload = packet_out.payload();
     pkt->reserve(nbytes + payload.size());
@@ -246,7 +249,7 @@ PacketIOMgr::PacketIOMgr(device_id_t device_id)
 PacketIOMgr::~PacketIOMgr() = default;
 
 void
-PacketIOMgr::p4_change(const p4::config::P4Info &p4info) {
+PacketIOMgr::p4_change(const p4config::P4Info &p4info) {
   PacketInMutate *packet_in_mutate_new = nullptr;
   PacketOutMutate *packet_out_mutate_new = nullptr;
   for (const auto &metadata_hdr : p4info.controller_packet_metadata()) {
@@ -262,7 +265,7 @@ PacketIOMgr::p4_change(const p4::config::P4Info &p4info) {
 }
 
 Status
-PacketIOMgr::packet_out_send(const p4::PacketOut &packet) const {
+PacketIOMgr::packet_out_send(const p4rt::PacketOut &packet) const {
     Status status;
     pi_status_t pi_status = PI_STATUS_SUCCESS;
     if (packet_out_mutate) {
@@ -299,7 +302,7 @@ PacketIOMgr::packet_in_cb(pi_dev_id_t dev_id, const char *pkt, size_t size,
                           void *cookie) {
   auto mgr = static_cast<PacketIOMgr *>(cookie);
   assert(dev_id == mgr->device_id);
-  p4::PacketIn packet_in;
+  p4rt::PacketIn packet_in;
   if (mgr->packet_in_mutate) {
     Lock lock(mgr->mutex);
     auto success = (*mgr->packet_in_mutate)(pkt, size, &packet_in);

@@ -27,8 +27,8 @@
 #include <vector>
 
 #include "google/rpc/status.pb.h"
-#include "p4/config/p4info.pb.h"
-#include "p4/p4runtime.pb.h"
+#include "p4/config/v1/p4info.pb.h"
+#include "p4/v1/p4runtime.pb.h"
 
 namespace pi {
 
@@ -47,7 +47,7 @@ class DeviceMgr {
   // may change when we introduce specific error namespace
   using Status = ::google::rpc::Status;
   using PacketInCb =
-      std::function<void(device_id_t, p4::PacketIn *packet, void *cookie)>;
+      std::function<void(device_id_t, p4::v1::PacketIn *packet, void *cookie)>;
 
   explicit DeviceMgr(device_id_t device_id);
 
@@ -56,18 +56,20 @@ class DeviceMgr {
   // New pipeline_config_set and pipeline_config_get methods to replace init,
   // update_start and update_end
   Status pipeline_config_set(
-      p4::SetForwardingPipelineConfigRequest_Action action,
-      const p4::ForwardingPipelineConfig &config);
+      p4::v1::SetForwardingPipelineConfigRequest_Action action,
+      const p4::v1::ForwardingPipelineConfig &config);
 
-  Status pipeline_config_get(p4::ForwardingPipelineConfig *config);
+  Status pipeline_config_get(p4::v1::ForwardingPipelineConfig *config);
 
   // New write and read methods, meant to replace all the methods below
-  Status write(const p4::WriteRequest &request);
+  Status write(const p4::v1::WriteRequest &request);
 
-  Status read(const p4::ReadRequest &request, p4::ReadResponse *response) const;
-  Status read_one(const p4::Entity &entity, p4::ReadResponse *response) const;
+  Status read(const p4::v1::ReadRequest &request,
+              p4::v1::ReadResponse *response) const;
+  Status read_one(const p4::v1::Entity &entity,
+                  p4::v1::ReadResponse *response) const;
 
-  Status packet_out_send(const p4::PacketOut &packet) const;
+  Status packet_out_send(const p4::v1::PacketOut &packet) const;
 
   void packet_in_register_cb(PacketInCb cb, void *cookie);
 

@@ -1,0 +1,57 @@
+// Copyright 2013-present Barefoot Networks, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package p4.v1;
+
+message P4Data {
+  oneof data {
+    bytes bitstring = 1;  // for bit<W>, int<W>, varbit<W>
+    bool bool = 2;
+    P4StructLike tuple = 3;
+    P4StructLike struct = 4;
+    P4Header header = 5;
+    P4HeaderUnion header_union = 6;
+    P4HeaderStack header_stack = 7;
+    P4HeaderUnionStack header_union_stack = 8;
+    // Could be replaced with integer values in future versions.
+    string enum = 9;
+    string error = 10;
+  }
+}
+
+message P4StructLike {
+  repeated P4Data members = 1;
+}
+
+message P4Header {
+  bool is_valid = 1;
+  repeated bytes bitstrings = 2;
+}
+
+message P4HeaderUnion {
+  // An empty string indicates that none of the union members are valid and
+  // valid_header must therefore be unset.
+  string valid_header_name = 1;
+  P4Header valid_header = 2;
+}
+
+message P4HeaderStack {
+  repeated P4Header entries = 1;
+}
+
+message P4HeaderUnionStack {
+  repeated P4HeaderUnion entries = 1;
+}

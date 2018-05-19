@@ -18,9 +18,10 @@ PROTOFLAGS = -I$(abs_srcdir) -I$(abs_builddir)
 
 # Absolute paths are needed here for 'make distcheck' to work properly
 protos = \
-$(abs_srcdir)/p4/p4types.proto \
-$(abs_srcdir)/p4/p4runtime.proto \
-$(abs_srcdir)/p4/config/p4info.proto \
+$(abs_srcdir)/p4/v1/p4data.proto \
+$(abs_srcdir)/p4/v1/p4runtime.proto \
+$(abs_srcdir)/p4/config/v1/p4info.proto \
+$(abs_srcdir)/p4/config/v1/p4types.proto \
 $(abs_srcdir)/google/rpc/status.proto \
 $(abs_srcdir)/google/rpc/code.proto \
 $(abs_srcdir)/p4/tmp/p4config.proto \
@@ -29,21 +30,24 @@ $(abs_srcdir)/gnmi/gnmi.proto
 # Somehow, using an absolute path above prevents me from using EXTRA_DIST =
 # $(protos)
 EXTRA_DIST = \
-p4/p4types.proto \
-p4/p4runtime.proto \
-p4/config/p4info.proto \
+p4/v1/p4data.proto \
+p4/v1/p4runtime.proto \
+p4/config/v1/p4info.proto \
+p4/config/v1/p4types.proto \
 google/rpc/status.proto \
 google/rpc/code.proto \
 p4/tmp/p4config.proto \
 gnmi/gnmi.proto
 
 proto_cpp_files = \
-cpp_out/p4/p4types.pb.cc \
-cpp_out/p4/p4types.pb.h \
-cpp_out/p4/p4runtime.pb.cc \
-cpp_out/p4/p4runtime.pb.h \
-cpp_out/p4/config/p4info.pb.cc \
-cpp_out/p4/config/p4info.pb.h \
+cpp_out/p4/v1/p4data.pb.cc \
+cpp_out/p4/v1/p4data.pb.h \
+cpp_out/p4/v1/p4runtime.pb.cc \
+cpp_out/p4/v1/p4runtime.pb.h \
+cpp_out/p4/config/v1/p4info.pb.cc \
+cpp_out/p4/config/v1/p4info.pb.h \
+cpp_out/p4/config/v1/p4types.pb.cc \
+cpp_out/p4/config/v1/p4types.pb.h \
 cpp_out/google/rpc/status.pb.cc \
 cpp_out/google/rpc/status.pb.h \
 cpp_out/google/rpc/code.pb.cc \
@@ -54,12 +58,14 @@ cpp_out/gnmi/gnmi.pb.cc \
 cpp_out/gnmi/gnmi.pb.h
 
 proto_grpc_files = \
-grpc_out/p4/p4types.grpc.pb.cc \
-grpc_out/p4/p4types.grpc.pb.h \
-grpc_out/p4/p4runtime.grpc.pb.cc \
-grpc_out/p4/p4runtime.grpc.pb.h \
-grpc_out/p4/config/p4info.grpc.pb.cc \
-grpc_out/p4/config/p4info.grpc.pb.h \
+grpc_out/p4/v1/p4data.grpc.pb.cc \
+grpc_out/p4/v1/p4data.grpc.pb.h \
+grpc_out/p4/v1/p4runtime.grpc.pb.cc \
+grpc_out/p4/v1/p4runtime.grpc.pb.h \
+grpc_out/p4/config/v1/p4info.grpc.pb.cc \
+grpc_out/p4/config/v1/p4info.grpc.pb.h \
+grpc_out/p4/config/v1/p4types.grpc.pb.cc \
+grpc_out/p4/config/v1/p4types.grpc.pb.h \
 grpc_out/google/rpc/status.grpc.pb.cc \
 grpc_out/google/rpc/status.grpc.pb.h \
 grpc_out/google/rpc/code.grpc.pb.cc \
@@ -69,17 +75,19 @@ grpc_out/p4/tmp/p4config.grpc.pb.h \
 grpc_out/gnmi/gnmi.grpc.pb.cc \
 grpc_out/gnmi/gnmi.grpc.pb.h
 
-includep4dir = $(includedir)/p4/
+includep4dir = $(includedir)/p4/v1/
 nodist_includep4_HEADERS = \
-cpp_out/p4/p4types.pb.h \
-grpc_out/p4/p4types.grpc.pb.h \
-cpp_out/p4/p4runtime.pb.h \
-grpc_out/p4/p4runtime.grpc.pb.h
+cpp_out/p4/v1/p4data.pb.h \
+grpc_out/p4/v1/p4data.grpc.pb.h \
+cpp_out/p4/v1/p4runtime.pb.h \
+grpc_out/p4/v1/p4runtime.grpc.pb.h
 
-includep4configdir = $(includedir)/p4/config/
+includep4configdir = $(includedir)/p4/config/v1/
 nodist_includep4config_HEADERS = \
-cpp_out/p4/config/p4info.pb.h \
-grpc_out/p4/config/p4info.grpc.pb.h
+cpp_out/p4/config/v1/p4info.pb.h \
+grpc_out/p4/config/v1/p4info.grpc.pb.h \
+cpp_out/p4/config/v1/p4types.pb.h \
+grpc_out/p4/config/v1/p4types.grpc.pb.h
 
 includep4tmpdir = $(includedir)/p4/tmp/
 nodist_includep4tmp_HEADERS = \
@@ -105,16 +113,17 @@ AM_CPPFLAGS = -Icpp_out -Igrpc_out \
 BUILT_SOURCES = $(proto_cpp_files) $(proto_grpc_files)
 
 if HAVE_GRPC_PY_PLUGIN
-p4pydir = $(pythondir)/p4
+p4pydir = $(pythondir)/p4/v1
 nodist_p4py_PYTHON = \
-py_out/p4/p4types_pb2.py \
-py_out/p4/p4runtime_pb2.py \
-py_out/p4/__init__.py
+py_out/p4/v1/p4data_pb2.py \
+py_out/p4/v1/p4runtime_pb2.py \
+py_out/p4/v1/__init__.py
 
-p4configpydir = $(pythondir)/p4/config
+p4configpydir = $(pythondir)/p4/config/v1
 nodist_p4configpy_PYTHON = \
-py_out/p4/config/p4info_pb2.py \
-py_out/p4/config/__init__.py
+py_out/p4/config/v1/p4info_pb2.py \
+py_out/p4/config/v1/p4types_pb2.py \
+py_out/p4/config/v1/__init__.py
 
 # this one is temporary
 p4tmppydir = $(pythondir)/p4/tmp
@@ -163,7 +172,7 @@ if HAVE_GRPC_PY_PLUGIN
 # plugin inserts code into the proto-generated files). But maybe I am just using
 # an old version of the Python plugin.
 	$(PROTOC) $^ --python_out $(builddir)/py_out $(PROTOFLAGS) --grpc_out $(builddir)/py_out --plugin=protoc-gen-grpc=$(GRPC_PY_PLUGIN)
-	@touch $(builddir)/py_out/p4/__init__.py $(builddir)/py_out/p4/config/__init__.py $(builddir)/py_out/p4/tmp/__init__.py
+	@touch $(builddir)/py_out/p4/v1/__init__.py $(builddir)/py_out/p4/config/v1/__init__.py $(builddir)/py_out/p4/tmp/__init__.py
 	@touch $(builddir)/py_out/google/__init__.py $(builddir)/py_out/google/rpc/__init__.py $(builddir)/py_out/gnmi/__init__.py
 endif
 	@mv -f proto_files.tmp $@

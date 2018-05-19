@@ -29,7 +29,9 @@
 
 #include "p4info_to_and_from_proto.h"
 
-#include "p4/config/p4info.pb.h"
+#include "p4/config/v1/p4info.pb.h"
+
+namespace p4config = ::p4::config::v1;
 
 namespace pi {
 
@@ -53,21 +55,21 @@ class read_proto_exception : public std::exception {
   std::string msg;
 };
 
-void import_annotations(const p4::config::Preamble &pre, pi_p4info_t *p4info) {
+void import_annotations(const p4config::Preamble &pre, pi_p4info_t *p4info) {
   for (const auto &annotation : pre.annotations())
     pi_p4info_add_annotation(p4info, pre.id(), annotation.c_str());
 }
 
-void import_alias(const p4::config::Preamble &pre, pi_p4info_t *p4info) {
+void import_alias(const p4config::Preamble &pre, pi_p4info_t *p4info) {
   pi_p4info_add_alias(p4info, pre.id(), pre.alias().c_str());
 }
 
-void import_common(const p4::config::Preamble &pre, pi_p4info_t *p4info) {
+void import_common(const p4config::Preamble &pre, pi_p4info_t *p4info) {
   import_annotations(pre, p4info);
   import_alias(pre, p4info);
 }
 
-void read_actions(const p4::config::P4Info &p4info_proto, pi_p4info_t *p4info) {
+void read_actions(const p4config::P4Info &p4info_proto, pi_p4info_t *p4info) {
   const auto &actions = p4info_proto.actions();
   pi_p4info_action_init(p4info, actions.size());
   for (const auto &action : actions) {
@@ -82,7 +84,7 @@ void read_actions(const p4::config::P4Info &p4info_proto, pi_p4info_t *p4info) {
   }
 }
 
-void read_tables(const p4::config::P4Info &p4info_proto, pi_p4info_t *p4info) {
+void read_tables(const p4config::P4Info &p4info_proto, pi_p4info_t *p4info) {
   const auto &tables = p4info_proto.tables();
   pi_p4info_table_init(p4info, tables.size());
   for (const auto &table : tables) {
@@ -94,15 +96,15 @@ void read_tables(const p4::config::P4Info &p4info_proto, pi_p4info_t *p4info) {
     for (const auto &mf : table.match_fields()) {
       auto match_type_convert = [&mf]() {
         switch (mf.match_type()) {
-          case p4::config::MatchField_MatchType_VALID:
+          case p4config::MatchField_MatchType_VALID:
             return PI_P4INFO_MATCH_TYPE_VALID;
-          case p4::config::MatchField_MatchType_EXACT:
+          case p4config::MatchField_MatchType_EXACT:
             return PI_P4INFO_MATCH_TYPE_EXACT;
-          case p4::config::MatchField_MatchType_LPM:
+          case p4config::MatchField_MatchType_LPM:
             return PI_P4INFO_MATCH_TYPE_LPM;
-          case p4::config::MatchField_MatchType_TERNARY:
+          case p4config::MatchField_MatchType_TERNARY:
             return PI_P4INFO_MATCH_TYPE_TERNARY;
-          case p4::config::MatchField_MatchType_RANGE:
+          case p4config::MatchField_MatchType_RANGE:
             return PI_P4INFO_MATCH_TYPE_RANGE;
           default:  // invalid
             throw read_proto_exception("Invalid match type");
@@ -137,7 +139,7 @@ void read_tables(const p4::config::P4Info &p4info_proto, pi_p4info_t *p4info) {
   }
 }
 
-void read_act_profs(const p4::config::P4Info &p4info_proto,
+void read_act_profs(const p4config::P4Info &p4info_proto,
                     pi_p4info_t *p4info) {
   const auto &action_profiles = p4info_proto.action_profiles();
   pi_p4info_act_prof_init(p4info, action_profiles.size());
@@ -152,18 +154,18 @@ void read_act_profs(const p4::config::P4Info &p4info_proto,
   }
 }
 
-void read_counters(const p4::config::P4Info &p4info_proto,
+void read_counters(const p4config::P4Info &p4info_proto,
                    pi_p4info_t *p4info) {
   const auto &counters = p4info_proto.counters();
   const auto &direct_counters = p4info_proto.direct_counters();
 
-  auto unit_convert = [](const p4::config::CounterSpec &spec) {
+  auto unit_convert = [](const p4config::CounterSpec &spec) {
     switch (spec.unit()) {
-      case p4::config::CounterSpec_Unit_BYTES:
+      case p4config::CounterSpec_Unit_BYTES:
         return PI_P4INFO_COUNTER_UNIT_BYTES;
-      case p4::config::CounterSpec_Unit_PACKETS:
+      case p4config::CounterSpec_Unit_PACKETS:
         return PI_P4INFO_COUNTER_UNIT_PACKETS;
-      case p4::config::CounterSpec_Unit_BOTH:
+      case p4config::CounterSpec_Unit_BOTH:
         return PI_P4INFO_COUNTER_UNIT_BOTH;
       default:  // invalid
         throw read_proto_exception("Invalid counter unit");
@@ -188,26 +190,26 @@ void read_counters(const p4::config::P4Info &p4info_proto,
   }
 }
 
-void read_meters(const p4::config::P4Info &p4info_proto, pi_p4info_t *p4info) {
+void read_meters(const p4config::P4Info &p4info_proto, pi_p4info_t *p4info) {
   const auto &meters = p4info_proto.meters();
   const auto &direct_meters = p4info_proto.direct_meters();
 
-  auto unit_convert = [](const p4::config::MeterSpec &spec) {
+  auto unit_convert = [](const p4config::MeterSpec &spec) {
     switch (spec.unit()) {
-      case p4::config::MeterSpec_Unit_BYTES:
+      case p4config::MeterSpec_Unit_BYTES:
         return PI_P4INFO_METER_UNIT_BYTES;
-      case p4::config::MeterSpec_Unit_PACKETS:
+      case p4config::MeterSpec_Unit_PACKETS:
         return PI_P4INFO_METER_UNIT_PACKETS;
       default:  // invalid
         throw read_proto_exception("Invalid meter unit");
     }
   };
 
-  auto type_convert = [](const p4::config::MeterSpec &spec) {
+  auto type_convert = [](const p4config::MeterSpec &spec) {
     switch (spec.type()) {
-      case p4::config::MeterSpec_Type_COLOR_AWARE:
+      case p4config::MeterSpec_Type_COLOR_AWARE:
         return PI_P4INFO_METER_TYPE_COLOR_AWARE;
-      case p4::config::MeterSpec_Type_COLOR_UNAWARE:
+      case p4config::MeterSpec_Type_COLOR_UNAWARE:
         return PI_P4INFO_METER_TYPE_COLOR_UNAWARE;
       default:  // invalid
         throw read_proto_exception("Invalid meter type");
@@ -236,7 +238,7 @@ void read_meters(const p4::config::P4Info &p4info_proto, pi_p4info_t *p4info) {
 
 }  // namespace
 
-bool p4info_proto_reader(const p4::config::P4Info &p4info_proto,
+bool p4info_proto_reader(const p4config::P4Info &p4info_proto,
                          pi_p4info_t **p4info) {
   pi_empty_config(p4info);
   try {
@@ -273,7 +275,7 @@ void set_preamble(T *obj, pi_p4_id_t id, const char *name,
 }
 
 void p4info_serialize_actions(const pi_p4info_t *p4info,
-                              p4::config::P4Info *p4info_proto) {
+                              p4config::P4Info *p4info_proto) {
   for (auto id = pi_p4info_action_begin(p4info);
        id != pi_p4info_action_end(p4info);
        id = pi_p4info_action_next(p4info, id)) {
@@ -295,7 +297,7 @@ void p4info_serialize_actions(const pi_p4info_t *p4info,
 }
 
 void p4info_serialize_tables(const pi_p4info_t *p4info,
-                             p4::config::P4Info *p4info_proto) {
+                             p4config::P4Info *p4info_proto) {
   for (auto id = pi_p4info_table_begin(p4info);
        id != pi_p4info_table_end(p4info);
        id = pi_p4info_table_next(p4info, id)) {
@@ -315,17 +317,17 @@ void p4info_serialize_tables(const pi_p4info_t *p4info,
       auto match_type_convert = [info]() {
         switch (info->match_type) {
           case PI_P4INFO_MATCH_TYPE_VALID:
-            return p4::config::MatchField_MatchType_VALID;
+            return p4config::MatchField_MatchType_VALID;
           case PI_P4INFO_MATCH_TYPE_EXACT:
-            return p4::config::MatchField_MatchType_EXACT;
+            return p4config::MatchField_MatchType_EXACT;
           case PI_P4INFO_MATCH_TYPE_LPM:
-            return p4::config::MatchField_MatchType_LPM;
+            return p4config::MatchField_MatchType_LPM;
           case PI_P4INFO_MATCH_TYPE_TERNARY:
-            return p4::config::MatchField_MatchType_TERNARY;
+            return p4config::MatchField_MatchType_TERNARY;
           case PI_P4INFO_MATCH_TYPE_RANGE:
-            return p4::config::MatchField_MatchType_RANGE;
+            return p4config::MatchField_MatchType_RANGE;
           default:
-            return p4::config::MatchField_MatchType_UNSPECIFIED;
+            return p4config::MatchField_MatchType_UNSPECIFIED;
         }
       };
       mf->set_match_type(match_type_convert());
@@ -364,7 +366,7 @@ void p4info_serialize_tables(const pi_p4info_t *p4info,
 }
 
 void p4info_serialize_act_profs(const pi_p4info_t *p4info,
-                                p4::config::P4Info *p4info_proto) {
+                                p4config::P4Info *p4info_proto) {
   for (auto id = pi_p4info_act_prof_begin(p4info);
        id != pi_p4info_act_prof_end(p4info);
        id = pi_p4info_act_prof_next(p4info, id)) {
@@ -386,17 +388,17 @@ void serialize_one_counter(const pi_p4info_t *p4info, pi_p4_id_t id,
   auto unit_convert = [](pi_p4info_counter_unit_t unit) {
     switch (unit) {
       case PI_P4INFO_COUNTER_UNIT_BYTES:
-        return p4::config::CounterSpec_Unit_BYTES;
+        return p4config::CounterSpec_Unit_BYTES;
       case PI_P4INFO_COUNTER_UNIT_PACKETS:
-        return p4::config::CounterSpec_Unit_PACKETS;
+        return p4config::CounterSpec_Unit_PACKETS;
       case PI_P4INFO_COUNTER_UNIT_BOTH:
-        return p4::config::CounterSpec_Unit_BOTH;
+        return p4config::CounterSpec_Unit_BOTH;
       default:  // invalid
-        return p4::config::CounterSpec_Unit_UNSPECIFIED;
+        return p4config::CounterSpec_Unit_UNSPECIFIED;
     }
   };
 
-  auto set_spec = [p4info, id, &unit_convert](p4::config::CounterSpec *spec) {
+  auto set_spec = [p4info, id, &unit_convert](p4config::CounterSpec *spec) {
     auto unit = pi_p4info_counter_get_unit(p4info, id);
     spec->set_unit(unit_convert(unit));
   };
@@ -407,7 +409,7 @@ void serialize_one_counter(const pi_p4info_t *p4info, pi_p4_id_t id,
 }
 
 void p4info_serialize_counters(const pi_p4info_t *p4info,
-                               p4::config::P4Info *p4info_proto) {
+                               p4config::P4Info *p4info_proto) {
   for (auto id = pi_p4info_counter_begin(p4info);
        id != pi_p4info_counter_end(p4info);
        id = pi_p4info_counter_next(p4info, id)) {
@@ -430,26 +432,26 @@ void serialize_one_meter(const pi_p4info_t *p4info, pi_p4_id_t id, T *meter) {
   auto unit_convert = [](pi_p4info_meter_unit_t unit) {
     switch (unit) {
       case PI_P4INFO_METER_UNIT_BYTES:
-        return p4::config::MeterSpec_Unit_BYTES;
+        return p4config::MeterSpec_Unit_BYTES;
       case PI_P4INFO_METER_UNIT_PACKETS:
-        return p4::config::MeterSpec_Unit_PACKETS;
+        return p4config::MeterSpec_Unit_PACKETS;
       default:  // invalid
-        return p4::config::MeterSpec_Unit_UNSPECIFIED;
+        return p4config::MeterSpec_Unit_UNSPECIFIED;
     }
   };
   auto type_convert = [](pi_p4info_meter_type_t type) {
     switch (type) {
       case PI_P4INFO_METER_TYPE_COLOR_AWARE:
-        return p4::config::MeterSpec_Type_COLOR_AWARE;
+        return p4config::MeterSpec_Type_COLOR_AWARE;
       case PI_P4INFO_METER_TYPE_COLOR_UNAWARE:
-        return p4::config::MeterSpec_Type_COLOR_UNAWARE;
+        return p4config::MeterSpec_Type_COLOR_UNAWARE;
       default:  // invalid
-        return p4::config::MeterSpec_Type_COLOR_AWARE;
+        return p4config::MeterSpec_Type_COLOR_AWARE;
     }
   };
 
   auto set_spec = [p4info, id, &unit_convert, &type_convert](
-      p4::config::MeterSpec *spec) {
+      p4config::MeterSpec *spec) {
     auto unit = pi_p4info_meter_get_unit(p4info, id);
     spec->set_unit(unit_convert(unit));
     auto type = pi_p4info_meter_get_type(p4info, id);
@@ -462,7 +464,7 @@ void serialize_one_meter(const pi_p4info_t *p4info, pi_p4_id_t id, T *meter) {
 }
 
 void p4info_serialize_meters(const pi_p4info_t *p4info,
-                             p4::config::P4Info *p4info_proto) {
+                             p4config::P4Info *p4info_proto) {
   for (auto id = pi_p4info_meter_begin(p4info);
        id != pi_p4info_meter_end(p4info);
        id = pi_p4info_meter_next(p4info, id)) {
@@ -482,8 +484,8 @@ void p4info_serialize_meters(const pi_p4info_t *p4info,
 
 }  // namespace
 
-p4::config::P4Info p4info_serialize_to_proto(const pi_p4info_t *p4info) {
-  p4::config::P4Info p4info_proto;
+p4config::P4Info p4info_serialize_to_proto(const pi_p4info_t *p4info) {
+  p4config::P4Info p4info_proto;
   p4info_serialize_actions(p4info, &p4info_proto);
   p4info_serialize_tables(p4info, &p4info_proto);
   p4info_serialize_act_profs(p4info, &p4info_proto);

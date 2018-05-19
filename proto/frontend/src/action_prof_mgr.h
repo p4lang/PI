@@ -32,7 +32,7 @@
 
 #include "google/rpc/code.pb.h"
 #include "google/rpc/status.pb.h"
-#include "p4/p4runtime.pb.h"
+#include "p4/v1/p4runtime.pb.h"
 
 #include "common.h"
 
@@ -124,22 +124,22 @@ class ActionProfMgr {
   ActionProfMgr(pi_dev_tgt_t device_tgt, pi_p4_id_t act_prof_id,
                 pi_p4info_t *p4info);
 
-  Status member_create(const p4::ActionProfileMember &member,
+  Status member_create(const p4::v1::ActionProfileMember &member,
                        const SessionTemp &session);
 
-  Status group_create(const p4::ActionProfileGroup &group,
+  Status group_create(const p4::v1::ActionProfileGroup &group,
                       const SessionTemp &session);
 
-  Status member_modify(const p4::ActionProfileMember &member,
+  Status member_modify(const p4::v1::ActionProfileMember &member,
                        const SessionTemp &session);
 
-  Status group_modify(const p4::ActionProfileGroup &group,
+  Status group_modify(const p4::v1::ActionProfileGroup &group,
                       const SessionTemp &session);
 
-  Status member_delete(const p4::ActionProfileMember &member,
+  Status member_delete(const p4::v1::ActionProfileMember &member,
                        const SessionTemp &session);
 
-  Status group_delete(const p4::ActionProfileGroup &group,
+  Status group_delete(const p4::v1::ActionProfileGroup &group,
                       const SessionTemp &session);
 
   // returns nullptr if no matching id
@@ -152,13 +152,13 @@ class ActionProfMgr {
  private:
   bool check_p4_action_id(pi_p4_id_t p4_id) const;
 
-  Status validate_action(const p4::Action &action);
-  pi::ActionData construct_action_data(const p4::Action &action);
+  Status validate_action(const p4::v1::Action &action);
+  pi::ActionData construct_action_data(const p4::v1::Action &action);
 
   // using RepeatedMembers = decltype(
-  //     static_cast<p4::ActionProfileGroup *>(nullptr)->member_id());
+  //     static_cast<p4::v1::ActionProfileGroup *>(nullptr)->member_id());
   Code group_update_members(pi::ActProf &ap,  // NOLINT(runtime/references)
-                            const p4::ActionProfileGroup &group);
+                            const p4::v1::ActionProfileGroup &group);
 
   template <typename It>
   // NOLINTNEXTLINE(runtime/references)
