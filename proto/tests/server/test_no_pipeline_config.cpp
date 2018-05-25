@@ -26,7 +26,7 @@
 
 #include "utils.h"
 
-namespace p4rt = ::p4::v1;
+namespace p4v1 = ::p4::v1;
 
 namespace pi {
 namespace proto {
@@ -42,7 +42,7 @@ class TestNoForwardingPipeline : public ::testing::Test {
   TestNoForwardingPipeline()
       : p4runtime_channel(grpc::CreateChannel(
             server->bind_addr(), grpc::InsecureChannelCredentials())),
-        p4runtime_stub(p4rt::P4Runtime::NewStub(p4runtime_channel)) { }
+        p4runtime_stub(p4v1::P4Runtime::NewStub(p4runtime_channel)) { }
 
   static void SetUpTestCase() {
     server = new TestServer();
@@ -54,7 +54,7 @@ class TestNoForwardingPipeline : public ::testing::Test {
 
   void SetUp() override {
     stream = p4runtime_stub->StreamChannel(&stream_context);
-    p4rt::StreamMessageRequest request;
+    p4v1::StreamMessageRequest request;
     auto arbitration = request.mutable_arbitration();
     arbitration->set_device_id(device_id);
     stream->Write(request);
@@ -62,7 +62,7 @@ class TestNoForwardingPipeline : public ::testing::Test {
 
   void TearDown() override {
     stream->WritesDone();
-    p4rt::StreamMessageResponse response;
+    p4v1::StreamMessageResponse response;
     while (stream->Read(&response)) { }
     auto status = stream->Finish();
     EXPECT_TRUE(status.ok());
@@ -70,9 +70,9 @@ class TestNoForwardingPipeline : public ::testing::Test {
 
   int device_id{0};
   std::shared_ptr<grpc::Channel> p4runtime_channel;
-  std::unique_ptr<p4rt::P4Runtime::Stub> p4runtime_stub;
-  using ReaderWriter = ::grpc::ClientReaderWriter<p4rt::StreamMessageRequest,
-                                                  p4rt::StreamMessageResponse>;
+  std::unique_ptr<p4v1::P4Runtime::Stub> p4runtime_stub;
+  using ReaderWriter = ::grpc::ClientReaderWriter<p4v1::StreamMessageRequest,
+                                                  p4v1::StreamMessageResponse>;
   ClientContext stream_context;
   std::unique_ptr<ReaderWriter> stream{nullptr};
 
@@ -82,21 +82,21 @@ class TestNoForwardingPipeline : public ::testing::Test {
 TestServer *TestNoForwardingPipeline::server = nullptr;
 
 TEST_F(TestNoForwardingPipeline, Write) {
-  p4rt::WriteRequest request;
+  p4v1::WriteRequest request;
   request.set_device_id(device_id);
   ClientContext context;
-  p4rt::WriteResponse rep;
+  p4v1::WriteResponse rep;
   auto status = p4runtime_stub->Write(&context, request, &rep);
   EXPECT_FALSE(status.ok());
   EXPECT_EQ(StatusCode::FAILED_PRECONDITION, status.error_code());
 }
 
 TEST_F(TestNoForwardingPipeline, Read) {
-  p4rt::ReadRequest request;
+  p4v1::ReadRequest request;
   request.set_device_id(device_id);
   ClientContext context;
-  p4rt::ReadResponse rep;
-  std::unique_ptr<grpc::ClientReader<p4rt::ReadResponse> > reader(
+  p4v1::ReadResponse rep;
+  std::unique_ptr<grpc::ClientReader<p4v1::ReadResponse> > reader(
       p4runtime_stub->Read(&context, request));
   reader->Read(&rep);
   auto status = reader->Finish();
@@ -105,10 +105,10 @@ TEST_F(TestNoForwardingPipeline, Read) {
 }
 
 TEST_F(TestNoForwardingPipeline, GetForwardingPipelineConfig) {
-  p4rt::GetForwardingPipelineConfigRequest request;
+  p4v1::GetForwardingPipelineConfigRequest request;
   request.set_device_id(device_id);
   ClientContext context;
-  p4rt::GetForwardingPipelineConfigResponse rep;
+  p4v1::GetForwardingPipelineConfigResponse rep;
   auto status = p4runtime_stub->GetForwardingPipelineConfig(
       &context, request, &rep);
   EXPECT_FALSE(status.ok());

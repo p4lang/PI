@@ -49,7 +49,7 @@ using grpc::StatusCode;
 
 using pi::fe::proto::DeviceMgr;
 
-namespace p4rt = ::p4::v1;
+namespace p4v1 = ::p4::v1;
 namespace p4config = ::p4::config::v1;
 
 namespace pi {
@@ -98,7 +98,7 @@ grpc::Status not_master_status() {
 }
 
 using StreamChannelReaderWriter = grpc::ServerReaderWriter<
-  p4rt::StreamMessageResponse, p4rt::StreamMessageRequest>;
+  p4v1::StreamMessageResponse, p4v1::StreamMessageRequest>;
 
 class ConnectionId {
  public:
@@ -175,12 +175,12 @@ class DeviceState {
     return device_mgr.get();
   }
 
-  void send_packet_in(p4rt::PacketIn *packet) {
+  void send_packet_in(p4v1::PacketIn *packet) {
     std::lock_guard<std::mutex> lock(m);
     auto master = get_master();
     if (master == nullptr) return;
     auto stream = master->stream();
-    p4rt::StreamMessageResponse response;
+    p4v1::StreamMessageResponse response;
     response.set_allocated_packet(packet);
     stream->Write(response);
     response.release_packet();
@@ -244,7 +244,7 @@ class DeviceState {
   }
 
   void process_packet_out(Connection *connection,
-                          const p4rt::PacketOut &packet_out) {
+                          const p4v1::PacketOut &packet_out) {
     std::lock_guard<std::mutex> lock(m);
     SIMPLELOG << "PACKET OUT\n";
     if (!is_master(connection)) return;
@@ -281,10 +281,10 @@ class DeviceState {
   void notify_one(const Connection *connection) const {
     auto is_master = (connection == *connections.begin());
     auto stream = connection->stream();
-    p4rt::StreamMessageResponse response;
+    p4v1::StreamMessageResponse response;
     auto arbitration = response.mutable_arbitration();
     arbitration->set_device_id(device_id);
-    auto convert_u128 = [](const Uint128 &from, p4rt::Uint128 *to) {
+    auto convert_u128 = [](const Uint128 &from, p4v1::Uint128 *to) {
       to->set_high(from.high());
       to->set_low(from.low());
     };
@@ -343,14 +343,14 @@ class Devices {
                      std::unique_ptr<DeviceState> > device_map{};
 };
 
-void packet_in_cb(DeviceMgr::device_id_t device_id, p4rt::PacketIn *packet,
+void packet_in_cb(DeviceMgr::device_id_t device_id, p4v1::PacketIn *packet,
                   void *cookie);
 
-class P4RuntimeServiceImpl : public p4rt::P4Runtime::Service {
+class P4RuntimeServiceImpl : public p4v1::P4Runtime::Service {
  private:
   Status Write(ServerContext *context,
-               const p4rt::WriteRequest *request,
-               p4rt::WriteResponse *rep) override {
+               const p4v1::WriteRequest *request,
+               p4v1::WriteResponse *rep) override {
     SIMPLELOG << "P4Runtime Write\n";
     SIMPLELOG << request->DebugString();
     (void) rep;
@@ -371,11 +371,11 @@ class P4RuntimeServiceImpl : public p4rt::P4Runtime::Service {
   }
 
   Status Read(ServerContext *context,
-              const p4rt::ReadRequest *request,
-              ServerWriter<p4rt::ReadResponse> *writer) override {
+              const p4v1::ReadRequest *request,
+              ServerWriter<p4v1::ReadResponse> *writer) override {
     SIMPLELOG << "P4Runtime Read\n";
     SIMPLELOG << request->DebugString();
-    p4rt::ReadResponse response;
+    p4v1::ReadResponse response;
     auto device_mgr = Devices::get(request->device_id())->get_p4_mgr();
     if (device_mgr == nullptr) return no_pipeline_config_status();
     auto status = device_mgr->read(*request, &response);
@@ -385,8 +385,8 @@ class P4RuntimeServiceImpl : public p4rt::P4Runtime::Service {
 
   Status SetForwardingPipelineConfig(
       ServerContext *context,
-      const p4rt::SetForwardingPipelineConfigRequest *request,
-      p4rt::SetForwardingPipelineConfigResponse *rep) override {
+      const p4v1::SetForwardingPipelineConfigRequest *request,
+      p4v1::SetForwardingPipelineConfigResponse *rep) override {
     SIMPLELOG << "P4Runtime SetForwardingPipelineConfig\n";
     (void) rep;
     auto device = Devices::get(request->device_id());
@@ -409,8 +409,8 @@ class P4RuntimeServiceImpl : public p4rt::P4Runtime::Service {
 
   Status GetForwardingPipelineConfig(
       ServerContext *context,
-      const p4rt::GetForwardingPipelineConfigRequest *request,
-      p4rt::GetForwardingPipelineConfigResponse *rep) override {
+      const p4v1::GetForwardingPipelineConfigRequest *request,
+      p4v1::GetForwardingPipelineConfigResponse *rep) override {
     SIMPLELOG << "P4Runtime GetForwardingPipelineConfig\n";
     auto device_mgr = Devices::get(request->device_id())->get_p4_mgr();
     if (device_mgr == nullptr) return no_pipeline_config_status();
@@ -434,10 +434,10 @@ class P4RuntimeServiceImpl : public p4rt::P4Runtime::Service {
     };
     ConnectionStatus connection_status(context);
 
-    p4rt::StreamMessageRequest request;
+    p4v1::StreamMessageRequest request;
     while (stream->Read(&request)) {
       switch (request.update_case()) {
-        case p4rt::StreamMessageRequest::kArbitration:
+        case p4v1::StreamMessageRequest::kArbitration:
           {
             auto device_id = request.arbitration().device_id();
             auto election_id = convert_u128(
@@ -471,7 +471,7 @@ class P4RuntimeServiceImpl : public p4rt::P4Runtime::Service {
             }
           }
           break;
-        case p4rt::StreamMessageRequest::kPacket:
+        case p4v1::StreamMessageRequest::kPacket:
           {
             if (connection_status.connection == nullptr) break;
             auto device_id = connection_status.device_id;
@@ -479,7 +479,7 @@ class P4RuntimeServiceImpl : public p4rt::P4Runtime::Service {
                 connection_status.connection.get(), request.packet());
           }
           break;
-        case p4rt::StreamMessageRequest::kDigestAck:
+        case p4v1::StreamMessageRequest::kDigestAck:
           // DigestAck not supported, and not expected either since we do not
           // support generating DigestList notifications yet.
           SIMPLELOG << "DigestAck not supported yet\n";
@@ -491,12 +491,12 @@ class P4RuntimeServiceImpl : public p4rt::P4Runtime::Service {
     return Status::OK;
   }
 
-  static Uint128 convert_u128(const p4rt::Uint128 &from) {
+  static Uint128 convert_u128(const p4v1::Uint128 &from) {
     return Uint128(from.high(), from.low());
   }
 };
 
-void packet_in_cb(DeviceMgr::device_id_t device_id, p4rt::PacketIn *packet,
+void packet_in_cb(DeviceMgr::device_id_t device_id, p4v1::PacketIn *packet,
                   void *cookie) {
   (void) cookie;
   SIMPLELOG << "PACKET IN\n";
@@ -516,7 +516,7 @@ struct ServerData {
 
 namespace testing {
 
-void send_packet_in(DeviceMgr::device_id_t device_id, p4rt::PacketIn *packet) {
+void send_packet_in(DeviceMgr::device_id_t device_id, p4v1::PacketIn *packet) {
   packet_in_cb(device_id, packet, nullptr);
 }
 

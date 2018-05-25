@@ -45,8 +45,9 @@
 
 #include "p4/tmp/p4config.pb.h"
 
-namespace p4rt = ::p4::v1;
-namespace p4config = ::p4::config::v1;
+namespace p4v1 = ::p4::v1;
+namespace p4configv1 = ::p4::config::v1;
+using p4configv1::P4Ids;
 
 namespace pi {
 
@@ -77,17 +78,17 @@ using P4InfoWrapper = std::unique_ptr<pi_p4info_t, decltype(p4info_deleter)>;
 
 class P4ErrorReporter {
  public:
-  void push_back(const p4rt::Error &error) {
+  void push_back(const p4v1::Error &error) {
     if (error.canonical_code() != Code::OK)
       errors.emplace_back(index, error);
     index++;
   }
 
   // TODO(antonin): remove this overload when we generalize the use of
-  // p4rt::Error in the code?
+  // p4v1::Error in the code?
   void push_back(const Status &status) {
     if (status.code() != Code::OK) {
-      p4rt::Error error;
+      p4v1::Error error;
       error.set_canonical_code(status.code());
       error.set_message(status.message());
       error.set_space("ALL-sswitch-p4org");
@@ -101,7 +102,7 @@ class P4ErrorReporter {
     if (errors.empty()) {
       status.set_code(Code::OK);
     } else {
-      p4rt::Error success;
+      p4v1::Error success;
       success.set_code(Code::OK);
       status.set_code(Code::UNKNOWN);
       size_t i = 0;
@@ -118,17 +119,17 @@ class P4ErrorReporter {
   }
 
  private:
-  std::vector<std::pair<size_t, p4rt::Error> > errors{};
+  std::vector<std::pair<size_t, p4v1::Error> > errors{};
   size_t index{0};
 };
 
-bool ternary_match_is_dont_care(const p4rt::FieldMatch::Ternary &mf) {
+bool ternary_match_is_dont_care(const p4v1::FieldMatch::Ternary &mf) {
   const auto &mask = mf.mask();
   return std::all_of(mask.begin(), mask.end(),
                      [](std::string::value_type c) { return c == 0; });
 }
 
-bool range_match_is_dont_care(const p4rt::FieldMatch::Range &mf) {
+bool range_match_is_dont_care(const p4v1::FieldMatch::Range &mf) {
   const auto &low = mf.low();
   const auto &high = mf.high();
   auto bitwidth = static_cast<size_t>(low.size() * 8);
@@ -149,7 +150,7 @@ class DeviceMgrImp {
     pi_remove_device(device_id);
   }
 
-  void p4_change(const p4config::P4Info &p4info_proto_new,
+  void p4_change(const p4configv1::P4Info &p4info_proto_new,
                  pi_p4info_t *p4info_new) {
     table_info_store.reset();
     for (auto t_id = pi_p4info_table_begin(p4info_new);
@@ -175,26 +176,26 @@ class DeviceMgrImp {
     p4info_proto.CopyFrom(p4info_proto_new);
   }
 
-  Status pipeline_config_set(p4rt::SetForwardingPipelineConfigRequest_Action a,
-                             const p4rt::ForwardingPipelineConfig &config) {
+  Status pipeline_config_set(p4v1::SetForwardingPipelineConfigRequest_Action a,
+                             const p4v1::ForwardingPipelineConfig &config) {
     pi_status_t pi_status;
-    if (a == p4rt::SetForwardingPipelineConfigRequest_Action_UNSPECIFIED) {
+    if (a == p4v1::SetForwardingPipelineConfigRequest_Action_UNSPECIFIED) {
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                           "Invalid SetForwardingPipeline action");
     }
 
     pi_p4info_t *p4info_tmp = nullptr;
     if (
-      a == p4rt::SetForwardingPipelineConfigRequest_Action_VERIFY ||
-      a == p4rt::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_SAVE ||
-      a == p4rt::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT ||
-      a == p4rt::SetForwardingPipelineConfigRequest_Action_RECONCILE_AND_COMMIT
+      a == p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY ||
+      a == p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_SAVE ||
+      a == p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT ||
+      a == p4v1::SetForwardingPipelineConfigRequest_Action_RECONCILE_AND_COMMIT
     ) {
       if (!pi::p4info::p4info_proto_reader(config.p4info(), &p4info_tmp))
         RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when importing p4info");
     }
 
-    if (a == p4rt::SetForwardingPipelineConfigRequest_Action_VERIFY)
+    if (a == p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY)
       RETURN_OK_STATUS();
 
     p4::tmp::P4DeviceConfig p4_device_config;
@@ -232,7 +233,7 @@ class DeviceMgrImp {
 
     // This is for legacy support of bmv2
     if (
-      a == p4rt::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT &&
+      a == p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT &&
       p4_device_config.device_data().empty()
     ) {
       if (pi_is_device_assigned(device_id)) remove_device();
@@ -251,9 +252,9 @@ class DeviceMgrImp {
     // assign device if needed, i.e. if device hasn't been assigned yet or if
     // the reassign flag is set
     if (
-      a == p4rt::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_SAVE ||
-      a == p4rt::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT ||
-      a == p4rt::SetForwardingPipelineConfigRequest_Action_RECONCILE_AND_COMMIT
+      a == p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_SAVE ||
+      a == p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT ||
+      a == p4v1::SetForwardingPipelineConfigRequest_Action_RECONCILE_AND_COMMIT
     ) {
       if (pi_is_device_assigned(device_id) && p4_device_config.reassign())
         remove_device();
@@ -271,9 +272,9 @@ class DeviceMgrImp {
     // for reconcile, as per the P4Runtime spec, we need to preserve the
     // forwarding state if possible, which is why we do a read to store all
     // existing state.
-    p4rt::ReadResponse forwarding_state;
+    p4v1::ReadResponse forwarding_state;
     if (
-      a == p4rt::SetForwardingPipelineConfigRequest_Action_RECONCILE_AND_COMMIT
+      a == p4v1::SetForwardingPipelineConfigRequest_Action_RECONCILE_AND_COMMIT
     ) {
       auto status = save_forwarding_state(&forwarding_state);
       if (IS_ERROR(status)) {
@@ -283,9 +284,9 @@ class DeviceMgrImp {
     }
 
     if (
-      a == p4rt::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_SAVE ||
-      a == p4rt::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT ||
-      a == p4rt::SetForwardingPipelineConfigRequest_Action_RECONCILE_AND_COMMIT
+      a == p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_SAVE ||
+      a == p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT ||
+      a == p4v1::SetForwardingPipelineConfigRequest_Action_RECONCILE_AND_COMMIT
     ) {
       const auto &device_data = p4_device_config.device_data();
       pi_status = pi_update_device_start(device_id, p4info_tmp,
@@ -302,12 +303,12 @@ class DeviceMgrImp {
     // for reconcile, replay the state saved before the pi_update_device_start
     // call (which itself wipes the state)
     if (
-      a == p4rt::SetForwardingPipelineConfigRequest_Action_RECONCILE_AND_COMMIT
+      a == p4v1::SetForwardingPipelineConfigRequest_Action_RECONCILE_AND_COMMIT
     ) {
-      p4rt::WriteRequest write_request;
+      p4v1::WriteRequest write_request;
       for (auto &entity : *forwarding_state.mutable_entities()) {
         auto *update = write_request.add_updates();
-        update->set_type(p4rt::Update_Type_INSERT);
+        update->set_type(p4v1::Update_Type_INSERT);
         update->set_allocated_entity(&entity);
       }
       auto status = write_(write_request);
@@ -318,9 +319,9 @@ class DeviceMgrImp {
     }
 
     if (
-      a == p4rt::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT ||
-      a == p4rt::SetForwardingPipelineConfigRequest_Action_COMMIT ||
-      a == p4rt::SetForwardingPipelineConfigRequest_Action_RECONCILE_AND_COMMIT
+      a == p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT ||
+      a == p4v1::SetForwardingPipelineConfigRequest_Action_COMMIT ||
+      a == p4v1::SetForwardingPipelineConfigRequest_Action_RECONCILE_AND_COMMIT
     ) {
       pi_status = pi_update_device_end(device_id);
       if (pi_status != PI_STATUS_SUCCESS) {
@@ -332,7 +333,7 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
-  Status pipeline_config_get(p4rt::ForwardingPipelineConfig *config) {
+  Status pipeline_config_get(p4v1::ForwardingPipelineConfig *config) {
     config->mutable_p4info()->CopyFrom(p4info_proto);
     // TODO(antonin): we do not set the p4_device_config bytes field, as we do
     // not have a local copy of it; if it is needed by the controller, we will
@@ -340,39 +341,39 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
-  Status write(const p4rt::WriteRequest &request) {
+  Status write(const p4v1::WriteRequest &request) {
     auto lock = shared_lock();
     return write_(request);
   }
 
-  Status read(const p4rt::ReadRequest &request,
-              p4rt::ReadResponse *response) const {
+  Status read(const p4v1::ReadRequest &request,
+              p4v1::ReadResponse *response) const {
     auto lock = unique_lock();
     return read_(request, response);
   }
 
-  Status read_one(const p4rt::Entity &entity,
-                  p4rt::ReadResponse *response) const {
+  Status read_one(const p4v1::Entity &entity,
+                  p4v1::ReadResponse *response) const {
     auto lock = unique_lock();
     return read_one_(entity, response);
   }
 
-  Status table_write(p4rt::Update_Type update,
-                     const p4rt::TableEntry &table_entry,
+  Status table_write(p4v1::Update_Type update,
+                     const p4v1::TableEntry &table_entry,
                      const SessionTemp &session) {
-    if (!check_p4_id(table_entry.table_id(), p4config::P4Ids::TABLE))
+    if (!check_p4_id(table_entry.table_id(), P4Ids::TABLE))
       return make_invalid_p4_id_status();
 
     Status status;
     switch (update) {
-      case p4rt::Update_Type_UNSPECIFIED:
+      case p4v1::Update_Type_UNSPECIFIED:
         status.set_code(Code::INVALID_ARGUMENT);
         break;
-      case p4rt::Update_Type_INSERT:
+      case p4v1::Update_Type_INSERT:
         return table_insert(table_entry, session);
-      case p4rt::Update_Type_MODIFY:
+      case p4v1::Update_Type_MODIFY:
         return table_modify(table_entry, session);
-      case p4rt::Update_Type_DELETE:
+      case p4v1::Update_Type_DELETE:
         return table_delete(table_entry, session);
       default:
         status.set_code(Code::INVALID_ARGUMENT);
@@ -381,10 +382,10 @@ class DeviceMgrImp {
     return status;
   }
 
-  Status meter_write(p4rt::Update_Type update,
-                     const p4rt::MeterEntry &meter_entry,
+  Status meter_write(p4v1::Update_Type update,
+                     const p4v1::MeterEntry &meter_entry,
                      const SessionTemp &session) {
-    if (!check_p4_id(meter_entry.meter_id(), p4config::P4Ids::METER))
+    if (!check_p4_id(meter_entry.meter_id(), P4Ids::METER))
       return make_invalid_p4_id_status();
     if (!meter_entry.has_index()) {
       RETURN_ERROR_STATUS(
@@ -397,12 +398,12 @@ class DeviceMgrImp {
     }
     auto index = static_cast<size_t>(meter_entry.index().index());
     switch (update) {
-      case p4rt::Update_Type_UNSPECIFIED:
+      case p4v1::Update_Type_UNSPECIFIED:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
-      case p4rt::Update_Type_INSERT:
+      case p4v1::Update_Type_INSERT:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                             "INSERT update type not supported for meters");
-      case p4rt::Update_Type_MODIFY:
+      case p4v1::Update_Type_MODIFY:
         {
           auto status = validate_meter_spec(meter_entry.config());
           if (IS_ERROR(status)) return status;
@@ -416,7 +417,7 @@ class DeviceMgrImp {
             RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when writing meter spec");
         }
         break;
-      case p4rt::Update_Type_DELETE:  // TODO(antonin): return error instead?
+      case p4v1::Update_Type_DELETE:  // TODO(antonin): return error instead?
         {
           pi_meter_spec_t pi_meter_spec =
               {0, 0, 0, 0, PI_METER_UNIT_DEFAULT, PI_METER_TYPE_DEFAULT};
@@ -434,7 +435,7 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
-  Status entry_handle_from_table_entry(const p4rt::TableEntry &table_entry,
+  Status entry_handle_from_table_entry(const p4v1::TableEntry &table_entry,
                                        pi_entry_handle_t *handle) const {
     pi::MatchKey match_key(p4info.get(), table_entry.table_id());
     {
@@ -451,15 +452,15 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
-  Status direct_meter_write(p4rt::Update_Type update,
-                            const p4rt::DirectMeterEntry &meter_entry,
+  Status direct_meter_write(p4v1::Update_Type update,
+                            const p4v1::DirectMeterEntry &meter_entry,
                             const SessionTemp &session) {
     if (!meter_entry.has_table_entry()) {
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                           "Missing table_entry field in DirectMeterEntry");
     }
     const auto &table_entry = meter_entry.table_entry();
-    if (!check_p4_id(table_entry.table_id(), p4config::P4Ids::TABLE))
+    if (!check_p4_id(table_entry.table_id(), P4Ids::TABLE))
       return make_invalid_p4_id_status();
     auto table_lock = table_info_store.lock_table(table_entry.table_id());
 
@@ -470,18 +471,18 @@ class DeviceMgrImp {
     }
 
     p4_id_t table_direct_meter_id = pi_get_table_direct_resource_p4_id(
-        table_entry.table_id(), p4config::P4Ids::DIRECT_METER);
+        table_entry.table_id(), P4Ids::DIRECT_METER);
     if (table_direct_meter_id == PI_INVALID_ID) {
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                           "Table has no direct meters");
     }
     switch (update) {
-      case p4rt::Update_Type_UNSPECIFIED:
+      case p4v1::Update_Type_UNSPECIFIED:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
-      case p4rt::Update_Type_INSERT:
+      case p4v1::Update_Type_INSERT:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                             "INSERT update type not supported for meters");
-      case p4rt::Update_Type_MODIFY:
+      case p4v1::Update_Type_MODIFY:
         {
           auto status = validate_meter_spec(meter_entry.config());
           if (IS_ERROR(status)) return status;
@@ -497,7 +498,7 @@ class DeviceMgrImp {
           }
         }
         break;
-      case p4rt::Update_Type_DELETE:  // TODO(antonin): return error instead?
+      case p4v1::Update_Type_DELETE:  // TODO(antonin): return error instead?
         {
           pi_meter_spec_t pi_meter_spec =
               {0, 0, 0, 0, PI_METER_UNIT_DEFAULT, PI_METER_TYPE_DEFAULT};
@@ -518,9 +519,9 @@ class DeviceMgrImp {
   }
 
   Status meter_read_one(p4_id_t meter_id,
-                        const p4rt::MeterEntry &meter_entry,
+                        const p4v1::MeterEntry &meter_entry,
                         const SessionTemp &session,
-                        p4rt::ReadResponse *response) const {
+                        p4v1::ReadResponse *response) const {
     assert(pi_p4info_meter_get_direct(p4info.get(), meter_id) ==
            PI_INVALID_ID);
     if (meter_entry.has_index()) {
@@ -545,9 +546,9 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
-  Status meter_read(const p4rt::MeterEntry &meter_entry,
+  Status meter_read(const p4v1::MeterEntry &meter_entry,
                     const SessionTemp &session,
-                    p4rt::ReadResponse *response) const {
+                    p4v1::ReadResponse *response) const {
     auto meter_id = meter_entry.meter_id();
     if (meter_id == 0) {  // read all entries for all meters
       for (auto m_id = pi_p4info_meter_begin(p4info.get());
@@ -559,7 +560,7 @@ class DeviceMgrImp {
         if (IS_ERROR(status)) return status;
       }
     } else {  // read for a single meter
-      if (!check_p4_id(meter_id, p4config::P4Ids::METER))
+      if (!check_p4_id(meter_id, P4Ids::METER))
         return make_invalid_p4_id_status();
       if (pi_p4info_meter_get_direct(p4info.get(), meter_id) != PI_INVALID_ID) {
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
@@ -571,9 +572,9 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
-  Status direct_meter_read_one(const p4rt::TableEntry &table_entry,
+  Status direct_meter_read_one(const p4v1::TableEntry &table_entry,
                                const SessionTemp &session,
-                               p4rt::ReadResponse *response) const {
+                               p4v1::ReadResponse *response) const {
     if (table_entry.match_size() > 0) {
       auto table_lock = table_info_store.lock_table(table_entry.table_id());
 
@@ -583,7 +584,7 @@ class DeviceMgrImp {
         if (IS_ERROR(status)) return status;
       }
       p4_id_t table_direct_meter_id = pi_get_table_direct_resource_p4_id(
-        table_entry.table_id(), p4config::P4Ids::DIRECT_METER);
+        table_entry.table_id(), P4Ids::DIRECT_METER);
       if (table_direct_meter_id == PI_INVALID_ID) {
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                             "Table has no direct meters");
@@ -607,9 +608,9 @@ class DeviceMgrImp {
         "Reading ALL direct meters in a table is not supported yet");
   }
 
-  Status direct_meter_read(const p4rt::DirectMeterEntry &meter_entry,
+  Status direct_meter_read(const p4v1::DirectMeterEntry &meter_entry,
                            const SessionTemp &session,
-                           p4rt::ReadResponse *response) const {
+                           p4v1::ReadResponse *response) const {
     if (!meter_entry.has_table_entry()) {
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                           "Missing table_entry field in DirectMeterEntry");
@@ -619,13 +620,13 @@ class DeviceMgrImp {
       RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
         "Reading ALL direct meters for all tables is not supported yet");
     }
-    if (!check_p4_id(table_entry.table_id(), p4config::P4Ids::TABLE))
+    if (!check_p4_id(table_entry.table_id(), P4Ids::TABLE))
       return make_invalid_p4_id_status();
     return direct_meter_read_one(table_entry, session, response);
   }
 
   Code parse_match_key(p4_id_t table_id, const pi_match_key_t *match_key,
-                       p4rt::TableEntry *entry) const {
+                       p4v1::TableEntry *entry) const {
     auto num_match_fields = pi_p4info_table_num_match_fields(
         p4info.get(), table_id);
     MatchKeyReader mk_reader(match_key);
@@ -689,7 +690,7 @@ class DeviceMgrImp {
   }
 
   Code parse_action_data(const pi_action_data_t *pi_action_data,
-                         p4rt::Action *action) const {
+                         p4v1::Action *action) const {
     ActionDataReader reader(pi_action_data);
     auto action_id = reader.get_action_id();
     action->set_action_id(action_id);
@@ -705,7 +706,7 @@ class DeviceMgrImp {
   }
 
   Code parse_action_entry(p4_id_t table_id, const pi_table_entry_t *pi_entry,
-                          p4rt::TableEntry *entry) const {
+                          p4v1::TableEntry *entry) const {
     if (pi_entry->entry_type == PI_ACTION_ENTRY_TYPE_NONE) return Code::OK;
 
     auto table_action = entry->mutable_action();
@@ -732,9 +733,9 @@ class DeviceMgrImp {
   }
 
   Status table_read_one(p4_id_t table_id,
-                        const p4rt::TableEntry &requested_entry,
+                        const p4v1::TableEntry &requested_entry,
                         const SessionTemp &session,
-                        p4rt::ReadResponse *response) const {
+                        p4v1::ReadResponse *response) const {
     pi::MatchKey expected_match_key(p4info.get(), table_id);
     if (requested_entry.match_size() > 0) {
       auto status = construct_match_key(requested_entry, &expected_match_key);
@@ -833,9 +834,9 @@ class DeviceMgrImp {
   }
 
   // TODO(antonin): full filtering on the match key, action, ...
-  Status table_read(const p4rt::TableEntry &table_entry,
+  Status table_read(const p4v1::TableEntry &table_entry,
                     const SessionTemp &session,
-                    p4rt::ReadResponse *response) const {
+                    p4v1::ReadResponse *response) const {
     if (table_entry.table_id() == 0) {  // read all entries for all tables
       for (auto t_id = pi_p4info_table_begin(p4info.get());
            t_id != pi_p4info_table_end(p4info.get());
@@ -844,7 +845,7 @@ class DeviceMgrImp {
         if (IS_ERROR(status)) return status;
       }
     } else {  // read for a single table
-      if (!check_p4_id(table_entry.table_id(), p4config::P4Ids::TABLE))
+      if (!check_p4_id(table_entry.table_id(), P4Ids::TABLE))
         return make_invalid_p4_id_status();
       auto status = table_read_one(
           table_entry.table_id(), table_entry, session, response);
@@ -853,11 +854,10 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
-  Status action_profile_member_write(p4rt::Update_Type update,
-                                     const p4rt::ActionProfileMember &member,
+  Status action_profile_member_write(p4v1::Update_Type update,
+                                     const p4v1::ActionProfileMember &member,
                                      const SessionTemp &session) {
-    if (!check_p4_id(member.action_profile_id(),
-                     p4config::P4Ids::ACTION_PROFILE))
+    if (!check_p4_id(member.action_profile_id(), P4Ids::ACTION_PROFILE))
       return make_invalid_p4_id_status();
     auto action_prof_mgr = get_action_prof_mgr(member.action_profile_id());
     if (action_prof_mgr == nullptr) {
@@ -866,13 +866,13 @@ class DeviceMgrImp {
                           member.action_profile_id());
     }
     switch (update) {
-      case p4rt::Update_Type_UNSPECIFIED:
+      case p4v1::Update_Type_UNSPECIFIED:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
-      case p4rt::Update_Type_INSERT:
+      case p4v1::Update_Type_INSERT:
         return action_prof_mgr->member_create(member, session);
-      case p4rt::Update_Type_MODIFY:
+      case p4v1::Update_Type_MODIFY:
         return action_prof_mgr->member_modify(member, session);
-      case p4rt::Update_Type_DELETE:
+      case p4v1::Update_Type_DELETE:
         return action_prof_mgr->member_delete(member, session);
       default:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
@@ -881,11 +881,10 @@ class DeviceMgrImp {
     RETURN_ERROR_STATUS(Code::UNKNOWN);  // UNREACHABLE
   }
 
-  Status action_profile_group_write(p4rt::Update_Type update,
-                                    const p4rt::ActionProfileGroup &group,
+  Status action_profile_group_write(p4v1::Update_Type update,
+                                    const p4v1::ActionProfileGroup &group,
                                     const SessionTemp &session) {
-    if (!check_p4_id(group.action_profile_id(),
-                     p4config::P4Ids::ACTION_PROFILE))
+    if (!check_p4_id(group.action_profile_id(), P4Ids::ACTION_PROFILE))
       return make_invalid_p4_id_status();
     auto action_prof_mgr = get_action_prof_mgr(group.action_profile_id());
     if (action_prof_mgr == nullptr) {
@@ -894,13 +893,13 @@ class DeviceMgrImp {
                           group.action_profile_id());
     }
     switch (update) {
-      case p4rt::Update_Type_UNSPECIFIED:
+      case p4v1::Update_Type_UNSPECIFIED:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
-      case p4rt::Update_Type_INSERT:
+      case p4v1::Update_Type_INSERT:
         return action_prof_mgr->group_create(group, session);
-      case p4rt::Update_Type_MODIFY:
+      case p4v1::Update_Type_MODIFY:
         return action_prof_mgr->group_modify(group, session);
-      case p4rt::Update_Type_DELETE:
+      case p4v1::Update_Type_DELETE:
         return action_prof_mgr->group_delete(group, session);
       default:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
@@ -984,19 +983,19 @@ class DeviceMgrImp {
 
   Status action_profile_member_read_one(p4_id_t action_profile_id,
                                         const SessionTemp &session,
-                                        p4rt::ReadResponse *response) const {
+                                        p4v1::ReadResponse *response) const {
     return action_profile_read_common(
         action_profile_id, session, response,
         [] (decltype(response) r) {
           return r->add_entities()->mutable_action_profile_member(); },
-        [] (decltype(response)) -> p4rt::ActionProfileGroup * {
+        [] (decltype(response)) -> p4v1::ActionProfileGroup * {
           return nullptr; });
   }
 
   // TODO(antonin): full filtering
-  Status action_profile_member_read(const p4rt::ActionProfileMember &member,
+  Status action_profile_member_read(const p4v1::ActionProfileMember &member,
                                     const SessionTemp &session,
-                                    p4rt::ReadResponse *response) const {
+                                    p4v1::ReadResponse *response) const {
     if (member.action_profile_id() == 0) {
       for (auto act_prof_id = pi_p4info_act_prof_begin(p4info.get());
            act_prof_id != pi_p4info_act_prof_end(p4info.get());
@@ -1006,8 +1005,7 @@ class DeviceMgrImp {
         if (IS_ERROR(status)) return status;
       }
     } else {
-      if (!check_p4_id(member.action_profile_id(),
-                       p4config::P4Ids::ACTION_PROFILE))
+      if (!check_p4_id(member.action_profile_id(), P4Ids::ACTION_PROFILE))
         return make_invalid_p4_id_status();
       auto status = action_profile_member_read_one(
           member.action_profile_id(), session, response);
@@ -1018,19 +1016,19 @@ class DeviceMgrImp {
 
   Status action_profile_group_read_one(p4_id_t action_profile_id,
                                        const SessionTemp &session,
-                                       p4rt::ReadResponse *response) const {
+                                       p4v1::ReadResponse *response) const {
     return action_profile_read_common(
         action_profile_id, session, response,
-        [] (decltype(response)) -> p4rt::ActionProfileMember * {
+        [] (decltype(response)) -> p4v1::ActionProfileMember * {
           return nullptr; },
         [] (decltype(response) r) {
           return r->add_entities()->mutable_action_profile_group(); });
   }
 
   // TODO(antonin): full filtering
-  Status action_profile_group_read(const p4rt::ActionProfileGroup &group,
+  Status action_profile_group_read(const p4v1::ActionProfileGroup &group,
                                    const SessionTemp &session,
-                                   p4rt::ReadResponse *response) const {
+                                   p4v1::ReadResponse *response) const {
     if (group.action_profile_id() == 0) {
       for (auto act_prof_id = pi_p4info_act_prof_begin(p4info.get());
            act_prof_id != pi_p4info_act_prof_end(p4info.get());
@@ -1040,8 +1038,7 @@ class DeviceMgrImp {
         if (IS_ERROR(status)) return status;
       }
     } else {
-      if (!check_p4_id(group.action_profile_id(),
-                       p4config::P4Ids::ACTION_PROFILE))
+      if (!check_p4_id(group.action_profile_id(), P4Ids::ACTION_PROFILE))
         return make_invalid_p4_id_status();
       auto status = action_profile_group_read_one(
           group.action_profile_id(), session, response);
@@ -1050,7 +1047,7 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
-  Status packet_out_send(const p4rt::PacketOut &packet) const {
+  Status packet_out_send(const p4v1::PacketOut &packet) const {
     return packet_io.packet_out_send(packet);
   }
 
@@ -1058,10 +1055,10 @@ class DeviceMgrImp {
     packet_io.packet_in_register_cb(std::move(cb), cookie);
   }
 
-  Status counter_write(p4rt::Update_Type update,
-                       const p4rt::CounterEntry &counter_entry,
+  Status counter_write(p4v1::Update_Type update,
+                       const p4v1::CounterEntry &counter_entry,
                        const SessionTemp &session) {
-    if (!check_p4_id(counter_entry.counter_id(), p4config::P4Ids::COUNTER))
+    if (!check_p4_id(counter_entry.counter_id(), P4Ids::COUNTER))
       return make_invalid_p4_id_status();
     if (!counter_entry.has_index()) {
       RETURN_ERROR_STATUS(
@@ -1074,12 +1071,12 @@ class DeviceMgrImp {
     }
     auto index = static_cast<size_t>(counter_entry.index().index());
     switch (update) {
-      case p4rt::Update_Type_UNSPECIFIED:
+      case p4v1::Update_Type_UNSPECIFIED:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
-      case p4rt::Update_Type_INSERT:
+      case p4v1::Update_Type_INSERT:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                             "INSERT update type not supported for counters");
-      case p4rt::Update_Type_MODIFY:
+      case p4v1::Update_Type_MODIFY:
         {
           auto pi_counter_data = counter_data_proto_to_pi(
               counter_entry.data(), counter_entry.counter_id());
@@ -1091,7 +1088,7 @@ class DeviceMgrImp {
             RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when writing to counter");
         }
         break;
-      case p4rt::Update_Type_DELETE:  // TODO(antonin): return error instead?
+      case p4v1::Update_Type_DELETE:  // TODO(antonin): return error instead?
         {
           pi_counter_data_t pi_counter_data =
               {PI_COUNTER_UNIT_PACKETS | PI_COUNTER_UNIT_BYTES, 0u, 0u};
@@ -1109,15 +1106,15 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
-  Status direct_counter_write(p4rt::Update_Type update,
-                              const p4rt::DirectCounterEntry &counter_entry,
+  Status direct_counter_write(p4v1::Update_Type update,
+                              const p4v1::DirectCounterEntry &counter_entry,
                               const SessionTemp &session) {
     if (!counter_entry.has_table_entry()) {
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                           "Missing table_entry field in DirectCounterEntry");
     }
     const auto &table_entry = counter_entry.table_entry();
-    if (!check_p4_id(table_entry.table_id(), p4config::P4Ids::TABLE))
+    if (!check_p4_id(table_entry.table_id(), P4Ids::TABLE))
       return make_invalid_p4_id_status();
     auto table_lock = table_info_store.lock_table(table_entry.table_id());
 
@@ -1128,18 +1125,18 @@ class DeviceMgrImp {
     }
 
     p4_id_t table_direct_counter_id = pi_get_table_direct_resource_p4_id(
-        table_entry.table_id(), p4config::P4Ids::DIRECT_COUNTER);
+        table_entry.table_id(), P4Ids::DIRECT_COUNTER);
     if (table_direct_counter_id == PI_INVALID_ID) {
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                           "Table has no direct counters");
     }
     switch (update) {
-      case p4rt::Update_Type_UNSPECIFIED:
+      case p4v1::Update_Type_UNSPECIFIED:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
-      case p4rt::Update_Type_INSERT:
+      case p4v1::Update_Type_INSERT:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                             "INSERT update type not supported for counters");
-      case p4rt::Update_Type_MODIFY:
+      case p4v1::Update_Type_MODIFY:
         {
           auto pi_counter_data = counter_data_proto_to_pi(
               counter_entry.data(), table_direct_counter_id);
@@ -1153,7 +1150,7 @@ class DeviceMgrImp {
           }
         }
         break;
-      case p4rt::Update_Type_DELETE:  // TODO(antonin): return error instead?
+      case p4v1::Update_Type_DELETE:  // TODO(antonin): return error instead?
         {
           pi_counter_data_t pi_counter_data =
               {PI_COUNTER_UNIT_PACKETS | PI_COUNTER_UNIT_BYTES, 0u, 0u};
@@ -1174,9 +1171,9 @@ class DeviceMgrImp {
   }
 
   Status counter_read_one(p4_id_t counter_id,
-                          const p4rt::CounterEntry &counter_entry,
+                          const p4v1::CounterEntry &counter_entry,
                           const SessionTemp &session,
-                          p4rt::ReadResponse *response) const {
+                          p4v1::ReadResponse *response) const {
     assert(pi_p4info_counter_get_direct(p4info.get(), counter_id) ==
            PI_INVALID_ID);
     if (counter_entry.has_index()) {
@@ -1207,9 +1204,9 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
-  Status counter_read(const p4rt::CounterEntry &counter_entry,
+  Status counter_read(const p4v1::CounterEntry &counter_entry,
                       const SessionTemp &session,
-                      p4rt::ReadResponse *response) const {
+                      p4v1::ReadResponse *response) const {
     auto counter_id = counter_entry.counter_id();
     if (counter_id == 0) {  // read all entries for all counters
       for (auto c_id = pi_p4info_counter_begin(p4info.get());
@@ -1221,7 +1218,7 @@ class DeviceMgrImp {
         if (IS_ERROR(status)) return status;
       }
     } else {  // read for a single counter
-      if (!check_p4_id(counter_id, p4config::P4Ids::COUNTER))
+      if (!check_p4_id(counter_id, P4Ids::COUNTER))
         return make_invalid_p4_id_status();
       if (pi_p4info_counter_get_direct(p4info.get(), counter_id) !=
           PI_INVALID_ID) {
@@ -1235,9 +1232,9 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
-  Status direct_counter_read_one(const p4rt::TableEntry &table_entry,
+  Status direct_counter_read_one(const p4v1::TableEntry &table_entry,
                                  const SessionTemp &session,
-                                 p4rt::ReadResponse *response) const {
+                                 p4v1::ReadResponse *response) const {
     if (table_entry.match_size() > 0) {
       auto table_lock = table_info_store.lock_table(table_entry.table_id());
 
@@ -1247,7 +1244,7 @@ class DeviceMgrImp {
         if (IS_ERROR(status)) return status;
       }
       p4_id_t table_direct_counter_id = pi_get_table_direct_resource_p4_id(
-        table_entry.table_id(), p4config::P4Ids::DIRECT_COUNTER);
+        table_entry.table_id(), P4Ids::DIRECT_COUNTER);
       if (table_direct_counter_id == PI_INVALID_ID) {
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                             "Table has no direct counters");
@@ -1271,9 +1268,9 @@ class DeviceMgrImp {
         "Reading ALL direct counters in a table is not supported yet");
   }
 
-  Status direct_counter_read(const p4rt::DirectCounterEntry &counter_entry,
+  Status direct_counter_read(const p4v1::DirectCounterEntry &counter_entry,
                              const SessionTemp &session,
-                             p4rt::ReadResponse *response) const {
+                             p4v1::ReadResponse *response) const {
     if (!counter_entry.has_table_entry()) {
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                           "Missing table_entry field in DirectCounterEntry");
@@ -1283,7 +1280,7 @@ class DeviceMgrImp {
       RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
         "Reading ALL direct counters for all tables is not supported yet");
     }
-    if (!check_p4_id(table_entry.table_id(), p4config::P4Ids::TABLE))
+    if (!check_p4_id(table_entry.table_id(), P4Ids::TABLE))
       return make_invalid_p4_id_status();
     return direct_counter_read_one(table_entry, session, response);
   }
@@ -1300,8 +1297,8 @@ class DeviceMgrImp {
 
  private:
   // internal version of read, which does not acquire an exclusive lock
-  Status read_(const p4rt::ReadRequest &request,
-               p4rt::ReadResponse *response) const {
+  Status read_(const p4v1::ReadRequest &request,
+               p4v1::ReadResponse *response) const {
     Status status;
     status.set_code(Code::OK);
     for (const auto &entity : request.entities()) {
@@ -1312,49 +1309,49 @@ class DeviceMgrImp {
   }
 
   // internal version of read_one, which does not acquire an exclusive lock
-  Status read_one_(const p4rt::Entity &entity,
-                   p4rt::ReadResponse *response) const {
+  Status read_one_(const p4v1::Entity &entity,
+                   p4v1::ReadResponse *response) const {
     Status status;
     SessionTemp session(false  /* = batch */);
     switch (entity.entity_case()) {
-      case p4rt::Entity::kTableEntry:
+      case p4v1::Entity::kTableEntry:
         status = table_read(entity.table_entry(), session, response);
         break;
-      case p4rt::Entity::kActionProfileMember:
+      case p4v1::Entity::kActionProfileMember:
         status = action_profile_member_read(
             entity.action_profile_member(), session, response);
         break;
-      case p4rt::Entity::kActionProfileGroup:
+      case p4v1::Entity::kActionProfileGroup:
         status = action_profile_group_read(
             entity.action_profile_group(), session, response);
         break;
-      case p4rt::Entity::kMeterEntry:
+      case p4v1::Entity::kMeterEntry:
         status = meter_read(entity.meter_entry(), session, response);
         break;
-      case p4rt::Entity::kDirectMeterEntry:
+      case p4v1::Entity::kDirectMeterEntry:
         status = direct_meter_read(
             entity.direct_meter_entry(), session, response);
         break;
-      case p4rt::Entity::kCounterEntry:
+      case p4v1::Entity::kCounterEntry:
         status = counter_read(entity.counter_entry(), session, response);
         break;
-      case p4rt::Entity::kDirectCounterEntry:
+      case p4v1::Entity::kDirectCounterEntry:
         status = direct_counter_read(
             entity.direct_counter_entry(), session, response);
         break;
-      case p4rt::Entity::kPacketReplicationEngineEntry:
+      case p4v1::Entity::kPacketReplicationEngineEntry:
         status = ERROR_STATUS(Code::UNIMPLEMENTED,
                               "Reading from PRE is not supported yet");
         break;
-      case p4rt::Entity::kValueSetEntry:  // TODO(antonin)
+      case p4v1::Entity::kValueSetEntry:  // TODO(antonin)
         status = ERROR_STATUS(Code::UNIMPLEMENTED,
                               "ValueSet reads are not supported yet");
         break;
-      case p4rt::Entity::kRegisterEntry:
+      case p4v1::Entity::kRegisterEntry:
         status = ERROR_STATUS(Code::UNIMPLEMENTED,
                               "Register reads are not supported yet");
         break;
-      case p4rt::Entity::kDigestEntry:
+      case p4v1::Entity::kDigestEntry:
         status = ERROR_STATUS(Code::UNIMPLEMENTED,
                               "Digest config reads are not supported yet");
         break;
@@ -1366,7 +1363,7 @@ class DeviceMgrImp {
   }
 
   // internal version of write, which does not acquire a shared lock
-  Status write_(const p4rt::WriteRequest &request) {
+  Status write_(const p4v1::WriteRequest &request) {
     Status status;
     status.set_code(Code::OK);
     SessionTemp session(true  /* = batch */);
@@ -1374,49 +1371,49 @@ class DeviceMgrImp {
     for (const auto &update : request.updates()) {
       const auto &entity = update.entity();
       switch (entity.entity_case()) {
-        case p4rt::Entity::kExternEntry:
+        case p4v1::Entity::kExternEntry:
           Logger::get()->error("No extern support yet");
           status.set_code(Code::UNIMPLEMENTED);
           break;
-        case p4rt::Entity::kTableEntry:
+        case p4v1::Entity::kTableEntry:
           status = table_write(update.type(), entity.table_entry(), session);
           break;
-        case p4rt::Entity::kActionProfileMember:
+        case p4v1::Entity::kActionProfileMember:
           status = action_profile_member_write(
               update.type(), entity.action_profile_member(), session);
           break;
-        case p4rt::Entity::kActionProfileGroup:
+        case p4v1::Entity::kActionProfileGroup:
           status = action_profile_group_write(
               update.type(), entity.action_profile_group(), session);
           break;
-        case p4rt::Entity::kMeterEntry:
+        case p4v1::Entity::kMeterEntry:
           status = meter_write(update.type(), entity.meter_entry(), session);
           break;
-        case p4rt::Entity::kDirectMeterEntry:
+        case p4v1::Entity::kDirectMeterEntry:
           status = direct_meter_write(
               update.type(), entity.direct_meter_entry(), session);
           break;
-        case p4rt::Entity::kCounterEntry:
+        case p4v1::Entity::kCounterEntry:
           status = counter_write(
               update.type(), entity.counter_entry(), session);
           break;
-        case p4rt::Entity::kDirectCounterEntry:
+        case p4v1::Entity::kDirectCounterEntry:
           status = direct_counter_write(
               update.type(), entity.direct_counter_entry(), session);
           break;
-        case p4rt::Entity::kPacketReplicationEngineEntry:
+        case p4v1::Entity::kPacketReplicationEngineEntry:
           status = ERROR_STATUS(Code::UNIMPLEMENTED,
                                 "Writing to PRE is not supported yet");
           break;
-        case p4rt::Entity::kValueSetEntry:  // TODO(antonin)
+        case p4v1::Entity::kValueSetEntry:  // TODO(antonin)
           status = ERROR_STATUS(Code::UNIMPLEMENTED,
                                 "ValueSet writes are not supported yet");
           break;
-        case p4rt::Entity::kRegisterEntry:
+        case p4v1::Entity::kRegisterEntry:
           status = ERROR_STATUS(Code::UNIMPLEMENTED,
                                 "Register writes are not supported yet");
           break;
-        case p4rt::Entity::kDigestEntry:
+        case p4v1::Entity::kDigestEntry:
           status = ERROR_STATUS(Code::UNIMPLEMENTED,
                                 "Digest config writes are not supported yet");
           break;
@@ -1430,7 +1427,7 @@ class DeviceMgrImp {
   }
 
   p4_id_t pi_get_table_direct_resource_p4_id(
-      pi_p4_id_t table_id, p4config::P4Ids::Prefix resource_type) const {
+      pi_p4_id_t table_id, P4Ids::Prefix resource_type) const {
     size_t num_direct_resources = 0;
     p4_id_t table_direct_resource_id = PI_INVALID_ID;
     const pi_p4_id_t* direct_resource = pi_p4info_table_get_direct_resources(
@@ -1444,27 +1441,26 @@ class DeviceMgrImp {
     return table_direct_resource_id;
   }
 
-  bool check_p4_id(p4_id_t p4_id,
-                   p4config::P4Ids::Prefix expected_type) const {
+  bool check_p4_id(p4_id_t p4_id, P4Ids::Prefix expected_type) const {
     return (pi::proto::util::resource_type_from_id(p4_id) == expected_type)
         && pi_p4info_is_valid_id(p4info.get(), p4_id);
   }
 
-  const p4rt::FieldMatch *find_mf(const p4rt::TableEntry &entry,
+  const p4v1::FieldMatch *find_mf(const p4v1::TableEntry &entry,
                                 pi_p4_id_t mf_id) const {
     for (const auto &mf : entry.match())
       if (mf.field_id() == mf_id) return &mf;
     return nullptr;
   }
 
-  Status validate_exact_match(const p4rt::FieldMatch::Exact &mf,
+  Status validate_exact_match(const p4v1::FieldMatch::Exact &mf,
                               size_t bitwidth) const {
     if (check_proto_bytestring(mf.value(), bitwidth) != Code::OK)
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid bytestring format");
     RETURN_OK_STATUS();
   }
 
-  Status validate_lpm_match(const p4rt::FieldMatch::LPM &mf,
+  Status validate_lpm_match(const p4v1::FieldMatch::LPM &mf,
                             size_t bitwidth) const {
     const auto &value = mf.value();
     const auto pLen = mf.prefix_len();
@@ -1493,7 +1489,7 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
-  Status validate_ternary_match(const p4rt::FieldMatch::Ternary &mf,
+  Status validate_ternary_match(const p4v1::FieldMatch::Ternary &mf,
                                 size_t bitwidth) const {
     const auto &value = mf.value();
     const auto &mask = mf.mask();
@@ -1521,7 +1517,7 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
-  Status validate_range_match(const p4rt::FieldMatch::Range &mf,
+  Status validate_range_match(const p4v1::FieldMatch::Range &mf,
                               size_t bitwidth) const {
     const auto &low = mf.low();
     const auto &high = mf.high();
@@ -1544,7 +1540,7 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
-  Status validate_match_key(const p4rt::TableEntry &entry) const {
+  Status validate_match_key(const p4v1::TableEntry &entry) const {
     auto t_id = entry.table_id();
     size_t num_match_fields;
     auto expected_mf_ids = pi_p4info_table_get_match_fields(
@@ -1611,7 +1607,7 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
-  Status construct_match_key(const p4rt::TableEntry &entry,
+  Status construct_match_key(const p4v1::TableEntry &entry,
                              pi::MatchKey *match_key) const {
     if (entry.is_default_action()) {
       if (!entry.match().empty()) {
@@ -1697,10 +1693,10 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
-  Status construct_action_data(uint32_t table_id, const p4rt::Action &action,
+  Status construct_action_data(uint32_t table_id, const p4v1::Action &action,
                                pi::ActionEntry *action_entry) const {
     auto action_id = action.action_id();
-    if (!check_p4_id(action_id, p4config::P4Ids::ACTION))
+    if (!check_p4_id(action_id, P4Ids::ACTION))
       return make_invalid_p4_id_status();
     if (!pi_p4info_table_is_action_of(p4info.get(), table_id, action_id))
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid action for table");
@@ -1715,7 +1711,7 @@ class DeviceMgrImp {
   }
 
   Status construct_action_entry_indirect(uint32_t table_id,
-                                         const p4rt::TableAction &table_action,
+                                         const p4v1::TableAction &table_action,
                                          pi::ActionEntry *action_entry) {
     auto action_prof_id = pi_p4info_table_get_implementation(p4info.get(),
                                                              table_id);
@@ -1730,11 +1726,11 @@ class DeviceMgrImp {
     assert(action_prof_mgr);
     const pi_indirect_handle_t *indirect_h = nullptr;
     switch (table_action.type_case()) {
-      case p4rt::TableAction::kActionProfileMemberId:
+      case p4v1::TableAction::kActionProfileMemberId:
         indirect_h = action_prof_mgr->retrieve_member_handle(
             table_action.action_profile_member_id());
         break;
-      case p4rt::TableAction::kActionProfileGroupId:
+      case p4v1::TableAction::kActionProfileGroupId:
         indirect_h = action_prof_mgr->retrieve_group_handle(
             table_action.action_profile_group_id());
         break;
@@ -1750,14 +1746,14 @@ class DeviceMgrImp {
 
   // the table_id is needed for indirect entries
   Status construct_action_entry(uint32_t table_id,
-                                const p4rt::TableAction &table_action,
+                                const p4v1::TableAction &table_action,
                                 pi::ActionEntry *action_entry) {
     switch (table_action.type_case()) {
-      case p4rt::TableAction::kAction:
+      case p4v1::TableAction::kAction:
         return construct_action_data(table_id, table_action.action(),
                                      action_entry);
-      case p4rt::TableAction::kActionProfileMemberId:
-      case p4rt::TableAction::kActionProfileGroupId:
+      case p4v1::TableAction::kActionProfileMemberId:
+      case p4v1::TableAction::kActionProfileGroupId:
         return construct_action_entry_indirect(table_id, table_action,
                                                action_entry);
       default:
@@ -1766,13 +1762,13 @@ class DeviceMgrImp {
   }
 
   // takes storage for meter_spec and counter_data to enable using stack storage
-  Status construct_direct_resources(const p4rt::TableEntry &table_entry,
+  Status construct_direct_resources(const p4v1::TableEntry &table_entry,
                                     pi::ActionEntry *action_entry,
                                     pi_meter_spec_t *meter_spec,
                                     pi_counter_data_t *counter_data) {
     if (table_entry.has_meter_config()) {
       p4_id_t meter_id = pi_get_table_direct_resource_p4_id(
-          table_entry.table_id(), p4config::P4Ids::DIRECT_METER);
+          table_entry.table_id(), P4Ids::DIRECT_METER);
       if (meter_id == PI_INVALID_ID) {
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                             "Table has no direct meters");
@@ -1786,7 +1782,7 @@ class DeviceMgrImp {
 
     if (table_entry.has_counter_data()) {
       p4_id_t counter_id = pi_get_table_direct_resource_p4_id(
-          table_entry.table_id(), p4config::P4Ids::DIRECT_COUNTER);
+          table_entry.table_id(), P4Ids::DIRECT_COUNTER);
       if (counter_id == PI_INVALID_ID) {
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                             "Table has no direct counters");
@@ -1799,7 +1795,7 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
-  Status table_insert(const p4rt::TableEntry &table_entry,
+  Status table_insert(const p4v1::TableEntry &table_entry,
                       const SessionTemp &session) {
     const auto table_id = table_entry.table_id();
     pi::MatchKey match_key(p4info.get(), table_id);
@@ -1856,7 +1852,7 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
-  Status table_modify(const p4rt::TableEntry &table_entry,
+  Status table_modify(const p4v1::TableEntry &table_entry,
                       const SessionTemp &session) {
     const auto table_id = table_entry.table_id();
     pi::MatchKey match_key(p4info.get(), table_id);
@@ -1905,7 +1901,7 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
-  Status table_delete(const p4rt::TableEntry &table_entry,
+  Status table_delete(const p4v1::TableEntry &table_entry,
                       const SessionTemp &session) {
     const auto table_id = table_entry.table_id();
     pi::MatchKey match_key(p4info.get(), table_id);
@@ -1942,14 +1938,14 @@ class DeviceMgrImp {
   }
 
   void counter_data_pi_to_proto(const pi_counter_data_t &pi_data,
-                                p4rt::CounterData *data) const {
+                                p4v1::CounterData *data) const {
     if (pi_data.valid & PI_COUNTER_UNIT_PACKETS)
       data->set_packet_count(pi_data.packets);
     if (pi_data.valid & PI_COUNTER_UNIT_BYTES)
       data->set_byte_count(pi_data.bytes);
   }
 
-  pi_counter_data_t counter_data_proto_to_pi(const p4rt::CounterData &data,
+  pi_counter_data_t counter_data_proto_to_pi(const p4v1::CounterData &data,
                                              pi_p4_id_t counter_id) const {
     pi_counter_data_t pi_data;
     switch (pi_p4info_counter_get_unit(p4info.get(), counter_id)) {
@@ -1970,7 +1966,7 @@ class DeviceMgrImp {
     return pi_data;
   }
 
-  static Status validate_meter_spec(const p4rt::MeterConfig &config) {
+  static Status validate_meter_spec(const p4v1::MeterConfig &config) {
     // as per P4Runtime spec, -1 is a valid value and means that the packet is
     // always marked "green"
     if (config.cir() < 0 && config.cir() != -1)
@@ -1989,7 +1985,7 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
-  pi_meter_spec_t meter_spec_proto_to_pi(const p4rt::MeterConfig &config,
+  pi_meter_spec_t meter_spec_proto_to_pi(const p4v1::MeterConfig &config,
                                          pi_p4_id_t meter_id) const {
     pi_meter_spec_t pi_meter_spec;
     pi_meter_spec.cir = static_cast<uint64_t>(config.cir());
@@ -2006,7 +2002,7 @@ class DeviceMgrImp {
   }
 
   void meter_spec_pi_to_proto(const pi_meter_spec_t &pi_meter_spec,
-                              p4rt::MeterConfig *config) const {
+                              p4v1::MeterConfig *config) const {
     config->set_cir(pi_meter_spec.cir);
     if (pi_meter_spec.cburst == static_cast<decltype(pi_meter_spec.cburst)>(-1))
       config->set_cburst(-1);
@@ -2020,7 +2016,7 @@ class DeviceMgrImp {
   }
 
   Status counter_read_one_index(const SessionTemp &session, uint32_t counter_id,
-                                p4rt::CounterEntry *entry,
+                                p4v1::CounterEntry *entry,
                                 bool hw_sync = false) const {
     // checked by caller
     assert(entry->has_index() && entry->index().index() >= 0);
@@ -2039,7 +2035,7 @@ class DeviceMgrImp {
   }
 
   Status meter_read_one_index(const SessionTemp &session, uint32_t meter_id,
-                              p4rt::MeterEntry *entry) const {
+                              p4v1::MeterEntry *entry) const {
     // checked by caller
     assert(entry->has_index() && entry->index().index() >= 0);
     auto index = static_cast<size_t>(entry->index().index());
@@ -2063,8 +2059,8 @@ class DeviceMgrImp {
   // before match-action tables. This relies on our knowledge of the rest of the
   // implementation, since we know that the read operations will be done in
   // order.
-  Status save_forwarding_state(p4rt::ReadResponse *response) {
-    p4rt::ReadRequest request;
+  Status save_forwarding_state(p4v1::ReadResponse *response) {
+    p4v1::ReadRequest request;
     // setting the device id is not really necessary since DeviceMgr::Read does
     // not check it (check is done by the server)
     request.set_device_id(device_id);
@@ -2102,7 +2098,7 @@ class DeviceMgrImp {
   // for now, we assume all possible pipes of device are programmed in the same
   // way
   pi_dev_tgt_t device_tgt;
-  p4config::P4Info p4info_proto{};
+  p4configv1::P4Info p4info_proto{};
   P4InfoWrapper p4info{nullptr, p4info_deleter};
 
   PacketIOMgr packet_io;
@@ -2126,35 +2122,35 @@ DeviceMgr::~DeviceMgr() { }
 
 Status
 DeviceMgr::pipeline_config_set(
-    p4rt::SetForwardingPipelineConfigRequest_Action action,
-    const p4rt::ForwardingPipelineConfig &config) {
+    p4v1::SetForwardingPipelineConfigRequest_Action action,
+    const p4v1::ForwardingPipelineConfig &config) {
   return pimp->pipeline_config_set(action, config);
 }
 
 Status
-DeviceMgr::pipeline_config_get(p4rt::ForwardingPipelineConfig *config) {
+DeviceMgr::pipeline_config_get(p4v1::ForwardingPipelineConfig *config) {
   return pimp->pipeline_config_get(config);
 }
 
 Status
-DeviceMgr::write(const p4rt::WriteRequest &request) {
+DeviceMgr::write(const p4v1::WriteRequest &request) {
   return pimp->write(request);
 }
 
 Status
-DeviceMgr::read(const p4rt::ReadRequest &request,
-                p4rt::ReadResponse *response) const {
+DeviceMgr::read(const p4v1::ReadRequest &request,
+                p4v1::ReadResponse *response) const {
   return pimp->read(request, response);
 }
 
 Status
-DeviceMgr::read_one(const p4rt::Entity &entity,
-                    p4rt::ReadResponse *response) const {
+DeviceMgr::read_one(const p4v1::Entity &entity,
+                    p4v1::ReadResponse *response) const {
   return pimp->read_one(entity, response);
 }
 
 Status
-DeviceMgr::packet_out_send(const p4rt::PacketOut &packet) const {
+DeviceMgr::packet_out_send(const p4v1::PacketOut &packet) const {
   return pimp->packet_out_send(packet);
 }
 

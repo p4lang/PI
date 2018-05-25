@@ -38,8 +38,8 @@
 #include "matchers.h"
 #include "mock_switch.h"
 
-namespace p4rt = ::p4::v1;
-namespace p4config = ::p4::config::v1;
+namespace p4v1 = ::p4::v1;
+namespace p4configv1 = ::p4::config::v1;
 
 namespace pi {
 namespace proto {
@@ -65,8 +65,8 @@ class DeviceMgrSetPipelineConfigTest : public ::testing::Test {
     DeviceMgr::destroy();
   }
 
-  p4config::P4Info read_p4info(const std::string &p4info_path) {
-    p4config::P4Info p4info_proto;
+  p4configv1::P4Info read_p4info(const std::string &p4info_path) {
+    p4configv1::P4Info p4info_proto;
     std::ifstream istream(p4info_path);
     google::protobuf::io::IstreamInputStream istream_(&istream);
     google::protobuf::TextFormat::Parse(&istream_, &p4info_proto);
@@ -74,19 +74,19 @@ class DeviceMgrSetPipelineConfigTest : public ::testing::Test {
   }
 
   DeviceMgr::Status set_pipeline_config(
-      p4config::P4Info *p4info_proto,
-      p4rt::SetForwardingPipelineConfigRequest_Action action) {
-    p4rt::ForwardingPipelineConfig config;
+      p4configv1::P4Info *p4info_proto,
+      p4v1::SetForwardingPipelineConfigRequest_Action action) {
+    p4v1::ForwardingPipelineConfig config;
     config.set_allocated_p4info(p4info_proto);
     auto status = mgr.pipeline_config_set(action, config);
     config.release_p4info();
     return status;
   }
 
-  DeviceMgr::Status add_entry(p4rt::TableEntry *entry) {
-    p4rt::WriteRequest request;
+  DeviceMgr::Status add_entry(p4v1::TableEntry *entry) {
+    p4v1::WriteRequest request;
     auto update = request.add_updates();
-    update->set_type(p4rt::Update_Type_INSERT);
+    update->set_type(p4v1::Update_Type_INSERT);
     auto entity = update->mutable_entity();
     entity->set_allocated_table_entry(entry);
     auto status = mgr.write(request);
@@ -121,13 +121,13 @@ TEST_F(DeviceMgrSetPipelineConfigTest, Reconcile) {
   {
     auto status = set_pipeline_config(
         &p4info_proto_1,
-        p4rt::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT);
+        p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT);
     ASSERT_EQ(status.code(), Code::OK);
   }
 
   EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
   {
-    p4rt::TableEntry t_entry;
+    p4v1::TableEntry t_entry;
     t_entry.set_table_id(t_id);
     auto *mf = t_entry.add_match();
     mf->set_field_id(1);
@@ -148,14 +148,14 @@ TEST_F(DeviceMgrSetPipelineConfigTest, Reconcile) {
     EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
     auto status = set_pipeline_config(
         &p4info_proto_2,
-        p4rt::SetForwardingPipelineConfigRequest_Action_RECONCILE_AND_COMMIT);
+        p4v1::SetForwardingPipelineConfigRequest_Action_RECONCILE_AND_COMMIT);
     ASSERT_EQ(status.code(), Code::OK);
   }
 
   // check that table entry is still present
   {
-    p4rt::ReadResponse response;
-    p4rt::Entity entity;
+    p4v1::ReadResponse response;
+    p4v1::Entity entity;
     auto t_entry = entity.mutable_table_entry();
     t_entry->set_table_id(t_id);
     auto status = mgr.read_one(entity, &response);
@@ -167,7 +167,7 @@ TEST_F(DeviceMgrSetPipelineConfigTest, Reconcile) {
   {
     auto status = set_pipeline_config(
         &p4info_proto_3,
-        p4rt::SetForwardingPipelineConfigRequest_Action_RECONCILE_AND_COMMIT);
+        p4v1::SetForwardingPipelineConfigRequest_Action_RECONCILE_AND_COMMIT);
     ASSERT_NE(status.code(), Code::OK);
   }
 }
