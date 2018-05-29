@@ -34,7 +34,7 @@ act_profs/act_prof_groups.c \
 act_profs/act_prof_common.h \
 act_profs/act_prof_common.c
 
-bin_PROGRAMS = pi_CLI_dummy pi_CLI_rpc
+bin_PROGRAMS = pi_CLI_dummy
 
 common_libs = \
 libpicli.la \
@@ -47,10 +47,6 @@ pi_CLI_dummy_LDADD = $(common_libs) \
 $(top_builddir)/targets/dummy/libpi_dummy.la
 pi_CLI_dummy_SOURCES =
 
-pi_CLI_rpc_LDADD = $(common_libs) \
-$(top_builddir)/targets/rpc/libpi_rpc.la
-pi_CLI_rpc_SOURCES =
-
 if WITH_BMV2
 bin_PROGRAMS += pi_CLI_bmv2
 # TODO(antonin) the bm libs should probably have better names...
@@ -60,4 +56,11 @@ $(top_builddir)/targets/bmv2/libpi_bmv2.la \
 pi_CLI_bmv2_SOURCES =
 # Dummy C++ source to cause C++ linking.
 nodist_EXTRA_pi_CLI_bmv2_SOURCES = dummy.cxx
+endif
+
+if WITH_INTERNAL_RPC
+bin_PROGRAMS += pi_CLI_rpc
+pi_CLI_rpc_LDADD = $(common_libs) \
+$(top_builddir)/targets/rpc/libpi_rpc.la
+pi_CLI_rpc_SOURCES =
 endif
