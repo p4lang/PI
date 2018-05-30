@@ -26,29 +26,30 @@ namespace proto {
 
 namespace util {
 
-p4::config::P4Ids::Prefix
+p4::config::v1::P4Ids::Prefix
 resource_type_from_id(p4_id_t p4_id) {
+  using p4::config::v1::P4Ids;
   switch (p4_id >> 24) {
-    case static_cast<p4_id_t>(p4::config::P4Ids::UNSPECIFIED):
-      return p4::config::P4Ids::UNSPECIFIED;
-    case static_cast<p4_id_t>(p4::config::P4Ids::ACTION):
-      return p4::config::P4Ids::ACTION;
-    case static_cast<p4_id_t>(p4::config::P4Ids::TABLE):
-      return p4::config::P4Ids::TABLE;
-    case static_cast<p4_id_t>(p4::config::P4Ids::VALUE_SET):
-      return p4::config::P4Ids::VALUE_SET;
-    case static_cast<p4_id_t>(p4::config::P4Ids::ACTION_PROFILE):
-      return p4::config::P4Ids::ACTION_PROFILE;
-    case static_cast<p4_id_t>(p4::config::P4Ids::COUNTER):
-      return p4::config::P4Ids::COUNTER;
-    case static_cast<p4_id_t>(p4::config::P4Ids::DIRECT_COUNTER):
-      return p4::config::P4Ids::DIRECT_COUNTER;
-    case static_cast<p4_id_t>(p4::config::P4Ids::METER):
-      return p4::config::P4Ids::METER;
-    case static_cast<p4_id_t>(p4::config::P4Ids::DIRECT_METER):
-      return p4::config::P4Ids::DIRECT_METER;
+    case static_cast<p4_id_t>(P4Ids::UNSPECIFIED):
+      return P4Ids::UNSPECIFIED;
+    case static_cast<p4_id_t>(P4Ids::ACTION):
+      return P4Ids::ACTION;
+    case static_cast<p4_id_t>(P4Ids::TABLE):
+      return P4Ids::TABLE;
+    case static_cast<p4_id_t>(P4Ids::VALUE_SET):
+      return P4Ids::VALUE_SET;
+    case static_cast<p4_id_t>(P4Ids::ACTION_PROFILE):
+      return P4Ids::ACTION_PROFILE;
+    case static_cast<p4_id_t>(P4Ids::COUNTER):
+      return P4Ids::COUNTER;
+    case static_cast<p4_id_t>(P4Ids::DIRECT_COUNTER):
+      return P4Ids::DIRECT_COUNTER;
+    case static_cast<p4_id_t>(P4Ids::METER):
+      return P4Ids::METER;
+    case static_cast<p4_id_t>(P4Ids::DIRECT_METER):
+      return P4Ids::DIRECT_METER;
     default:
-      return p4::config::P4Ids::UNSPECIFIED;
+      return P4Ids::UNSPECIFIED;
   }
 }
 

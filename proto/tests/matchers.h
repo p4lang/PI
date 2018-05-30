@@ -27,7 +27,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "p4/p4runtime.pb.h"
+#include "p4/v1/p4runtime.pb.h"
 
 #include "PI/pi.h"
 
@@ -87,7 +87,7 @@ inline Matcher<const pi_action_data_t *> CorrectActionData(
 
 class MeterSpecMatcher : public MatcherInterface<const pi_meter_spec_t *> {
  public:
-  MeterSpecMatcher(const p4::MeterConfig &config,
+  MeterSpecMatcher(const p4::v1::MeterConfig &config,
                    pi_meter_unit_t meter_unit,
                    pi_meter_type_t meter_type);
 
@@ -99,20 +99,20 @@ class MeterSpecMatcher : public MatcherInterface<const pi_meter_spec_t *> {
   void DescribeNegationTo(std::ostream *os) const override;
 
  private:
-  p4::MeterConfig config;
+  p4::v1::MeterConfig config;
   pi_meter_unit_t meter_unit;
   pi_meter_type_t meter_type;
 };
 
 inline Matcher<const pi_meter_spec_t *> CorrectMeterSpec(
-    const p4::MeterConfig &config,
+    const p4::v1::MeterConfig &config,
     pi_meter_unit_t meter_unit, pi_meter_type_t meter_type) {
   return MakeMatcher(new MeterSpecMatcher(config, meter_unit, meter_type));
 }
 
 class CounterDataMatcher : public MatcherInterface<const pi_counter_data_t *> {
  public:
-  CounterDataMatcher(const p4::CounterData &data,
+  CounterDataMatcher(const p4::v1::CounterData &data,
                      bool check_bytes, bool check_packets);
 
   bool MatchAndExplain(const pi_counter_data_t *pi_data,
@@ -123,23 +123,25 @@ class CounterDataMatcher : public MatcherInterface<const pi_counter_data_t *> {
   void DescribeNegationTo(std::ostream *os) const override;
 
  private:
-  p4::CounterData data;
+  p4::v1::CounterData data;
   bool check_bytes;
   bool check_packets;
 };
 
 inline Matcher<const pi_counter_data_t *> CorrectCounterData(
-    const p4::CounterData &data, bool check_bytes, bool check_packets) {
+    const p4::v1::CounterData &data, bool check_bytes, bool check_packets) {
   return MakeMatcher(new CounterDataMatcher(data, check_bytes, check_packets));
 }
 
 class TableEntryMatcher_Base {
  public:
-  void add_direct_meter(pi_p4_id_t meter_id, const p4::MeterConfig &config,
+  void add_direct_meter(pi_p4_id_t meter_id,
+                        const p4::v1::MeterConfig &config,
                         pi_meter_unit_t meter_unit,
                         pi_meter_type_t meter_type);
 
-  void add_direct_counter(pi_p4_id_t counter_id, const p4::CounterData &data,
+  void add_direct_counter(pi_p4_id_t counter_id,
+                          const p4::v1::CounterData &data,
                           bool check_bytes, bool check_packets);
 
  protected:

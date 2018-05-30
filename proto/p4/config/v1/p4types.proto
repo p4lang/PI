@@ -14,7 +14,7 @@
 
 syntax = "proto3";
 
-package p4;
+package p4.config.v1;
 
 // P4 type specs ---------------------------------------------------------------
 
@@ -169,43 +169,3 @@ message P4ErrorTypeSpec {
 }
 
 // End of P4 type specs --------------------------------------------------------
-
-message P4Data {
-  oneof data {
-    bytes bitstring = 1;  // for bit<W>, int<W>, varbit<W>
-    bool bool = 2;
-    P4StructLike tuple = 3;
-    P4StructLike struct = 4;
-    P4Header header = 5;
-    P4HeaderUnion header_union = 6;
-    P4HeaderStack header_stack = 7;
-    P4HeaderUnionStack header_union_stack = 8;
-    // Could be replaced with integer values in future versions.
-    string enum = 9;
-    string error = 10;
-  }
-}
-
-message P4StructLike {
-  repeated P4Data members = 1;
-}
-
-message P4Header {
-  bool is_valid = 1;
-  repeated bytes bitstrings = 2;
-}
-
-message P4HeaderUnion {
-  // An empty string indicates that none of the union members are valid and
-  // valid_header must therefore be unset.
-  string valid_header_name = 1;
-  P4Header valid_header = 2;
-}
-
-message P4HeaderStack {
-  repeated P4Header entries = 1;
-}
-
-message P4HeaderUnionStack {
-  repeated P4HeaderUnion entries = 1;
-}

@@ -24,12 +24,15 @@
 #include <ostream>
 #include <string>
 
-#include "p4/p4runtime.pb.h"
+#include "p4/v1/p4runtime.pb.h"
 
 #include "PI/int/pi_int.h"
 #include "PI/pi.h"
 
 #include "matchers.h"
+
+using p4::v1::CounterData;
+using p4::v1::MeterConfig;
 
 namespace pi {
 namespace proto {
@@ -101,7 +104,7 @@ ActionDataMatcher::DescribeNegationTo(std::ostream *os) const {
   *os << "is not correct action data";
 }
 
-MeterSpecMatcher::MeterSpecMatcher(const p4::MeterConfig &config,
+MeterSpecMatcher::MeterSpecMatcher(const MeterConfig &config,
                                    pi_meter_unit_t meter_unit,
                                    pi_meter_type_t meter_type)
     : config(config), meter_unit(meter_unit), meter_type(meter_type) { }
@@ -154,7 +157,7 @@ MeterSpecMatcher::DescribeNegationTo(std::ostream *os) const {
   *os << "is not correct meter spec";
 }
 
-CounterDataMatcher::CounterDataMatcher(const p4::CounterData &data,
+CounterDataMatcher::CounterDataMatcher(const CounterData &data,
                                        bool check_bytes, bool check_packets)
     : data(data), check_bytes(check_bytes), check_packets(check_packets) { }
 
@@ -198,7 +201,7 @@ TableEntryMatcher_Base::TableEntryMatcher_Base() = default;
 
 void
 TableEntryMatcher_Base::add_direct_meter(pi_p4_id_t meter_id,
-                                         const p4::MeterConfig &config,
+                                         const MeterConfig &config,
                                          pi_meter_unit_t meter_unit,
                                          pi_meter_type_t meter_type) {
   meters.emplace(meter_id, MeterSpecMatcher(config, meter_unit, meter_type));
@@ -206,7 +209,7 @@ TableEntryMatcher_Base::add_direct_meter(pi_p4_id_t meter_id,
 
 void
 TableEntryMatcher_Base::add_direct_counter(pi_p4_id_t counter_id,
-                                           const p4::CounterData &data,
+                                           const CounterData &data,
                                            bool check_bytes,
                                            bool check_packets) {
   counters.emplace(counter_id,

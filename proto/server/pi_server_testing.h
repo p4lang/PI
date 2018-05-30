@@ -25,7 +25,11 @@
 
 namespace p4 {
 
+namespace v1 {
+
 class PacketIn;
+
+}  // namespace v1
 
 }  // namespace p4
 
@@ -36,7 +40,7 @@ namespace server {
 namespace testing {
 
 void send_packet_in(::pi::fe::proto::DeviceMgr::device_id_t device_id,
-                    p4::PacketIn *packet);
+                    p4::v1::PacketIn *packet);
 
 size_t max_connections();
 

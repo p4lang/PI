@@ -21,7 +21,7 @@
 #ifndef PROTO_P4INFO_P4INFO_TO_AND_FROM_PROTO_H_
 #define PROTO_P4INFO_P4INFO_TO_AND_FROM_PROTO_H_
 
-#include "p4/config/p4info.pb.h"
+#include "p4/config/v1/p4info.pb.h"
 
 #include <PI/p4info.h>
 
@@ -29,10 +29,10 @@ namespace pi {
 
 namespace p4info {
 
-p4::config::P4Info p4info_serialize_to_proto(const pi_p4info_t *p4info);
+p4::config::v1::P4Info p4info_serialize_to_proto(const pi_p4info_t *p4info);
 
 // returns true if success, false otherwise
-bool p4info_proto_reader(const p4::config::P4Info &p4info_proto,
+bool p4info_proto_reader(const p4::config::v1::P4Info &p4info_proto,
                          pi_p4info_t **p4info);
 
 }  // namespace p4info
