@@ -637,6 +637,12 @@ class DeviceMgrImp {
       auto mf = entry->add_match();
       mf->set_field_id(finfo->mf_id);
       switch (finfo->match_type) {
+        // For backward-compatibility with the old workflow (P4_14 program ---
+        // p4c-bm compiler ---> bmv2 JSON --- converter ---> P4Info), we still
+        // support PI_P4INFO_MATCH_TYPE_VALID. The P4_14 valid match type will
+        // show up as exact in the P4Info, which is why we set the exact field
+        // in the P4Runtime message (to '\x01' for valid and '\x00' for
+        // invalid).
         case PI_P4INFO_MATCH_TYPE_VALID:
           {
             auto exact = mf->mutable_exact();
@@ -1570,6 +1576,10 @@ class DeviceMgrImp {
       num_mf_matched++;
       auto bitwidth = mf_info->bitwidth;
       switch (mf_info->match_type) {
+        // For backward-compatibility with old workflow. A P4_14 valid match
+        // type is replaced by an exact match in the P4Info, which is why we
+        // check that the P4Runtime message includes an exact field in that
+        // case.
         case PI_P4INFO_MATCH_TYPE_VALID:
         case PI_P4INFO_MATCH_TYPE_EXACT:
           if (!mf->has_exact())
@@ -1636,6 +1646,10 @@ class DeviceMgrImp {
       auto mf = find_mf(entry, mf_id);
       if (mf != nullptr) {
         switch (mf_info->match_type) {
+          // For backward-compatibility with old workflow. A P4_14 valid match
+          // type is replaced by an exact match in the P4Info, which is why we
+          // read the value from the exact field in the P4Runtime message
+          // ('\x00' means invalid and every other value means valid).
           case PI_P4INFO_MATCH_TYPE_VALID:
             match_key->set_valid(mf_id,
                                  mf->exact().value() != std::string("\x00", 1));

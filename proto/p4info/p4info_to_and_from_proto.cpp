@@ -314,6 +314,11 @@ void p4info_serialize_tables(const pi_p4info_t *p4info,
       mf->set_id(mf_id);
       auto match_type_convert = [info]() {
         switch (info->match_type) {
+          // A P4_14 valid match type is replaced by an exact match in the
+          // P4Info, since P4Runtime no longer supports the valid matches, which
+          // no longer exist in P4_16. The new p4c compiler always translates
+          // P4_14 programs to P4_16 before generating P4Info, which replaces
+          // all valid matches with exact matches on the validity bit.
           case PI_P4INFO_MATCH_TYPE_VALID:
           case PI_P4INFO_MATCH_TYPE_EXACT:
             return p4configv1::MatchField_MatchType_EXACT;
