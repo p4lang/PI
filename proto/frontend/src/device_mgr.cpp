@@ -639,10 +639,11 @@ class DeviceMgrImp {
       switch (finfo->match_type) {
         case PI_P4INFO_MATCH_TYPE_VALID:
           {
-            auto valid = mf->mutable_valid();
+            auto exact = mf->mutable_exact();
             bool value;
             mk_reader.get_valid(finfo->mf_id, &value);
-            valid->set_value(value);
+            exact->set_value(
+                value ? std::string("\x01", 1) : std::string("\x00", 1));
           }
           break;
         case PI_P4INFO_MATCH_TYPE_EXACT:
@@ -1570,9 +1571,6 @@ class DeviceMgrImp {
       auto bitwidth = mf_info->bitwidth;
       switch (mf_info->match_type) {
         case PI_P4INFO_MATCH_TYPE_VALID:
-          if (!mf->has_valid())
-            RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
-          break;
         case PI_P4INFO_MATCH_TYPE_EXACT:
           if (!mf->has_exact())
             RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
@@ -1639,7 +1637,8 @@ class DeviceMgrImp {
       if (mf != nullptr) {
         switch (mf_info->match_type) {
           case PI_P4INFO_MATCH_TYPE_VALID:
-            match_key->set_valid(mf_id, mf->valid().value());
+            match_key->set_valid(mf_id,
+                                 mf->exact().value() != std::string("\x00", 1));
             break;
           case PI_P4INFO_MATCH_TYPE_EXACT:
             match_key->set_exact(mf_id, mf->exact().value().data(),
