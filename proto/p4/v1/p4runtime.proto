@@ -253,7 +253,13 @@ message ActionProfileGroup {
     uint32 watch = 3;
   }
   repeated Member members = 3;
-  int32 max_size = 4;  // cannot be modified after a group has been created
+  // Max number of weighted member entries in this group. It cannot be modified
+  // after a group has been created. It must not exceed the static
+  // max_group_size included in P4Info. If the max size is not known at group
+  // creation-time, the client may leave this field unset (default value 0), in
+  // which case the static max_group_size value will be used and the group will
+  // be able to include up to max_group_size weighted member entries.
+  int32 max_size = 4;
 }
 
 // An index as a protobuf message. In proto3, fields cannot be optional and
