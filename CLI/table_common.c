@@ -81,9 +81,34 @@ static int match_key_add_valid_field(pi_p4_id_t t_id, pi_p4_id_t f_id,
   return 0;
 }
 
+// P4_16 and p4c do not have a VALID match type (h.isValid() : exact), but we
+// want to be able to support 'true' and 'false' in the CLI when matching on a
+// header validity (h.isValid()), for exact and ternary matches.
+static int match_key_try_add_valid_field(pi_p4_id_t t_id, pi_p4_id_t f_id,
+                                         size_t f_bitwidth, char *mf,
+                                         pi_match_key_t *mk) {
+  if (f_bitwidth > 8) return 1;
+  int v;
+  if (!strncasecmp("true", mf, sizeof("true"))) {
+    v = 1;
+  } else if (!strncasecmp("false", mf, sizeof("false"))) {
+    v = 0;
+  } else {
+    return 1;
+  }
+  pi_netv_t f_netv;
+  pi_status_t rc;
+  rc = pi_getnetv_u8(p4info_curr, t_id, f_id, (uint8_t)v, &f_netv);
+  assert(rc == PI_STATUS_SUCCESS);
+  rc = pi_match_key_exact_set(mk, &f_netv);
+  assert(rc == PI_STATUS_SUCCESS);
+  return 0;
+}
+
 static int match_key_add_exact_field(pi_p4_id_t t_id, pi_p4_id_t f_id,
                                      size_t f_bitwidth, char *mf,
                                      pi_match_key_t *mk) {
+  if (!match_key_try_add_valid_field(t_id, f_id, f_bitwidth, mf, mk)) return 0;
   char bytes[BYTES_TEMP_SIZE];
   if (param_to_bytes(mf, bytes, f_bitwidth)) return 1;
   pi_netv_t f_netv;
@@ -114,6 +139,7 @@ static int match_key_add_LPM_field(pi_p4_id_t t_id, pi_p4_id_t f_id,
 static int match_key_add_ternary_field(pi_p4_id_t t_id, pi_p4_id_t f_id,
                                        size_t f_bitwidth, char *mf, char *mask,
                                        pi_match_key_t *mk) {
+  if (!match_key_try_add_valid_field(t_id, f_id, f_bitwidth, mf, mk)) return 0;
   char bytes[BYTES_TEMP_SIZE];
   char mask_bytes[BYTES_TEMP_SIZE];
   pi_status_t rc;

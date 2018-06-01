@@ -31,6 +31,9 @@ extern "C" {
 #endif
 
 typedef enum {
+  /* The VALID match type has been deprecated from P4Runtime. However, for
+     backward-compatibility with the bmv2 JSON produced by the legacy compiler
+     (p4c-bm), we keep the VALID match type around in PI for now */
   PI_P4INFO_MATCH_TYPE_VALID = 0,
   PI_P4INFO_MATCH_TYPE_EXACT,
   PI_P4INFO_MATCH_TYPE_LPM,

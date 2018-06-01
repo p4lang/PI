@@ -182,7 +182,7 @@ message TableEntry {
   IdleTimeout time_since_last_hit = 10;
 }
 
-// field_match_type ::= exact | ternary | lpm | range | valid
+// field_match_type ::= exact | ternary | lpm | range
 message FieldMatch {
   uint32 field_id = 1;
 
@@ -205,16 +205,12 @@ message FieldMatch {
     bytes low = 1;
     bytes high = 2;
   }
-  message Valid {
-    bool value = 1;
-  }
 
   oneof field_match_type {
     Exact exact = 2;
     Ternary ternary = 3;
     LPM lpm = 4;
     Range range = 6;
-    Valid valid = 7;
   }
 }
 
