@@ -61,7 +61,35 @@ message WriteRequest {
   uint64 device_id = 1;
   uint64 role_id = 2;
   Uint128 election_id = 3;
+  // The write batch, comprising a list of Update operations. The P4Runtime
+  // server may arbitrarily reorder message within a batch to maximize
+  // performance.
   repeated Update updates = 4;
+  enum Atomicity {
+    // Required. This is the default behavior. The batch is processed in a
+    // non-atomic manner from a dataplane point of view. Each operation within
+    // the batch must be attempted even if one or more encounter errors.
+    // Every dataplane packet is guaranteed to be processed according to
+    // table contents as they are between two individual operations of the
+    // batch, but there could be several packets processed that see each of
+    // these intermediate stages.
+    CONTINUE_ON_ERROR = 0;
+    // Optional. Operations within the batch are committed to dataplane until
+    // an error is encountered. At this point, the operations must be rolled
+    // back such that both software and dataplane state is consistent with the
+    // state before the batch was attempted. The resulting behavior is
+    // all-or-none, except the batch is not atomic from a data plane point of
+    // view. Every dataplane packet is guaranteed to be processed according to
+    // table contents as they are between two individual operations of the
+    // batch, but there could be several packets processed that see each of
+    // these intermediate stages.
+    ROLLBACK_ON_ERROR = 1;
+    // Optional. Every dataplane packet is guaranteed to be processed according
+    // to table contents before the batch began, or after the batch completes.
+    // The batch is therefore treated as a transaction. 
+    DATAPLANE_ATOMIC = 2;
+  }
+  Atomicity atomicity = 5;
 }
 
 message WriteResponse {
