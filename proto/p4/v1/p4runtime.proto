@@ -62,7 +62,7 @@ message WriteRequest {
   uint64 role_id = 2;
   Uint128 election_id = 3;
   // The write batch, comprising a list of Update operations. The P4Runtime
-  // server may arbitrarily reorder message within a batch to maximize
+  // server may arbitrarily reorder messages within a batch to maximize
   // performance.
   repeated Update updates = 4;
   enum Atomicity {
