@@ -85,7 +85,8 @@ message WriteRequest {
     // these intermediate stages.
     ROLLBACK_ON_ERROR = 1;
     // Optional. Every dataplane packet is guaranteed to be processed according
-    // to table contents before the batch began, or after the batch completes.
+    // to table contents before the batch began, or after the batch completed
+    // and the operations were programmed to the hardware.
     // The batch is therefore treated as a transaction. 
     DATAPLANE_ATOMIC = 2;
   }
