@@ -113,14 +113,22 @@ AM_CPPFLAGS = -Icpp_out -Igrpc_out \
 BUILT_SOURCES = $(proto_cpp_files) $(proto_grpc_files)
 
 if HAVE_GRPC_PY_PLUGIN
-p4pydir = $(pythondir)/p4/v1
+p4pydir = $(pythondir)/p4
 nodist_p4py_PYTHON = \
+py_out/p4/__init__.py
+
+p4v1pydir = $(pythondir)/p4/v1
+nodist_p4v1py_PYTHON = \
 py_out/p4/v1/p4data_pb2.py \
 py_out/p4/v1/p4runtime_pb2.py \
 py_out/p4/v1/__init__.py
 
-p4configpydir = $(pythondir)/p4/config/v1
+p4configpydir = $(pythondir)/p4/config
 nodist_p4configpy_PYTHON = \
+py_out/p4/config/__init__.py
+
+p4configv1pydir = $(pythondir)/p4/config/v1
+nodist_p4configv1py_PYTHON = \
 py_out/p4/config/v1/p4info_pb2.py \
 py_out/p4/config/v1/p4types_pb2.py \
 py_out/p4/config/v1/__init__.py
@@ -172,7 +180,9 @@ if HAVE_GRPC_PY_PLUGIN
 # plugin inserts code into the proto-generated files). But maybe I am just using
 # an old version of the Python plugin.
 	$(PROTOC) $^ --python_out $(builddir)/py_out $(PROTOFLAGS) --grpc_out $(builddir)/py_out --plugin=protoc-gen-grpc=$(GRPC_PY_PLUGIN)
-	@touch $(builddir)/py_out/p4/v1/__init__.py $(builddir)/py_out/p4/config/v1/__init__.py $(builddir)/py_out/p4/tmp/__init__.py
+	@touch $(builddir)/py_out/p4/__init__.py $(builddir)/py_out/p4/v1/__init__.py
+	@touch $(builddir)/py_out/p4/config/__init__.py $(builddir)/py_out/p4/config/v1/__init__.py
+	@touch $(builddir)/py_out/p4/tmp/__init__.py
 	@touch $(builddir)/py_out/google/__init__.py $(builddir)/py_out/google/rpc/__init__.py $(builddir)/py_out/gnmi/__init__.py
 endif
 	@mv -f proto_files.tmp $@

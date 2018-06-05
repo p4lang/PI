@@ -30,8 +30,8 @@ import subprocess
 import sys
 
 import grpc
-from p4 import p4runtime_pb2
-from p4.config import p4info_pb2
+from p4.v1 import p4runtime_pb2
+from p4.config.v1 import p4info_pb2
 import google.protobuf.text_format
 
 logging.basicConfig(level=logging.INFO)
