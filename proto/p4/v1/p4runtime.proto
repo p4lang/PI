@@ -242,7 +242,7 @@ message FieldMatch {
     Range range = 6;
     // Architecture-specific match value; it corresponds to the other_match_type
     // in the P4Info MatchField message.
-    google.protobuf.Any other = 7;
+    google.protobuf.Any other = 100;
   }
 }
 
