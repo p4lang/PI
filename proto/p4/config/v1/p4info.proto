@@ -161,7 +161,12 @@ message MatchField {
     TERNARY = 4;
     RANGE = 5;
   }
-  MatchType match_type = 5;
+  oneof match {
+    MatchType match_type = 5;
+    // used for achitecture-specific match types which are not part of the core
+    // P4 language or of the PSA architecture.
+    string other_match_type = 7;
+  }
   // Documentation of the match field
   Documentation doc = 6;
 }
@@ -202,6 +207,9 @@ message Table {
   IdleTimeoutBehavior idle_timeout_behavior = 9;
   // table with static P4 entries, cannot be modified at runtime
   bool is_const_table = 10;
+  // architecture-specific table properties which are not part of the core P4
+  // language or of the PSA architecture.
+  google.protobuf.Any other_properties = 100;
 }
 
 // used to list all possible actions in a Table
