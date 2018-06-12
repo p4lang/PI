@@ -26,7 +26,9 @@ src/common.h \
 src/common.cpp \
 src/logger.h \
 src/logging.cpp \
-src/report_error.h
+src/report_error.h \
+src/pre_mc_mgr.h \
+src/pre_mc_mgr.cpp
 
 libpifeproto_la_LIBADD = \
 $(top_builddir)/../frontends_extra/cpp/libpifecpp.la \

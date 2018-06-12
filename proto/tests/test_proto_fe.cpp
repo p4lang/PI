@@ -87,7 +87,9 @@ using google::protobuf::util::MessageDifferencer;
 
 using ::testing::_;
 using ::testing::AnyNumber;
+using ::testing::Args;
 using ::testing::AtLeast;
+using ::testing::ElementsAre;
 
 // Used to make sure that a google::rpc::Status object has the correct format
 // and contains a single p4v1::Error message with a matching canonical error
@@ -2261,33 +2263,146 @@ TEST_F(TernaryTwoTest, MissingMatchField) {
 }
 
 
-// Placeholder for PRE tests: for now there is no support in DeviceMgr
-class PRETest : public DeviceMgrTest { };
+class PREMulticastTest : public DeviceMgrTest {
+ protected:
+  using GroupEntry = ::p4v1::MulticastGroupEntry;
 
-TEST_F(PRETest, Write) {
+  DeviceMgr::Status create_group(const GroupEntry &group) {
+    return write_group(group, p4v1::Update_Type_INSERT);
+  }
+
+  DeviceMgr::Status modify_group(const GroupEntry &group) {
+    return write_group(group, p4v1::Update_Type_MODIFY);
+  }
+
+  DeviceMgr::Status delete_group(const GroupEntry &group) {
+    return write_group(group, p4v1::Update_Type_DELETE);
+  }
+
+  struct ReplicaMgr {
+    explicit ReplicaMgr(GroupEntry *group)
+        : group(group) { }
+
+    ReplicaMgr &push_back(int32_t port, int32_t rid) {
+      auto r = group->add_replicas();
+      r->set_egress_port(port);
+      r->set_instance(rid);
+      return *this;
+    }
+
+    void pop_back() {
+      group->mutable_replicas()->RemoveLast();
+    }
+
+    GroupEntry *group;
+  };
+
+ private:
+  DeviceMgr::Status write_group(const GroupEntry &group,
+                                p4v1::Update_Type type) {
+    p4v1::WriteRequest request;
+    auto *update = request.add_updates();
+    update->set_type(type);
+    auto *entity = update->mutable_entity();
+    auto *pre_entry = entity->mutable_packet_replication_engine_entry();
+    pre_entry->mutable_multicast_group_entry()->CopyFrom(group);
+    return mgr.write(request);
+  }
+};
+
+TEST_F(PREMulticastTest, Write) {
+  int32_t group_id = 66;
+  GroupEntry group;
+  group.set_multicast_group_id(group_id);
+  int32_t port1 = 1, rid1 = 1, port2 = 2, rid2 = 2;
+  ReplicaMgr replicas(&group);
+  replicas.push_back(port1, rid1).push_back(port2, rid2);
+  EXPECT_CALL(*mock, mc_grp_create(group_id, _));
+  // need a more complicated matcher because of the C array. The ElementsAre
+  // matcher can be used but required 2 arguments (the count + pointer, in this
+  // order)
+  EXPECT_CALL(*mock, mc_node_create(rid1, _, _, _))
+      .With(Args<2, 1>(ElementsAre(port1)));
+  EXPECT_CALL(*mock, mc_node_create(rid2, _, _, _))
+      .With(Args<2, 1>(ElementsAre(port2)));
+  EXPECT_CALL(*mock, mc_grp_attach_node(_, _)).Times(2);
+  {
+    auto status = create_group(group);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+  auto grp_h = mock->get_mc_grp_handle();
+
+  int32_t port3 = 3, rid3 = rid1, port4 = 4, rid4 = 4;
+  replicas.push_back(port3, rid3).push_back(port4, rid4);
+  EXPECT_CALL(*mock, mc_node_modify(_, _, _))
+      .With(Args<2, 1>(ElementsAre(port1, port3)));
+  EXPECT_CALL(*mock, mc_node_create(rid4, _, _, _))
+      .With(Args<2, 1>(ElementsAre(port4)));
+  EXPECT_CALL(*mock, mc_grp_attach_node(grp_h, _));
+  {
+    auto status = modify_group(group);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+  auto node_h = mock->get_mc_node_handle();  // rid4
+
+  replicas.pop_back();
+  EXPECT_CALL(*mock, mc_grp_detach_node(grp_h, node_h));
+  EXPECT_CALL(*mock, mc_node_delete(node_h));
+  {
+    auto status = modify_group(group);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+
+  EXPECT_CALL(*mock, mc_grp_detach_node(grp_h, _)).Times(2);
+  EXPECT_CALL(*mock, mc_node_delete(_)).Times(2);
+  EXPECT_CALL(*mock, mc_grp_delete(grp_h));
+  {
+    auto status = delete_group(group);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+}
+
+TEST_F(PREMulticastTest, Duplicates) {
+  int32_t group_id = 66;
+  GroupEntry group;
+  group.set_multicast_group_id(group_id);
+  int32_t port1 = 1, rid1 = 1, port2 = port1, rid2 = rid1;
+  ReplicaMgr replicas(&group);;
+  replicas.push_back(port1, rid1).push_back(port2, rid2);
+  auto status = create_group(group);
+  EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
+}
+
+TEST_F(PREMulticastTest, Read) {
+  p4v1::ReadRequest request;
+  p4v1::ReadResponse response;
+  auto *entity = request.add_entities();
+  // set oneof to PRE
+  entity->mutable_packet_replication_engine_entry();
+
+  auto status = mgr.read(request, &response);
+  EXPECT_EQ(status.code(), Code::UNIMPLEMENTED);
+}
+
+class PRECloningTest : public DeviceMgrTest { };
+
+TEST_F(PRECloningTest, Write) {
   p4v1::WriteRequest request;
   auto *update = request.add_updates();
   update->set_type(p4v1::Update_Type_MODIFY);
   auto *entity = update->mutable_entity();
   auto *pre_entry = entity->mutable_packet_replication_engine_entry();
-  auto *mg_entry = pre_entry->mutable_multicast_group_entry();
-  mg_entry->set_multicast_group_id(1);
-  auto *replica = mg_entry->add_replicas();
-  replica->set_egress_port(1);
-  replica->set_instance(1);
-
+  pre_entry->mutable_clone_session_entry();
   auto status = mgr.write(request);
   EXPECT_EQ(status, OneExpectedError(Code::UNIMPLEMENTED));
 }
 
-TEST_F(PRETest, Read) {
+TEST_F(PRECloningTest, Read) {
   p4v1::ReadRequest request;
   p4v1::ReadResponse response;
   auto *entity = request.add_entities();
-  // set oneof to PRE
   auto *pre_entry = entity->mutable_packet_replication_engine_entry();
-  (void) pre_entry;
-
+  pre_entry->mutable_clone_session_entry();
   auto status = mgr.read(request, &response);
   EXPECT_EQ(status.code(), Code::UNIMPLEMENTED);
 }

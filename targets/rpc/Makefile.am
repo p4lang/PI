@@ -11,6 +11,7 @@ pi_act_prof_imp.c \
 pi_counter_imp.c \
 pi_meter_imp.c \
 pi_learn_imp.c \
+pi_mc_imp.c \
 notifications.c
 
 libpi_rpc_la_LIBADD = \

@@ -40,6 +40,7 @@ pi_counter.c \
 pi_meter.c \
 pi_learn.c \
 pi_value.c \
+pi_mc.c \
 device_map.c \
 device_map.h
 
