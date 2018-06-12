@@ -378,18 +378,16 @@ message CounterData {
 }
 
 //------------------------------------------------------------------------------
-// Reserved controller-specified port numbers for reference.
-// Wrapping the enum in a message to avoid name collisions in C++, where "enum
-// values are siblings of their type, not children of it"
-message Ports {
-  enum ReservedPorts {
-    // Port number 0 in invalid. Egress port is initialized to this
-    // controller port number at the beginning of ingress and should
-    // be assigned a valid number in the ingress for all unicast packets.
-    P4RUNTIME_PORT_UNKNOWN = 0;
-    P4RUNTIME_PORT_CPU = 0xFFFFFFFD;
-    P4RUNTIME_PORT_RECIRCULATE = 0xFFFFFFFE;
-  }
+// Reserved controller-specified SDN port numbers for reference.
+enum SdnPort {
+  SDN_PORT_UNSPECIFIED = 0;
+  // SDN ports are numbered starting form 1.
+  SDN_PORT_MIN = 1;
+  // The maximum value of an SDN port (physical or logical).
+  SDN_PORT_MAX = 0xFFFFFEFF;
+  // Reserved SDN port numbers (0xFFFFFFF0 - 0xFFFFFFFF)
+  SDN_PORT_RECIRCULATE = 0xFFFFFFFA;
+  SDN_PORT_CPU = 0xFFFFFFFD;
 }
 
 // Only one instance of a Packet Replication Engine (PRE) is expected in the
@@ -435,7 +433,7 @@ message CloneSessionEntry {
   uint32 session_id = 1;
   repeated Replica replicas = 2;
   uint32 class_of_service = 3;
-  uint32 packet_length_bytes = 4;
+  int32 packet_length_bytes = 4;
 }
 
 //------------------------------------------------------------------------------
