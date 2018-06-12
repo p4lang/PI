@@ -26,7 +26,7 @@
 
 #include <grpc++/grpc++.h>
 
-#include "p4/p4runtime.grpc.pb.h"
+#include "p4/v1/p4runtime.grpc.pb.h"
 
 #include <iostream>
 #include <cstring>
@@ -136,9 +136,9 @@ class SimpleRouterMgr {
   void handle_arp_reply(const arp_header_t &arp_header);
   void send_arp_request(uint16_t port, uint32_t dst_addr);
 
-  int add_one_entry(p4::TableEntry *match_action_entry);
+  int add_one_entry(p4::v1::TableEntry *match_action_entry);
 
-  int set_one_default_entry(pi_p4_id_t t_id, p4::Action *action);
+  int set_one_default_entry(pi_p4_id_t t_id, p4::v1::Action *action);
 
   int add_route_(uint32_t prefix, int pLen, uint32_t nhop, uint16_t port,
                  UpdateMode udpate_mode);
@@ -149,7 +149,7 @@ class SimpleRouterMgr {
   int static_config_(UpdateMode update_mode);
 
   int query_counter_(const std::string &counter_name, size_t index,
-                     p4::CounterData *counter_data);
+                     p4::v1::CounterData *counter_data);
 
   int update_config_(const std::string &config_buffer,
                      const std::string *p4info_buffer);
@@ -163,6 +163,6 @@ class SimpleRouterMgr {
   int dev_id;
   pi_p4info_t *p4info{nullptr};
   boost::asio::io_service &io_service;
-  std::unique_ptr<p4::P4Runtime::Stub> pi_stub_;
+  std::unique_ptr<p4::v1::P4Runtime::Stub> pi_stub_;
   std::unique_ptr<StreamChannelSyncClient> packet_io_client;
 };

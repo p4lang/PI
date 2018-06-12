@@ -28,8 +28,8 @@
 #include <mutex>
 
 #include "google/rpc/status.pb.h"
-#include "p4/config/p4info.pb.h"
-#include "p4/p4runtime.pb.h"
+#include "p4/config/v1/p4info.pb.h"
+#include "p4/v1/p4runtime.pb.h"
 
 namespace pi {
 
@@ -49,9 +49,9 @@ class PacketIOMgr {
   explicit PacketIOMgr(device_id_t device_id);
   ~PacketIOMgr();
 
-  void p4_change(const p4::config::P4Info &p4info);
+  void p4_change(const p4::config::v1::P4Info &p4info);
 
-  Status packet_out_send(const p4::PacketOut &packet) const;
+  Status packet_out_send(const p4::v1::PacketOut &packet) const;
 
   void packet_in_register_cb(PacketInCb cb, void *cookie);
 

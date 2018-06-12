@@ -28,7 +28,7 @@
 
 #include "p4info_to_and_from_proto.h"
 
-#include "p4/config/p4info.pb.h"
+#include "p4/config/v1/p4info.pb.h"
 
 namespace {
 
@@ -125,7 +125,7 @@ int main(int argc, char *argv[]) {
       return 1;
     }
   } else if (from_str == "proto") {
-    p4::config::P4Info p4info_proto;
+    p4::config::v1::P4Info p4info_proto;
     std::ifstream is(input_path_str, std::ifstream::binary);
     if (!is) {
       std::cerr << "Error while opening protobuf input file.\n";
