@@ -40,6 +40,7 @@
 #include "common.h"
 #include "p4info_to_and_from_proto.h"  // for p4info_proto_reader
 #include "packet_io_mgr.h"
+#include "pre_mc_mgr.h"
 #include "report_error.h"
 #include "table_info_store.h"
 
@@ -167,6 +168,8 @@ class DeviceMgrImp {
           new ActionProfMgr(device_tgt, act_prof_id, p4info_new));
       action_profs.emplace(act_prof_id, std::move(mgr));
     }
+
+    pre_mc_mgr.reset(new PreMcMgr(device_id));
 
     packet_io.p4_change(p4info_proto_new);
 
@@ -1284,12 +1287,42 @@ class DeviceMgrImp {
     }
     const auto &table_entry = counter_entry.table_entry();
     if (table_entry.table_id() == 0) {
-      RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
-        "Reading ALL direct counters for all tables is not supported yet");
+      RETURN_ERROR_STATUS(
+          Code::UNIMPLEMENTED,
+          "Reading ALL direct counters for all tables is not supported yet");
     }
     if (!check_p4_id(table_entry.table_id(), P4Ids::TABLE))
       return make_invalid_p4_id_status();
     return direct_counter_read_one(table_entry, session, response);
+  }
+
+  Status pre_write(p4v1::Update_Type update,
+                   const p4v1::PacketReplicationEngineEntry &pre_entry,
+                   const SessionTemp &session) {
+    // PI uses a different session for multicast operations, but we may need
+    // this one for cloning support.
+    (void)session;
+    using PreEntry = p4v1::PacketReplicationEngineEntry;
+    if (pre_entry.type_case() != PreEntry::kMulticastGroupEntry) {
+      RETURN_ERROR_STATUS(
+          Code::UNIMPLEMENTED,
+          "The only PRE operations currently supported are for multicast");
+    }
+    const auto& group_entry = pre_entry.multicast_group_entry();
+    switch (update) {
+      case p4v1::Update_Type_UNSPECIFIED:
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
+      case p4v1::Update_Type_INSERT:
+        return pre_mc_mgr->group_create(group_entry);
+      case p4v1::Update_Type_MODIFY:
+        return pre_mc_mgr->group_modify(group_entry);
+      case p4v1::Update_Type_DELETE:
+        return pre_mc_mgr->group_delete(group_entry);
+      default:
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
+    }
+    assert(0);
+    RETURN_ERROR_STATUS(Code::UNKNOWN);  // UNREACHABLE
   }
 
   static void init(size_t max_devices) {
@@ -1409,8 +1442,9 @@ class DeviceMgrImp {
               update.type(), entity.direct_counter_entry(), session);
           break;
         case p4v1::Entity::kPacketReplicationEngineEntry:
-          status = ERROR_STATUS(Code::UNIMPLEMENTED,
-                                "Writing to PRE is not supported yet");
+          status = pre_write(update.type(),
+                             entity.packet_replication_engine_entry(),
+                             session);
           break;
         case p4v1::Entity::kValueSetEntry:  // TODO(antonin)
           status = ERROR_STATUS(Code::UNIMPLEMENTED,
@@ -2119,6 +2153,8 @@ class DeviceMgrImp {
   // ActionProfMgr is not movable because of mutex
   std::unordered_map<pi_p4_id_t, std::unique_ptr<ActionProfMgr> >
   action_profs{};
+
+  std::unique_ptr<PreMcMgr> pre_mc_mgr;
 
   TableInfoStore table_info_store;
 

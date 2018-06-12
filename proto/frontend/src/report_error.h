@@ -90,4 +90,11 @@ static inline ::google::rpc::Status GENERIC_STATUS(::google::rpc::Code code) {
 #define IS_OK(status) (status.code() == ::google::rpc::Code::OK)
 #define IS_ERROR(status) (status.code() != ::google::rpc::Code::OK)
 
+#define RETURN_IF_ERROR(status)                 \
+  do {                                          \
+    auto status_ = status;                      \
+    if (IS_ERROR(status_)) return status_;      \
+  }                                             \
+  while (false)
+
 #endif  // SRC_REPORT_ERROR_H_

@@ -31,6 +31,7 @@
 #include <cstdint>
 
 #include "PI/pi.h"
+#include "PI/pi_mc.h"
 
 namespace pi {
 namespace proto {
@@ -64,6 +65,20 @@ class DummySwitchMock {
                                         pi_indirect_handle_t *h);
 
   pi_indirect_handle_t get_action_prof_handle() const;
+
+  // used to capture handle for MC groups
+  pi_status_t _mc_grp_create(pi_mc_grp_id_t grp_id,
+                             pi_mc_grp_handle_t *grp_handle);
+
+  pi_mc_grp_handle_t get_mc_grp_handle() const;
+
+  // used to capture handle for MC nodes
+  pi_status_t _mc_node_create(pi_mc_rid_t rid,
+                              size_t eg_ports_count,
+                              const pi_mc_port_t *eg_ports,
+                              pi_mc_node_handle_t *node_handle);
+
+  pi_mc_node_handle_t get_mc_node_handle() const;
 
   pi_status_t packetin_inject(const std::string &packet) const;
 
@@ -131,10 +146,26 @@ class DummySwitchMock {
 
   MOCK_METHOD2(packetout_send, pi_status_t(const char *, size_t));
 
+  MOCK_METHOD2(mc_grp_create,
+               pi_status_t(pi_mc_grp_id_t, pi_mc_grp_handle_t *));
+  MOCK_METHOD1(mc_grp_delete, pi_status_t(pi_mc_grp_handle_t));
+  MOCK_METHOD4(mc_node_create,
+               pi_status_t(pi_mc_rid_t, size_t, const pi_mc_port_t *,
+                           pi_mc_node_handle_t *));
+  MOCK_METHOD3(mc_node_modify,
+               pi_status_t(pi_mc_node_handle_t, size_t, const pi_mc_port_t *));
+  MOCK_METHOD1(mc_node_delete, pi_status_t(pi_mc_node_handle_t));
+  MOCK_METHOD2(mc_grp_attach_node,
+               pi_status_t(pi_mc_grp_handle_t, pi_mc_node_handle_t));
+  MOCK_METHOD2(mc_grp_detach_node,
+               pi_status_t(pi_mc_grp_handle_t, pi_mc_node_handle_t));
+
  private:
   std::unique_ptr<DummySwitch> sw;
   pi_indirect_handle_t action_prof_h;
   pi_entry_handle_t table_h;
+  pi_mc_grp_handle_t mc_grp_h;
+  pi_mc_node_handle_t mc_node_h;
 };
 
 // used to map device ids to DummySwitchMock instances; thread safe in case we

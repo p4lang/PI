@@ -36,6 +36,7 @@
 #include "PI/int/pi_int.h"
 #include "PI/int/serialize.h"
 #include "PI/pi.h"
+#include "PI/pi_mc.h"
 #include "PI/target/pi_imp.h"
 
 namespace pi {
@@ -475,6 +476,93 @@ class DummyActionProf {
   size_t group_counter{1 << 24};
 };
 
+class DummyPRE {
+ public:
+  pi_status_t mc_grp_create(pi_mc_grp_id_t grp_id,
+                            pi_mc_grp_handle_t *grp_handle) {
+    pi_mc_grp_handle_t grp_h = static_cast<pi_mc_grp_handle_t>(grp_id);
+    auto p = mc_grps.insert(grp_h);
+    if (!p.second) return PI_STATUS_TARGET_ERROR;
+    *grp_handle = grp_h;
+    return PI_STATUS_SUCCESS;
+  }
+
+  pi_status_t mc_grp_delete(pi_mc_grp_handle_t grp_handle) {
+    auto c = mc_grps.erase(grp_handle);
+    return (c == 0) ? PI_STATUS_TARGET_ERROR : PI_STATUS_SUCCESS;
+  }
+
+  pi_status_t mc_node_create(pi_mc_rid_t rid,
+                             size_t eg_ports_count,
+                             const pi_mc_port_t *eg_ports,
+                             pi_mc_node_handle_t *node_handle) {
+    mc_nodes.emplace(node_counter,
+                     McNode(node_counter, rid, eg_ports_count, eg_ports));
+    *node_handle = node_counter++;
+    return PI_STATUS_SUCCESS;
+  }
+
+  pi_status_t mc_node_modify(pi_mc_node_handle_t node_handle,
+                             size_t eg_ports_count,
+                             const pi_mc_port_t *eg_ports) {
+    auto it = mc_nodes.find(node_handle);
+    if (it == mc_nodes.end()) return PI_STATUS_TARGET_ERROR;
+    it->second.set_ports(eg_ports_count, eg_ports);
+    return PI_STATUS_SUCCESS;
+  }
+
+  pi_status_t mc_node_delete(pi_mc_node_handle_t node_handle) {
+    auto c = mc_nodes.erase(node_handle);
+    return (c == 0) ? PI_STATUS_TARGET_ERROR : PI_STATUS_SUCCESS;
+  }
+
+  pi_status_t mc_grp_attach_node(pi_mc_grp_handle_t grp_handle,
+                                 pi_mc_node_handle_t node_handle) {
+    auto it = mc_nodes.find(node_handle);
+    if (it == mc_nodes.end()) return PI_STATUS_TARGET_ERROR;
+    if (it->second.attached_to.is_initialized()) return PI_STATUS_TARGET_ERROR;
+    it->second.attached_to = grp_handle;
+    return PI_STATUS_SUCCESS;
+  }
+
+  pi_status_t mc_grp_detach_node(pi_mc_grp_handle_t grp_handle,
+                                 pi_mc_node_handle_t node_handle) {
+    (void)grp_handle;
+    auto it = mc_nodes.find(node_handle);
+    if (it == mc_nodes.end()) return PI_STATUS_TARGET_ERROR;
+    if (!it->second.attached_to.is_initialized()) return PI_STATUS_TARGET_ERROR;
+    it->second.attached_to = boost::none;
+    return PI_STATUS_SUCCESS;
+  }
+
+ private:
+  struct McNode {
+    pi_mc_node_handle_t node_handle;
+    pi_mc_rid_t rid;
+    std::vector<pi_mc_port_t> eg_ports;
+    boost::optional<pi_mc_grp_handle_t> attached_to;
+
+    McNode(pi_mc_node_handle_t node_handle,
+           pi_mc_rid_t rid,
+           size_t eg_ports_count,
+           const pi_mc_port_t *eg_ports)
+        : node_handle(node_handle), rid(rid) {
+      set_ports(eg_ports_count, eg_ports);
+    }
+
+    void set_ports(size_t eg_ports_count, const pi_mc_port_t *eg_ports) {
+      if (eg_ports_count == 0)
+        this->eg_ports.clear();
+      else
+        this->eg_ports.assign(eg_ports, eg_ports + eg_ports_count);
+    }
+  };
+
+  std::unordered_map<pi_mc_node_handle_t, McNode> mc_nodes;
+  std::unordered_set<pi_mc_grp_handle_t> mc_grps;
+  size_t node_counter{0};
+};
+
 }  // namespace
 
 class DummySwitch {
@@ -620,6 +708,42 @@ class DummySwitch {
     return pi_packetin_receive(device_id, packet.data(), packet.size());
   }
 
+  pi_status_t mc_grp_create(pi_mc_grp_id_t grp_id,
+                            pi_mc_grp_handle_t *grp_handle) {
+    return pre.mc_grp_create(grp_id, grp_handle);
+  }
+
+  pi_status_t mc_grp_delete(pi_mc_grp_handle_t grp_handle) {
+    return pre.mc_grp_delete(grp_handle);
+  }
+
+  pi_status_t mc_node_create(pi_mc_rid_t rid,
+                             size_t eg_ports_count,
+                             const pi_mc_port_t *eg_ports,
+                             pi_mc_node_handle_t *node_handle) {
+    return pre.mc_node_create(rid, eg_ports_count, eg_ports, node_handle);
+  }
+
+  pi_status_t mc_node_modify(pi_mc_node_handle_t node_handle,
+                             size_t eg_ports_count,
+                             const pi_mc_port_t *eg_ports) {
+    return pre.mc_node_modify(node_handle, eg_ports_count, eg_ports);
+  }
+
+  pi_status_t mc_node_delete(pi_mc_node_handle_t node_handle) {
+    return pre.mc_node_delete(node_handle);
+  }
+
+  pi_status_t mc_grp_attach_node(pi_mc_grp_handle_t grp_handle,
+                                 pi_mc_node_handle_t node_handle) {
+    return pre.mc_grp_attach_node(grp_handle, node_handle);
+  }
+
+  pi_status_t mc_grp_detach_node(pi_mc_grp_handle_t grp_handle,
+                                 pi_mc_node_handle_t node_handle) {
+    return pre.mc_grp_detach_node(grp_handle, node_handle);
+  }
+
   void set_p4info(const pi_p4info_t *p4info) {
     this->p4info = p4info;
   }
@@ -660,6 +784,7 @@ class DummySwitch {
   std::unordered_map<pi_p4_id_t, DummyActionProf> action_profs{};
   std::unordered_map<pi_p4_id_t, DummyMeter> meters{};
   std::unordered_map<pi_p4_id_t, DummyCounter> counters{};
+  DummyPRE pre{};
   device_id_t device_id;
 };
 
@@ -730,6 +855,23 @@ DummySwitchMock::DummySwitchMock(device_id_t device_id)
 
   ON_CALL(*this, packetout_send(_, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::packetout_send));
+
+  ON_CALL(*this, mc_grp_create(_, _))
+      .WillByDefault(Invoke(this, &DummySwitchMock::_mc_grp_create));
+  ON_CALL(*this, mc_grp_delete(_))
+      .WillByDefault(Invoke(sw_, &DummySwitch::mc_grp_delete));
+  ON_CALL(*this, mc_node_create(_, _, _, _))
+      .WillByDefault(Invoke(this, &DummySwitchMock::_mc_node_create));
+  ON_CALL(*this, mc_node_modify(_, _, _))
+      .WillByDefault(Invoke(sw_, &DummySwitch::mc_node_modify));
+  ON_CALL(*this, mc_node_modify(_, _, _))
+      .WillByDefault(Invoke(sw_, &DummySwitch::mc_node_modify));
+  ON_CALL(*this, mc_node_delete(_))
+      .WillByDefault(Invoke(sw_, &DummySwitch::mc_node_delete));
+  ON_CALL(*this, mc_grp_attach_node(_, _))
+      .WillByDefault(Invoke(sw_, &DummySwitch::mc_grp_attach_node));
+  ON_CALL(*this, mc_grp_detach_node(_, _))
+      .WillByDefault(Invoke(sw_, &DummySwitch::mc_grp_detach_node));
 }
 
 DummySwitchMock::~DummySwitchMock() = default;
@@ -770,6 +912,34 @@ DummySwitchMock::_action_prof_group_create(pi_p4_id_t act_prof_id,
 pi_indirect_handle_t
 DummySwitchMock::get_action_prof_handle() const {
   return action_prof_h;
+}
+
+pi_status_t
+DummySwitchMock::_mc_grp_create(pi_mc_grp_id_t grp_id,
+                                pi_mc_grp_handle_t *grp_handle) {
+  auto r = sw->mc_grp_create(grp_id, grp_handle);
+  if (r == PI_STATUS_SUCCESS) mc_grp_h = *grp_handle;
+  return r;
+}
+
+pi_mc_grp_handle_t
+DummySwitchMock::get_mc_grp_handle() const {
+  return mc_grp_h;
+}
+
+pi_status_t
+DummySwitchMock::_mc_node_create(pi_mc_rid_t rid,
+                                 size_t eg_ports_count,
+                                 const pi_mc_port_t *eg_ports,
+                                 pi_mc_node_handle_t *node_handle) {
+  auto r = sw->mc_node_create(rid, eg_ports_count, eg_ports, node_handle);
+  if (r == PI_STATUS_SUCCESS) mc_node_h = *node_handle;
+  return r;
+}
+
+pi_mc_node_handle_t
+DummySwitchMock::get_mc_node_handle() const {
+  return mc_node_h;
 }
 
 pi_status_t
@@ -1050,6 +1220,68 @@ pi_status_t _pi_counter_hw_sync(pi_session_handle_t,
 pi_status_t _pi_packetout_send(pi_dev_id_t dev_id, const char *pkt,
                                size_t size) {
   return DeviceResolver::get_switch(dev_id)->packetout_send(pkt, size);
+}
+
+pi_status_t _pi_mc_session_init(pi_mc_session_handle_t *) {
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_mc_session_cleanup(pi_mc_session_handle_t) {
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_mc_grp_create(pi_mc_session_handle_t,
+                              pi_dev_id_t dev_id,
+                              pi_mc_grp_id_t grp_id,
+                              pi_mc_grp_handle_t *grp_handle) {
+  return DeviceResolver::get_switch(dev_id)->mc_grp_create(grp_id, grp_handle);
+}
+
+pi_status_t _pi_mc_grp_delete(pi_mc_session_handle_t,
+                              pi_dev_id_t dev_id,
+                              pi_mc_grp_handle_t grp_handle) {
+  return DeviceResolver::get_switch(dev_id)->mc_grp_delete(grp_handle);
+}
+
+pi_status_t _pi_mc_node_create(pi_mc_session_handle_t,
+                               pi_dev_id_t dev_id,
+                               pi_mc_rid_t rid,
+                               size_t eg_ports_count,
+                               const pi_mc_port_t *eg_ports,
+                               pi_mc_node_handle_t *node_handle) {
+  return DeviceResolver::get_switch(dev_id)->mc_node_create(
+      rid, eg_ports_count, eg_ports, node_handle);
+}
+
+pi_status_t _pi_mc_node_modify(pi_mc_session_handle_t,
+                               pi_dev_id_t dev_id,
+                               pi_mc_node_handle_t node_handle,
+                               size_t eg_ports_count,
+                               const pi_mc_port_t *eg_ports) {
+  return DeviceResolver::get_switch(dev_id)->mc_node_modify(
+      node_handle, eg_ports_count, eg_ports);
+}
+
+pi_status_t _pi_mc_node_delete(pi_mc_session_handle_t,
+                               pi_dev_id_t dev_id,
+                               pi_mc_node_handle_t node_handle) {
+  return DeviceResolver::get_switch(dev_id)->mc_node_delete(node_handle);
+}
+
+pi_status_t _pi_mc_grp_attach_node(pi_mc_session_handle_t,
+                                   pi_dev_id_t dev_id,
+                                   pi_mc_grp_handle_t grp_handle,
+                                   pi_mc_node_handle_t node_handle) {
+  return DeviceResolver::get_switch(dev_id)->mc_grp_attach_node(
+      grp_handle, node_handle);
+}
+
+pi_status_t _pi_mc_grp_detach_node(pi_mc_session_handle_t,
+                                   pi_dev_id_t dev_id,
+                                   pi_mc_grp_handle_t grp_handle,
+                                   pi_mc_node_handle_t node_handle) {
+  return DeviceResolver::get_switch(dev_id)->mc_grp_detach_node(
+      grp_handle, node_handle);
 }
 
 }
