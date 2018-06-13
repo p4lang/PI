@@ -380,14 +380,16 @@ message CounterData {
 //------------------------------------------------------------------------------
 // Reserved controller-specified SDN port numbers for reference.
 enum SdnPort {
-  SDN_PORT_UNSPECIFIED = 0;
+  SDN_PORT_UNKNOWN = 0;
   // SDN ports are numbered starting form 1.
   SDN_PORT_MIN = 1;
-  // The maximum value of an SDN port (physical or logical).
-  SDN_PORT_MAX = 0xFFFFFEFF;
-  // Reserved SDN port numbers (0xFFFFFFF0 - 0xFFFFFFFF)
-  SDN_PORT_RECIRCULATE = 0xFFFFFFFA;
-  SDN_PORT_CPU = 0xFFFFFFFD;
+  // 0xFFFFFEFF: The maximum value of an SDN port (physical or logical).
+  SDN_PORT_MAX = -257;
+  // Reserved SDN port numbers (0xFFFFFF00 - 0xFFFFFFFF)
+  // 0xFFFFFFFA: Recirculate the packet back to ingress
+  SDN_PORT_RECIRCULATE = -6;
+  // 0xFFFFFFFD: Send to CPU
+  SDN_PORT_CPU = -3;
 }
 
 // Only one instance of a Packet Replication Engine (PRE) is expected in the
