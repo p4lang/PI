@@ -1404,6 +1404,11 @@ class DeviceMgrImp {
 
   // internal version of write, which does not acquire a shared lock
   Status write_(const p4v1::WriteRequest &request) {
+    if (request.atomicity() != p4v1::WriteRequest::CONTINUE_ON_ERROR) {
+      RETURN_ERROR_STATUS(
+          Code::UNIMPLEMENTED,
+          "Support for atomic write modes has not been implemented yet");
+    }
     Status status;
     status.set_code(Code::OK);
     SessionTemp session(true  /* = batch */);
