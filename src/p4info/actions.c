@@ -210,7 +210,10 @@ const char *pi_p4info_action_name_from_id(const pi_p4info_t *p4info,
 size_t pi_p4info_action_num_params(const pi_p4info_t *p4info,
                                    pi_p4_id_t action_id) {
   _action_data_t *action = get_action(p4info, action_id);
-  return action->num_params;
+  if (action == NULL)
+    return (size_t)(-1);
+  else
+    return action->num_params;
 }
 
 const pi_p4_id_t *pi_p4info_action_get_params(const pi_p4info_t *p4info,
@@ -267,13 +270,20 @@ size_t pi_p4info_action_param_offset(const pi_p4info_t *p4info,
                                      pi_p4_id_t action_id,
                                      pi_p4_id_t param_id) {
   _action_data_t *action = get_action(p4info, action_id);
-  return get_param_data_at(action, param_id)->offset;
+  _action_param_data_t *param = get_param_data_at(action, param_id);
+  if (param == NULL)
+    return (size_t)(-1);
+  else
+    return param->offset;
 }
 
 size_t pi_p4info_action_data_size(const pi_p4info_t *p4info,
                                   pi_p4_id_t action_id) {
   _action_data_t *action = get_action(p4info, action_id);
-  return action->action_data_size;
+  if (action == NULL)
+    return (size_t)(-1);
+  else
+    return action->action_data_size;
 }
 
 pi_p4_id_t pi_p4info_action_begin(const pi_p4info_t *p4info) {
