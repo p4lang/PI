@@ -18,18 +18,24 @@ package p4.v1;
 
 message P4Data {
   oneof data {
-    bytes bitstring = 1;  // for bit<W>, int<W>, varbit<W>
-    bool bool = 2;
-    P4StructLike tuple = 3;
-    P4StructLike struct = 4;
-    P4Header header = 5;
-    P4HeaderUnion header_union = 6;
-    P4HeaderStack header_stack = 7;
-    P4HeaderUnionStack header_union_stack = 8;
+    bytes bitstring = 1;  // for bit<W>, int<W>
+    P4Varbit varbit = 2;  // for varbit<W>
+    bool bool = 3;
+    P4StructLike tuple = 4;
+    P4StructLike struct = 5;
+    P4Header header = 6;
+    P4HeaderUnion header_union = 7;
+    P4HeaderStack header_stack = 8;
+    P4HeaderUnionStack header_union_stack = 9;
     // Could be replaced with integer values in future versions.
-    string enum = 9;
-    string error = 10;
+    string enum = 10;
+    string error = 11;
   }
+}
+
+message P4Varbit {
+  bytes bitstring = 1;
+  int32 bitwidth = 2;  // dynamic bitwidth of the field
 }
 
 message P4StructLike {
