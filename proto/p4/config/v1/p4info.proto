@@ -199,9 +199,8 @@ message Table {
   // this enum can be extended in the future with other behaviors, such as
   // "HARD_EVICTION"
   enum IdleTimeoutBehavior {
-    UNSPECIFIED = 0;
-    NO_TIMEOUT = 1;
-    NOTIFY_CONTROL = 2;
+    NO_TIMEOUT = 0;
+    NOTIFY_CONTROL = 1;
   }
   // is idle timeout supported for this table?
   IdleTimeoutBehavior idle_timeout_behavior = 9;
