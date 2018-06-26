@@ -27,9 +27,9 @@ message P4Data {
     P4HeaderUnion header_union = 7;
     P4HeaderStack header_stack = 8;
     P4HeaderUnionStack header_union_stack = 9;
-    // Could be replaced with integer values in future versions.
-    string enum = 10;
+    string enum = 10;  // can be used for all enums, serializable or not
     string error = 11;
+    bytes enum_value = 12;  // serializable enums only
   }
 }
 
