@@ -32,13 +32,15 @@ package p4.config.v1;
  * | error              | error     | error        | allowed         |
  * | match_kind         | error     | error        | error           |
  * | bool               | error     | error        | allowed         |
- * | enum               | error     | error        | allowed         |
+ * | enum               | allowed*  | error        | allowed         |
  * | header             | error     | allowed      | allowed         |
  * | header stack       | error     | error        | allowed         |
  * | header_union       | error     | error        | allowed         |
  * | struct             | error     | error        | allowed         |
  * | tuple              | error     | error        | allowed         |
  * |--------------------|-----------|--------------|-----------------|
+ *
+ * *if serializable
  */
 
 // These P4 types (struct, header_type, header_union and enum) are guaranteed to
@@ -54,6 +56,7 @@ message P4TypeInfo {
   map<string, P4HeaderUnionTypeSpec> header_unions = 3;
   map<string, P4EnumTypeSpec> enums = 4;
   P4ErrorTypeSpec error = 5;
+  map<string, P4SerializableEnumTypeSpec> serializable_enums = 6;
 }
 
 // Describes a P4_16 type.
@@ -69,6 +72,7 @@ message P4DataTypeSpec {
     P4HeaderUnionStackTypeSpec header_union_stack = 8;
     P4NamedType enum = 9;
     P4ErrorType error = 10;
+    P4NamedType serializable_enum = 11;
   }
 }
 
@@ -148,11 +152,8 @@ message P4HeaderUnionStackTypeSpec {
   int32 size = 2;
 }
 
-// As of today, P4_16 enum members have no integer value assigned to
-// them. Future versions of this protobuf interface may use integer values for
-// enums in P4Data, which means the repeated field would be replaced by a map in
-// this message (mapping from member names to integer values). This is dependent
-// on future versions of the P4 language.
+// For "safe" enums with no underlying representation and no member integer
+// values.
 message P4EnumTypeSpec {
   message Member {
     string name = 1;
@@ -160,6 +161,20 @@ message P4EnumTypeSpec {
   }
   repeated Member members = 1;
   repeated string annotations = 2;
+}
+
+// For serializable (or "unsafe") enums, which have an underlying type. Note
+// that as per the P4_16 specification, the underlying representation can only
+// be a bit<W> type.
+message P4SerializableEnumTypeSpec {
+  message Member {
+    string name = 1;
+    bytes value = 2;
+    repeated string annotations = 3;
+  }
+  P4BitTypeSpec underlying_type = 1;
+  repeated Member members = 2;
+  repeated string annotations = 3;
 }
 
 // Similar to an enum, but there is always one and only one instance per P4
