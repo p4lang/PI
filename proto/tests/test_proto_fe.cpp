@@ -384,6 +384,8 @@ class MatchKeyInput {
   int priority;
 };
 
+#define PRIORITY 77
+
 class MatchTableTest
     : public DeviceMgrTest,
       public WithParamInterface<std::tuple<const char *, MatchKeyInput> > {
@@ -478,10 +480,10 @@ MatchTableTest::default_mf() const {
       return MatchKeyInput::make_lpm(std::string(4, '\x00'), 0);
     case MatchKeyInput::Type::TERNARY:
       return MatchKeyInput::make_ternary(
-          std::string(4, '\x00'), std::string(4, '\x00'), 0);
+          std::string(4, '\x00'), std::string(4, '\x00'), PRIORITY);
     case MatchKeyInput::Type::RANGE:
       return MatchKeyInput::make_range(
-          std::string(4, '\x00'), std::string(4, '\xff'), 0);
+          std::string(4, '\x00'), std::string(4, '\xff'), PRIORITY);
   }
   return boost::none;  // unreachable
 }
@@ -653,7 +655,8 @@ TEST_P(MatchTableTest, InvalidActionId) {
   // build valid table entry, then modify the action id
   std::string adata(6, '\x00');
   auto mk_input = std::get<1>(GetParam());
-  auto entry = generic_make(t_id, mk_input.get_proto(mf_id), adata);
+  auto entry = generic_make(
+      t_id, mk_input.get_proto(mf_id), adata, mk_input.get_priority());
   auto check_bad_status_write = [this, &entry](
       pi_p4_id_t bad_id, const char *msg = invalid_p4_id_error_str) {
     auto action = entry.mutable_action()->mutable_action();
@@ -687,11 +690,12 @@ TEST_P(MatchTableTest, MissingMatchField) {
     auto mk_matcher = CorrectMatchKey(t_id, mk_input.get().get_match_key());
     auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
     EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
-    auto entry = generic_make(t_id, boost::none, adata);
+    auto entry = generic_make(
+        t_id, boost::none, adata, mk_input->get_priority());
     auto status = add_one(&entry);
     ASSERT_EQ(status.code(), Code::OK);
   } else {  // omitting field not supported for match type
-    auto entry = generic_make(t_id, boost::none, adata);
+    auto entry = generic_make(t_id, boost::none, adata, 0);
     auto status = add_one(&entry);
     EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
   }
@@ -741,7 +745,6 @@ TEST_P(MatchTableTest, WriteBatchWithError) {
 // for LPM, we need to ensure that mk ends with the appropriate number of
 // trailing zeros
 #define LPM_MK std::string("\xaa\xf0\x00\x00", 4)
-#define PRIORITY 77
 
 INSTANTIATE_TEST_CASE_P(
     MatchTableTypes, MatchTableTest,
@@ -1915,9 +1918,11 @@ class TernaryOneTest : public DeviceMgrTest {
 
   p4v1::TableEntry make_entry(const boost::optional<std::string> &mf_v,
                               const boost::optional<std::string> &mask_v,
-                              const std::string &param_v) {
+                              const std::string &param_v,
+                              int priority = PRIORITY) {
     p4v1::TableEntry table_entry;
     table_entry.set_table_id(t_id);
+    table_entry.set_priority(priority);
     // not supported by older versions of boost
     // if (mf_v != boost::none) {
     if (mf_v.is_initialized()) {
@@ -1990,6 +1995,14 @@ TEST_F(TernaryOneTest, DontCare) {
   }
 }
 
+TEST_F(TernaryOneTest, ZeroPriority) {
+  std::string adata(6, '\x00');
+  auto entry = make_entry(boost::none, boost::none, adata, 0);
+  EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _)).Times(0);
+  auto status = add_entry(&entry);
+  EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
+}
+
 class RangeOneTest : public DeviceMgrTest {
  protected:
   RangeOneTest(const std::string &t_name, const std::string &f_name)
@@ -2006,6 +2019,7 @@ class RangeOneTest : public DeviceMgrTest {
                             const std::string &param_v) {
     p4v1::TableEntry table_entry;
     table_entry.set_table_id(t_id);
+    table_entry.set_priority(PRIORITY);
     // not supported by older versions of boost
     // if (low_v != boost::none) {
     if (low_v.is_initialized()) {
@@ -2203,6 +2217,7 @@ class TernaryTwoTest : public DeviceMgrTest {
                               const std::string &param_v) {
     p4v1::TableEntry table_entry;
     table_entry.set_table_id(t_id);
+    table_entry.set_priority(PRIORITY);
     if (!mf1_v.empty()) {
       auto mf = table_entry.add_match();
       mf->set_field_id(pi_p4info_table_match_field_id_from_name(

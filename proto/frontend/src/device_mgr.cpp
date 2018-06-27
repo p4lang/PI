@@ -1739,6 +1739,9 @@ class DeviceMgrImp {
     if (!need_priority && entry.priority() > 0) {
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                           "Non-zero priority for non-ternary match");
+    } else if (need_priority && entry.priority() == 0) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "Zero priority for ternary match");
     } else if (need_priority) {
       match_key->set_priority(entry.priority());
     }
