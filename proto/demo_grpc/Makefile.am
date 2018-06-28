@@ -8,6 +8,8 @@ AM_CPPFLAGS = \
 -I$(top_builddir)/grpc_out \
 -I$(top_srcdir)/p4info
 
+AM_CXXFLAGS = -Wall -Werror -Wunused-command-line-argument
+
 noinst_PROGRAMS = controller pi_server_dummy test_perf
 
 pi_server_dummy_SOURCES = pi_server_main.cpp
