@@ -15,10 +15,9 @@ libpiconvertproto_la_SOURCES = \
 p4info_to_and_from_proto.cpp \
 p4info_to_and_from_proto.h 
 
-#nobase_include_HEADERS = PI/proto/p4info/p4info_to_and_from_proto.h
+nobase_include_HEADERS = PI/proto/p4info_to_and_from_proto.h
 
 libpiconvertproto_la_LIBADD = \
-$(top_builddir)/libpiprotogrpc.la \
 $(top_builddir)/libpiprotobuf.la \
 $(PROTOBUF_LIBS) $(GRPC_LIBS)
 
@@ -30,4 +29,3 @@ $(builddir)/libpiconvertproto.la \
 $(top_builddir)/libpiprotobuf.la \
 $(top_builddir)/../src/libpip4info.la \
 $(PROTOBUF_LIBS)
-

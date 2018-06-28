@@ -20,13 +20,13 @@
 
 #include <PI/p4info.h>
 
+#include <PI/proto/p4info_to_and_from_proto.h>
+
 #include <unistd.h>
 
 #include <fstream>  // std::ifstream, std::ofstream
 #include <iostream>
 #include <string>
-
-#include "p4info_to_and_from_proto.h"
 
 #include "p4/config/v1/p4info.pb.h"
 
