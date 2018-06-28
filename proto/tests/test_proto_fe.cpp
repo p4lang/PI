@@ -44,7 +44,7 @@
 #include "PI/pi.h"
 #include "PI/proto/util.h"
 
-#include "p4info_to_and_from_proto.h"
+#include "PI/proto/p4info_to_and_from_proto.h"
 
 #include "google/rpc/code.pb.h"
 

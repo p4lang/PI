@@ -27,7 +27,7 @@
 
 #include "p4info_int.h"
 
-#include "p4info_to_and_from_proto.h"
+#include "PI/proto/p4info_to_and_from_proto.h"
 
 #include "p4/config/v1/p4info.pb.h"
 
