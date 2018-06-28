@@ -24,6 +24,7 @@
 #include <PI/frontends/cpp/tables.h>
 #include <PI/frontends/proto/device_mgr.h>
 #include <PI/pi.h>
+#include "PI/proto/p4info_to_and_from_proto.h"  // for p4info_proto_reader
 #include <PI/proto/util.h>
 
 #include <algorithm>  // for std::all_of
@@ -38,7 +39,6 @@
 #include "action_helpers.h"
 #include "action_prof_mgr.h"
 #include "common.h"
-#include "PI/proto/p4info_to_and_from_proto.h"  // for p4info_proto_reader
 #include "packet_io_mgr.h"
 #include "pre_mc_mgr.h"
 #include "report_error.h"

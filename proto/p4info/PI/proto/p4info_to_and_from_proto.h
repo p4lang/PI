@@ -18,8 +18,8 @@
  *
  */
 
-#ifndef PROTO_P4INFO_P4INFO_TO_AND_FROM_PROTO_H_
-#define PROTO_P4INFO_P4INFO_TO_AND_FROM_PROTO_H_
+#ifndef PROTO_P4INFO_PI_PROTO_P4INFO_TO_AND_FROM_PROTO_H_
+#define PROTO_P4INFO_PI_PROTO_P4INFO_TO_AND_FROM_PROTO_H_
 
 #include "p4/config/v1/p4info.pb.h"
 
@@ -39,4 +39,4 @@ bool p4info_proto_reader(const p4::config::v1::P4Info &p4info_proto,
 
 }  // namespace pi
 
-#endif  // PROTO_P4INFO_P4INFO_TO_AND_FROM_PROTO_H_
+#endif  // PROTO_P4INFO_PI_PROTO_P4INFO_TO_AND_FROM_PROTO_H_
