@@ -19,7 +19,7 @@ nobase_include_HEADERS = PI/proto/p4info_to_and_from_proto.h
 
 libpiconvertproto_la_LIBADD = \
 $(top_builddir)/libpiprotobuf.la \
-$(PROTOBUF_LIBS) $(GRPC_LIBS)
+$(PROTOBUF_LIBS)
 
 pi_convert_p4info_SOURCES = \
 convert_p4info.cpp
