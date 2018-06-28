@@ -12,8 +12,7 @@ bin_PROGRAMS = pi_convert_p4info
 lib_LTLIBRARIES = libpiconvertproto.la
 
 libpiconvertproto_la_SOURCES = \
-p4info_to_and_from_proto.cpp \
-p4info_to_and_from_proto.h 
+p4info_to_and_from_proto.cpp
 
 nobase_include_HEADERS = PI/proto/p4info_to_and_from_proto.h
 
