@@ -20,14 +20,14 @@
 
 #include <PI/p4info.h>
 
-#include <PI/proto/p4info_to_and_from_proto.h>
-
 #include <exception>
 #include <iostream>
 #include <string>
 #include <unordered_map>
 
 #include "p4info_int.h"
+
+#include "PI/proto/p4info_to_and_from_proto.h"
 
 #include "p4/config/v1/p4info.pb.h"
 

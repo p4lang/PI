@@ -31,7 +31,7 @@
 #include <future>
 #include <limits>
 
-#include "p4info_to_and_from_proto.h"  // for p4info_serialize_to_proto
+#include "PI/proto/p4info_to_and_from_proto.h"  // for p4info_serialize_to_proto
 
 #include "google/rpc/code.pb.h"
 

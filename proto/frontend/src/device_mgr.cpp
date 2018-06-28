@@ -38,7 +38,7 @@
 #include "action_helpers.h"
 #include "action_prof_mgr.h"
 #include "common.h"
-#include "p4info_to_and_from_proto.h"  // for p4info_proto_reader
+#include "PI/proto/p4info_to_and_from_proto.h"  // for p4info_proto_reader
 #include "packet_io_mgr.h"
 #include "pre_mc_mgr.h"
 #include "report_error.h"
