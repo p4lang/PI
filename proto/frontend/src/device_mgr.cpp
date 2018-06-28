@@ -24,7 +24,6 @@
 #include <PI/frontends/cpp/tables.h>
 #include <PI/frontends/proto/device_mgr.h>
 #include <PI/pi.h>
-#include "PI/proto/p4info_to_and_from_proto.h"  // for p4info_proto_reader
 #include <PI/proto/util.h>
 
 #include <algorithm>  // for std::all_of
@@ -45,6 +44,7 @@
 #include "table_info_store.h"
 
 #include "p4/tmp/p4config.pb.h"
+#include "PI/proto/p4info_to_and_from_proto.h"  // for p4info_proto_reader
 
 namespace p4v1 = ::p4::v1;
 namespace p4configv1 = ::p4::config::v1;

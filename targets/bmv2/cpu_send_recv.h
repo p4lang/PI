@@ -20,6 +20,8 @@
 
 #include <PI/pi.h>
 
+#include <sys/select.h>
+
 #include <mutex>
 #include <string>
 #include <thread>
