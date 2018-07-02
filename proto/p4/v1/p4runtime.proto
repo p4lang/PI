@@ -378,6 +378,20 @@ message CounterData {
 }
 
 //------------------------------------------------------------------------------
+// Reserved controller-specified SDN port numbers for reference.
+enum SdnPort {
+  SDN_PORT_UNKNOWN = 0;
+  // SDN ports are numbered starting form 1.
+  SDN_PORT_MIN = 1;
+  // 0xFFFFFEFF: The maximum value of an SDN port (physical or logical).
+  SDN_PORT_MAX = -257;
+  // Reserved SDN port numbers (0xFFFFFF00 - 0xFFFFFFFF)
+  // 0xFFFFFFFA: Recirculate the packet back to ingress
+  SDN_PORT_RECIRCULATE = -6;
+  // 0xFFFFFFFD: Send to CPU
+  SDN_PORT_CPU = -3;
+}
+
 // Only one instance of a Packet Replication Engine (PRE) is expected in the
 // P4 pipeline. Hence, no instance id is needed to access the PRE.
 message PacketReplicationEngineEntry {
@@ -389,8 +403,8 @@ message PacketReplicationEngineEntry {
 
 // Used for replicas created for cloning and multicasting actions.
 message Replica {
-  uint64 egress_port = 1;
-  uint64 instance = 2;
+  uint32 egress_port = 1;
+  uint32 instance = 2;
 }
 
 // The (egress_port, instance) pair must be unique for each replica in a given
@@ -400,7 +414,7 @@ message Replica {
 // each replica's egress input metadata will be set to the respective values
 // programmed in the multicast group entry.
 message MulticastGroupEntry {
-  uint64 multicast_group_id = 1;
+  uint32 multicast_group_id = 1;
   repeated Replica replicas = 2;
 }
 
@@ -418,10 +432,10 @@ message MulticastGroupEntry {
 // packet_length_bytes field is 0, no truncation on the clone(s) will be
 // performed.
 message CloneSessionEntry {
-  uint64 session_id = 1;
+  uint32 session_id = 1;
   repeated Replica replicas = 2;
-  uint64 class_of_service = 3;
-  uint64 packet_length_bytes = 4;
+  uint32 class_of_service = 3;
+  int32 packet_length_bytes = 4;
 }
 
 //------------------------------------------------------------------------------
