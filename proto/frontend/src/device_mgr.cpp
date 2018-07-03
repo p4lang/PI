@@ -114,6 +114,7 @@ class P4ErrorReporter {
         }
         auto error_any = status.add_details();
         error_any->PackFrom(p.second);
+        status.set_message(p.second.message());
       }
     }
     return status;
@@ -1523,7 +1524,7 @@ class DeviceMgrImp {
     if (pLen == 0) {
       RETURN_ERROR_STATUS(
           Code::INVALID_ARGUMENT,
-          "Invalid reprsentation of 'don't care' LPM match, "
+          "Invalid representation of 'don't care' LPM match, "
           "omit match field instead of using a prefix length of 0");
     }
     // makes sure that value ends with zeros
