@@ -288,7 +288,9 @@ class DeviceState {
       to->set_high(from.high());
       to->set_low(from.low());
     };
-    convert_u128(connection->election_id(), arbitration->mutable_election_id());
+    auto master_connection = get_master();
+    convert_u128(master_connection->election_id(),
+                 arbitration->mutable_election_id());
     auto status = arbitration->mutable_status();
     if (is_master) {
       status->set_code(::google::rpc::Code::OK);
