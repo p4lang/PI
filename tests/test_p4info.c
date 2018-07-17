@@ -478,6 +478,24 @@ TEST(P4Info, Generic) {
   }
 }
 
+TEST(P4Info, ActProfsStress) {
+  const size_t num_act_profs = 100;
+  const size_t num_tables = 100;
+
+  pi_p4info_act_prof_init(p4info, num_act_profs);
+
+  char ap_name[16];
+  for (size_t i = 0; i < num_act_profs; i++) {
+    pi_p4_id_t ap_id = pi_make_act_prof_id(i);
+    snprintf(ap_name, sizeof(ap_name), "act_prof%zu", i);
+    pi_p4info_act_prof_add(p4info, ap_id, ap_name, false, 1024);
+    for (size_t j = 0; j < num_tables; j++) {
+      pi_p4_id_t t_id = pi_make_table_id(j);
+      pi_p4info_act_prof_add_table(p4info, ap_id, t_id);
+    }
+  }
+}
+
 TEST_GROUP_RUNNER(P4Info) {
   RUN_TEST_CASE(P4Info, Actions);
   RUN_TEST_CASE(P4Info, ActionsInvalidId);
@@ -488,6 +506,7 @@ TEST_GROUP_RUNNER(P4Info) {
   RUN_TEST_CASE(P4Info, TablesIterator);
   RUN_TEST_CASE(P4Info, Serialize);
   RUN_TEST_CASE(P4Info, Generic);
+  RUN_TEST_CASE(P4Info, ActProfsStress);
 }
 
 void test_p4info() { RUN_TEST_GROUP(P4Info); }

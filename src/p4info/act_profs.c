@@ -21,6 +21,7 @@
 #include "PI/int/pi_int.h"
 #include "PI/p4info/tables.h"
 #include "act_profs_int.h"
+#include "fast_id_vector.h"
 #include "p4info/p4info_struct.h"
 
 #include <cJSON/cJSON.h>
@@ -29,15 +30,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MAX_TABLES 8
-
 typedef struct _act_prof_data_s {
   p4info_common_t common;
   char *name;
   pi_p4_id_t act_prof_id;
   size_t num_tables;
-  // TODO(antonin): remove restriction on amount of table references?
-  pi_p4_id_t table_ids[MAX_TABLES];
+  id_vector_t table_ids;
   bool with_selector;
   size_t max_size;
 } _act_prof_data_t;
@@ -46,6 +44,10 @@ static _act_prof_data_t *get_act_prof(const pi_p4info_t *p4info,
                                       pi_p4_id_t act_prof_id) {
   assert(PI_GET_TYPE_ID(act_prof_id) == PI_ACT_PROF_ID);
   return p4info_get_at(p4info, act_prof_id);
+}
+
+static pi_p4_id_t *get_table_ids(_act_prof_data_t *act_prof) {
+  return ID_VECTOR_GET(act_prof->table_ids);
 }
 
 static const char *retrieve_name(const void *data) {
@@ -57,6 +59,7 @@ static void free_act_prof_data(void *data) {
   _act_prof_data_t *act_prof = (_act_prof_data_t *)data;
   if (!act_prof->name) return;
   free(act_prof->name);
+  ID_VECTOR_DESTROY(act_prof->table_ids);
   p4info_common_destroy(&act_prof->common);
 }
 
@@ -71,8 +74,9 @@ void pi_p4info_act_prof_serialize(cJSON *root, const pi_p4info_t *p4info) {
     cJSON_AddNumberToObject(aObject, "id", act_prof->act_prof_id);
 
     cJSON *tablesArray = cJSON_CreateArray();
+    pi_p4_id_t *table_ids = get_table_ids(act_prof);
     for (size_t j = 0; j < act_prof->num_tables; j++) {
-      cJSON *table = cJSON_CreateNumber(act_prof->table_ids[j]);
+      cJSON *table = cJSON_CreateNumber(table_ids[j]);
       cJSON_AddItemToArray(tablesArray, table);
     }
     cJSON_AddItemToObject(aObject, "tables", tablesArray);
@@ -108,8 +112,7 @@ void pi_p4info_act_prof_add(pi_p4info_t *p4info, pi_p4_id_t act_prof_id,
 void pi_p4info_act_prof_add_table(pi_p4info_t *p4info, pi_p4_id_t act_prof_id,
                                   pi_p4_id_t table_id) {
   _act_prof_data_t *act_prof = get_act_prof(p4info, act_prof_id);
-  assert(act_prof->num_tables < MAX_TABLES);
-  act_prof->table_ids[act_prof->num_tables] = table_id;
+  ID_VECTOR_PUSH_BACK(act_prof->table_ids, table_id);
   act_prof->num_tables++;
 }
 
@@ -135,7 +138,7 @@ const pi_p4_id_t *pi_p4info_act_prof_get_tables(const pi_p4info_t *p4info,
                                                 size_t *num_tables) {
   _act_prof_data_t *act_prof = get_act_prof(p4info, act_prof_id);
   *num_tables = act_prof->num_tables;
-  return act_prof->table_ids;
+  return get_table_ids(act_prof);
 }
 
 const pi_p4_id_t *pi_p4info_act_prof_get_actions(const pi_p4info_t *p4info,
@@ -146,7 +149,7 @@ const pi_p4_id_t *pi_p4info_act_prof_get_actions(const pi_p4info_t *p4info,
   // actions are stored in tables, if no tables has been referenced for this
   // action profile, then we cannot list the actions
   if (act_prof->num_tables == 0) return NULL;
-  pi_p4_id_t one_t_id = act_prof->table_ids[0];
+  pi_p4_id_t one_t_id = get_table_ids(act_prof)[0];
   return pi_p4info_table_get_actions(p4info, one_t_id, num_actions);
 }
 
@@ -155,7 +158,7 @@ bool pi_p4info_act_prof_is_action_of(const pi_p4info_t *p4info,
                                      pi_p4_id_t action_id) {
   _act_prof_data_t *act_prof = get_act_prof(p4info, act_prof_id);
   if (act_prof->num_tables == 0) return false;
-  pi_p4_id_t one_t_id = act_prof->table_ids[0];
+  pi_p4_id_t one_t_id = get_table_ids(act_prof)[0];
   // we assume all tables sharing the action profile have the same actions
   return pi_p4info_table_is_action_of(p4info, one_t_id, action_id);
 }

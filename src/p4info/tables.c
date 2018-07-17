@@ -20,6 +20,7 @@
 
 #include "PI/p4info/tables.h"
 #include "PI/int/pi_int.h"
+#include "fast_id_vector.h"
 #include "p4info/p4info_struct.h"
 #include "tables_int.h"
 
@@ -31,7 +32,6 @@
 
 #define INLINE_MATCH_FIELDS 8
 #define INLINE_ACTIONS 8
-#define INLINE_DIRECT_RES 4
 
 typedef struct {
   pi_p4info_match_field_info_t info;
@@ -65,10 +65,7 @@ typedef struct _table_data_s {
   // PI_INVALID_ID if default
   pi_p4_id_t implementation;
   size_t num_direct_resources;
-  union {
-    pi_p4_id_t direct[INLINE_DIRECT_RES];
-    pi_p4_id_t *indirect;
-  } direct_resources;
+  id_vector_t direct_resources;
   size_t max_size;
   size_t match_key_size;
   bool is_const;  // immutable table with program-provided entries
@@ -98,9 +95,7 @@ static pi_p4_id_t *get_action_ids(_table_data_t *table) {
 }
 
 static pi_p4_id_t *get_direct_resources(_table_data_t *table) {
-  return (table->num_direct_resources <= INLINE_DIRECT_RES)
-             ? table->direct_resources.direct
-             : table->direct_resources.indirect;
+  return ID_VECTOR_GET(table->direct_resources);
 }
 
 static const char *retrieve_name(const void *data) {
@@ -146,6 +141,7 @@ static void free_table_data(void *data) {
     assert(table->action_ids.indirect);
     free(table->action_ids.indirect);
   }
+  ID_VECTOR_DESTROY(table->direct_resources);
   p4info_common_destroy(&table->common);
 }
 
@@ -301,7 +297,7 @@ void pi_p4info_table_add_direct_resource(pi_p4info_t *p4info,
                                          pi_p4_id_t table_id,
                                          pi_p4_id_t direct_res_id) {
   _table_data_t *table = get_table(p4info, table_id);
-  get_direct_resources(table)[table->num_direct_resources] = direct_res_id;
+  ID_VECTOR_PUSH_BACK(table->direct_resources, direct_res_id);
   table->num_direct_resources++;
 }
 
