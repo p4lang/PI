@@ -11,3 +11,6 @@
 [submodule "proto/openconfig/public"]
 	path = proto/openconfig/public
 	url = https://github.com/openconfig/public.git
+[submodule "proto/p4runtime"]
+	path = proto/p4runtime
+	url = https://github.com/p4lang/p4runtime.git
