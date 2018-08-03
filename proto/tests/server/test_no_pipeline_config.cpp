@@ -22,7 +22,7 @@
 
 #include <gtest/gtest.h>
 
-#include <p4/v1/p4runtime.grpc.pb.h>
+#include "p4/v1/p4runtime.grpc.pb.h"
 
 #include "utils.h"
 
