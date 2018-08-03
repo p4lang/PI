@@ -18,8 +18,13 @@
  *
  */
 
+// TODO(antonin): define mutex wrapper class in separate file?
+#ifdef USE_ABSL
+#include "absl/synchronization/mutex.h"
+#else
 // shared mutex not available in C++11
 #include <boost/thread/shared_mutex.hpp>
+#endif
 
 #include <PI/frontends/cpp/tables.h>
 #include <PI/frontends/proto/device_mgr.h>
@@ -70,6 +75,52 @@ using common::make_invalid_p4_id_status;
 // have our own error namespace (in addition to ::google::rpc::Code) anyway.
 
 namespace {
+
+#ifdef USE_ABSL
+
+// The absl versions delete the default move constructor and default move
+// assignment operator, so I define my own versions here.
+class SCOPED_LOCKABLE ReaderMutexLock {
+ public:
+  explicit ReaderMutexLock(absl::Mutex *mu) SHARED_LOCK_FUNCTION(mu)
+      :  mu_(mu) {
+    mu->ReaderLock();
+  }
+
+  ReaderMutexLock(const ReaderMutexLock&) = delete;
+  ReaderMutexLock(ReaderMutexLock&&) = default;
+  ReaderMutexLock& operator=(const ReaderMutexLock&) = delete;
+  ReaderMutexLock& operator=(ReaderMutexLock&&) = default;
+
+  ~ReaderMutexLock() UNLOCK_FUNCTION() {
+    this->mu_->ReaderUnlock();
+  }
+
+ private:
+  absl::Mutex *const mu_;
+};
+
+class SCOPED_LOCKABLE WriterMutexLock {
+ public:
+  explicit WriterMutexLock(absl::Mutex *mu) EXCLUSIVE_LOCK_FUNCTION(mu)
+      : mu_(mu) {
+    mu->WriterLock();
+  }
+
+  WriterMutexLock(const WriterMutexLock&) = delete;
+  WriterMutexLock(WriterMutexLock&&) = default;
+  WriterMutexLock& operator=(const WriterMutexLock&) = delete;
+  WriterMutexLock& operator=(WriterMutexLock&&) = default;
+
+  ~WriterMutexLock() UNLOCK_FUNCTION() {
+    this->mu_->WriterUnlock();
+  }
+
+ private:
+  absl::Mutex *const mu_;
+};
+
+#endif
 
 // wraps the p4info pointer provided by the PI library into a unique_ptr
 auto p4info_deleter = [](pi_p4info_t *p4info) {
@@ -2142,12 +2193,23 @@ class DeviceMgrImp {
     return read_(request, response);
   }
 
+#ifdef USE_ABSL
+  using SharedMutex = absl::Mutex;
+  using SharedLock = ReaderMutexLock;
+  using UniqueLock = WriterMutexLock;
+
+  #define _ACQUIRE_LOCK
+
+  SharedLock shared_lock() const { return SharedLock(&shared_mutex); }
+  UniqueLock unique_lock() const { return UniqueLock(&shared_mutex); }
+#else
   using SharedMutex = boost::shared_mutex;
   using SharedLock = boost::shared_lock<SharedMutex>;
   using UniqueLock = boost::unique_lock<SharedMutex>;
 
   SharedLock shared_lock() const { return SharedLock(shared_mutex); }
   UniqueLock unique_lock() const { return UniqueLock(shared_mutex); }
+#endif
 
   device_id_t device_id;
   // for now, we assume all possible pipes of device are programmed in the same

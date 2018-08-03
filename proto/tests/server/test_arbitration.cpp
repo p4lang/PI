@@ -23,14 +23,15 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <google/rpc/code.pb.h>
-#include <p4/v1/p4runtime.grpc.pb.h>
-
 #include <string>
 #include <vector>
 
+#include "p4/v1/p4runtime.grpc.pb.h"
+
 #include "pi_server_testing.h"
 #include "uint128.h"
+
+#include "google/rpc/code.pb.h"
 
 #include "mock_switch.h"
 #include "utils.h"

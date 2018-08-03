@@ -92,6 +92,31 @@ make check
 [sudo] make install
 ```
 
+## Bazel support
+
+We include **tentative** support for the [Bazel](https://bazel.build/) build
+system. This should enable other Bazel projects to easily import this
+repository. For the great majority of users who wish to build and install PI, we
+recommend using the autotools-based build system.
+
+To build the P4Runtime PI frontend and run the tests:
+```
+bazel build //proto/frontend:pifeproto
+bazel test //proto/tests:pi_proto_tests
+```
+
+To use PI in another Bazel project, do the following in your `WORKSPACE` file:
+1. Import this project, for example using `git_repository`.
+2. Import dependencies:
+```
+load("@com_github_p4lang_PI//bazel:deps.bzl", "PI_deps")
+PI_deps()
+load("@com_github_p4lang_p4runtime//bazel:deps.bzl", "p4runtime_deps")
+p4runtime_deps()
+load("@com_github_p4lang_p4runtime//bazel:rules.bzl", "p4runtime_proto_repositories")
+p4runtime_proto_repositories()
+```
+
 ## PI CLI
 
 For now the PI CLI supports an experimental version of `table_add` and

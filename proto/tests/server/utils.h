@@ -49,8 +49,6 @@ class TestServer {
   int server_port;
 };
 
-constexpr char TestServer::bind_any_addr[];
-
 }  // namespace testing
 }  // namespace proto
 }  // namespace pi
