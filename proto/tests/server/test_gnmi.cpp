@@ -24,8 +24,6 @@
 
 #include <gtest/gtest.h>
 
-#include <gnmi/gnmi.grpc.pb.h>
-
 #include <chrono>
 #include <condition_variable>
 #include <deque>
@@ -38,6 +36,8 @@
 #include <thread>
 #include <unordered_map>
 #include <vector>
+
+#include "gnmi/gnmi.grpc.pb.h"
 
 #include "gnmi.h"
 

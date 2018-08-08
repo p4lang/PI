@@ -81,7 +81,8 @@ test_proto_fe_packet_io_LDADD = $(proto_fe_libs)
 test_proto_fe_set_pipeline_config_LDADD = $(proto_fe_libs)
 
 test_server_common_source = $(proto_fe_common_source) \
-server/utils.h
+server/utils.h \
+server/utils.cpp
 test_server_libs = \
 $(top_builddir)/server/libpigrpcserver.la \
 $(mock_switch_libs) \

@@ -64,3 +64,6 @@ py-compile
 doxygen-out
 
 core
+
+# Bazel build directories
+bazel-*

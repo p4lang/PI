@@ -18,29 +18,14 @@
  *
  */
 
-#ifndef PI_PROTO_UTIL_H_
-#define PI_PROTO_UTIL_H_
-
-#include <cstdint>
-
-#include "p4/config/v1/p4info.pb.h"
+#include "utils.h"
 
 namespace pi {
-
 namespace proto {
+namespace testing {
 
-namespace util {
+constexpr char TestServer::bind_any_addr[];
 
-using p4_id_t = uint32_t;
-
-constexpr p4_id_t invalid_id() { return 0; }
-
-p4::config::v1::P4Ids::Prefix resource_type_from_id(p4_id_t p4_id);
-
-}  // namespace util
-
+}  // namespace testing
 }  // namespace proto
-
 }  // namespace pi
-
-#endif  // PI_PROTO_UTIL_H_

@@ -20,8 +20,6 @@
 
 #include <PI/frontends/proto/device_mgr.h>
 
-#include <PI/proto/pi_server.h>
-
 #include <grpc++/grpc++.h>
 // #include <grpc++/support/error_details.h>
 
@@ -38,6 +36,8 @@
 #include "p4/v1/p4runtime.grpc.pb.h"
 #include "pi_server_testing.h"
 #include "uint128.h"
+
+#include "PI/proto/pi_server.h"
 
 using grpc::Server;
 using grpc::ServerBuilder;

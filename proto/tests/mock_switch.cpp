@@ -1044,6 +1044,13 @@ pi_status_t _pi_table_default_action_done(pi_session_handle_t,
   return PI_STATUS_SUCCESS;
 }
 
+pi_status_t _pi_table_entry_delete(pi_session_handle_t,
+                                   pi_dev_id_t,
+                                   pi_p4_id_t,
+                                   pi_entry_handle_t) {
+  return PI_STATUS_NOT_IMPLEMENTED_BY_TARGET;
+}
+
 pi_status_t _pi_table_entry_delete_wkey(pi_session_handle_t,
                                         pi_dev_id_t dev_id, pi_p4_id_t table_id,
                                         const pi_match_key_t *match_key) {
@@ -1057,6 +1064,13 @@ pi_status_t _pi_table_entry_modify_wkey(pi_session_handle_t,
                                         const pi_table_entry_t *table_entry) {
   return DeviceResolver::get_switch(dev_id)->table_entry_modify_wkey(
       table_id, match_key, table_entry);
+}
+
+pi_status_t _pi_table_entry_modify(pi_session_handle_t,
+                                   pi_dev_id_t, pi_p4_id_t,
+                                   pi_entry_handle_t,
+                                   const pi_table_entry_t *) {
+  return PI_STATUS_NOT_IMPLEMENTED_BY_TARGET;
 }
 
 pi_status_t _pi_table_entries_fetch(pi_session_handle_t,
@@ -1144,9 +1158,9 @@ pi_status_t _pi_act_prof_entries_fetch_done(pi_session_handle_t,
   return PI_STATUS_SUCCESS;
 }
 
-pi_status_t pi_meter_read(pi_session_handle_t,
-                          pi_dev_tgt_t dev_tgt, pi_p4_id_t meter_id,
-                          size_t index, pi_meter_spec_t *meter_spec) {
+pi_status_t _pi_meter_read(pi_session_handle_t,
+                           pi_dev_tgt_t dev_tgt, pi_p4_id_t meter_id,
+                           size_t index, pi_meter_spec_t *meter_spec) {
   return DeviceResolver::get_switch(dev_tgt.dev_id)->meter_read(
       meter_id, index, meter_spec);
 }
@@ -1158,10 +1172,10 @@ pi_status_t _pi_meter_set(pi_session_handle_t,
       meter_id, index, meter_spec);
 }
 
-pi_status_t pi_meter_read_direct(pi_session_handle_t,
-                                 pi_dev_tgt_t dev_tgt, pi_p4_id_t meter_id,
-                                 pi_entry_handle_t entry_handle,
-                                 pi_meter_spec_t *meter_spec) {
+pi_status_t _pi_meter_read_direct(pi_session_handle_t,
+                                  pi_dev_tgt_t dev_tgt, pi_p4_id_t meter_id,
+                                  pi_entry_handle_t entry_handle,
+                                  pi_meter_spec_t *meter_spec) {
   return DeviceResolver::get_switch(dev_tgt.dev_id)->meter_read_direct(
       meter_id, entry_handle, meter_spec);
 }
@@ -1282,6 +1296,16 @@ pi_status_t _pi_mc_grp_detach_node(pi_mc_session_handle_t,
                                    pi_mc_node_handle_t node_handle) {
   return DeviceResolver::get_switch(dev_id)->mc_grp_detach_node(
       grp_handle, node_handle);
+}
+
+pi_status_t _pi_learn_msg_ack(pi_session_handle_t,
+                              pi_dev_id_t, pi_p4_id_t,
+                              pi_learn_msg_id_t) {
+  return PI_STATUS_NOT_IMPLEMENTED_BY_TARGET;
+}
+
+pi_status_t _pi_learn_msg_done(pi_learn_msg_t *) {
+  return PI_STATUS_NOT_IMPLEMENTED_BY_TARGET;
 }
 
 }
