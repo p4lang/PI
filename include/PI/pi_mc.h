@@ -33,7 +33,7 @@ typedef uint32_t pi_mc_session_handle_t;
 typedef uint32_t pi_mc_grp_id_t;
 typedef uint32_t pi_mc_grp_handle_t;
 typedef uint32_t pi_mc_node_handle_t;
-typedef int32_t pi_mc_port_t;
+typedef pi_port_t pi_mc_port_t;
 typedef int32_t pi_mc_rid_t;
 
 //! Init a client session for multicast.

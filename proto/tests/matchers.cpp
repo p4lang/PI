@@ -28,6 +28,7 @@
 
 #include "PI/int/pi_int.h"
 #include "PI/pi.h"
+#include "PI/pi_clone.h"
 
 #include "matchers.h"
 
@@ -302,6 +303,59 @@ TableEntryMatcher_Indirect::DescribeTo(std::ostream *os) const {
 void
 TableEntryMatcher_Indirect::DescribeNegationTo(std::ostream *os) const {
   *os << "is not correct indirect table entry";
+}
+
+CloneSessionConfigMatcher::CloneSessionConfigMatcher(
+    const p4::v1::CloneSessionEntry &session_entry)
+    : session_entry(session_entry) { }
+
+bool
+CloneSessionConfigMatcher::MatchAndExplain(
+    const pi_clone_session_config_t *session_config,
+    MatchResultListener *listener) const {
+  if (!session_config) {
+    *listener << "Config is NULL";
+    return false;
+  }
+  if (session_config->direction != PI_CLONE_DIRECTION_BOTH) {
+    *listener << "Invalid direction (expected " << PI_CLONE_DIRECTION_BOTH
+              << " but got " << session_config->direction << ")";
+    return false;
+  }
+  if (session_config->eg_port_valid) {
+    *listener << "eg_port_valid should be false";
+    return false;
+  }
+  if (!session_config->mc_grp_id_valid) {
+    *listener << "mc_grp_id_valid should be true";
+    return false;
+  }
+  if (session_config->copy_to_cpu) {
+    *listener << "copy_to_cpu should be false";
+    return false;
+  }
+  if (session_config->max_packet_length !=
+      session_entry.packet_length_bytes()) {
+    if (session_config->max_packet_length != 0xffff ||
+        session_entry.packet_length_bytes() < 0xffff) {
+      *listener << "Invalid max_packet_length (expected "
+                << session_entry.packet_length_bytes() << " but got "
+                << session_config->max_packet_length << ")";
+      return false;
+    }
+  }
+  // TODO(antonin): COS?
+  return true;
+}
+
+void
+CloneSessionConfigMatcher::DescribeTo(std::ostream *os) const {
+  *os << "is correct clone session config";
+}
+
+void
+CloneSessionConfigMatcher::DescribeNegationTo(std::ostream *os) const {
+  *os << "is not correct clone session config";
 }
 
 }  // namespace testing

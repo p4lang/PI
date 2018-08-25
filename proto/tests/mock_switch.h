@@ -31,6 +31,7 @@
 #include <cstdint>
 
 #include "PI/pi.h"
+#include "PI/pi_clone.h"
 #include "PI/pi_mc.h"
 
 namespace pi {
@@ -159,6 +160,11 @@ class DummySwitchMock {
                pi_status_t(pi_mc_grp_handle_t, pi_mc_node_handle_t));
   MOCK_METHOD2(mc_grp_detach_node,
                pi_status_t(pi_mc_grp_handle_t, pi_mc_node_handle_t));
+
+  MOCK_METHOD2(clone_session_set,
+               pi_status_t(pi_clone_session_id_t,
+                           const pi_clone_session_config_t *));
+  MOCK_METHOD1(clone_session_reset, pi_status_t(pi_clone_session_id_t));
 
  private:
   std::unique_ptr<DummySwitch> sw;

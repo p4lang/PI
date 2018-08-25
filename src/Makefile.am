@@ -43,6 +43,7 @@ pi_meter.c \
 pi_learn.c \
 pi_value.c \
 pi_mc.c \
+pi_clone.c \
 device_map.c \
 device_map.h
 

@@ -50,12 +50,23 @@ class PreMcMgr {
   using GroupId = uint32_t;
   using RId = uint32_t;
 
+  enum class GroupOwner {
+    CLIENT,
+    CLONE_MGR,
+  };
+
   explicit PreMcMgr(pi_dev_id_t device_id)
       : device_id(device_id) { }
 
-  Status group_create(const GroupEntry &group_entry);
+  Status group_create(const GroupEntry &group_entry,
+                      GroupOwner = GroupOwner::CLIENT);
   Status group_modify(const GroupEntry &group_entry);
   Status group_delete(const GroupEntry &group_entry);
+
+  // user-defined multicast group ids must be in the range
+  // [0,first_reserved_group[; ideally this should be configurable based on the
+  // target.
+  static constexpr GroupId first_reserved_group_id() { return 1 << 15; }
 
  private:
   using Mutex = std::mutex;
@@ -69,6 +80,7 @@ class PreMcMgr {
   struct Group {
     pi_mc_grp_handle_t group_h;
     std::unordered_map<RId, Node> nodes{};
+    GroupOwner owner;
   };
 
   static Status make_new_group(const GroupEntry &group_entry, Group *group);

@@ -30,6 +30,7 @@
 #include "p4/v1/p4runtime.pb.h"
 
 #include "PI/pi.h"
+#include "PI/pi_clone.h"
 
 namespace pi {
 namespace proto {
@@ -196,6 +197,28 @@ class TableEntryMatcher_Indirect
 inline Matcher<const pi_table_entry_t *> CorrectTableEntryIndirect(
     pi_indirect_handle_t h) {
   return MakeMatcher(new TableEntryMatcher_Indirect(h));
+}
+
+class CloneSessionConfigMatcher
+    : public MatcherInterface<const pi_clone_session_config_t *> {
+ public:
+  explicit CloneSessionConfigMatcher(
+      const p4::v1::CloneSessionEntry &session_entry);
+
+  bool MatchAndExplain(const pi_clone_session_config_t *session_config,
+                       MatchResultListener *listener) const override;
+
+  void DescribeTo(std::ostream *os) const override;
+
+  void DescribeNegationTo(std::ostream *os) const override;
+
+ private:
+  p4::v1::CloneSessionEntry session_entry;
+};
+
+inline Matcher<const pi_clone_session_config_t *> CorrectCloneSessionConfig(
+    const p4::v1::CloneSessionEntry &session_entry) {
+  return MakeMatcher(new CloneSessionConfigMatcher(session_entry));
 }
 
 }  // namespace testing
