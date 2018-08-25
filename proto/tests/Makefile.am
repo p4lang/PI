@@ -55,14 +55,6 @@ test_proto_fe_packet_io.cpp
 test_proto_fe_set_pipeline_config_SOURCES =$(proto_fe_common_source) \
 test_proto_fe_set_pipeline_config.cpp
 
-# this is an awful hack and a big time saver :)
-# thanks to this, I do not need to implement all of the _pi_* functions, only
-# the one I actually need for the tests. To me this is acceptable as I only use
-# this for unit tests
-test_proto_fe_LDFLAGS = $(LD_IGNORE_UNRESOLVED_SYMBOLS)
-test_proto_fe_packet_io_LDFLAGS = $(LD_IGNORE_UNRESOLVED_SYMBOLS)
-test_proto_fe_set_pipeline_config_LDFLAGS = $(LD_IGNORE_UNRESOLVED_SYMBOLS)
-
 mock_switch_libs = \
 $(top_builddir)/p4info/libpiconvertproto.la \
 $(top_builddir)/frontend/libpifeproto.la \
@@ -92,22 +84,18 @@ $(PROTOBUF_LIBS) $(GRPC_LIBS)
 
 test_server_no_pipeline_config_SOURCES = $(test_server_common_source) \
 server/test_no_pipeline_config.cpp
-test_server_no_pipeline_config_LDFLAGS = $(LD_IGNORE_UNRESOLVED_SYMBOLS)
 test_server_no_pipeline_config_LDADD = $(test_server_libs)
 
 test_server_gnmi_SOURCES = $(test_server_common_source) \
 server/test_gnmi.cpp
-test_server_gnmi_LDFLAGS = $(LD_IGNORE_UNRESOLVED_SYMBOLS)
 test_server_gnmi_LDADD = $(test_server_libs)
 
 test_server_arbitration_SOURCES = $(test_server_common_source) \
 server/test_arbitration.cpp
-test_server_arbitration_LDFLAGS = $(LD_IGNORE_UNRESOLVED_SYMBOLS)
 test_server_arbitration_LDADD = $(test_server_libs)
 
 test_pi_server_SOURCES = $(test_server_common_source) \
 server/test_pi_server.cpp
-test_pi_server_LDFLAGS = $(LD_IGNORE_UNRESOLVED_SYMBOLS)
 test_pi_server_LDADD = $(test_server_libs)
 
 check_PROGRAMS = \

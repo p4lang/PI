@@ -211,7 +211,7 @@ class DeviceMgrTest : public ::testing::Test {
   DeviceMgr::Status add_entry(p4v1::TableEntry *entry) {
     p4v1::WriteRequest request;
     auto update = request.add_updates();
-    update->set_type(p4v1::Update_Type_INSERT);
+    update->set_type(p4v1::Update::INSERT);
     auto entity = update->mutable_entity();
     entity->set_allocated_table_entry(entry);
     auto status = mgr.write(request);
@@ -403,7 +403,7 @@ class MatchTableTest
                                 int priority = 0,
                                 uint64_t controller_metadata = 0);
 
-  DeviceMgr::Status generic_write(p4v1::Update_Type type,
+  DeviceMgr::Status generic_write(p4v1::Update::Type type,
                                   p4v1::TableEntry *entry);
   DeviceMgr::Status add_one(p4v1::TableEntry *entry);
   DeviceMgr::Status remove(p4v1::TableEntry *entry);
@@ -417,7 +417,8 @@ class MatchTableTest
 };
 
 DeviceMgr::Status
-MatchTableTest::generic_write(p4v1::Update_Type type, p4v1::TableEntry *entry) {
+MatchTableTest::generic_write(p4v1::Update::Type type,
+                              p4v1::TableEntry *entry) {
   p4v1::WriteRequest request;
   auto update = request.add_updates();
   update->set_type(type);
@@ -430,17 +431,17 @@ MatchTableTest::generic_write(p4v1::Update_Type type, p4v1::TableEntry *entry) {
 
 DeviceMgr::Status
 MatchTableTest::add_one(p4v1::TableEntry *entry) {
-  return generic_write(p4v1::Update_Type_INSERT, entry);
+  return generic_write(p4v1::Update::INSERT, entry);
 }
 
 DeviceMgr::Status
 MatchTableTest::remove(p4v1::TableEntry *entry) {
-  return generic_write(p4v1::Update_Type_DELETE, entry);
+  return generic_write(p4v1::Update::DELETE, entry);
 }
 
 DeviceMgr::Status
 MatchTableTest::modify(p4v1::TableEntry *entry) {
-  return generic_write(p4v1::Update_Type_MODIFY, entry);
+  return generic_write(p4v1::Update::MODIFY, entry);
 }
 
 p4v1::TableEntry
@@ -717,19 +718,19 @@ TEST_P(MatchTableTest, WriteBatchWithError) {
   p4v1::WriteRequest request;
   {
     auto update = request.add_updates();
-    update->set_type(p4v1::Update_Type_DELETE);
+    update->set_type(p4v1::Update::DELETE);
     update->mutable_entity()->mutable_table_entry()->CopyFrom(entry);
     expected_errors.push_back(Code::NOT_FOUND);
   }
   {
     auto update = request.add_updates();
-    update->set_type(p4v1::Update_Type_INSERT);
+    update->set_type(p4v1::Update::INSERT);
     update->mutable_entity()->mutable_table_entry()->CopyFrom(entry);
     expected_errors.push_back(Code::OK);
   }
   {
     auto update = request.add_updates();
-    update->set_type(p4v1::Update_Type_INSERT);
+    update->set_type(p4v1::Update::INSERT);
     update->mutable_entity()->mutable_table_entry()->CopyFrom(entry);
     expected_errors.push_back(Code::ALREADY_EXISTS);
   }
@@ -784,7 +785,7 @@ class ActionProfTest : public DeviceMgrTest {
     return member;
   }
 
-  DeviceMgr::Status write_member(p4v1::Update_Type type,
+  DeviceMgr::Status write_member(p4v1::Update::Type type,
                                  p4v1::ActionProfileMember *member) {
     p4v1::WriteRequest request;
     auto update = request.add_updates();
@@ -797,15 +798,15 @@ class ActionProfTest : public DeviceMgrTest {
   }
 
   DeviceMgr::Status create_member(p4v1::ActionProfileMember *member) {
-    return write_member(p4v1::Update_Type_INSERT, member);
+    return write_member(p4v1::Update::INSERT, member);
   }
 
   DeviceMgr::Status modify_member(p4v1::ActionProfileMember *member) {
-    return write_member(p4v1::Update_Type_MODIFY, member);
+    return write_member(p4v1::Update::MODIFY, member);
   }
 
   DeviceMgr::Status delete_member(p4v1::ActionProfileMember *member) {
-    return write_member(p4v1::Update_Type_DELETE, member);
+    return write_member(p4v1::Update::DELETE, member);
   }
 
   void add_member_to_group(p4v1::ActionProfileGroup *group,
@@ -833,7 +834,7 @@ class ActionProfTest : public DeviceMgrTest {
     return make_group(group_id, members.begin(), members.end());
   }
 
-  DeviceMgr::Status write_group(p4v1::Update_Type type,
+  DeviceMgr::Status write_group(p4v1::Update::Type type,
                                 p4v1::ActionProfileGroup *group) {
     p4v1::WriteRequest request;
     auto update = request.add_updates();
@@ -846,15 +847,15 @@ class ActionProfTest : public DeviceMgrTest {
   }
 
   DeviceMgr::Status create_group(p4v1::ActionProfileGroup *group) {
-    return write_group(p4v1::Update_Type_INSERT, group);
+    return write_group(p4v1::Update::INSERT, group);
   }
 
   DeviceMgr::Status modify_group(p4v1::ActionProfileGroup *group) {
-    return write_group(p4v1::Update_Type_MODIFY, group);
+    return write_group(p4v1::Update::MODIFY, group);
   }
 
   DeviceMgr::Status delete_group(p4v1::ActionProfileGroup *group) {
-    return write_group(p4v1::Update_Type_DELETE, group);
+    return write_group(p4v1::Update::DELETE, group);
   }
 };
 
@@ -1136,7 +1137,7 @@ class MatchTableIndirectTest : public DeviceMgrTest {
     auto member = make_member(member_id, param_v);
     p4v1::WriteRequest request;
     auto update = request.add_updates();
-    update->set_type(p4v1::Update_Type_INSERT);
+    update->set_type(p4v1::Update::INSERT);
     auto entity = update->mutable_entity();
     entity->set_allocated_action_profile_member(&member);
     auto status = mgr.write(request);
@@ -1168,7 +1169,7 @@ class MatchTableIndirectTest : public DeviceMgrTest {
     auto group = make_group(group_id, members_begin, members_end);
     p4v1::WriteRequest request;
     auto update = request.add_updates();
-    update->set_type(p4v1::Update_Type_INSERT);
+    update->set_type(p4v1::Update::INSERT);
     auto entity = update->mutable_entity();
     entity->set_allocated_action_profile_group(&group);
     auto status = mgr.write(request);
@@ -1193,7 +1194,7 @@ class MatchTableIndirectTest : public DeviceMgrTest {
   DeviceMgr::Status add_indirect_entry(p4v1::TableEntry *entry) {
     p4v1::WriteRequest request;
     auto update = request.add_updates();
-    update->set_type(p4v1::Update_Type_INSERT);
+    update->set_type(p4v1::Update::INSERT);
     auto entity = update->mutable_entity();
     entity->set_allocated_table_entry(entry);
     auto status = mgr.write(request);
@@ -1334,7 +1335,7 @@ class DirectMeterTest : public ExactOneTest {
   DeviceMgr::Status set_meter(p4v1::DirectMeterEntry *direct_meter_entry) {
     p4v1::WriteRequest request;
     auto update = request.add_updates();
-    update->set_type(p4v1::Update_Type_MODIFY);
+    update->set_type(p4v1::Update::MODIFY);
     auto entity = update->mutable_entity();
     entity->set_allocated_direct_meter_entry(direct_meter_entry);
     auto status = mgr.write(request);
@@ -1491,7 +1492,7 @@ class IndirectMeterTest : public DeviceMgrTest  {
   DeviceMgr::Status write_meter(p4v1::MeterEntry *meter_entry) {
     p4v1::WriteRequest request;
     auto update = request.add_updates();
-    update->set_type(p4v1::Update_Type_MODIFY);
+    update->set_type(p4v1::Update::MODIFY);
     auto entity = update->mutable_entity();
     entity->set_allocated_meter_entry(meter_entry);
     auto status = mgr.write(request);
@@ -1567,7 +1568,7 @@ class DirectCounterTest : public ExactOneTest {
       p4v1::DirectCounterEntry *direct_counter_entry) {
     p4v1::WriteRequest request;
     auto update = request.add_updates();
-    update->set_type(p4v1::Update_Type_MODIFY);
+    update->set_type(p4v1::Update::MODIFY);
     auto entity = update->mutable_entity();
     entity->set_allocated_direct_counter_entry(direct_counter_entry);
     auto status = mgr.write(request);
@@ -1738,7 +1739,7 @@ class IndirectCounterTest : public DeviceMgrTest  {
   DeviceMgr::Status write_counter(p4v1::CounterEntry *counter_entry) {
     p4v1::WriteRequest request;
     auto update = request.add_updates();
-    update->set_type(p4v1::Update_Type_MODIFY);
+    update->set_type(p4v1::Update::MODIFY);
     auto entity = update->mutable_entity();
     entity->set_allocated_counter_entry(counter_entry);
     auto status = mgr.write(request);
@@ -2278,50 +2279,68 @@ TEST_F(TernaryTwoTest, MissingMatchField) {
 }
 
 
-class PREMulticastTest : public DeviceMgrTest {
+template <typename Entry,
+          Entry *(::p4v1::PacketReplicationEngineEntry::*Accessor)()>
+class PRETestBase : public DeviceMgrTest {
  protected:
-  using GroupEntry = ::p4v1::MulticastGroupEntry;
-
-  DeviceMgr::Status create_group(const GroupEntry &group) {
-    return write_group(group, p4v1::Update_Type_INSERT);
+  DeviceMgr::Status create_entry(const Entry &entry) {
+    return write_entry(entry, p4v1::Update::INSERT);
   }
 
-  DeviceMgr::Status modify_group(const GroupEntry &group) {
-    return write_group(group, p4v1::Update_Type_MODIFY);
+  DeviceMgr::Status modify_entry(const Entry &entry) {
+    return write_entry(entry, p4v1::Update::MODIFY);
   }
 
-  DeviceMgr::Status delete_group(const GroupEntry &group) {
-    return write_group(group, p4v1::Update_Type_DELETE);
+  DeviceMgr::Status delete_entry(const Entry &entry) {
+    return write_entry(entry, p4v1::Update::DELETE);
   }
 
   struct ReplicaMgr {
-    explicit ReplicaMgr(GroupEntry *group)
-        : group(group) { }
+    explicit ReplicaMgr(Entry *entry)
+        : entry(entry) { }
 
     ReplicaMgr &push_back(int32_t port, int32_t rid) {
-      auto r = group->add_replicas();
+      auto r = entry->add_replicas();
       r->set_egress_port(port);
       r->set_instance(rid);
       return *this;
     }
 
     void pop_back() {
-      group->mutable_replicas()->RemoveLast();
+      entry->mutable_replicas()->RemoveLast();
     }
 
-    GroupEntry *group;
+    Entry *entry;
   };
 
  private:
-  DeviceMgr::Status write_group(const GroupEntry &group,
-                                p4v1::Update_Type type) {
+  DeviceMgr::Status write_entry(const Entry &entry, p4v1::Update::Type type) {
     p4v1::WriteRequest request;
     auto *update = request.add_updates();
     update->set_type(type);
     auto *entity = update->mutable_entity();
     auto *pre_entry = entity->mutable_packet_replication_engine_entry();
-    pre_entry->mutable_multicast_group_entry()->CopyFrom(group);
+    (pre_entry->*Accessor)()->CopyFrom(entry);
     return mgr.write(request);
+  }
+};
+
+class PREMulticastTest : public PRETestBase<
+  ::p4v1::MulticastGroupEntry,
+  &::p4v1::PacketReplicationEngineEntry::mutable_multicast_group_entry> {
+ protected:
+  using GroupEntry = ::p4v1::MulticastGroupEntry;
+
+  DeviceMgr::Status create_group(const GroupEntry &group) {
+    return create_entry(group);
+  }
+
+  DeviceMgr::Status modify_group(const GroupEntry &group) {
+    return modify_entry(group);
+  }
+
+  DeviceMgr::Status delete_group(const GroupEntry &group) {
+    return delete_entry(group);
   }
 };
 
@@ -2399,17 +2418,60 @@ TEST_F(PREMulticastTest, Read) {
   EXPECT_EQ(status.code(), Code::UNIMPLEMENTED);
 }
 
-class PRECloningTest : public DeviceMgrTest { };
+class PRECloningTest : public PRETestBase<
+  ::p4v1::CloneSessionEntry,
+  &::p4v1::PacketReplicationEngineEntry::mutable_clone_session_entry> {
+ protected:
+  using SessionEntry = ::p4v1::CloneSessionEntry;
+
+  DeviceMgr::Status create_session(const SessionEntry &session) {
+    return create_entry(session);
+  }
+
+  DeviceMgr::Status modify_session(const SessionEntry &session) {
+    return modify_entry(session);
+  }
+
+  DeviceMgr::Status delete_session(const SessionEntry &session) {
+    return delete_entry(session);
+  }
+};
 
 TEST_F(PRECloningTest, Write) {
-  p4v1::WriteRequest request;
-  auto *update = request.add_updates();
-  update->set_type(p4v1::Update_Type_MODIFY);
-  auto *entity = update->mutable_entity();
-  auto *pre_entry = entity->mutable_packet_replication_engine_entry();
-  pre_entry->mutable_clone_session_entry();
-  auto status = mgr.write(request);
-  EXPECT_EQ(status, OneExpectedError(Code::UNIMPLEMENTED));
+  int32_t session_id = 66;
+  SessionEntry session;
+  session.set_session_id(session_id);
+  int32_t port1 = 1, port2 = 2, rid = 1;
+  ReplicaMgr replicas(&session);
+  replicas.push_back(port1, rid).push_back(port2, rid);
+  EXPECT_CALL(*mock, mc_grp_create(_, _));
+  EXPECT_CALL(*mock, mc_node_create(rid, _, _, _))
+      .With(Args<2, 1>(ElementsAre(port1, port2)));
+  EXPECT_CALL(*mock, mc_grp_attach_node(_, _));
+  EXPECT_CALL(
+      *mock, clone_session_set(session_id, CorrectCloneSessionConfig(session)));
+  {
+    auto status = create_session(session);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+  auto grp_h = mock->get_mc_grp_handle();
+
+  replicas.pop_back();
+  EXPECT_CALL(*mock, mc_node_modify(_, _, _))
+      .With(Args<2, 1>(ElementsAre(port1)));
+  {
+    auto status = modify_session(session);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+
+  EXPECT_CALL(*mock, mc_grp_detach_node(grp_h, _));
+  EXPECT_CALL(*mock, mc_node_delete(_));
+  EXPECT_CALL(*mock, mc_grp_delete(grp_h));
+  EXPECT_CALL(*mock, clone_session_reset(session_id));
+  {
+    auto status = delete_session(session);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
 }
 
 TEST_F(PRECloningTest, Read) {
@@ -2508,7 +2570,7 @@ class PVSTest : public DeviceMgrTest { };
 TEST_F(PVSTest, Write) {
   p4v1::WriteRequest request;
   auto *update = request.add_updates();
-  update->set_type(p4v1::Update_Type_MODIFY);
+  update->set_type(p4v1::Update::MODIFY);
   auto *entity = update->mutable_entity();
   auto *pvs_entry = entity->mutable_value_set_entry();
   (void) pvs_entry;
@@ -2533,7 +2595,7 @@ class RegisterTest : public DeviceMgrTest { };
 TEST_F(RegisterTest, Write) {
   p4v1::WriteRequest request;
   auto *update = request.add_updates();
-  update->set_type(p4v1::Update_Type_MODIFY);
+  update->set_type(p4v1::Update::MODIFY);
   auto *entity = update->mutable_entity();
   auto *register_entry = entity->mutable_register_entry();
   (void) register_entry;
@@ -2557,7 +2619,7 @@ class DigestTest : public DeviceMgrTest { };
 TEST_F(DigestTest, Write) {
   p4v1::WriteRequest request;
   auto *update = request.add_updates();
-  update->set_type(p4v1::Update_Type_MODIFY);
+  update->set_type(p4v1::Update::MODIFY);
   auto *entity = update->mutable_entity();
   auto *register_entry = entity->mutable_register_entry();
   (void) register_entry;
@@ -2617,28 +2679,28 @@ TEST_F(ReadExclusiveAccess, ConcurrentReadAndWrites) {
     {
       auto &request = requests.at(0);
       auto *update = request.add_updates();
-      update->set_type(p4v1::Update_Type_INSERT);
+      update->set_type(p4v1::Update::INSERT);
       auto *entity = update->mutable_entity();
       entity->mutable_action_profile_member()->CopyFrom(member);
     }
     {
       auto &request = requests.at(1);
       auto *update = request.add_updates();
-      update->set_type(p4v1::Update_Type_INSERT);
+      update->set_type(p4v1::Update::INSERT);
       auto *entity = update->mutable_entity();
       entity->mutable_table_entry()->CopyFrom(entry);
     }
     {
       auto &request = requests.at(2);
       auto *update = request.add_updates();
-      update->set_type(p4v1::Update_Type_DELETE);
+      update->set_type(p4v1::Update::DELETE);
       auto *entity = update->mutable_entity();
       entity->mutable_table_entry()->CopyFrom(entry);
     }
     {
       auto &request = requests.at(3);
       auto *update = request.add_updates();
-      update->set_type(p4v1::Update_Type_DELETE);
+      update->set_type(p4v1::Update::DELETE);
       auto *entity = update->mutable_entity();
       entity->mutable_action_profile_member()->CopyFrom(member);
     }

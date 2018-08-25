@@ -18,8 +18,6 @@
  *
  */
 
-//! @file
-
 #ifndef PI_INC_PI_TARGET_PI_MC_IMP_H_
 #define PI_INC_PI_TARGET_PI_MC_IMP_H_
 

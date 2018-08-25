@@ -44,6 +44,7 @@
 #include "action_prof_mgr.h"
 #include "common.h"
 #include "packet_io_mgr.h"
+#include "pre_clone_mgr.h"
 #include "pre_mc_mgr.h"
 #include "report_error.h"
 #include "table_info_store.h"
@@ -220,7 +221,9 @@ class DeviceMgrImp {
       action_profs.emplace(act_prof_id, std::move(mgr));
     }
 
-    pre_mc_mgr.reset(new PreMcMgr(device_id));
+    auto *pre_mc_mgr_ = new PreMcMgr(device_id);
+    pre_clone_mgr.reset(new PreCloneMgr(device_tgt, pre_mc_mgr_));
+    pre_mc_mgr.reset(pre_mc_mgr_);
 
     packet_io.p4_change(p4info_proto_new);
 
@@ -362,7 +365,7 @@ class DeviceMgrImp {
       p4v1::WriteRequest write_request;
       for (auto &entity : *forwarding_state.mutable_entities()) {
         auto *update = write_request.add_updates();
-        update->set_type(p4v1::Update_Type_INSERT);
+        update->set_type(p4v1::Update::INSERT);
         update->set_allocated_entity(&entity);
       }
       auto status = write_(write_request);
@@ -412,7 +415,7 @@ class DeviceMgrImp {
     return read_one_(entity, response);
   }
 
-  Status table_write(p4v1::Update_Type update,
+  Status table_write(p4v1::Update::Type update,
                      const p4v1::TableEntry &table_entry,
                      const SessionTemp &session) {
     if (!check_p4_id(table_entry.table_id(), P4Ids::TABLE))
@@ -420,14 +423,14 @@ class DeviceMgrImp {
 
     Status status;
     switch (update) {
-      case p4v1::Update_Type_UNSPECIFIED:
+      case p4v1::Update::UNSPECIFIED:
         status.set_code(Code::INVALID_ARGUMENT);
         break;
-      case p4v1::Update_Type_INSERT:
+      case p4v1::Update::INSERT:
         return table_insert(table_entry, session);
-      case p4v1::Update_Type_MODIFY:
+      case p4v1::Update::MODIFY:
         return table_modify(table_entry, session);
-      case p4v1::Update_Type_DELETE:
+      case p4v1::Update::DELETE:
         return table_delete(table_entry, session);
       default:
         status.set_code(Code::INVALID_ARGUMENT);
@@ -436,7 +439,7 @@ class DeviceMgrImp {
     return status;
   }
 
-  Status meter_write(p4v1::Update_Type update,
+  Status meter_write(p4v1::Update::Type update,
                      const p4v1::MeterEntry &meter_entry,
                      const SessionTemp &session) {
     if (!check_p4_id(meter_entry.meter_id(), P4Ids::METER))
@@ -452,12 +455,12 @@ class DeviceMgrImp {
     }
     auto index = static_cast<size_t>(meter_entry.index().index());
     switch (update) {
-      case p4v1::Update_Type_UNSPECIFIED:
+      case p4v1::Update::UNSPECIFIED:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
-      case p4v1::Update_Type_INSERT:
+      case p4v1::Update::INSERT:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                             "INSERT update type not supported for meters");
-      case p4v1::Update_Type_MODIFY:
+      case p4v1::Update::MODIFY:
         {
           auto status = validate_meter_spec(meter_entry.config());
           if (IS_ERROR(status)) return status;
@@ -471,7 +474,7 @@ class DeviceMgrImp {
             RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when writing meter spec");
         }
         break;
-      case p4v1::Update_Type_DELETE:  // TODO(antonin): return error instead?
+      case p4v1::Update::DELETE:  // TODO(antonin): return error instead?
         {
           pi_meter_spec_t pi_meter_spec =
               {0, 0, 0, 0, PI_METER_UNIT_DEFAULT, PI_METER_TYPE_DEFAULT};
@@ -506,7 +509,7 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
-  Status direct_meter_write(p4v1::Update_Type update,
+  Status direct_meter_write(p4v1::Update::Type update,
                             const p4v1::DirectMeterEntry &meter_entry,
                             const SessionTemp &session) {
     if (!meter_entry.has_table_entry()) {
@@ -531,12 +534,12 @@ class DeviceMgrImp {
                           "Table has no direct meters");
     }
     switch (update) {
-      case p4v1::Update_Type_UNSPECIFIED:
+      case p4v1::Update::UNSPECIFIED:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
-      case p4v1::Update_Type_INSERT:
+      case p4v1::Update::INSERT:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                             "INSERT update type not supported for meters");
-      case p4v1::Update_Type_MODIFY:
+      case p4v1::Update::MODIFY:
         {
           auto status = validate_meter_spec(meter_entry.config());
           if (IS_ERROR(status)) return status;
@@ -552,7 +555,7 @@ class DeviceMgrImp {
           }
         }
         break;
-      case p4v1::Update_Type_DELETE:  // TODO(antonin): return error instead?
+      case p4v1::Update::DELETE:  // TODO(antonin): return error instead?
         {
           pi_meter_spec_t pi_meter_spec =
               {0, 0, 0, 0, PI_METER_UNIT_DEFAULT, PI_METER_TYPE_DEFAULT};
@@ -915,7 +918,7 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
-  Status action_profile_member_write(p4v1::Update_Type update,
+  Status action_profile_member_write(p4v1::Update::Type update,
                                      const p4v1::ActionProfileMember &member,
                                      const SessionTemp &session) {
     if (!check_p4_id(member.action_profile_id(), P4Ids::ACTION_PROFILE))
@@ -927,13 +930,13 @@ class DeviceMgrImp {
                           member.action_profile_id());
     }
     switch (update) {
-      case p4v1::Update_Type_UNSPECIFIED:
+      case p4v1::Update::UNSPECIFIED:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
-      case p4v1::Update_Type_INSERT:
+      case p4v1::Update::INSERT:
         return action_prof_mgr->member_create(member, session);
-      case p4v1::Update_Type_MODIFY:
+      case p4v1::Update::MODIFY:
         return action_prof_mgr->member_modify(member, session);
-      case p4v1::Update_Type_DELETE:
+      case p4v1::Update::DELETE:
         return action_prof_mgr->member_delete(member, session);
       default:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
@@ -942,7 +945,7 @@ class DeviceMgrImp {
     RETURN_ERROR_STATUS(Code::UNKNOWN);  // UNREACHABLE
   }
 
-  Status action_profile_group_write(p4v1::Update_Type update,
+  Status action_profile_group_write(p4v1::Update::Type update,
                                     const p4v1::ActionProfileGroup &group,
                                     const SessionTemp &session) {
     if (!check_p4_id(group.action_profile_id(), P4Ids::ACTION_PROFILE))
@@ -954,13 +957,13 @@ class DeviceMgrImp {
                           group.action_profile_id());
     }
     switch (update) {
-      case p4v1::Update_Type_UNSPECIFIED:
+      case p4v1::Update::UNSPECIFIED:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
-      case p4v1::Update_Type_INSERT:
+      case p4v1::Update::INSERT:
         return action_prof_mgr->group_create(group, session);
-      case p4v1::Update_Type_MODIFY:
+      case p4v1::Update::MODIFY:
         return action_prof_mgr->group_modify(group, session);
-      case p4v1::Update_Type_DELETE:
+      case p4v1::Update::DELETE:
         return action_prof_mgr->group_delete(group, session);
       default:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
@@ -1116,7 +1119,7 @@ class DeviceMgrImp {
     packet_io.packet_in_register_cb(std::move(cb), cookie);
   }
 
-  Status counter_write(p4v1::Update_Type update,
+  Status counter_write(p4v1::Update::Type update,
                        const p4v1::CounterEntry &counter_entry,
                        const SessionTemp &session) {
     if (!check_p4_id(counter_entry.counter_id(), P4Ids::COUNTER))
@@ -1132,12 +1135,12 @@ class DeviceMgrImp {
     }
     auto index = static_cast<size_t>(counter_entry.index().index());
     switch (update) {
-      case p4v1::Update_Type_UNSPECIFIED:
+      case p4v1::Update::UNSPECIFIED:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
-      case p4v1::Update_Type_INSERT:
+      case p4v1::Update::INSERT:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                             "INSERT update type not supported for counters");
-      case p4v1::Update_Type_MODIFY:
+      case p4v1::Update::MODIFY:
         {
           auto pi_counter_data = counter_data_proto_to_pi(
               counter_entry.data(), counter_entry.counter_id());
@@ -1149,7 +1152,7 @@ class DeviceMgrImp {
             RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when writing to counter");
         }
         break;
-      case p4v1::Update_Type_DELETE:  // TODO(antonin): return error instead?
+      case p4v1::Update::DELETE:  // TODO(antonin): return error instead?
         {
           pi_counter_data_t pi_counter_data =
               {PI_COUNTER_UNIT_PACKETS | PI_COUNTER_UNIT_BYTES, 0u, 0u};
@@ -1167,7 +1170,7 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
-  Status direct_counter_write(p4v1::Update_Type update,
+  Status direct_counter_write(p4v1::Update::Type update,
                               const p4v1::DirectCounterEntry &counter_entry,
                               const SessionTemp &session) {
     if (!counter_entry.has_table_entry()) {
@@ -1192,12 +1195,12 @@ class DeviceMgrImp {
                           "Table has no direct counters");
     }
     switch (update) {
-      case p4v1::Update_Type_UNSPECIFIED:
+      case p4v1::Update::UNSPECIFIED:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
-      case p4v1::Update_Type_INSERT:
+      case p4v1::Update::INSERT:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                             "INSERT update type not supported for counters");
-      case p4v1::Update_Type_MODIFY:
+      case p4v1::Update::MODIFY:
         {
           auto pi_counter_data = counter_data_proto_to_pi(
               counter_entry.data(), table_direct_counter_id);
@@ -1211,7 +1214,7 @@ class DeviceMgrImp {
           }
         }
         break;
-      case p4v1::Update_Type_DELETE:  // TODO(antonin): return error instead?
+      case p4v1::Update::DELETE:  // TODO(antonin): return error instead?
         {
           pi_counter_data_t pi_counter_data =
               {PI_COUNTER_UNIT_PACKETS | PI_COUNTER_UNIT_BYTES, 0u, 0u};
@@ -1347,33 +1350,60 @@ class DeviceMgrImp {
     return direct_counter_read_one(table_entry, session, response);
   }
 
-  Status pre_write(p4v1::Update_Type update,
+  Status pre_mc_write(p4v1::Update::Type update,
+                      const p4v1::MulticastGroupEntry &mc_group_entry) {
+    if (mc_group_entry.multicast_group_id() >=
+        PreMcMgr::first_reserved_group_id()) {
+      RETURN_ERROR_STATUS(Code::OUT_OF_RANGE, "Group id value is too high");
+    }
+    switch (update) {
+      case p4v1::Update::UNSPECIFIED:
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
+      case p4v1::Update::INSERT:
+        return pre_mc_mgr->group_create(mc_group_entry);
+      case p4v1::Update::MODIFY:
+        return pre_mc_mgr->group_modify(mc_group_entry);
+      case p4v1::Update::DELETE:
+        return pre_mc_mgr->group_delete(mc_group_entry);
+      default:
+        break;
+    }
+    RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid PRE update type");
+  }
+
+  Status pre_clone_write(p4v1::Update::Type update,
+                         const p4v1::CloneSessionEntry &clone_session_entry,
+                         const SessionTemp &session) {
+    switch (update) {
+      case p4v1::Update::UNSPECIFIED:
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
+      case p4v1::Update::INSERT:
+        return pre_clone_mgr->session_create(clone_session_entry, session);
+      case p4v1::Update::MODIFY:
+        return pre_clone_mgr->session_modify(clone_session_entry, session);
+      case p4v1::Update::DELETE:
+        return pre_clone_mgr->session_delete(clone_session_entry, session);
+      default:
+        break;
+    }
+    RETURN_OK_STATUS();
+  }
+
+  Status pre_write(p4v1::Update::Type update,
                    const p4v1::PacketReplicationEngineEntry &pre_entry,
                    const SessionTemp &session) {
-    // PI uses a different session for multicast operations, but we may need
-    // this one for cloning support.
-    (void)session;
     using PreEntry = p4v1::PacketReplicationEngineEntry;
-    if (pre_entry.type_case() != PreEntry::kMulticastGroupEntry) {
-      RETURN_ERROR_STATUS(
-          Code::UNIMPLEMENTED,
-          "The only PRE operations currently supported are for multicast");
-    }
-    const auto& group_entry = pre_entry.multicast_group_entry();
-    switch (update) {
-      case p4v1::Update_Type_UNSPECIFIED:
-        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
-      case p4v1::Update_Type_INSERT:
-        return pre_mc_mgr->group_create(group_entry);
-      case p4v1::Update_Type_MODIFY:
-        return pre_mc_mgr->group_modify(group_entry);
-      case p4v1::Update_Type_DELETE:
-        return pre_mc_mgr->group_delete(group_entry);
+    switch (pre_entry.type_case()) {
+      case PreEntry::kMulticastGroupEntry:
+        // PI uses a different session for multicast operations
+        return pre_mc_write(update, pre_entry.multicast_group_entry());
+      case PreEntry::kCloneSessionEntry:
+        return pre_clone_write(
+            update, pre_entry.clone_session_entry(), session);
       default:
-        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
+        break;
     }
-    assert(0);
-    RETURN_ERROR_STATUS(Code::UNKNOWN);  // UNREACHABLE
+    RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid PRE operation");
   }
 
   static void init(size_t max_devices) {
@@ -2225,6 +2255,7 @@ class DeviceMgrImp {
   action_profs{};
 
   std::unique_ptr<PreMcMgr> pre_mc_mgr;
+  std::unique_ptr<PreCloneMgr> pre_clone_mgr;
 
   TableInfoStore table_info_store;
 

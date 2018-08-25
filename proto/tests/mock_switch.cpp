@@ -535,6 +535,19 @@ class DummyPRE {
     return PI_STATUS_SUCCESS;
   }
 
+  pi_status_t clone_session_set(
+      pi_clone_session_id_t clone_session_id,
+      const pi_clone_session_config_t *clone_session_config) {
+    (void)clone_session_id;
+    (void)clone_session_config;
+    return PI_STATUS_SUCCESS;
+  }
+
+  pi_status_t clone_session_reset(pi_clone_session_id_t clone_session_id) {
+    (void)clone_session_id;
+    return PI_STATUS_SUCCESS;
+  }
+
  private:
   struct McNode {
     pi_mc_node_handle_t node_handle;
@@ -744,6 +757,16 @@ class DummySwitch {
     return pre.mc_grp_detach_node(grp_handle, node_handle);
   }
 
+  pi_status_t clone_session_set(
+      pi_clone_session_id_t clone_session_id,
+      const pi_clone_session_config_t *clone_session_config) {
+    return pre.clone_session_set(clone_session_id, clone_session_config);
+  }
+
+  pi_status_t clone_session_reset(pi_clone_session_id_t clone_session_id) {
+    return pre.clone_session_reset(clone_session_id);
+  }
+
   void set_p4info(const pi_p4info_t *p4info) {
     this->p4info = p4info;
   }
@@ -872,6 +895,11 @@ DummySwitchMock::DummySwitchMock(device_id_t device_id)
       .WillByDefault(Invoke(sw_, &DummySwitch::mc_grp_attach_node));
   ON_CALL(*this, mc_grp_detach_node(_, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::mc_grp_detach_node));
+
+  ON_CALL(*this, clone_session_set(_, _))
+      .WillByDefault(Invoke(sw_, &DummySwitch::clone_session_set));
+  ON_CALL(*this, clone_session_reset(_))
+      .WillByDefault(Invoke(sw_, &DummySwitch::clone_session_reset));
 }
 
 DummySwitchMock::~DummySwitchMock() = default;
@@ -1296,6 +1324,22 @@ pi_status_t _pi_mc_grp_detach_node(pi_mc_session_handle_t,
                                    pi_mc_node_handle_t node_handle) {
   return DeviceResolver::get_switch(dev_id)->mc_grp_detach_node(
       grp_handle, node_handle);
+}
+
+pi_status_t _pi_clone_session_set(
+    pi_session_handle_t,
+    pi_dev_tgt_t dev_tgt,
+    pi_clone_session_id_t clone_session_id,
+    const pi_clone_session_config_t *clone_session_config) {
+  return DeviceResolver::get_switch(dev_tgt.dev_id)->clone_session_set(
+      clone_session_id, clone_session_config);
+}
+
+pi_status_t _pi_clone_session_reset(pi_session_handle_t,
+                                    pi_dev_tgt_t dev_tgt,
+                                    pi_clone_session_id_t clone_session_id) {
+  return DeviceResolver::get_switch(dev_tgt.dev_id)->clone_session_reset(
+      clone_session_id);
 }
 
 pi_status_t _pi_learn_msg_ack(pi_session_handle_t,

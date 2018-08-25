@@ -127,13 +127,14 @@ PreMcMgr::detach_and_delete_node(const McSessionTemp &session,
 }
 
 Status
-PreMcMgr::group_create(const GroupEntry &group_entry) {
+PreMcMgr::group_create(const GroupEntry &group_entry, GroupOwner owner) {
   auto group_id = static_cast<GroupId>(group_entry.multicast_group_id());
   Lock lock(mutex);
   if (groups.find(group_id) != groups.end())
     RETURN_ERROR_STATUS(Code::ALREADY_EXISTS, "Multicast group already exists");
 
   Group group;
+  group.owner = owner;
   RETURN_IF_ERROR(make_new_group(group_entry, &group));
 
   McSessionTemp session;
@@ -164,6 +165,7 @@ PreMcMgr::group_modify(const GroupEntry &group_entry) {
 
   Group new_group;
   new_group.group_h = old_group.group_h;
+  new_group.owner = old_group.owner;
   RETURN_IF_ERROR(make_new_group(group_entry, &new_group));
 
   McSessionTemp session;

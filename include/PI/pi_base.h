@@ -118,6 +118,8 @@ typedef uint32_t pi_session_handle_t;
 //! Forward declaration of p4info (P4 config)
 typedef struct pi_p4info_s pi_p4info_t;
 
+typedef int32_t pi_port_t;
+
 #define PI_ACTION_ID 0x01
 #define PI_TABLE_ID 0x02
 

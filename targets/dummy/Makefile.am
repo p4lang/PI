@@ -10,6 +10,7 @@ pi_counter_imp.c \
 pi_meter_imp.c \
 pi_learn_imp.c \
 pi_mc_imp.c \
+pi_clone_imp.c \
 func_counter.c \
 func_counter.h
 
