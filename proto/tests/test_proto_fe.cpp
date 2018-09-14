@@ -208,15 +208,28 @@ class DeviceMgrTest : public ::testing::Test {
 
   void TearDown() override { }
 
-  DeviceMgr::Status add_entry(p4v1::TableEntry *entry) {
+  DeviceMgr::Status generic_write(p4v1::Update::Type type,
+                                  p4v1::TableEntry *entry) {
     p4v1::WriteRequest request;
     auto update = request.add_updates();
-    update->set_type(p4v1::Update::INSERT);
+    update->set_type(type);
     auto entity = update->mutable_entity();
     entity->set_allocated_table_entry(entry);
     auto status = mgr.write(request);
     entity->release_table_entry();
     return status;
+  }
+
+  DeviceMgr::Status add_entry(p4v1::TableEntry *entry) {
+    return generic_write(p4v1::Update::INSERT, entry);
+  }
+
+  DeviceMgr::Status remove_entry(p4v1::TableEntry *entry) {
+    return generic_write(p4v1::Update::DELETE, entry);
+  }
+
+  DeviceMgr::Status modify_entry(p4v1::TableEntry *entry) {
+    return generic_write(p4v1::Update::MODIFY, entry);
   }
 
   DeviceMgr::Status read_table_entries(pi_p4_id_t t_id,
@@ -403,46 +416,12 @@ class MatchTableTest
                                 int priority = 0,
                                 uint64_t controller_metadata = 0);
 
-  DeviceMgr::Status generic_write(p4v1::Update::Type type,
-                                  p4v1::TableEntry *entry);
-  DeviceMgr::Status add_one(p4v1::TableEntry *entry);
-  DeviceMgr::Status remove(p4v1::TableEntry *entry);
-  DeviceMgr::Status modify(p4v1::TableEntry *entry);
-
   boost::optional<MatchKeyInput> default_mf() const;
 
   pi_p4_id_t t_id;
   pi_p4_id_t mf_id;
   pi_p4_id_t a_id;
 };
-
-DeviceMgr::Status
-MatchTableTest::generic_write(p4v1::Update::Type type,
-                              p4v1::TableEntry *entry) {
-  p4v1::WriteRequest request;
-  auto update = request.add_updates();
-  update->set_type(type);
-  auto entity = update->mutable_entity();
-  entity->set_allocated_table_entry(entry);
-  auto status = mgr.write(request);
-  entity->release_table_entry();
-  return status;
-}
-
-DeviceMgr::Status
-MatchTableTest::add_one(p4v1::TableEntry *entry) {
-  return generic_write(p4v1::Update::INSERT, entry);
-}
-
-DeviceMgr::Status
-MatchTableTest::remove(p4v1::TableEntry *entry) {
-  return generic_write(p4v1::Update::DELETE, entry);
-}
-
-DeviceMgr::Status
-MatchTableTest::modify(p4v1::TableEntry *entry) {
-  return generic_write(p4v1::Update::MODIFY, entry);
-}
 
 p4v1::TableEntry
 MatchTableTest::generic_make(pi_p4_id_t t_id,
@@ -500,12 +479,12 @@ TEST_P(MatchTableTest, AddAndRead) {
   auto entry = generic_make(t_id, mk_input.get_proto(mf_id), adata,
                             mk_input.get_priority(), controller_metadata);
   {
-    auto status = add_one(&entry);
+    auto status = add_entry(&entry);
     EXPECT_EQ(status.code(), Code::OK);
   }
   // second is error because duplicate match key
   {
-    auto status = add_one(&entry);
+    auto status = add_entry(&entry);
     EXPECT_EQ(status, OneExpectedError(Code::ALREADY_EXISTS));
   }
 
@@ -541,15 +520,15 @@ TEST_P(MatchTableTest, AddAndDelete) {
   DeviceMgr::Status status;
   auto entry = generic_make(
       t_id, mk_input.get_proto(mf_id), adata, mk_input.get_priority());
-  status = add_one(&entry);
+  status = add_entry(&entry);
   ASSERT_EQ(status.code(), Code::OK);
 
   EXPECT_CALL(*mock, table_entry_delete_wkey(t_id, mk_matcher))
       .Times(AtLeast(1));
-  status = remove(&entry);
+  status = remove_entry(&entry);
   EXPECT_EQ(status.code(), Code::OK);
   // second call is error because match key has been removed already
-  status = remove(&entry);
+  status = remove_entry(&entry);
   EXPECT_EQ(status, OneExpectedError(Code::NOT_FOUND));
 }
 
@@ -562,7 +541,7 @@ TEST_P(MatchTableTest, AddAndModify) {
   DeviceMgr::Status status;
   auto entry = generic_make(
       t_id, mk_input.get_proto(mf_id), adata, mk_input.get_priority());
-  status = add_one(&entry);
+  status = add_entry(&entry);
   ASSERT_EQ(status.code(), Code::OK);
 
   std::string new_adata(6, '\xaa');
@@ -570,38 +549,40 @@ TEST_P(MatchTableTest, AddAndModify) {
   auto new_entry = generic_make(
       t_id, mk_input.get_proto(mf_id), adata, mk_input.get_priority());
   EXPECT_CALL(*mock, table_entry_modify_wkey(t_id, mk_matcher, entry_matcher));
-  status = modify(&new_entry);
+  status = modify_entry(&new_entry);
   EXPECT_EQ(status.code(), Code::OK);
 }
 
 TEST_P(MatchTableTest, SetDefault) {
   std::string adata(6, '\x00');
   auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
-  EXPECT_CALL(*mock, table_default_action_set(t_id, entry_matcher))
-      .Times(AtLeast(1));
+  EXPECT_CALL(*mock, table_default_action_set(t_id, entry_matcher)).Times(2);
   auto entry = generic_make(t_id, boost::none, adata);
   entry.set_is_default_action(true);
   {
-    auto status = add_one(&entry);
-    ASSERT_EQ(status.code(), Code::OK);
+    auto status = add_entry(&entry);
+    // cannot INSERT default entries
+    EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
   }
-  // TODO(antonin): desired behavior?
-  // {
-  //   auto status = add_one(&entry);
-  //   EXPECT_EQ(status, OneExpectedError(Code::ALREADY_EXISTS));
-  // }
-
-  EXPECT_CALL(*mock, table_default_action_reset(t_id))
-      .Times(AtLeast(1));
   {
-    auto status = remove(&entry);
-    ASSERT_EQ(status.code(), Code::OK);
+    auto status = modify_entry(&entry);
+    EXPECT_EQ(status.code(), Code::OK);
   }
-  // TODO(antonin): desired behavior?
-  // {
-  //   auto status = remove(&entry);
-  //   EXPECT_EQ(status, OneExpectedError(Code::NOT_FOUND));
-  // }
+  {
+    auto status = modify_entry(&entry);
+    EXPECT_EQ(status.code(), Code::OK);
+  }
+  EXPECT_CALL(*mock, table_default_action_reset(t_id));
+  entry.clear_action();
+  {
+    auto status = modify_entry(&entry);
+    EXPECT_EQ(status.code(), Code::OK);
+  }
+  {
+    auto status = remove_entry(&entry);
+    // cannot DELETE default entries
+    EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
+  }
 }
 
 TEST_P(MatchTableTest, InvalidSetDefault) {
@@ -610,8 +591,17 @@ TEST_P(MatchTableTest, InvalidSetDefault) {
   auto mk_input = std::get<1>(GetParam());
   auto entry = generic_make(t_id, mk_input.get_proto(mf_id), adata);
   entry.set_is_default_action(true);
-  auto status = add_one(&entry);
+  auto status = add_entry(&entry);
   EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
+}
+
+TEST_P(MatchTableTest, ResetDefaultBeforeSet) {
+  p4v1::TableEntry entry;
+  entry.set_table_id(t_id);
+  entry.set_is_default_action(true);
+  EXPECT_CALL(*mock, table_default_action_reset(t_id));
+  auto status = modify_entry(&entry);
+  EXPECT_EQ(status.code(), Code::OK);
 }
 
 TEST_P(MatchTableTest, InvalidTableId) {
@@ -621,7 +611,7 @@ TEST_P(MatchTableTest, InvalidTableId) {
   auto entry = generic_make(t_id, mk_input.get_proto(mf_id), adata);
   auto check_bad_status_write = [this, &entry](pi_p4_id_t bad_id) {
     entry.set_table_id(bad_id);
-    auto status = add_one(&entry);
+    auto status = add_entry(&entry);
     EXPECT_EQ(
         status,
         OneExpectedError(Code::INVALID_ARGUMENT, invalid_p4_id_error_str));
@@ -662,7 +652,7 @@ TEST_P(MatchTableTest, InvalidActionId) {
       pi_p4_id_t bad_id, const char *msg = invalid_p4_id_error_str) {
     auto action = entry.mutable_action()->mutable_action();
     action->set_action_id(bad_id);
-    auto status = add_one(&entry);
+    auto status = add_entry(&entry);
     EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT, msg));
   };
   // 0, aka missing id
@@ -693,11 +683,11 @@ TEST_P(MatchTableTest, MissingMatchField) {
     EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
     auto entry = generic_make(
         t_id, boost::none, adata, mk_input->get_priority());
-    auto status = add_one(&entry);
+    auto status = add_entry(&entry);
     ASSERT_EQ(status.code(), Code::OK);
   } else {  // omitting field not supported for match type
     auto entry = generic_make(t_id, boost::none, adata, 0);
-    auto status = add_one(&entry);
+    auto status = add_entry(&entry);
     EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
   }
 }
@@ -1289,18 +1279,20 @@ class ExactOneTest : public DeviceMgrTest {
   ExactOneTest()
       : ExactOneTest("ExactOne", "header_test.field32") { }
 
-  p4v1::TableEntry make_entry(const std::string &mf_v,
+  p4v1::TableEntry make_entry(const boost::optional<std::string> &mf_v,
                               const std::string &param_v) {
     p4v1::TableEntry table_entry;
     table_entry.set_table_id(t_id);
-    auto mf = table_entry.add_match();
-    mf->set_field_id(pi_p4info_table_match_field_id_from_name(
-        p4info, t_id, f_name.c_str()));
-    auto mf_exact = mf->mutable_exact();
-    mf_exact->set_value(mf_v);
+    if (mf_v.is_initialized()) {
+      auto mf = table_entry.add_match();
+      mf->set_field_id(pi_p4info_table_match_field_id_from_name(
+          p4info, t_id, f_name.c_str()));
+      auto mf_exact = mf->mutable_exact();
+      mf_exact->set_value(*mf_v);
+    }
+
     auto entry = table_entry.mutable_action();
     auto action = entry->mutable_action();
-
     action->set_action_id(a_id);
     auto param = action->add_params();
     param->set_param_id(
@@ -1321,7 +1313,36 @@ TEST_F(ExactOneTest, PriorityForNonTernaryMatch) {
   auto entry = make_entry(mf, adata);
   entry.set_priority(priority);
   auto status = add_entry(&entry);
-  ASSERT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
+  EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
+}
+
+// There used to be an issue where the MatchKey instance for the default entry
+// and the MatchKey instance for an entry whose match key was zero'd-out were
+// equal (DeviceMgr handles all match entries uniformly in the table
+// store). This means that this test was failing with an ALREADY_EXISTS error
+// code.
+TEST_F(ExactOneTest, ZeroKeyAndDefaultEntry) {
+  std::string mf(4, '\x00');
+  std::string adata(6, '\x00');
+  EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
+  EXPECT_CALL(*mock, table_default_action_set(t_id, _)).Times(2);
+  {
+    auto entry = make_entry(boost::none, adata);
+    entry.set_is_default_action(true);
+    auto status = modify_entry(&entry);
+    EXPECT_EQ(status.code(), Code::OK);
+  }
+  {
+    auto entry = make_entry(mf, adata);
+    auto status = add_entry(&entry);
+    EXPECT_EQ(status.code(), Code::OK);
+  }
+  {
+    auto entry = make_entry(boost::none, adata);
+    entry.set_is_default_action(true);
+    auto status = modify_entry(&entry);
+    EXPECT_EQ(status.code(), Code::OK);
+  }
 }
 
 

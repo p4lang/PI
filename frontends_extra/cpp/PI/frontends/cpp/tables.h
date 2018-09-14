@@ -78,6 +78,16 @@ class MatchKey {
 
   int get_priority() const;
 
+  // this is provided as a convenience to the user if representing the default
+  // entry with an instance of MatchKey is desired (e.g. to handle regular match
+  // entries and the default in a uniform way). The user is responsible for
+  // calling set_is_default and this information is not stored in the underlying
+  // pi_match_key_t object, The value of is_default is used in MatchKeyEq and
+  // MatchKeyHash.
+  void set_is_default(bool is_default);
+
+  bool get_is_default() const;
+
   template <typename T>
   typename std::enable_if<std::is_integral<T>::value, error_code_t>::type
   set_exact(pi_p4_id_t f_id, T key);
@@ -132,7 +142,7 @@ class MatchKey {
 
   const pi_p4info_t *p4info;
   pi_p4_id_t table_id;
-  size_t nset{0};
+  bool is_default{false};
   size_t mk_size;
   std::vector<char> _data;
   pi_match_key_t *match_key;
@@ -196,7 +206,6 @@ class ActionData {
   __attribute__((unused))
 #endif
   pi_p4_id_t action_id;
-  size_t nset{0};
   size_t ad_size;
   std::vector<char> _data;
   pi_action_data_t *action_data;
