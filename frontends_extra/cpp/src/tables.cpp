@@ -190,8 +190,8 @@ MatchKey::~MatchKey() = default;
 
 void
 MatchKey::reset() {
-  nset = 0;
   match_key->priority = 0;
+  memset(_data.data(), 0, _data.size());
 }
 
 void
@@ -217,6 +217,16 @@ MatchKey::set_priority(int priority) {
 int
 MatchKey::get_priority() const {
   return reader.get_priority();
+}
+
+void
+MatchKey::set_is_default(bool is_default) {
+  this->is_default = is_default;
+}
+
+bool
+MatchKey::get_is_default() const {
+  return is_default;
 }
 
 template <typename T>
@@ -428,7 +438,7 @@ MatchKey::get_valid(pi_p4_id_t f_id, bool *key) const {
 MatchKey::MatchKey(const MatchKey &other)
     : p4info(other.p4info),
       table_id(other.table_id),
-      nset(other.nset),
+      is_default(other.is_default),
       mk_size(other.mk_size),
       _data(other._data),
       match_key(reinterpret_cast<decltype(match_key)>(_data.data())),
@@ -454,6 +464,11 @@ MatchKeyHash::operator()(const MatchKey &mk) const {
     hash += hash << 10;
     hash ^= hash >> 6;
   }
+  {
+    hash += static_cast<char>(mk.is_default);
+    hash += hash << 10;
+    hash ^= hash >> 6;
+  }
   hash += hash << 3;
   hash ^= hash >> 11;
   hash += hash << 15;
@@ -463,6 +478,7 @@ MatchKeyHash::operator()(const MatchKey &mk) const {
 bool
 MatchKeyEq::operator()(const MatchKey &mk1, const MatchKey &mk2) const {
   return (mk1.table_id == mk2.table_id)
+      && (mk1.is_default == mk2.is_default)
       && (mk1.match_key->priority == mk2.match_key->priority)
       && (!std::memcmp(mk1.match_key->data, mk2.match_key->data, mk1.mk_size));
 }
@@ -503,7 +519,7 @@ ActionData::~ActionData() { }
 
 void
 ActionData::reset() {
-  nset = 0;
+  memset(_data.data(), 0, _data.size());
 }
 
 pi_p4_id_t ActionData::get_action_id() const {

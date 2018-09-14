@@ -210,6 +210,30 @@ class DeviceMgrImp {
          t_id != pi_p4info_table_end(p4info_new);
          t_id = pi_p4info_table_next(p4info_new, t_id)) {
       table_info_store.add_table(t_id);
+      // Add the default entry to the table store. In P4_16 a table always has a
+      // default entry and this code tries to treat default entries and regular
+      // match entries as uniformly as possible. For example when the default
+      // entry is set by the client for the first time using MODIFY, there
+      // should already be an entry in the store.
+      // We assume that the underlying target knows the default entry for each
+      // table based on the target-specific blob sent to
+      // _pi_update_device_start.
+      pi::MatchKey match_key(p4info_new, t_id);
+      match_key.set_is_default(true);
+      // TODO(antonin): using handle 0 unconditionally for the default entry is
+      // not correct and would not work for things like reading / writing direct
+      // resources unless the target actually used an internal handle of 0 for
+      // default entries. There are some serious PI limitations regarding
+      // default entries, in particular for direct resources management, and we
+      // need to fix that first before we can properly handle direct resources
+      // for default entries in this P4Runtime implementation... For now we
+      // return an UNIMPLEMENTED error if the client tries to read / write
+      // direct resources for a default entry outside of the context of the
+      // TableEntry message. We also do not support reading the default entry
+      // yet.
+      table_info_store.add_entry(
+          t_id, match_key,
+          TableInfoStore::Data(0  /* handle */, 0  /* controller_metadata */));
     }
 
     action_profs.clear();
@@ -519,6 +543,11 @@ class DeviceMgrImp {
     const auto &table_entry = meter_entry.table_entry();
     if (!check_p4_id(table_entry.table_id(), P4Ids::TABLE))
       return make_invalid_p4_id_status();
+    if (table_entry.is_default_action()) {
+      RETURN_ERROR_STATUS(
+          Code::UNIMPLEMENTED,
+          "Writing DirectMeterEntry not supported for default entry yet");
+    }
     auto table_lock = table_info_store.lock_table(table_entry.table_id());
 
     pi_entry_handle_t entry_handle = 0;
@@ -679,6 +708,11 @@ class DeviceMgrImp {
     }
     if (!check_p4_id(table_entry.table_id(), P4Ids::TABLE))
       return make_invalid_p4_id_status();
+    if (table_entry.is_default_action()) {
+      RETURN_ERROR_STATUS(
+          Code::UNIMPLEMENTED,
+          "Reading DirectMeterEntry not supported for default entry yet");
+    }
     return direct_meter_read_one(table_entry, session, response);
   }
 
@@ -802,6 +836,10 @@ class DeviceMgrImp {
                         p4v1::ReadResponse *response) const {
     pi::MatchKey expected_match_key(p4info.get(), table_id);
     if (requested_entry.match_size() > 0) {
+      if (requested_entry.is_default_action()) {
+        RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
+                            "Reading default entry not supported yet");
+      }
       auto status = construct_match_key(requested_entry, &expected_match_key);
       if (IS_ERROR(status)) return status;
     }
@@ -1180,6 +1218,11 @@ class DeviceMgrImp {
     const auto &table_entry = counter_entry.table_entry();
     if (!check_p4_id(table_entry.table_id(), P4Ids::TABLE))
       return make_invalid_p4_id_status();
+    if (table_entry.is_default_action()) {
+      RETURN_ERROR_STATUS(
+          Code::UNIMPLEMENTED,
+          "Writing DirectCounterEntry not supported for default entry yet");
+    }
     auto table_lock = table_info_store.lock_table(table_entry.table_id());
 
     pi_entry_handle_t entry_handle = 0;
@@ -1347,6 +1390,11 @@ class DeviceMgrImp {
     }
     if (!check_p4_id(table_entry.table_id(), P4Ids::TABLE))
       return make_invalid_p4_id_status();
+    if (table_entry.is_default_action()) {
+      RETURN_ERROR_STATUS(
+          Code::UNIMPLEMENTED,
+          "Reading DirectCounterEntry not supported for default entry yet");
+    }
     return direct_counter_read_one(table_entry, session, response);
   }
 
@@ -1746,6 +1794,7 @@ class DeviceMgrImp {
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                             "Non-zero priority for default entry");
       }
+      match_key->set_is_default(true);
       RETURN_OK_STATUS();
     }
     auto status = validate_match_key(entry);
@@ -1934,6 +1983,11 @@ class DeviceMgrImp {
   Status table_insert(const p4v1::TableEntry &table_entry,
                       const SessionTemp &session) {
     const auto table_id = table_entry.table_id();
+    if (table_entry.is_default_action()) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "Cannot use INSERT for default entry");
+    }
+
     pi::MatchKey match_key(p4info.get(), table_id);
     {
       auto status = construct_match_key(table_entry, &match_key);
@@ -1957,25 +2011,15 @@ class DeviceMgrImp {
 
     auto table_lock = table_info_store.lock_table(table_id);
 
-    // TODO(antonin): should the default entry be treated like other match
-    // entries and trigger an error when added twice?
-    if (table_info_store.get_entry(table_id, match_key) != nullptr &&
-        !table_entry.is_default_action()) {
+    if (table_info_store.get_entry(table_id, match_key) != nullptr) {
       RETURN_ERROR_STATUS(
           Code::ALREADY_EXISTS,
           "Match entry exists, use MODIFY if you wish to change action");
     }
 
     pi::MatchTable mt(session.get(), device_tgt, p4info.get(), table_id);
-    pi_status_t pi_status;
     pi_entry_handle_t handle;
-    if (table_entry.is_default_action()) {
-      pi_status = mt.default_entry_set(action_entry);
-    } else {
-      pi_status = mt.entry_add(match_key, action_entry, false, &handle);
-      // handle is not used as this frontend do all operations using match key
-      (void) handle;
-    }
+    auto pi_status = mt.entry_add(match_key, action_entry, false, &handle);
     if (pi_status != PI_STATUS_SUCCESS) {
       RETURN_ERROR_STATUS(Code::UNKNOWN,
                           "Error when adding match entry to target");
@@ -2000,10 +2044,13 @@ class DeviceMgrImp {
     pi::ActionEntry action_entry;
     pi_meter_spec_t _meter_spec_storage;
     pi_counter_data_t _counter_data_storage;
-    {
+    if (table_entry.has_action()) {
       auto status = construct_action_entry(
           table_id, table_entry.action(), &action_entry);
       if (IS_ERROR(status)) return status;
+    } else if (!table_entry.is_default_action()) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "'action' field must be set for non-default entries");
     }
     {
       auto status = construct_direct_resources(
@@ -2013,17 +2060,20 @@ class DeviceMgrImp {
     }
 
     auto table_lock = table_info_store.lock_table(table_id);
-
     // we need this pointer to update the controller metadata if the modify
     // operation is successful
     auto entry_data = table_info_store.get_entry(table_id, match_key);
+
     if (entry_data == nullptr)
       RETURN_ERROR_STATUS(Code::NOT_FOUND, "Cannot find match entry");
 
     pi::MatchTable mt(session.get(), device_tgt, p4info.get(), table_id);
     pi_status_t pi_status;
     if (table_entry.is_default_action()) {
-      pi_status = mt.default_entry_set(action_entry);
+      if (table_entry.has_action())
+        pi_status = mt.default_entry_set(action_entry);
+      else
+        pi_status = mt.default_entry_reset();
     } else {
       pi_status = mt.entry_modify_wkey(match_key, action_entry);
     }
@@ -2032,7 +2082,13 @@ class DeviceMgrImp {
                           "Error when modifying match entry in target");
     }
 
-    entry_data->controller_metadata = table_entry.controller_metadata();
+    if (!table_entry.has_action()) {
+      // cannot be false as the function returns early with an error otherwise
+      assert(table_entry.is_default_action());
+      entry_data->controller_metadata = 0;
+    } else {
+      entry_data->controller_metadata = table_entry.controller_metadata();
+    }
 
     RETURN_OK_STATUS();
   }
@@ -2040,6 +2096,11 @@ class DeviceMgrImp {
   Status table_delete(const p4v1::TableEntry &table_entry,
                       const SessionTemp &session) {
     const auto table_id = table_entry.table_id();
+    if (table_entry.is_default_action()) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "Cannot use DELETE for default entry");
+    }
+
     pi::MatchKey match_key(p4info.get(), table_id);
     {
       auto status = construct_match_key(table_entry, &match_key);
@@ -2052,12 +2113,7 @@ class DeviceMgrImp {
       RETURN_ERROR_STATUS(Code::NOT_FOUND, "Cannot find match entry");
 
     pi::MatchTable mt(session.get(), device_tgt, p4info.get(), table_id);
-    pi_status_t pi_status;
-    if (table_entry.is_default_action()) {
-      pi_status = mt.default_entry_reset();
-    } else {
-      pi_status = mt.entry_delete_wkey(match_key);
-    }
+    auto pi_status = mt.entry_delete_wkey(match_key);
     if (pi_status != PI_STATUS_SUCCESS) {
       RETURN_ERROR_STATUS(Code::UNKNOWN,
                           "Error when deleting match entry in target");
