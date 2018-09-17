@@ -22,15 +22,18 @@
 
 #include "stdint.h"
 
+#include "gnmi/gnmi.grpc.pb.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 // Start server and bind to default address (0.0.0.0:50051)
-void PIGrpcServerRun();
+void PIGrpcServerRun(gnmi::gNMI::Service* gnmi_service = nullptr);
 // Start server and bind to given address (eg. localhost:1234,
 // 192.168.1.1:31416, [::1]:27182, etc.)
-void PIGrpcServerRunAddr(const char *server_address);
+void PIGrpcServerRunAddr(const char *server_address,
+    gnmi::gNMI::Service* gnmi_service = nullptr);
 
 // Get port number bound to the server
 int PIGrpcServerGetPort();

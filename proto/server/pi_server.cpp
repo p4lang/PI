@@ -538,7 +538,8 @@ pi::server::ServerData *server_data;
 
 extern "C" {
 
-void PIGrpcServerRunAddr(const char *server_address) {
+void PIGrpcServerRunAddr(const char *server_address,
+  gnmi::gNMI::Service* gnmi_service) {
   server_data = new ::pi::server::ServerData();
   server_data->server_address = std::string(server_address);
   auto &builder = server_data->builder;
@@ -546,11 +547,15 @@ void PIGrpcServerRunAddr(const char *server_address) {
     server_data->server_address, grpc::InsecureServerCredentials(),
     &server_data->server_port);
   builder.RegisterService(&server_data->pi_service);
+  if (gnmi_service != nullptr) {
+    server_data->gnmi_service.reset(gnmi_service);
+  } else {
 #ifdef WITH_SYSREPO
-  server_data->gnmi_service = ::pi::server::make_gnmi_service_sysrepo();
+    server_data->gnmi_service = ::pi::server::make_gnmi_service_sysrepo();
 #else
-  server_data->gnmi_service = ::pi::server::make_gnmi_service_dummy();
+    server_data->gnmi_service = ::pi::server::make_gnmi_service_dummy();
 #endif  // WITH_SYSREPO
+  }
   builder.RegisterService(server_data->gnmi_service.get());
   builder.SetMaxReceiveMessageSize(256*1024*1024);  // 256MB
 
@@ -558,8 +563,8 @@ void PIGrpcServerRunAddr(const char *server_address) {
   std::cout << "Server listening on " << server_data->server_address << "\n";
 }
 
-void PIGrpcServerRun() {
-  PIGrpcServerRunAddr("0.0.0.0:50051");
+void PIGrpcServerRun(gnmi::gNMI::Service* gnmi_service) {
+  PIGrpcServerRunAddr("0.0.0.0:50051", gnmi_service);
 }
 
 int PIGrpcServerGetPort() {
