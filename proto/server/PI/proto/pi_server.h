@@ -28,9 +28,17 @@ extern "C" {
 
 // Start server and bind to default address (0.0.0.0:50051)
 void PIGrpcServerRun();
+
 // Start server and bind to given address (eg. localhost:1234,
 // 192.168.1.1:31416, [::1]:27182, etc.)
 void PIGrpcServerRunAddr(const char *server_address);
+
+// Start server and bind to given address (eg. localhost:1234,
+// 192.168.1.1:31416, [::1]:27182, etc.) and an optional third-party gNMI
+// service. Note that the implementation will expect the void* must be a
+// pointer of type gnmi::gNMI::Service, and free it as a part of
+// PIGrpcServerCleanup
+void PIGrpcServerRunAddrGnmi(const char *server_address, void *gnmi_service);
 
 // Get port number bound to the server
 int PIGrpcServerGetPort();
