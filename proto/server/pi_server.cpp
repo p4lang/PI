@@ -538,7 +538,7 @@ pi::server::ServerData *server_data;
 
 extern "C" {
 
-void PIGrpcServerRunAddrGnmI(const char *server_address, void* gnmi_service) {
+void PIGrpcServerRunAddrGnmi(const char *server_address, void* gnmi_service) {
   server_data = new ::pi::server::ServerData();
   server_data->server_address = std::string(server_address);
   auto &builder = server_data->builder;
