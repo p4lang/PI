@@ -538,8 +538,7 @@ pi::server::ServerData *server_data;
 
 extern "C" {
 
-void PIGrpcServerRunAddr(const char *server_address,
-  gnmi::gNMI::Service* gnmi_service) {
+void PIGrpcServerRunAddrGnmI(const char *server_address, void* gnmi_service) {
   server_data = new ::pi::server::ServerData();
   server_data->server_address = std::string(server_address);
   auto &builder = server_data->builder;
@@ -548,7 +547,8 @@ void PIGrpcServerRunAddr(const char *server_address,
     &server_data->server_port);
   builder.RegisterService(&server_data->pi_service);
   if (gnmi_service != nullptr) {
-    server_data->gnmi_service.reset(gnmi_service);
+    server_data->gnmi_service = std::unique_ptr<gnmi::gNMI::Service>(
+            static_cast<gnmi::gNMI::Service*>(gnmi_service));
   } else {
 #ifdef WITH_SYSREPO
     server_data->gnmi_service = ::pi::server::make_gnmi_service_sysrepo();
@@ -563,8 +563,12 @@ void PIGrpcServerRunAddr(const char *server_address,
   std::cout << "Server listening on " << server_data->server_address << "\n";
 }
 
-void PIGrpcServerRun(gnmi::gNMI::Service* gnmi_service) {
-  PIGrpcServerRunAddr("0.0.0.0:50051", gnmi_service);
+void PIGrpcServerRunAddr(const char *server_address) {
+  PIGrpcServerRunAddrGnmi(server_address, nullptr);
+}
+
+void PIGrpcServerRun() {
+  PIGrpcServerRunAddrGnmi("0.0.0.0:50051", nullptr);
 }
 
 int PIGrpcServerGetPort() {
