@@ -538,7 +538,7 @@ pi::server::ServerData *server_data;
 
 extern "C" {
 
-void PIGrpcServerRunAddrGnmi(const char *server_address, void* gnmi_service) {
+void PIGrpcServerRunAddrGnmi(const char *server_address, void *gnmi_service) {
   server_data = new ::pi::server::ServerData();
   server_data->server_address = std::string(server_address);
   auto &builder = server_data->builder;
@@ -548,7 +548,7 @@ void PIGrpcServerRunAddrGnmi(const char *server_address, void* gnmi_service) {
   builder.RegisterService(&server_data->pi_service);
   if (gnmi_service != nullptr) {
     server_data->gnmi_service = std::unique_ptr<gnmi::gNMI::Service>(
-            static_cast<gnmi::gNMI::Service*>(gnmi_service));
+            static_cast<gnmi::gNMI::Service *>(gnmi_service));
   } else {
 #ifdef WITH_SYSREPO
     server_data->gnmi_service = ::pi::server::make_gnmi_service_sysrepo();

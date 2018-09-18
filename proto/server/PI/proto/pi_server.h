@@ -38,7 +38,7 @@ void PIGrpcServerRunAddr(const char *server_address);
 // service. Note that the implementation will expect the void* must be a
 // pointer of type gnmi::gNMI::Service, and free it as a part of
 // PIGrpcServerCleanup
-void PIGrpcServerRunAddrGnmi(const char *server_address, void* gnmi_service);
+void PIGrpcServerRunAddrGnmi(const char *server_address, void *gnmi_service);
 
 // Get port number bound to the server
 int PIGrpcServerGetPort();
