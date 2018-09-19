@@ -41,6 +41,22 @@ using ::testing::Matcher;
 using ::testing::MatcherInterface;
 using ::testing::MatchResultListener;
 
+class IsOkMatcher : public MatcherInterface<::google::rpc::Status> {
+  bool MatchAndExplain(::google::rpc::Status status,
+                       MatchResultListener *listener) const override;
+
+  void DescribeTo(std::ostream *os) const override;
+
+  void DescribeNegationTo(std::ostream *os) const override;
+};
+
+inline Matcher<::google::rpc::Status> IsOk() {
+  return MakeMatcher(new IsOkMatcher());
+}
+
+#define ASSERT_OK(status) ASSERT_THAT(status, IsOk())
+#define EXPECT_OK(status) EXPECT_THAT(status, IsOk())
+
 // This is a very verbose matcher but it has the advantage to print convenient
 // error messages. Not sure I could achieve such a nice result by only using
 // googlemock base matchers (e.g. Field...)

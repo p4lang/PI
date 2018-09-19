@@ -1102,8 +1102,13 @@ TEST_F(ActionProfTest, InvalidActionId) {
 
 class MatchTableIndirectTest : public DeviceMgrTest {
  protected:
+  MatchTableIndirectTest() {
+    t_id = pi_p4info_table_id_from_name(p4info, "IndirectWS");
+    act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
+    a_id = pi_p4info_action_id_from_name(p4info, "actionA");
+  }
+
   void set_action(p4v1::Action *action, const std::string &param_v) {
-    auto a_id = pi_p4info_action_id_from_name(p4info, "actionA");
     action->set_action_id(a_id);
     auto param = action->add_params();
     param->set_param_id(
@@ -1114,7 +1119,6 @@ class MatchTableIndirectTest : public DeviceMgrTest {
   p4v1::ActionProfileMember make_member(uint32_t member_id,
                                         const std::string &param_v = "") {
     p4v1::ActionProfileMember member;
-    auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
     member.set_action_profile_id(act_prof_id);
     member.set_member_id(member_id);
     set_action(member.mutable_action(), param_v);
@@ -1122,7 +1126,6 @@ class MatchTableIndirectTest : public DeviceMgrTest {
   }
 
   void create_member(uint32_t member_id, const std::string &param_v) {
-    auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
     EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _));
     auto member = make_member(member_id, param_v);
     p4v1::WriteRequest request;
@@ -1139,7 +1142,6 @@ class MatchTableIndirectTest : public DeviceMgrTest {
   p4v1::ActionProfileGroup make_group(uint32_t group_id,
                                       It members_begin, It members_end) {
     p4v1::ActionProfileGroup group;
-    auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
     group.set_action_profile_id(act_prof_id);
     group.set_group_id(group_id);
     for (auto it = members_begin; it != members_end; ++it) {
@@ -1152,7 +1154,6 @@ class MatchTableIndirectTest : public DeviceMgrTest {
   // create a group which includes the provided members
   template <typename It>
   void create_group(uint32_t group_id, It members_begin, It members_end) {
-    auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
     EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, _, _));
     EXPECT_CALL(*mock, action_prof_group_add_member(act_prof_id, _, _))
         .Times(std::distance(members_begin, members_end));
@@ -1181,16 +1182,45 @@ class MatchTableIndirectTest : public DeviceMgrTest {
     return make_indirect_entry_common(mf_v, group_id, true);
   }
 
-  DeviceMgr::Status add_indirect_entry(p4v1::TableEntry *entry) {
-    p4v1::WriteRequest request;
-    auto update = request.add_updates();
-    update->set_type(p4v1::Update::INSERT);
-    auto entity = update->mutable_entity();
-    entity->set_allocated_table_entry(entry);
-    auto status = mgr.write(request);
-    entity->release_table_entry();
-    return status;
+  template <typename It>
+  p4v1::TableEntry make_indirect_entry_one_shot(
+      const std::string &mf_v, It params_begin, It params_end) {
+    p4v1::TableEntry table_entry;
+    auto t_id = pi_p4info_table_id_from_name(p4info, "IndirectWS");
+    table_entry.set_table_id(t_id);
+    auto mf = table_entry.add_match();
+    mf->set_field_id(pi_p4info_table_match_field_id_from_name(
+        p4info, t_id, "header_test.field32"));
+    auto mf_exact = mf->mutable_exact();
+    mf_exact->set_value(mf_v);
+    auto entry = table_entry.mutable_action();
+    auto ap_action_set = entry->mutable_action_profile_action_set();
+    for (auto param_it = params_begin; param_it != params_end; param_it++) {
+      auto ap_action = ap_action_set->add_action_profile_actions();
+      set_action(ap_action->mutable_action(), *param_it);
+    }
+    return table_entry;
   }
+
+  template <typename It>
+  DeviceMgr::Status add_indirect_entry_one_shot(
+      p4v1::TableEntry *entry, It params_begin, It params_end) {
+    for (auto param_it = params_begin; param_it != params_end; param_it++) {
+      auto ad_matcher = CorrectActionData(a_id, *param_it);
+      EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, ad_matcher, _));
+    }
+    auto params_size = static_cast<size_t>(
+        std::distance(params_begin, params_end));
+    EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, params_size, _));
+    EXPECT_CALL(*mock, action_prof_group_add_member(act_prof_id, _, _))
+        .Times(params_size);
+    EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
+    return add_entry(entry);
+  }
+
+  pi_p4_id_t t_id;
+  pi_p4_id_t act_prof_id;
+  pi_p4_id_t a_id;
 
  private:
   p4v1::TableEntry make_indirect_entry_common(const std::string &mf_v,
@@ -1214,7 +1244,6 @@ class MatchTableIndirectTest : public DeviceMgrTest {
 };
 
 TEST_F(MatchTableIndirectTest, Member) {
-  auto t_id = pi_p4info_table_id_from_name(p4info, "IndirectWS");
   uint32_t member_id = 123;
   std::string mf("\xaa\xbb\xcc\xdd", 4);
   std::string adata(6, '\x00');
@@ -1224,7 +1253,7 @@ TEST_F(MatchTableIndirectTest, Member) {
   auto entry_matcher = CorrectTableEntryIndirect(mbr_h);
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
   auto entry = make_indirect_entry_to_member(mf, member_id);
-  auto status = add_indirect_entry(&entry);
+  auto status = add_entry(&entry);
   ASSERT_EQ(status.code(), Code::OK);
 
   EXPECT_CALL(*mock, table_entries_fetch(t_id, _));
@@ -1240,7 +1269,6 @@ TEST_F(MatchTableIndirectTest, Member) {
 }
 
 TEST_F(MatchTableIndirectTest, Group) {
-  auto t_id = pi_p4info_table_id_from_name(p4info, "IndirectWS");
   uint32_t member_id = 123;
   uint32_t group_id = 1000;
   std::string mf("\xaa\xbb\xcc\xdd", 4);
@@ -1252,7 +1280,7 @@ TEST_F(MatchTableIndirectTest, Group) {
   auto entry_matcher = CorrectTableEntryIndirect(grp_h);
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
   auto entry = make_indirect_entry_to_group(mf, group_id);
-  auto status = add_indirect_entry(&entry);
+  auto status = add_entry(&entry);
   ASSERT_EQ(status.code(), Code::OK);
 
   EXPECT_CALL(*mock, table_entries_fetch(t_id, _));
@@ -1265,6 +1293,100 @@ TEST_F(MatchTableIndirectTest, Group) {
   const auto &entities = response.entities();
   ASSERT_EQ(1, entities.size());
   ASSERT_TRUE(MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
+}
+
+TEST_F(MatchTableIndirectTest, OneShotInsertAndRead) {
+  std::string mf("\xaa\xbb\xcc\xdd", 4);
+  std::vector<std::string> params;
+  params.emplace_back(6, '\x00');
+  params.emplace_back(6, '\x01');
+  auto entry = make_indirect_entry_one_shot(mf, params.begin(), params.end());
+  ASSERT_OK(add_indirect_entry_one_shot(&entry, params.begin(), params.end()));
+
+  EXPECT_CALL(*mock, table_entries_fetch(t_id, _));
+  EXPECT_CALL(*mock, action_prof_entries_fetch(act_prof_id, _));
+
+  p4v1::ReadResponse response;
+  ASSERT_OK(read_table_entries(t_id, &response));
+  const auto &entities = response.entities();
+  ASSERT_EQ(1, entities.size());
+  EXPECT_TRUE(
+      MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
+}
+
+TEST_F(MatchTableIndirectTest, OneShotInsertAndModify) {
+  std::string mf("\xaa\xbb\xcc\xdd", 4);
+  std::vector<std::string> params;
+  params.emplace_back(6, '\x00');
+  params.emplace_back(6, '\x01');
+  auto entry_1 = make_indirect_entry_one_shot(mf, params.begin(), params.end());
+  ASSERT_OK(add_indirect_entry_one_shot(
+      &entry_1, params.begin(), params.end()));
+
+  EXPECT_CALL(*mock, action_prof_group_delete(act_prof_id, _));
+  EXPECT_CALL(*mock, action_prof_member_delete(act_prof_id, _))
+      .Times(params.size());
+
+  params.pop_back();
+  EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _))
+      .Times(params.size());
+  EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, params.size(), _));
+  EXPECT_CALL(*mock, action_prof_group_add_member(act_prof_id, _, _))
+      .Times(params.size());
+  EXPECT_CALL(*mock, table_entry_modify_wkey(t_id, _, _));
+
+  auto entry_2 = make_indirect_entry_one_shot(mf, params.begin(), params.end());
+  EXPECT_OK(modify_entry(&entry_2));
+}
+
+TEST_F(MatchTableIndirectTest, OneShotInsertAndDelete) {
+  std::string mf("\xaa\xbb\xcc\xdd", 4);
+  std::vector<std::string> params;
+  params.emplace_back(6, '\x00');
+  params.emplace_back(6, '\x01');
+  auto entry = make_indirect_entry_one_shot(mf, params.begin(), params.end());
+  ASSERT_OK(add_indirect_entry_one_shot(&entry, params.begin(), params.end()));
+
+  EXPECT_CALL(*mock, action_prof_group_delete(act_prof_id, _));
+  EXPECT_CALL(*mock, action_prof_member_delete(act_prof_id, _))
+      .Times(params.size());
+  EXPECT_CALL(*mock, table_entry_delete_wkey(t_id, _));
+
+  EXPECT_OK(remove_entry(&entry));
+}
+
+TEST_F(MatchTableIndirectTest, MixedSelectorModes) {
+  std::string mf("\xaa\xbb\xcc\xdd", 4);
+  std::string adata(6, '\x00');
+  std::vector<std::string> params({adata});
+  auto entry = make_indirect_entry_one_shot(mf, params.begin(), params.end());
+  ASSERT_OK(add_indirect_entry_one_shot(&entry, params.begin(), params.end()));
+
+  uint32_t member_id = 123;
+  auto member = make_member(member_id, adata);
+  p4v1::WriteRequest request;
+  {
+    auto update = request.add_updates();
+    update->set_type(p4v1::Update::INSERT);
+    update->mutable_entity()->mutable_action_profile_member()->CopyFrom(member);
+  }
+
+  // the selector is now in ONESHOT mode, trying to use it in MANUAL mode should
+  // trigger an error
+  ASSERT_EQ(mgr.write(request), OneExpectedError(Code::INVALID_ARGUMENT));
+
+  // if we empty the selector we should be able to use MANUAL mode
+  EXPECT_CALL(*mock, action_prof_group_delete(act_prof_id, _));
+  EXPECT_CALL(*mock, action_prof_member_delete(act_prof_id, _))
+      .Times(params.size());
+  EXPECT_CALL(*mock, table_entry_delete_wkey(t_id, _));
+  ASSERT_OK(remove_entry(&entry));
+  EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _));
+  ASSERT_OK(mgr.write(request));
+
+  // the selector is now in MANUAL mode, trying to use it in ONESHOT mode should
+  // trigger an error
+  ASSERT_EQ(add_entry(&entry), OneExpectedError(Code::INVALID_ARGUMENT));
 }
 
 

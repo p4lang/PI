@@ -71,6 +71,8 @@ class BiMap {
     map_2_1.erase(t2);
   }
 
+  bool empty() const { return map_1_2.empty(); }
+
  private:
   std::unordered_map<T1, T2> map_1_2{};
   std::unordered_map<T2, T1> map_2_1{};
@@ -89,6 +91,8 @@ class ActionProfBiMap {
   const Id *retrieve_id(pi_indirect_handle_t h) const;
 
   void remove(const Id &id);
+
+  bool empty() const;
 
  private:
   BiMap<Id, pi_indirect_handle_t> bimap;
@@ -121,6 +125,8 @@ class ActionProfMgr {
   using Status = ::google::rpc::Status;
   using SessionTemp = common::SessionTemp;
 
+  enum class SelectorUsage { UNSPECIFIED, ONESHOT, MANUAL };
+
   ActionProfMgr(pi_dev_tgt_t device_tgt, pi_p4_id_t act_prof_id,
                 pi_p4info_t *p4info);
 
@@ -142,12 +148,35 @@ class ActionProfMgr {
   Status group_delete(const p4::v1::ActionProfileGroup &group,
                       const SessionTemp &session);
 
-  // returns nullptr if no matching id
-  const pi_indirect_handle_t *retrieve_member_handle(const Id &member_id);
-  const pi_indirect_handle_t *retrieve_group_handle(const Id &group_id);
+  Status oneshot_group_create(const p4::v1::ActionProfileActionSet &action_set,
+                              pi_indirect_handle_t *group_h,
+                              SessionTemp *session);
+  Status oneshot_group_delete(pi_indirect_handle_t group_h,
+                              const SessionTemp &session);
 
-  const Id *retrieve_member_id(pi_indirect_handle_t h);
-  const Id *retrieve_group_id(pi_indirect_handle_t h);
+  // we don't trust the target to return the members in the correct order
+  // (read-write symmetry) and ActionProfMgr has to store this anyway
+  // returns true iff group_h is valid (can be found)
+  bool oneshot_group_get_members(
+      pi_indirect_handle_t group_h,
+      std::vector<pi_indirect_handle_t> *members_h) const;
+
+  SelectorUsage get_selector_usage() const;
+
+  // would be nice to be able to use boost::optional for the retrieve functions;
+  // we cannot return a pointer (that would be null if the key couldn't be
+  // found) because some other thread may come in and remove the corresponding
+  // group / member, thus invalidating the pointer.
+
+  // returns false if no matching id
+  bool retrieve_member_handle(const Id &member_id,
+                              pi_indirect_handle_t *member_h) const;
+  bool retrieve_group_handle(const Id &group_id,
+                             pi_indirect_handle_t *group_h) const;
+
+  // returns false if no matching handle
+  bool retrieve_member_id(pi_indirect_handle_t member_h, Id *member_id) const;
+  bool retrieve_group_id(pi_indirect_handle_t group_h, Id *group_id) const;
 
  private:
   bool check_p4_action_id(pi_p4_id_t p4_id) const;
@@ -191,6 +220,10 @@ class ActionProfMgr {
   // iterates over groups to remove member
   void update_group_membership(const Id &removed_member_id);
 
+  // these 2 methods require the lock to held by the caller
+  Status check_selector_usage(SelectorUsage attempted_usage) const;
+  void reset_selector_usage();
+
   using Mutex = std::mutex;
   using Lock = std::lock_guard<ActionProfMgr::Mutex>;
   pi_dev_tgt_t device_tgt;
@@ -199,6 +232,9 @@ class ActionProfMgr {
   ActionProfBiMap member_bimap{};
   ActionProfBiMap group_bimap{};
   std::map<Id, ActionProfGroupMembership> group_members{};
+  std::unordered_map<pi_indirect_handle_t, std::vector<pi_indirect_handle_t> >
+  oneshot_group_members{};
+  SelectorUsage selector_usage{SelectorUsage::UNSPECIFIED};
   mutable Mutex mutex{};
 };
 

@@ -30,6 +30,8 @@
 #include "PI/pi.h"
 #include "PI/pi_clone.h"
 
+#include "google/rpc/code.pb.h"
+
 #include "matchers.h"
 
 using p4::v1::CounterData;
@@ -38,6 +40,23 @@ using p4::v1::MeterConfig;
 namespace pi {
 namespace proto {
 namespace testing {
+
+bool
+IsOkMatcher::MatchAndExplain(::google::rpc::Status status,
+                             MatchResultListener *listener) const {
+  (void) listener;
+  return status.code() == ::google::rpc::Code::OK;
+}
+
+void
+IsOkMatcher::DescribeTo(std::ostream *os) const {
+  *os << "is OK";
+}
+
+void
+IsOkMatcher::DescribeNegationTo(std::ostream *os) const {
+  *os << "is not OK";
+}
 
 MatchKeyMatcher::MatchKeyMatcher(pi_p4_id_t t_id, const std::string &v)
     : t_id(t_id), v(v) { }
