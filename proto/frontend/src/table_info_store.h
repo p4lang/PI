@@ -45,13 +45,20 @@ class TableInfoStore {
   // operator.
   using MatchKey = pi::MatchKey;
 
-  // wish I could use boost::variant for these
   struct Data {
     Data(pi_entry_handle_t handle, uint64_t controller_metadata)
         : handle(handle), controller_metadata(controller_metadata) { }
 
+    Data(pi_entry_handle_t handle, uint64_t controller_metadata,
+         pi_indirect_handle_t oneshot_group_handle)
+        : handle(handle), controller_metadata(controller_metadata),
+          is_oneshot(true), oneshot_group_handle(oneshot_group_handle) { }
+
     const pi_entry_handle_t handle{0};
     uint64_t controller_metadata{0};
+    // wish I could use boost::optional here
+    bool is_oneshot{false};
+    pi_indirect_handle_t oneshot_group_handle{0};
   };
 
   using Mutex = std::mutex;

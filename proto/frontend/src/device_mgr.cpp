@@ -190,6 +190,38 @@ bool range_match_is_dont_care(const p4v1::FieldMatch::Range &mf) {
       high == common::range_default_hi(bitwidth);
 }
 
+struct OneShotCleanup : public common::LocalCleanupIface {
+  OneShotCleanup(ActionProfMgr *action_prof_mgr,
+                 pi_indirect_handle_t group_h)
+      : action_prof_mgr(action_prof_mgr), group_h_to_delete(group_h) { }
+
+  Status cleanup(const SessionTemp &session) override {
+    if (!action_prof_mgr) RETURN_OK_STATUS();
+    auto status =
+        action_prof_mgr->oneshot_group_delete(group_h_to_delete, session);
+    if (IS_ERROR(status)) {
+      RETURN_ERROR_STATUS(
+          Code::INTERNAL,
+          "Error encountered when cleaning up action profile group created "
+          "by one-shot indirect table programming. This is a serious error and "
+          "there is now a dangling action profile group. You may need to "
+          "reboot the system");
+    }
+    RETURN_OK_STATUS();
+  }
+
+  void cancel() override {
+    action_prof_mgr = nullptr;
+  }
+
+  void update_group_h(pi_indirect_handle_t group_h) {
+    group_h_to_delete = group_h;
+  }
+
+  ActionProfMgr *action_prof_mgr;
+  pi_indirect_handle_t group_h_to_delete;
+};
+
 }  // namespace
 
 class DeviceMgrImp {
@@ -441,7 +473,7 @@ class DeviceMgrImp {
 
   Status table_write(p4v1::Update::Type update,
                      const p4v1::TableEntry &table_entry,
-                     const SessionTemp &session) {
+                     SessionTemp *session) {
     if (!check_p4_id(table_entry.table_id(), P4Ids::TABLE))
       return make_invalid_p4_id_status();
 
@@ -803,8 +835,13 @@ class DeviceMgrImp {
     return Code::OK;
   }
 
-  Code parse_action_entry(p4_id_t table_id, const pi_table_entry_t *pi_entry,
-                          p4v1::TableEntry *entry) const {
+  Code parse_action_entry(
+      p4_id_t table_id,
+      const pi_table_entry_t *pi_entry,
+      p4v1::TableEntry *entry,
+      const std::unordered_map<
+        pi_indirect_handle_t,
+        p4v1::ActionProfileActionSet> &oneshot_map) const {
     if (pi_entry->entry_type == PI_ACTION_ENTRY_TYPE_NONE) return Code::OK;
 
     auto table_action = entry->mutable_action();
@@ -815,19 +852,117 @@ class DeviceMgrImp {
       // check that table is indirect
       if (action_prof_id == PI_INVALID_ID) return Code::UNKNOWN;
       auto action_prof_mgr = get_action_prof_mgr(action_prof_id);
-      auto member_id = action_prof_mgr->retrieve_member_id(indirect_h);
-      if (member_id != nullptr) {
-        table_action->set_action_profile_member_id(*member_id);
-        return Code::OK;
+      switch (action_prof_mgr->get_selector_usage()) {
+        case ActionProfMgr::SelectorUsage::UNSPECIFIED:
+          return Code::INTERNAL;
+        case ActionProfMgr::SelectorUsage::ONESHOT:
+          {
+            auto p_it = oneshot_map.find(indirect_h);
+            if (p_it == oneshot_map.end()) return Code::INTERNAL;
+            table_action->mutable_action_profile_action_set()->CopyFrom(
+                p_it->second);
+            return Code::OK;
+          }
+        case ActionProfMgr::SelectorUsage::MANUAL:
+          {
+            ActionProfMgr::Id member_id;
+            if (action_prof_mgr->retrieve_member_id(indirect_h, &member_id)) {
+              table_action->set_action_profile_member_id(member_id);
+              return Code::OK;
+            }
+            ActionProfMgr::Id group_id;
+            if (!action_prof_mgr->retrieve_group_id(indirect_h, &group_id))
+              return Code::INTERNAL;
+            table_action->set_action_profile_group_id(group_id);
+            return Code::OK;
+          }
       }
-      auto group_id = action_prof_mgr->retrieve_group_id(indirect_h);
-      if (group_id == nullptr) return Code::UNKNOWN;
-      table_action->set_action_profile_group_id(*group_id);
-      return Code::OK;
     }
 
     return parse_action_data(pi_entry->entry.action_data,
                              table_action->mutable_action());
+  }
+
+  // Map group handles to an ActionProfileActionSet message. This is required
+  // for read-write symmetry when reading the contents of an action selector
+  // programmed with the one-shot method. If the table is not indirect or the
+  // selector does not use one-shot, nothing is added to the map.
+  Status build_action_profile_action_set_map(
+      p4_id_t table_id,
+      std::unordered_map<pi_indirect_handle_t,
+                         p4v1::ActionProfileActionSet> *map,
+      const SessionTemp &session) const {
+    auto action_prof_id = pi_p4info_table_get_implementation(p4info.get(),
+                                                             table_id);
+    // check that table is indirect
+    if (action_prof_id == PI_INVALID_ID) RETURN_OK_STATUS();
+    auto action_prof_mgr = get_action_prof_mgr(action_prof_id);
+    assert(action_prof_mgr);
+
+    if (action_prof_mgr->get_selector_usage() !=
+        ActionProfMgr::SelectorUsage::ONESHOT) {
+      RETURN_OK_STATUS();
+    }
+
+    pi_act_prof_fetch_res_t *res;
+    auto pi_status = pi_act_prof_entries_fetch(session.get(), device_id,
+                                               action_prof_id, &res);
+    if (pi_status != PI_STATUS_SUCCESS) {
+      RETURN_ERROR_STATUS(
+          Code::UNKNOWN,
+          "Error when fetching action profile entries from target");
+    }
+
+    // first, build a map from member handle to action specification
+    std::unordered_map<pi_indirect_handle_t, p4v1::Action> mbr_h_to_action;
+    auto num_members = pi_act_prof_mbrs_num(res);
+    for (size_t i = 0; i < num_members; i++) {
+      pi_action_data_t *action_data;
+      pi_indirect_handle_t member_h;
+      pi_act_prof_mbrs_next(res, &action_data, &member_h);
+      auto p = mbr_h_to_action.emplace(member_h, p4v1::Action());
+      if (!p.second)
+        RETURN_ERROR_STATUS(Code::INTERNAL, "Duplicate member handle");
+      if (parse_action_data(action_data, &p.first->second) != Code::OK)
+        RETURN_ERROR_STATUS(Code::INTERNAL, "Error when parsing action data");
+    }
+
+    // then, iterate over groups and build the corresponding
+    // ActionProfileActionSet using the action specifications included in
+    // mbr_h_to_action,
+    auto num_groups = pi_act_prof_grps_num(res);
+    for (size_t i = 0; i < num_groups; i++) {
+      pi_indirect_handle_t *members_h;
+      size_t num;
+      pi_indirect_handle_t group_h;
+      pi_act_prof_grps_next(res, &members_h, &num, &group_h);
+      auto p = map->emplace(group_h, p4v1::ActionProfileActionSet());
+      if (!p.second)
+        RETURN_ERROR_STATUS(Code::INTERNAL, "Duplicate group handle");
+      // we cannot rely on the target returning the members in the correct order
+      // (read-write symmetry), so we use the member list stored in
+      // ActionProfMgr.
+      std::vector<pi_indirect_handle_t> members_h_in_order;
+      if (!action_prof_mgr->oneshot_group_get_members(
+              group_h, &members_h_in_order)) {
+        RETURN_ERROR_STATUS(Code::INTERNAL, "Unknown group handle");
+      }
+      if (num != members_h_in_order.size())
+        RETURN_ERROR_STATUS(Code::INTERNAL, "Mismatch in group size");
+      auto *ap_action_set = &p.first->second;
+      for (size_t j = 0; j < num; j++) {
+        auto *ap_action = ap_action_set->add_action_profile_actions();
+        auto action_spec_it = mbr_h_to_action.find(members_h_in_order[j]);
+        if (action_spec_it == mbr_h_to_action.end())
+          RETURN_ERROR_STATUS(Code::INTERNAL, "Invalid member handle in group");
+        // TODO(antonin): watch & weigth?
+        ap_action->mutable_action()->CopyFrom(action_spec_it->second);
+      }
+    }
+
+    pi_act_prof_entries_fetch_done(session.get(), res);
+
+    RETURN_OK_STATUS();
   }
 
   Status table_read_one(p4_id_t table_id,
@@ -843,6 +978,13 @@ class DeviceMgrImp {
       auto status = construct_match_key(requested_entry, &expected_match_key);
       if (IS_ERROR(status)) return status;
     }
+
+    std::unordered_map<pi_indirect_handle_t,
+                       p4v1::ActionProfileActionSet> oneshot_map;
+    // the map is needed if the table is indirect and was programmed using the
+    // oneshot programming method, to guarantee read-write symmetry
+    RETURN_IF_ERROR(build_action_profile_action_set_map(
+        table_id, &oneshot_map, session));
 
     pi_table_fetch_res_t *res;
     auto table_lock = table_info_store.lock_table(table_id);
@@ -880,7 +1022,8 @@ class DeviceMgrImp {
       table_entry->set_table_id(table_id);
       code = parse_match_key(table_id, entry.match_key, table_entry);
       if (code != Code::OK) break;
-      code = parse_action_entry(table_id, &entry.entry, table_entry);
+      code = parse_action_entry(table_id, &entry.entry, table_entry,
+                                oneshot_map);
       if (code != Code::OK) break;
 
       // direct resources
@@ -917,17 +1060,22 @@ class DeviceMgrImp {
       // anyway there would be no point in looking since there can be no
       // controller metadata for these immutable entries.
       bool table_is_const = pi_p4info_table_is_const(p4info.get(), table_id);
-      if (!table_is_const) {
-        auto entry_data = table_info_store.get_entry(table_id, mk);
-        // this would point to a serious bug in the implementation, and shoudn't
-        // occur given that we keep the local state in sync with lower level
-        // state thanks to our per-table lock.
-        if (entry_data == nullptr) {
-          Logger::get()->critical("Table state out-of-sync with target");
-          assert(0 && "Invalid state");
-        }
-        table_entry->set_controller_metadata(entry_data->controller_metadata);
+      if (table_is_const) continue;
+      auto entry_data = table_info_store.get_entry(table_id, mk);
+      // this would point to a serious bug in the implementation, and shoudn't
+      // occur given that we keep the local state in sync with lower level state
+      // thanks to our per-table lock.
+      if (entry_data == nullptr) {
+        RETURN_ERROR_STATUS(Code::INTERNAL,
+                            "Table state out-of-sync with target");
       }
+      table_entry->set_controller_metadata(entry_data->controller_metadata);
+
+      // just a sanity check
+      assert(
+          entry_data->is_oneshot ==
+          (table_entry->action().type_case() ==
+           p4v1::TableAction::kActionProfileActionSet));
     }
 
     pi_table_entries_fetch_done(session.get(), res);
@@ -935,7 +1083,7 @@ class DeviceMgrImp {
     RETURN_STATUS(code);
   }
 
-  // TODO(antonin): full filtering on the match key, action, ...
+  // TODO(antonin): full filtering on the match key, action, ... as per the spec
   Status table_read(const p4v1::TableEntry &table_entry,
                     const SessionTemp &session,
                     p4v1::ReadResponse *response) const {
@@ -1041,13 +1189,12 @@ class DeviceMgrImp {
       pi_act_prof_mbrs_next(res, &action_data, &member_h);
       code = parse_action_data(action_data, member->mutable_action());
       if (code != Code::OK) break;
-      auto member_id = action_prof_mgr->retrieve_member_id(member_h);
-      if (member_id == nullptr) {
-        Logger::get()->critical("Cannot map member handle to member id");
-        code = Code::INTERNAL;
-        break;
+      ActionProfMgr::Id member_id;
+      if (!action_prof_mgr->retrieve_member_id(member_h, &member_id)) {
+        RETURN_ERROR_STATUS(Code::INTERNAL,
+                            "Cannot map member handle to member id");
       }
-      member->set_member_id(*member_id);
+      member->set_member_id(member_id);
     }
 
     auto num_groups = pi_act_prof_grps_num(res);
@@ -1059,22 +1206,20 @@ class DeviceMgrImp {
       if (group == nullptr) break;
       group->set_action_profile_id(action_profile_id);
       pi_act_prof_grps_next(res, &members_h, &num, &group_h);
-      auto group_id = action_prof_mgr->retrieve_group_id(group_h);
-      if (group_id == nullptr) {
-        Logger::get()->critical("Cannot map group handle to group id");
-        code = Code::UNKNOWN;
-        break;
+      ActionProfMgr::Id group_id;
+      if (!action_prof_mgr->retrieve_group_id(group_h, &group_id)) {
+        RETURN_ERROR_STATUS(Code::INTERNAL,
+                            "Cannot map group handle to group id");
       }
-      group->set_group_id(*group_id);
+      group->set_group_id(group_id);
       for (size_t j = 0; j < num; j++) {
-        auto member_id = action_prof_mgr->retrieve_member_id(members_h[j]);
-        if (member_id == nullptr) {
-          Logger::get()->critical("Cannot map member handle to member id");
-          code = Code::UNKNOWN;
-          break;
+        ActionProfMgr::Id member_id;
+        if (!action_prof_mgr->retrieve_member_id(members_h[j], &member_id)) {
+          RETURN_ERROR_STATUS(Code::INTERNAL,
+                              "Cannot map member handle to member id");
         }
         auto member = group->add_members();
-        member->set_member_id(*member_id);
+        member->set_member_id(member_id);
       }
     }
 
@@ -1550,7 +1695,7 @@ class DeviceMgrImp {
           status.set_code(Code::UNIMPLEMENTED);
           break;
         case p4v1::Entity::kTableEntry:
-          status = table_write(update.type(), entity.table_entry(), session);
+          status = table_write(update.type(), entity.table_entry(), &session);
           break;
         case p4v1::Entity::kActionProfileMember:
           status = action_profile_member_write(
@@ -1596,7 +1741,9 @@ class DeviceMgrImp {
           status = ERROR_STATUS(Code::UNKNOWN, "Incorrect entity type");
           break;
       }
-      error_reporter.push_back(status);
+      auto cleanup_status = session.local_cleanup();
+      error_reporter.push_back(
+          IS_OK(cleanup_status) ? status : cleanup_status);
     }
     return error_reporter.get_status();
   }
@@ -1909,23 +2056,24 @@ class DeviceMgrImp {
     auto action_prof_mgr = get_action_prof_mgr(action_prof_id);
     // cannot assert because the action prof id is provided by the PI
     assert(action_prof_mgr);
-    const pi_indirect_handle_t *indirect_h = nullptr;
+    pi_indirect_handle_t indirect_h;
+    bool found_h;
     switch (table_action.type_case()) {
       case p4v1::TableAction::kActionProfileMemberId:
-        indirect_h = action_prof_mgr->retrieve_member_handle(
-            table_action.action_profile_member_id());
+        found_h = action_prof_mgr->retrieve_member_handle(
+            table_action.action_profile_member_id(), &indirect_h);
         break;
       case p4v1::TableAction::kActionProfileGroupId:
-        indirect_h = action_prof_mgr->retrieve_group_handle(
-            table_action.action_profile_group_id());
+        found_h = action_prof_mgr->retrieve_group_handle(
+            table_action.action_profile_group_id(), &indirect_h);
         break;
       default:
         assert(0);
     }
     // invalid member/group id
-    if (indirect_h == nullptr)
+    if (!found_h)
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid member / group id");
-    action_entry->init_indirect_handle(*indirect_h);
+    action_entry->init_indirect_handle(indirect_h);
     RETURN_OK_STATUS();
   }
 
@@ -1941,9 +2089,41 @@ class DeviceMgrImp {
       case p4v1::TableAction::kActionProfileGroupId:
         return construct_action_entry_indirect(table_id, table_action,
                                                action_entry);
+      case p4v1::TableAction::kActionProfileActionSet:
+        // This case is handled differently because in the one-shot case,
+        // constructing the action entry actually requires creating / deleting
+        // groups. construct_action_entry_oneshot is called instead.
+        RETURN_ERROR_STATUS(Code::INTERNAL,
+                            "Unexpected call to construct_action_entry");
       default:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
     }
+  }
+
+  Status construct_action_entry_oneshot(
+      uint32_t table_id,
+      const p4v1::ActionProfileActionSet &action_set,
+      pi::ActionEntry *action_entry,
+      SessionTemp *session) {
+    auto action_prof_id = pi_p4info_table_get_implementation(p4info.get(),
+                                                             table_id);
+    // check that table is indirect
+    if (action_prof_id == PI_INVALID_ID) {
+      RETURN_ERROR_STATUS(
+          Code::INVALID_ARGUMENT,
+          "Expected indirect table but table {} is not", table_id);
+    }
+    auto action_prof_mgr = get_action_prof_mgr(action_prof_id);
+    // cannot assert because the action prof id is provided by the PI
+    assert(action_prof_mgr);
+
+    pi_indirect_handle_t group_h;
+    RETURN_IF_ERROR(action_prof_mgr->oneshot_group_create(
+        action_set, &group_h, session));
+    action_entry->init_indirect_handle(group_h);
+    session->cleanup_task_push(std::unique_ptr<OneShotCleanup>(
+        new OneShotCleanup(action_prof_mgr, group_h)));
+    RETURN_OK_STATUS();
   }
 
   // takes storage for meter_spec and counter_data to enable using stack storage
@@ -1981,7 +2161,7 @@ class DeviceMgrImp {
   }
 
   Status table_insert(const p4v1::TableEntry &table_entry,
-                      const SessionTemp &session) {
+                      SessionTemp *session) {
     const auto table_id = table_entry.table_id();
     if (table_entry.is_default_action()) {
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
@@ -1997,17 +2177,21 @@ class DeviceMgrImp {
     pi::ActionEntry action_entry;
     pi_meter_spec_t _meter_spec_storage;
     pi_counter_data_t _counter_data_storage;
-    {
-      auto status = construct_action_entry(
-          table_id, table_entry.action(), &action_entry);
-      if (IS_ERROR(status)) return status;
+    if (table_entry.action().type_case() ==
+        p4v1::TableAction::kActionProfileActionSet) {
+      session->cleanup_scope_push();
+      RETURN_IF_ERROR(construct_action_entry_oneshot(
+          table_id,
+          table_entry.action().action_profile_action_set(),
+          &action_entry,
+          session));
+    } else {
+      RETURN_IF_ERROR(construct_action_entry(
+          table_id, table_entry.action(), &action_entry));
     }
-    {
-      auto status = construct_direct_resources(
-          table_entry, &action_entry,
-          &_meter_spec_storage, &_counter_data_storage);
-      if (IS_ERROR(status)) return status;
-    }
+    RETURN_IF_ERROR(construct_direct_resources(
+        table_entry, &action_entry,
+        &_meter_spec_storage, &_counter_data_storage));
 
     auto table_lock = table_info_store.lock_table(table_id);
 
@@ -2017,7 +2201,7 @@ class DeviceMgrImp {
           "Match entry exists, use MODIFY if you wish to change action");
     }
 
-    pi::MatchTable mt(session.get(), device_tgt, p4info.get(), table_id);
+    pi::MatchTable mt(session->get(), device_tgt, p4info.get(), table_id);
     pi_entry_handle_t handle;
     auto pi_status = mt.entry_add(match_key, action_entry, false, &handle);
     if (pi_status != PI_STATUS_SUCCESS) {
@@ -2025,15 +2209,24 @@ class DeviceMgrImp {
                           "Error when adding match entry to target");
     }
 
-    table_info_store.add_entry(
-        table_id, match_key,
-        TableInfoStore::Data(handle, table_entry.controller_metadata()));
+    if (table_entry.action().type_case() ==
+        p4v1::TableAction::kActionProfileActionSet) {
+      table_info_store.add_entry(
+          table_id, match_key,
+          TableInfoStore::Data(handle, table_entry.controller_metadata(),
+                               action_entry.indirect_handle()));
+      session->cleanup_scope_pop();
+    } else {
+      table_info_store.add_entry(
+          table_id, match_key,
+          TableInfoStore::Data(handle, table_entry.controller_metadata()));
+    }
 
     RETURN_OK_STATUS();
   }
 
   Status table_modify(const p4v1::TableEntry &table_entry,
-                      const SessionTemp &session) {
+                      SessionTemp *session) {
     const auto table_id = table_entry.table_id();
     pi::MatchKey match_key(p4info.get(), table_id);
     {
@@ -2045,29 +2238,35 @@ class DeviceMgrImp {
     pi_meter_spec_t _meter_spec_storage;
     pi_counter_data_t _counter_data_storage;
     if (table_entry.has_action()) {
-      auto status = construct_action_entry(
-          table_id, table_entry.action(), &action_entry);
-      if (IS_ERROR(status)) return status;
+      if (table_entry.action().type_case() ==
+          p4v1::TableAction::kActionProfileActionSet) {
+        session->cleanup_scope_push();
+        RETURN_IF_ERROR(construct_action_entry_oneshot(
+            table_id,
+            table_entry.action().action_profile_action_set(),
+            &action_entry,
+            session));
+      } else {
+        RETURN_IF_ERROR(construct_action_entry(
+            table_id, table_entry.action(), &action_entry));
+      }
     } else if (!table_entry.is_default_action()) {
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                           "'action' field must be set for non-default entries");
     }
-    {
-      auto status = construct_direct_resources(
-          table_entry, &action_entry,
-          &_meter_spec_storage, &_counter_data_storage);
-      if (IS_ERROR(status)) return status;
-    }
+    RETURN_IF_ERROR(construct_direct_resources(
+        table_entry, &action_entry,
+        &_meter_spec_storage, &_counter_data_storage));
 
     auto table_lock = table_info_store.lock_table(table_id);
-    // we need this pointer to update the controller metadata if the modify
-    // operation is successful
+    // we need this pointer to update the controller metadata and the one-shot
+    // group handle (if needed) if the modify operation is successful
     auto entry_data = table_info_store.get_entry(table_id, match_key);
 
     if (entry_data == nullptr)
       RETURN_ERROR_STATUS(Code::NOT_FOUND, "Cannot find match entry");
 
-    pi::MatchTable mt(session.get(), device_tgt, p4info.get(), table_id);
+    pi::MatchTable mt(session->get(), device_tgt, p4info.get(), table_id);
     pi_status_t pi_status;
     if (table_entry.is_default_action()) {
       if (table_entry.has_action())
@@ -2088,13 +2287,23 @@ class DeviceMgrImp {
       entry_data->controller_metadata = 0;
     } else {
       entry_data->controller_metadata = table_entry.controller_metadata();
+      if (table_entry.action().type_case() ==
+          p4v1::TableAction::kActionProfileActionSet) {
+        assert(entry_data->is_oneshot);
+        auto *task = session->cleanup_task_back();
+        // match entry add was successful: we need to cancel the new group
+        // deletion and schedule the deletion of the old group instead
+        dynamic_cast<OneShotCleanup *>(task)->update_group_h(
+            entry_data->oneshot_group_handle);
+        entry_data->oneshot_group_handle = action_entry.indirect_handle();
+      }
     }
 
     RETURN_OK_STATUS();
   }
 
   Status table_delete(const p4v1::TableEntry &table_entry,
-                      const SessionTemp &session) {
+                      SessionTemp *session) {
     const auto table_id = table_entry.table_id();
     if (table_entry.is_default_action()) {
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
@@ -2108,15 +2317,28 @@ class DeviceMgrImp {
     }
 
     auto table_lock = table_info_store.lock_table(table_id);
-
-    if (table_info_store.get_entry(table_id, match_key) == nullptr)
+    // we need this pointer to access the one-shot group handle (if needed for
+    // this entry).
+    auto entry_data = table_info_store.get_entry(table_id, match_key);
+    if (entry_data == nullptr)
       RETURN_ERROR_STATUS(Code::NOT_FOUND, "Cannot find match entry");
 
-    pi::MatchTable mt(session.get(), device_tgt, p4info.get(), table_id);
+    pi::MatchTable mt(session->get(), device_tgt, p4info.get(), table_id);
     auto pi_status = mt.entry_delete_wkey(match_key);
     if (pi_status != PI_STATUS_SUCCESS) {
       RETURN_ERROR_STATUS(Code::UNKNOWN,
                           "Error when deleting match entry in target");
+    }
+
+    if (entry_data->is_oneshot) {
+      auto action_prof_id = pi_p4info_table_get_implementation(p4info.get(),
+                                                               table_id);
+      auto action_prof_mgr = get_action_prof_mgr(action_prof_id);
+      assert(action_prof_mgr);
+      session->cleanup_scope_push();
+      session->cleanup_task_push(std::unique_ptr<OneShotCleanup>(
+          new OneShotCleanup(
+              action_prof_mgr, entry_data->oneshot_group_handle)));
     }
 
     table_info_store.remove_entry(table_id, match_key);
