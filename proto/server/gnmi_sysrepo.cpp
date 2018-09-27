@@ -419,7 +419,7 @@ std::string extractOrigin(const std::string &path) {
 
 sr_type_t convert_LY_type_to_sysrepo_type(LY_DATA_TYPE LY_type) {
   switch (LY_type) {
-    case LY_TYPE_ERR:
+    case LY_TYPE_UNKNOWN:
       return SR_UNKNOWN_T;
     case LY_TYPE_DER:
       return SR_UNKNOWN_T;
