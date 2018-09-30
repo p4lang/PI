@@ -8,10 +8,10 @@ We are working on supporting gNMI and OpenConfig YANG models as part of the P4
 Runtime server. We are using [sysrepo](https://github.com/sysrepo/sysrepo) as
 our YANG configuration data store and operational state manager. If you want to
 experiment with the gNMI support, you will need to install sysrepo and its
-dependencies. We currently require [version 0.7.2 of
-sysrepo](https://github.com/sysrepo/sysrepo/releases/tag/v0.7.2), which depends
-on [version 0.14-r1 of
-libyang](https://github.com/CESNET/libyang/releases/tag/v0.14-r1).
+dependencies. We currently require [version 0.7.5 of
+sysrepo](https://github.com/sysrepo/sysrepo/releases/tag/v0.7.5), which depends
+on [version 0.16-r1 of
+libyang](https://github.com/CESNET/libyang/releases/tag/v0.16-r1).
 
 Please make sure you install all the dependencies for libyang and sysrepo. If
 you are using a Debian system, we recommend that you install the following
@@ -23,7 +23,7 @@ Then install libyang:
 
     git clone https://github.com/CESNET/libyang.git
     cd libyang
-    git checkout v0.14-r1
+    git checkout v0.16-r1
     mkdir build
     cd build
     cmake ..
@@ -34,7 +34,7 @@ Finally, install sysrepo
 
     git clone https://github.com/sysrepo/sysrepo.git
     cd sysrepo
-    git checkout v0.7.2
+    git checkout v0.7.5
     mkdir build
     cd build
     cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLES=Off -DCALL_TARGET_BINS_DIRECTLY=Off ..
