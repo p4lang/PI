@@ -519,7 +519,10 @@ class TestGNMISysrepo : public TestGNMI {
   bool cleanup_data_tree() const {
     int rc = sr_delete_item(
         session.get(), "/openconfig-interfaces:*", SR_EDIT_DEFAULT);
-    return rc == SR_ERR_OK;
+    if (rc != SR_ERR_OK) return false;
+    rc = sr_commit(session.get());
+    if (rc != SR_ERR_OK) return false;
+    return true;
   }
 
   gnmi::SetRequest create_iface_req(const std::string &name) {
@@ -809,7 +812,11 @@ TEST_F(TestGNMISysrepo, Augmentation) {
       "/openconfig-interfaces:interfaces/interface[name='eth0']/");
   port_speed_path.append("openconfig-if-ethernet:ethernet/config/port-speed");
 
-  check_event({port_speed_path, SR_OP_CREATED, "SPEED_100GB"});
+  // openconfig-if-ethernet seems to be necessart after updating sysrepo (&
+  // libyang) to 0.7.5
+  // check_event({port_speed_path, SR_OP_CREATED, "SPEED_100GB"});
+  check_event(
+      {port_speed_path, SR_OP_CREATED, "openconfig-if-ethernet:SPEED_100GB"});
 
   EXPECT_TRUE(no_more_events());
 }
