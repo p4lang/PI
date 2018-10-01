@@ -1,6 +1,6 @@
 # P4Runtime
 
-Find documentation under [docs](docs/).
+You can find the P4Runtime specification on [p4.org](https://p4.org/specs/).
 
 ## Tentative gNMI support with sysrepo
 
