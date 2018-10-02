@@ -56,10 +56,12 @@ class DeviceMgr {
   // New pipeline_config_set and pipeline_config_get methods to replace init,
   // update_start and update_end
   Status pipeline_config_set(
-      p4::v1::SetForwardingPipelineConfigRequest_Action action,
+      p4::v1::SetForwardingPipelineConfigRequest::Action action,
       const p4::v1::ForwardingPipelineConfig &config);
 
-  Status pipeline_config_get(p4::v1::ForwardingPipelineConfig *config);
+  Status pipeline_config_get(
+      p4::v1::GetForwardingPipelineConfigRequest::ResponseType response_type,
+      p4::v1::ForwardingPipelineConfig *config);
 
   // New write and read methods, meant to replace all the methods below
   Status write(const p4::v1::WriteRequest &request);

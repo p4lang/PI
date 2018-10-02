@@ -29,6 +29,7 @@
 
 #include "google/rpc/code.pb.h"
 
+#include "matchers.h"
 #include "mock_switch.h"
 
 namespace p4v1 = ::p4::v1;
@@ -69,7 +70,7 @@ class DeviceMgrPacketIOTest : public ::testing::Test {
     // releasing resource before the assert to avoid double free in case the
     // assert is false
     config.release_p4info();
-    ASSERT_EQ(status.code(), Code::OK);
+    ASSERT_OK(status);
   }
 
   void TearDown() override { }

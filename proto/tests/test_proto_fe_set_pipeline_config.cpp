@@ -122,7 +122,7 @@ TEST_F(DeviceMgrSetPipelineConfigTest, Reconcile) {
     auto status = set_pipeline_config(
         &p4info_proto_1,
         p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT);
-    ASSERT_EQ(status.code(), Code::OK);
+    ASSERT_OK(status);
   }
 
   EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
