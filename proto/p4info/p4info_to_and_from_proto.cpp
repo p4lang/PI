@@ -203,22 +203,16 @@ void read_meters(const p4configv1::P4Info &p4info_proto, pi_p4info_t *p4info) {
     }
   };
 
-  auto type_convert = [](const p4configv1::MeterSpec &spec) {
-    switch (spec.type()) {
-      case p4configv1::MeterSpec_Type_COLOR_AWARE:
-        return PI_P4INFO_METER_TYPE_COLOR_AWARE;
-      case p4configv1::MeterSpec_Type_COLOR_UNAWARE:
-        return PI_P4INFO_METER_TYPE_COLOR_UNAWARE;
-      default:  // invalid
-        throw read_proto_exception("Invalid meter type");
-    }
-  };
+  // P4Info no longer includes information about color-awareness: in PSA
+  // color-awareness is a parameter to the the meter execute call, not a
+  // property of the meter extern
 
   pi_p4info_meter_init(p4info, meters.size());
   for (const auto &meter : meters) {
     const auto &pre = meter.preamble();
     pi_p4info_meter_add(p4info, pre.id(), pre.name().c_str(),
-                        unit_convert(meter.spec()), type_convert(meter.spec()),
+                        unit_convert(meter.spec()),
+                        PI_P4INFO_METER_TYPE_COLOR_UNAWARE,
                         meter.size());
     import_common(pre, p4info);
   }
@@ -228,7 +222,8 @@ void read_meters(const p4configv1::P4Info &p4info_proto, pi_p4info_t *p4info) {
     // TODO(antonin): use actual table size instead of 0?
     pi_p4info_direct_meter_add(p4info, pre.id(), pre.name().c_str(),
                                unit_convert(meter.spec()),
-                               type_convert(meter.spec()), 0  /* size */,
+                               PI_P4INFO_METER_TYPE_COLOR_UNAWARE,
+                               0  /* size */,
                                meter.direct_table_id());
     import_common(pre, p4info);
   }
@@ -441,23 +436,11 @@ void serialize_one_meter(const pi_p4info_t *p4info, pi_p4_id_t id, T *meter) {
         return p4configv1::MeterSpec_Unit_UNSPECIFIED;
     }
   };
-  auto type_convert = [](pi_p4info_meter_type_t type) {
-    switch (type) {
-      case PI_P4INFO_METER_TYPE_COLOR_AWARE:
-        return p4configv1::MeterSpec_Type_COLOR_AWARE;
-      case PI_P4INFO_METER_TYPE_COLOR_UNAWARE:
-        return p4configv1::MeterSpec_Type_COLOR_UNAWARE;
-      default:  // invalid
-        return p4configv1::MeterSpec_Type_COLOR_AWARE;
-    }
-  };
 
-  auto set_spec = [p4info, id, &unit_convert, &type_convert](
+  auto set_spec = [p4info, id, &unit_convert](
       p4configv1::MeterSpec *spec) {
     auto unit = pi_p4info_meter_get_unit(p4info, id);
     spec->set_unit(unit_convert(unit));
-    auto type = pi_p4info_meter_get_type(p4info, id);
-    spec->set_type(type_convert(type));
   };
 
   auto name = pi_p4info_meter_name_from_id(p4info, id);

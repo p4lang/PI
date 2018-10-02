@@ -416,7 +416,8 @@ class P4RuntimeServiceImpl : public p4v1::P4Runtime::Service {
     SIMPLELOG << "P4Runtime GetForwardingPipelineConfig\n";
     auto device_mgr = Devices::get(request->device_id())->get_p4_mgr();
     if (device_mgr == nullptr) return no_pipeline_config_status();
-    auto status = device_mgr->pipeline_config_get(rep->mutable_config());
+    auto status = device_mgr->pipeline_config_get(
+        request->response_type(), rep->mutable_config());
     return to_grpc_status(status);
   }
 

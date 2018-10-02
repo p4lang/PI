@@ -32,6 +32,7 @@
 #include <PI/proto/util.h>
 
 #include <algorithm>  // for std::all_of
+#include <cstdio>
 #include <limits>
 #include <memory>
 #include <string>
@@ -222,6 +223,72 @@ struct OneShotCleanup : public common::LocalCleanupIface {
   pi_indirect_handle_t group_h_to_delete;
 };
 
+// Saves the p4_device_config (target-specific) to a temporary file for later
+// retrieval by GetForwardingPipelineConfig
+struct ConfigFile {
+ public:
+  ConfigFile() { }
+
+  ~ConfigFile() {
+    if (fp != nullptr) std::fclose(fp);
+  }
+
+  Status change_config(const p4v1::ForwardingPipelineConfig &config_proto) {
+    if (fp != nullptr) std::fclose(fp);  // delete old file
+    fp = std::tmpfile();  // new temporary file
+    if (!fp) {
+      RETURN_ERROR_STATUS(
+          Code::INTERNAL, "Cannot create temporary file to save config");
+    }
+    if (config_proto.p4_device_config().size() > 0) {
+      auto nb_written = std::fwrite(config_proto.p4_device_config().data(),
+                                    config_proto.p4_device_config().size(),
+                                    1,
+                                    fp);
+      if (nb_written != 1) {
+        RETURN_ERROR_STATUS(
+            Code::INTERNAL, "Error when saving config to temporary file");
+      }
+    }
+    size = config_proto.p4_device_config().size();
+    RETURN_OK_STATUS();
+  }
+
+  Status read_config(p4v1::ForwardingPipelineConfig *config_proto) {
+    if (!fp || size == 0) RETURN_OK_STATUS();  // no config was saved
+    if (std::fseek(fp, 0, SEEK_SET) != 0) {  // seek to start
+      RETURN_ERROR_STATUS(
+          Code::INTERNAL,
+          "Error when reading saved config from temporary file");
+    }
+    // Unfortunately, in C++11, one cannot write directly to the std::string
+    // storage (unlike in C++17), so we need an extra copy. To avoid having 2
+    // copies of the config simultaneously in memory, we read the file by chunks
+    // of 512 bytes.
+    char buffer[512];
+    auto *device_config = config_proto->mutable_p4_device_config();
+    device_config->reserve(size);
+    size_t iters = size / sizeof(buffer);
+    size_t remainder = size - iters * sizeof(buffer);
+    size_t i;
+    for (i = 0; i < iters && std::fread(buffer, sizeof(buffer), 1, fp); i++) {
+      device_config->append(buffer, sizeof(buffer));
+    }
+    if (i != iters ||
+        (remainder != 0 && !std::fread(buffer, remainder, 1, fp))) {
+      RETURN_ERROR_STATUS(
+          Code::INTERNAL,
+          "Error when reading saved config from temporary file");
+    }
+    device_config->append(buffer, remainder);
+    RETURN_OK_STATUS();
+  }
+
+ private:
+  std::FILE *fp{nullptr};
+  size_t size{0};
+};
+
 }  // namespace
 
 class DeviceMgrImp {
@@ -235,8 +302,9 @@ class DeviceMgrImp {
     pi_remove_device(device_id);
   }
 
-  void p4_change(const p4configv1::P4Info &p4info_proto_new,
-                 pi_p4info_t *p4info_new) {
+  Status p4_change(const p4v1::ForwardingPipelineConfig &config_proto_new,
+                   pi_p4info_t *p4info_new) {
+    const auto &p4info_proto_new = config_proto_new.p4info();
     table_info_store.reset();
     for (auto t_id = pi_p4info_table_begin(p4info_new);
          t_id != pi_p4info_table_end(p4info_new);
@@ -287,28 +355,38 @@ class DeviceMgrImp {
     // invalid p4info, even though this is not strictly required here
     p4info.reset(p4info_new);
     p4info_proto.CopyFrom(p4info_proto_new);
+    config_cookie.CopyFrom(config_proto_new.cookie());
+    RETURN_IF_ERROR(saved_device_config.change_config(config_proto_new));
+    is_config_set = true;
+    if (config_proto_new.has_cookie()) {
+      config_cookie.CopyFrom(config_proto_new.cookie());
+      has_config_cookie = true;
+    } else {
+      has_config_cookie = false;
+    }
+    RETURN_OK_STATUS();
   }
 
-  Status pipeline_config_set(p4v1::SetForwardingPipelineConfigRequest_Action a,
-                             const p4v1::ForwardingPipelineConfig &config) {
+  Status pipeline_config_set(
+      p4v1::SetForwardingPipelineConfigRequest::Action action,
+      const p4v1::ForwardingPipelineConfig &config) {
+    using SetConfigRequest = p4v1::SetForwardingPipelineConfigRequest;
     pi_status_t pi_status;
-    if (a == p4v1::SetForwardingPipelineConfigRequest_Action_UNSPECIFIED) {
+    if (action == SetConfigRequest::UNSPECIFIED) {
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                           "Invalid SetForwardingPipeline action");
     }
 
     pi_p4info_t *p4info_tmp = nullptr;
-    if (
-      a == p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY ||
-      a == p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_SAVE ||
-      a == p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT ||
-      a == p4v1::SetForwardingPipelineConfigRequest_Action_RECONCILE_AND_COMMIT
-    ) {
+    if (action == SetConfigRequest::VERIFY ||
+        action == SetConfigRequest::VERIFY_AND_SAVE ||
+        action == SetConfigRequest::VERIFY_AND_COMMIT ||
+        action == SetConfigRequest::RECONCILE_AND_COMMIT) {
       if (!pi::p4info::p4info_proto_reader(config.p4info(), &p4info_tmp))
         RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when importing p4info");
     }
 
-    if (a == p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY)
+    if (action == SetConfigRequest::VERIFY)
       RETURN_OK_STATUS();
 
     p4::tmp::P4DeviceConfig p4_device_config;
@@ -345,10 +423,8 @@ class DeviceMgrImp {
     };
 
     // This is for legacy support of bmv2
-    if (
-      a == p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT &&
-      p4_device_config.device_data().empty()
-    ) {
+    if (action == SetConfigRequest::VERIFY_AND_COMMIT &&
+        p4_device_config.device_data().empty()) {
       if (pi_is_device_assigned(device_id)) remove_device();
       assert(!pi_is_device_assigned(device_id));
       auto assign_options = make_assign_options();
@@ -358,17 +434,15 @@ class DeviceMgrImp {
         pi_destroy_config(p4info_tmp);
         RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when assigning device");
       }
-      p4_change(config.p4info(), p4info_tmp);
+      RETURN_IF_ERROR(p4_change(config, p4info_tmp));
       RETURN_OK_STATUS();
     }
 
     // assign device if needed, i.e. if device hasn't been assigned yet or if
     // the reassign flag is set
-    if (
-      a == p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_SAVE ||
-      a == p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT ||
-      a == p4v1::SetForwardingPipelineConfigRequest_Action_RECONCILE_AND_COMMIT
-    ) {
+    if (action == SetConfigRequest::VERIFY_AND_SAVE ||
+        action == SetConfigRequest::VERIFY_AND_COMMIT ||
+        action == SetConfigRequest::RECONCILE_AND_COMMIT) {
       if (pi_is_device_assigned(device_id) && p4_device_config.reassign())
         remove_device();
       if (!pi_is_device_assigned(device_id)) {
@@ -386,9 +460,7 @@ class DeviceMgrImp {
     // forwarding state if possible, which is why we do a read to store all
     // existing state.
     p4v1::ReadResponse forwarding_state;
-    if (
-      a == p4v1::SetForwardingPipelineConfigRequest_Action_RECONCILE_AND_COMMIT
-    ) {
+    if (action == SetConfigRequest::RECONCILE_AND_COMMIT) {
       auto status = save_forwarding_state(&forwarding_state);
       if (IS_ERROR(status)) {
         pi_destroy_config(p4info_tmp);
@@ -396,11 +468,9 @@ class DeviceMgrImp {
       }
     }
 
-    if (
-      a == p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_SAVE ||
-      a == p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT ||
-      a == p4v1::SetForwardingPipelineConfigRequest_Action_RECONCILE_AND_COMMIT
-    ) {
+    if (action == SetConfigRequest::VERIFY_AND_SAVE ||
+        action == SetConfigRequest::VERIFY_AND_COMMIT ||
+        action == SetConfigRequest::RECONCILE_AND_COMMIT) {
       const auto &device_data = p4_device_config.device_data();
       pi_status = pi_update_device_start(device_id, p4info_tmp,
                                          device_data.data(),
@@ -410,14 +480,12 @@ class DeviceMgrImp {
         RETURN_ERROR_STATUS(Code::UNKNOWN,
                             "Error in first phase of device update");
       }
-      p4_change(config.p4info(), p4info_tmp);
+      RETURN_IF_ERROR(p4_change(config, p4info_tmp));
     }
 
     // for reconcile, replay the state saved before the pi_update_device_start
     // call (which itself wipes the state)
-    if (
-      a == p4v1::SetForwardingPipelineConfigRequest_Action_RECONCILE_AND_COMMIT
-    ) {
+    if (action == SetConfigRequest::RECONCILE_AND_COMMIT) {
       p4v1::WriteRequest write_request;
       for (auto &entity : *forwarding_state.mutable_entities()) {
         auto *update = write_request.add_updates();
@@ -431,11 +499,9 @@ class DeviceMgrImp {
         RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when reconciling config")
     }
 
-    if (
-      a == p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT ||
-      a == p4v1::SetForwardingPipelineConfigRequest_Action_COMMIT ||
-      a == p4v1::SetForwardingPipelineConfigRequest_Action_RECONCILE_AND_COMMIT
-    ) {
+    if (action == SetConfigRequest::VERIFY_AND_COMMIT ||
+        action == SetConfigRequest::COMMIT ||
+        action == SetConfigRequest::RECONCILE_AND_COMMIT) {
       pi_status = pi_update_device_end(device_id);
       if (pi_status != PI_STATUS_SUCCESS) {
         RETURN_ERROR_STATUS(Code::UNKNOWN,
@@ -446,11 +512,33 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
-  Status pipeline_config_get(p4v1::ForwardingPipelineConfig *config) {
-    config->mutable_p4info()->CopyFrom(p4info_proto);
-    // TODO(antonin): we do not set the p4_device_config bytes field, as we do
-    // not have a local copy of it; if it is needed by the controller, we will
-    // find a way to return it as well.
+  Status pipeline_config_get(
+      p4v1::GetForwardingPipelineConfigRequest::ResponseType response_type,
+      p4v1::ForwardingPipelineConfig *config) {
+    // if no config has been set, return an "empty" message
+    if (!is_config_set) RETURN_OK_STATUS();
+    using GetConfigRequest = p4v1::GetForwardingPipelineConfigRequest;
+    switch (response_type) {
+      case GetConfigRequest::ALL:
+        config->mutable_p4info()->CopyFrom(p4info_proto);
+        RETURN_IF_ERROR(saved_device_config.read_config(config));
+        break;
+      case GetConfigRequest::COOKIE_ONLY:
+        break;
+      case GetConfigRequest::P4INFO_AND_COOKIE:
+        config->mutable_p4info()->CopyFrom(p4info_proto);
+        break;
+      case GetConfigRequest::DEVICE_CONFIG_AND_COOKIE:
+        RETURN_IF_ERROR(saved_device_config.read_config(config));
+        break;
+      default:
+        RETURN_ERROR_STATUS(
+            Code::INVALID_ARGUMENT,
+            "Invalid response_type in GetForwardingPipelineConfigRequest");
+    }
+    // always add cookie
+    if (has_config_cookie)
+      config->mutable_cookie()->CopyFrom(config_cookie);
     RETURN_OK_STATUS();
   }
 
@@ -2523,7 +2611,13 @@ class DeviceMgrImp {
   // for now, we assume all possible pipes of device are programmed in the same
   // way
   pi_dev_tgt_t device_tgt;
-  p4configv1::P4Info p4info_proto{};
+
+  bool is_config_set{false};
+  p4configv1::P4Info p4info_proto;
+  bool has_config_cookie{false};
+  p4v1::ForwardingPipelineConfig::Cookie config_cookie;
+  ConfigFile saved_device_config;
+
   P4InfoWrapper p4info{nullptr, p4info_deleter};
 
   PacketIOMgr packet_io;
@@ -2550,14 +2644,16 @@ DeviceMgr::~DeviceMgr() { }
 
 Status
 DeviceMgr::pipeline_config_set(
-    p4v1::SetForwardingPipelineConfigRequest_Action action,
+    p4v1::SetForwardingPipelineConfigRequest::Action action,
     const p4v1::ForwardingPipelineConfig &config) {
   return pimp->pipeline_config_set(action, config);
 }
 
 Status
-DeviceMgr::pipeline_config_get(p4v1::ForwardingPipelineConfig *config) {
-  return pimp->pipeline_config_get(config);
+DeviceMgr::pipeline_config_get(
+    p4v1::GetForwardingPipelineConfigRequest::ResponseType response_type,
+    p4v1::ForwardingPipelineConfig *config) {
+  return pimp->pipeline_config_get(response_type, config);
 }
 
 Status

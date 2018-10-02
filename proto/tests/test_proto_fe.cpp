@@ -27,6 +27,7 @@
 #include <google/protobuf/util/message_differencer.h>
 
 #include <atomic>
+#include <cstring>  // std::memcmp
 #include <fstream>  // std::ifstream
 #include <iterator>  // std::distance
 #include <memory>
@@ -36,7 +37,7 @@
 #include <tuple>
 #include <vector>
 
-#include <cstring>  // std::memcmp
+#include "p4/tmp/p4config.pb.h"
 
 #include "PI/frontends/cpp/tables.h"
 #include "PI/frontends/proto/device_mgr.h"
@@ -197,13 +198,18 @@ class DeviceMgrTest : public ::testing::Test {
   void SetUp() override {
     p4v1::ForwardingPipelineConfig config;
     config.set_allocated_p4info(&p4info_proto);
+    config.mutable_cookie()->set_cookie(cookie);
+    p4::tmp::P4DeviceConfig dummy_device_config_;
+    dummy_device_config_.set_device_data("This is a dummy device config");
+    dummy_device_config_.SerializeToString(&dummy_device_config);
+    config.set_p4_device_config(dummy_device_config);
     auto status = mgr.pipeline_config_set(
         p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT,
         config);
     // releasing resource before the assert to avoid double free in case the
     // assert is false
     config.release_p4info();
-    ASSERT_EQ(status.code(), Code::OK);
+    ASSERT_OK(status);
   }
 
   void TearDown() override { }
@@ -259,6 +265,8 @@ class DeviceMgrTest : public ::testing::Test {
   DummySwitchMock *mock;
   device_id_t device_id;
   DeviceMgr mgr;
+  uint64_t cookie{666};
+  std::string dummy_device_config;
 };
 
 pi_p4info_t *DeviceMgrTest::p4info = nullptr;
@@ -287,10 +295,67 @@ TEST_F(DeviceMgrTest, ResourceTypeFromId) {
 }
 
 TEST_F(DeviceMgrTest, PipelineConfigGet) {
-  p4v1::ForwardingPipelineConfig config;
-  auto status = mgr.pipeline_config_get(&config);
-  ASSERT_EQ(status.code(), Code::OK);
-  EXPECT_TRUE(MessageDifferencer::Equals(p4info_proto, config.p4info()));
+  using GetConfigRequest = p4v1::GetForwardingPipelineConfigRequest;
+  {
+    p4v1::ForwardingPipelineConfig config;
+    auto status = mgr.pipeline_config_get(GetConfigRequest::ALL, &config);
+    ASSERT_OK(status);
+    EXPECT_TRUE(MessageDifferencer::Equals(config.p4info(), p4info_proto));
+    EXPECT_EQ(config.cookie().cookie(), cookie);
+    EXPECT_EQ(config.p4_device_config(), dummy_device_config);
+  }
+  {
+    p4v1::ForwardingPipelineConfig config;
+    auto status = mgr.pipeline_config_get(
+        GetConfigRequest::COOKIE_ONLY, &config);
+    ASSERT_OK(status);
+    EXPECT_FALSE(config.has_p4info());
+    EXPECT_EQ(config.cookie().cookie(), cookie);
+    EXPECT_EQ(config.p4_device_config(), "");
+  }
+  {
+    p4v1::ForwardingPipelineConfig config;
+    auto status = mgr.pipeline_config_get(
+        GetConfigRequest::P4INFO_AND_COOKIE, &config);
+    ASSERT_OK(status);
+    EXPECT_TRUE(MessageDifferencer::Equals(config.p4info(), p4info_proto));
+    EXPECT_EQ(config.cookie().cookie(), cookie);
+    EXPECT_EQ(config.p4_device_config(), "");
+  }
+  {
+    p4v1::ForwardingPipelineConfig config;
+    auto status = mgr.pipeline_config_get(
+        GetConfigRequest::DEVICE_CONFIG_AND_COOKIE, &config);
+    ASSERT_OK(status);
+    EXPECT_FALSE(config.has_p4info());
+    EXPECT_EQ(config.cookie().cookie(), cookie);
+    EXPECT_EQ(config.p4_device_config(), dummy_device_config);
+  }
+}
+
+TEST_F(DeviceMgrTest, PipelineConfigGetLarge) {
+  std::string large_device_config;
+  {
+    p4v1::ForwardingPipelineConfig config;
+    config.mutable_p4info()->CopyFrom(p4info_proto);
+    p4::tmp::P4DeviceConfig large_device_config_;
+    large_device_config_.set_device_data(std::string(32768, 'a'));
+    large_device_config_.SerializeToString(&large_device_config);
+    config.set_p4_device_config(large_device_config);
+    ASSERT_OK(mgr.pipeline_config_set(
+        p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT,
+        config));
+  }
+  using GetConfigRequest = p4v1::GetForwardingPipelineConfigRequest;
+  {
+    p4v1::ForwardingPipelineConfig config;
+    ASSERT_OK(mgr.pipeline_config_get(GetConfigRequest::ALL, &config));
+    EXPECT_TRUE(MessageDifferencer::Equals(config.p4info(), p4info_proto));
+    EXPECT_FALSE(config.has_cookie());
+    // avoid printing the large strings in case of failure
+    EXPECT_TRUE(config.p4_device_config() == large_device_config)
+        << "Large device config does not match.";
+  }
 }
 
 using ::testing::WithParamInterface;
