@@ -307,7 +307,7 @@ pi_status_t pi_packetin_receive(pi_dev_id_t dev_id, const char *pkt,
                                 size_t size) {
   packetin_cb_data_t *packetin_cb_data =
       (packetin_cb_data_t *)device_map_get(&device_packetin_cb_data, dev_id);
-  assert(packetin_cb_data != NULL);
+  if (packetin_cb_data == NULL) return PI_STATUS_DEV_NOT_ASSIGNED;
   if (packetin_cb_data->cb) {
     packetin_cb_data->cb(dev_id, pkt, size, packetin_cb_data->cookie);
     return PI_STATUS_SUCCESS;
