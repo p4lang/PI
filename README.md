@@ -41,7 +41,7 @@ to install different dependencies.
 | [readline](https://tiswww.case.edu/php/chet/readline/rltop.html) | libreadline-dev |
 | valgrind | valgrind |
 | libtool binary | libtool-bin |
-| Boost library | libboost-dev libboost-system-dev |
+| Boost library | libboost-dev libboost-system-dev libboost-thread-dev |
 
 ### Installing other dependencies from source
 
