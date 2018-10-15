@@ -19,7 +19,7 @@ to install different dependencies.
 | Configure flag        | Default (yes / no) | Dependencies | Remarks |
 | --------------------- | --- | --- | --- |
 | `--with-bmv2`         | no  | bmv2 and its deps | Implies `--with-fe-cpp` |
-| `--with-proto`        | no  | protobuf, grpc | - |
+| `--with-proto`        | no  | protobuf, grpc, libboost-thread-dev | - |
 | `--with-fe-cpp`       | no  | - | - |
 | `--with-internal-rpc` | yes | nanomsg | - |
 | `--with-cli`          | yes | readline | - |
@@ -41,7 +41,7 @@ to install different dependencies.
 | [readline](https://tiswww.case.edu/php/chet/readline/rltop.html) | libreadline-dev |
 | valgrind | valgrind |
 | libtool binary | libtool-bin |
-| Boost library | libboost-dev libboost-system-dev |
+| Boost library | libboost-dev libboost-system-dev libboost-thread-dev |
 
 ### Installing other dependencies from source
 
