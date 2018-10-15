@@ -19,7 +19,7 @@ to install different dependencies.
 | Configure flag        | Default (yes / no) | Dependencies | Remarks |
 | --------------------- | --- | --- | --- |
 | `--with-bmv2`         | no  | bmv2 and its deps | Implies `--with-fe-cpp` |
-| `--with-proto`        | no  | protobuf, grpc | - |
+| `--with-proto`        | no  | protobuf, grpc, libboost-thread-dev | - |
 | `--with-fe-cpp`       | no  | - | - |
 | `--with-internal-rpc` | yes | nanomsg | - |
 | `--with-cli`          | yes | readline | - |
