@@ -69,7 +69,7 @@ pi_status_t pi_learn_msg_ack(pi_session_handle_t session_handle,
                              pi_dev_id_t dev_id, pi_p4_id_t learn_id,
                              pi_learn_msg_id_t msg_id);
 
-//! Indicate taht you are done with the lean message and that any associated
+//! Indicate that you are done with the learn message and that any associated
 //! memory can be released.
 pi_status_t pi_learn_msg_done(pi_learn_msg_t *msg);
 
