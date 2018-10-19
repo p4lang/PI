@@ -1120,17 +1120,15 @@ class DeviceMgrImp {
         for (size_t j = 0; j < direct_configs->num_configs; j++) {
           const auto &config = direct_configs->configs[j];
           if (pi_is_direct_counter_id(config.res_id)) {
-            // TODO(antonin): according to a p4runtime.proto comment, we are
-            // supposed to include counter data if the table has a direct
-            // counter, irrespective of whether or not the counter_data field
-            // was set. However, it breaks some existing unit tests, so we use
-            // this if statement for the moment.
             if (requested_entry.has_counter_data()) {
               counter_data_pi_to_proto(
                   *static_cast<pi_counter_data_t *>(config.config),
                   table_entry->mutable_counter_data());
             }
           } else if (pi_is_direct_meter_id(config.res_id)) {
+            // TODO(antonin): according to the P4Runtime spec, we are not
+            // supposed to to set meter_config if the meter is in its default
+            // configuration (all packets green).
             if (requested_entry.has_meter_config()) {
               meter_spec_pi_to_proto(
                   *static_cast<pi_meter_spec_t *>(config.config),
