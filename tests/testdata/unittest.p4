@@ -38,6 +38,11 @@ struct headers_t {
 
 struct metadata_t { }
 
+struct test_digest_t {
+    bit<48> f48;
+    bit<12> f12;
+}
+
 parser ParserImpl(packet_in packet, out headers_t hdr, inout metadata_t meta,
                   inout standard_metadata_t standard_metadata) {
     state start {
@@ -46,6 +51,8 @@ parser ParserImpl(packet_in packet, out headers_t hdr, inout metadata_t meta,
 }
 
 control ingress(inout headers_t hdr, inout metadata_t meta, inout standard_metadata_t standard_metadata) {
+    test_digest_t test_digest;
+
     @name(".actionA")
     action actionA(bit<48> param) {
         hdr.header_test.field48 = param;
@@ -182,6 +189,9 @@ control ingress(inout headers_t hdr, inout metadata_t meta, inout standard_metad
         CounterA.count(32w128);
         MeterA.execute_meter(32w128, hdr.header_test.field4);
         ConstTable.apply();
+
+        test_digest = {hdr.header_test.field48, hdr.header_test.field12};
+        digest(1, test_digest);
     }
 }
 

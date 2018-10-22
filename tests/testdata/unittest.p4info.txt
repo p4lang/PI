@@ -322,3 +322,42 @@ direct_meters {
   }
   direct_table_id: 33582705
 }
+digests {
+  preamble {
+    id: 385901477
+    name: "test_digest_t"
+    alias: "test_digest_t"
+  }
+  type_spec {
+    struct {
+      name: "test_digest_t"
+    }
+  }
+}
+type_info {
+  structs {
+    key: "test_digest_t"
+    value {
+      members {
+        name: "f48"
+        type_spec {
+          bitstring {
+            bit {
+              bitwidth: 48
+            }
+          }
+        }
+      }
+      members {
+        name: "f12"
+        type_spec {
+          bitstring {
+            bit {
+              bitwidth: 12
+            }
+          }
+        }
+      }
+    }
+  }
+}

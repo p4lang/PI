@@ -78,7 +78,7 @@ bool pi_is_device_assigned(pi_dev_id_t dev_id);
 
 size_t pi_num_devices();
 
-void pi_get_device_ids(pi_dev_id_t *dev_ids);
+size_t pi_get_device_ids(pi_dev_id_t *dev_ids, size_t max_num_devices);
 
 //! Remove a device.
 pi_status_t pi_remove_device(pi_dev_id_t dev_id);

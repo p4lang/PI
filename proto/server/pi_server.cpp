@@ -182,9 +182,17 @@ class DeviceState {
     auto stream = master->stream();
     p4v1::StreamMessageResponse response;
     response.set_allocated_packet(packet);
-    stream->Write(response);
+    if (stream->Write(response)) pkt_in_count++;
     response.release_packet();
-    pkt_in_count++;
+  }
+
+  void send_stream_message(p4v1::StreamMessageResponse *msg) {
+    std::lock_guard<std::mutex> lock(m);
+    auto master = get_master();
+    if (master == nullptr) return;
+    auto stream = master->stream();
+    auto success = stream->Write(*msg);
+    if (msg->has_packet() && success) pkt_in_count++;
   }
 
   uint64_t get_pkt_in_count() {
@@ -348,6 +356,10 @@ class Devices {
 void packet_in_cb(DeviceMgr::device_id_t device_id, p4v1::PacketIn *packet,
                   void *cookie);
 
+void stream_message_response_cb(DeviceMgr::device_id_t device_id,
+                                p4v1::StreamMessageResponse *msg,
+                                void *cookie);
+
 class P4RuntimeServiceImpl : public p4v1::P4Runtime::Service {
  private:
   Status Write(ServerContext *context,
@@ -405,7 +417,8 @@ class P4RuntimeServiceImpl : public p4v1::P4Runtime::Service {
     auto status = device_mgr->pipeline_config_set(
         request->action(), request->config());
     device_mgr->packet_in_register_cb(packet_in_cb, NULL);
-    // TODO(antonin): multi-device support
+    device_mgr->stream_message_response_register_cb(
+        stream_message_response_cb, NULL);
     return to_grpc_status(status);
   }
 
@@ -504,6 +517,13 @@ void packet_in_cb(DeviceMgr::device_id_t device_id, p4v1::PacketIn *packet,
   (void) cookie;
   SIMPLELOG << "PACKET IN\n";
   Devices::get(device_id)->send_packet_in(packet);
+}
+
+void stream_message_response_cb(DeviceMgr::device_id_t device_id,
+                                p4v1::StreamMessageResponse *msg,
+                                void *cookie) {
+  (void) cookie;
+  Devices::get(device_id)->send_stream_message(msg);
 }
 
 struct ServerData {

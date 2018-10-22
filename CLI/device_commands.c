@@ -260,7 +260,7 @@ pi_cli_status_t do_show_devices(char *subcmd) {
   printf("Showing devices:\n");
   size_t num_devices = pi_num_devices();
   pi_dev_id_t *dev_ids = malloc(num_devices * sizeof(pi_dev_id_t));
-  pi_get_device_ids(dev_ids);
+  num_devices = pi_get_device_ids(dev_ids, num_devices);
   for (size_t idx = 0; idx < num_devices; idx++) {
     const pi_p4info_t *p4info = pi_get_device_p4info(dev_ids[idx]);
     if (!p4info) continue;

@@ -34,9 +34,6 @@ namespace pibmv2 {
 
 conn_mgr_t *conn_mgr_state = nullptr;
 
-extern void start_learn_listener(const std::string &addr, int rpc_port_num);
-extern void stop_learn_listener();
-
 }  // namespace pibmv2
 
 namespace {
@@ -81,9 +78,6 @@ pi_status_t _pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
   if (rpc_port_num == -1) return PI_STATUS_MISSING_INIT_EXTRA_PARAM;
   if (conn_mgr_client_init(pibmv2::conn_mgr_state, dev_id, rpc_port_num))
     return PI_STATUS_TARGET_TRANSPORT_ERROR;
-
-  if (bm_notifications_addr != "")
-    pibmv2::start_learn_listener(bm_notifications_addr, rpc_port_num);
 
   d_info->p4info = p4info;
   d_info->assigned = 1;
@@ -137,7 +131,6 @@ pi_status_t _pi_remove_device(pi_dev_id_t dev_id) {
 
 pi_status_t _pi_destroy() {
   pibmv2::conn_mgr_destroy(pibmv2::conn_mgr_state);
-  pibmv2::stop_learn_listener();
   delete cpu_send_recv;
   return PI_STATUS_SUCCESS;
 }

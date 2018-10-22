@@ -17,6 +17,8 @@ p4info/counters.c \
 p4info/counters_int.h \
 p4info/meters.c \
 p4info/meters_int.h \
+p4info/digests.c \
+p4info/digests_int.h \
 config_readers/bmv2_json_reader.c \
 config_readers/native_json_reader.c \
 config_readers/readers.h \

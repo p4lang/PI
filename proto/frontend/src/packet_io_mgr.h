@@ -55,6 +55,11 @@ class PacketIOMgr {
 
   void packet_in_register_cb(PacketInCb cb, void *cookie);
 
+  PacketIOMgr(const PacketIOMgr &) = delete;
+  PacketIOMgr &operator=(const PacketIOMgr &) = delete;
+  PacketIOMgr(PacketIOMgr &&) = delete;
+  PacketIOMgr &operator=(PacketIOMgr &&) = delete;
+
  private:
   static void packet_in_cb(pi_dev_id_t dev_id, const char *pkt, size_t size,
                            void *cookie);

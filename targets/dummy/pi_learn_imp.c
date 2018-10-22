@@ -24,6 +24,17 @@
 
 #include "func_counter.h"
 
+pi_status_t _pi_learn_config_set(pi_session_handle_t session_handle,
+                                 pi_dev_id_t dev_id, pi_p4_id_t learn_id,
+                                 const pi_learn_config_t *config) {
+  (void)session_handle;
+  (void)dev_id;
+  (void)learn_id;
+  (void)config;
+  func_counter_increment(__func__);
+  return PI_STATUS_SUCCESS;
+}
+
 pi_status_t _pi_learn_msg_ack(pi_session_handle_t session_handle,
                               pi_dev_id_t dev_id, pi_p4_id_t learn_id,
                               pi_learn_msg_id_t msg_id) {

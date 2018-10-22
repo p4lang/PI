@@ -25,7 +25,7 @@
 #include <boost/functional/hash.hpp>
 #include <boost/optional.hpp>
 
-#include <algorithm>  // std::copy
+#include <algorithm>  // std::copy, std::for_each
 #include <map>
 #include <string>
 #include <unordered_map>
@@ -38,6 +38,7 @@
 #include "PI/pi.h"
 #include "PI/pi_mc.h"
 #include "PI/target/pi_imp.h"
+#include "PI/target/pi_learn_imp.h"
 
 namespace pi {
 namespace proto {
@@ -767,6 +768,45 @@ class DummySwitch {
     return pre.clone_session_reset(clone_session_id);
   }
 
+  pi_status_t learn_config_set(pi_p4_id_t learn_id,
+                               const pi_learn_config_t *config) {
+    (void)learn_id;
+    (void)config;
+    return PI_STATUS_SUCCESS;
+  }
+
+  pi_status_t learn_msg_ack(pi_p4_id_t learn_id, pi_learn_msg_id_t msg_id) {
+    (void)learn_id;
+    (void)msg_id;
+    return PI_STATUS_SUCCESS;
+  }
+
+  pi_status_t learn_msg_done(pi_learn_msg_t *msg) {
+    delete[] msg->entries;
+    delete msg;
+    return PI_STATUS_SUCCESS;
+  }
+
+  pi_status_t learn_new_msg(pi_p4_id_t learn_id,
+                            pi_learn_msg_id_t msg_id,
+                            const std::vector<std::string> &samples) const {
+    if (samples.empty()) return PI_STATUS_SUCCESS;
+    auto *msg = new pi_learn_msg_t;
+    msg->dev_tgt = {device_id, 0xff};
+    msg->learn_id = learn_id;
+    msg->msg_id = msg_id;
+    msg->num_entries = samples.size();
+    msg->entry_size = samples.front().size();
+    auto *entries = new char[msg->num_entries * msg->entry_size];
+    msg->entries = entries;
+    std::for_each(samples.begin(), samples.end(),
+                  [&entries](const std::string &s) {
+      std::memcpy(entries, s.data(), s.size());
+      entries += s.size();
+    });
+    return pi_learn_new_msg(msg);
+  }
+
   void set_p4info(const pi_p4info_t *p4info) {
     this->p4info = p4info;
   }
@@ -900,6 +940,13 @@ DummySwitchMock::DummySwitchMock(device_id_t device_id)
       .WillByDefault(Invoke(sw_, &DummySwitch::clone_session_set));
   ON_CALL(*this, clone_session_reset(_))
       .WillByDefault(Invoke(sw_, &DummySwitch::clone_session_reset));
+
+  ON_CALL(*this, learn_config_set(_, _))
+      .WillByDefault(Invoke(sw_, &DummySwitch::learn_config_set));
+  ON_CALL(*this, learn_msg_ack(_, _))
+      .WillByDefault(Invoke(sw_, &DummySwitch::learn_msg_ack));
+  ON_CALL(*this, learn_msg_done(_))
+      .WillByDefault(Invoke(sw_, &DummySwitch::learn_msg_done));
 }
 
 DummySwitchMock::~DummySwitchMock() = default;
@@ -973,6 +1020,13 @@ DummySwitchMock::get_mc_node_handle() const {
 pi_status_t
 DummySwitchMock::packetin_inject(const std::string &packet) const {
   return sw->packetin_inject(packet);
+}
+
+pi_status_t
+DummySwitchMock::digest_inject(pi_p4_id_t learn_id,
+                               pi_learn_msg_id_t msg_id,
+                               const std::vector<std::string> &samples) const {
+  return sw->learn_new_msg(learn_id, msg_id, samples);
 }
 
 void
@@ -1342,14 +1396,21 @@ pi_status_t _pi_clone_session_reset(pi_session_handle_t,
       clone_session_id);
 }
 
-pi_status_t _pi_learn_msg_ack(pi_session_handle_t,
-                              pi_dev_id_t, pi_p4_id_t,
-                              pi_learn_msg_id_t) {
-  return PI_STATUS_NOT_IMPLEMENTED_BY_TARGET;
+pi_status_t _pi_learn_config_set(pi_session_handle_t,
+                                 pi_dev_id_t dev_id, pi_p4_id_t learn_id,
+                                 const pi_learn_config_t *config) {
+  return DeviceResolver::get_switch(dev_id)->learn_config_set(learn_id, config);
 }
 
-pi_status_t _pi_learn_msg_done(pi_learn_msg_t *) {
-  return PI_STATUS_NOT_IMPLEMENTED_BY_TARGET;
+pi_status_t _pi_learn_msg_ack(pi_session_handle_t,
+                              pi_dev_id_t dev_id,
+                              pi_p4_id_t learn_id,
+                              pi_learn_msg_id_t msg_id) {
+  return DeviceResolver::get_switch(dev_id)->learn_msg_ack(learn_id, msg_id);
+}
+
+pi_status_t _pi_learn_msg_done(pi_learn_msg_t *msg) {
+  return DeviceResolver::get_switch(msg->dev_tgt.dev_id)->learn_msg_done(msg);
 }
 
 }

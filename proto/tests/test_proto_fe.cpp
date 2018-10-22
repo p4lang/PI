@@ -42,6 +42,7 @@
 #include "PI/frontends/cpp/tables.h"
 #include "PI/frontends/proto/device_mgr.h"
 #include "PI/int/pi_int.h"
+#include "PI/p4info.h"
 #include "PI/pi.h"
 #include "PI/proto/util.h"
 
@@ -2821,28 +2822,26 @@ TEST_F(RegisterTest, Read) {
   EXPECT_EQ(status.code(), Code::UNIMPLEMENTED);
 }
 
-// Placeholder for Digest tests: for now there is no support in DeviceMgr
+// for digest tests, see test_proto_fe_digest.cpp
 class DigestTest : public DeviceMgrTest { };
 
-TEST_F(DigestTest, Write) {
+TEST_F(DigestTest, WriteAndRead) {
+  auto digest_id = pi_p4info_digest_id_from_name(p4info, "test_digest_t");
+  ASSERT_NE(digest_id, 0u);
   p4v1::WriteRequest request;
   auto *update = request.add_updates();
-  update->set_type(p4v1::Update::MODIFY);
+  update->set_type(p4v1::Update::INSERT);
   auto *entity = update->mutable_entity();
-  auto *register_entry = entity->mutable_register_entry();
-  (void) register_entry;
-  auto status = mgr.write(request);
-  EXPECT_EQ(status, OneExpectedError(Code::UNIMPLEMENTED));
-}
-
-TEST_F(DigestTest, Read) {
-  p4v1::ReadRequest request;
+  auto *digest_entry = entity->mutable_digest_entry();
+  digest_entry->set_digest_id(digest_id);
+  digest_entry->mutable_config()->set_max_list_size(100);
+  EXPECT_OK(mgr.write(request));
   p4v1::ReadResponse response;
-  auto *entity = request.add_entities();
-  auto *register_entry = entity->mutable_register_entry();
-  (void) register_entry;
-  auto status = mgr.read(request, &response);
-  EXPECT_EQ(status.code(), Code::UNIMPLEMENTED);
+  EXPECT_OK(mgr.read_one(*entity, &response));
+  const auto &read_entities = response.entities();
+  ASSERT_EQ(read_entities.size(), 1);
+  EXPECT_TRUE(MessageDifferencer::Equals(
+      *digest_entry, read_entities.Get(0).digest_entry()));
 }
 
 // This test verifies that the ReadRequest gets a unique lock (no concurrent
