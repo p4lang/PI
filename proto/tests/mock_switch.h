@@ -27,11 +27,13 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <vector>
 
 #include <cstdint>
 
 #include "PI/pi.h"
 #include "PI/pi_clone.h"
+#include "PI/pi_learn.h"
 #include "PI/pi_mc.h"
 
 namespace pi {
@@ -82,6 +84,10 @@ class DummySwitchMock {
   pi_mc_node_handle_t get_mc_node_handle() const;
 
   pi_status_t packetin_inject(const std::string &packet) const;
+
+  pi_status_t digest_inject(pi_p4_id_t learn_id,
+                            pi_learn_msg_id_t msg_id,
+                            const std::vector<std::string> &samples) const;
 
   void set_p4info(const pi_p4info_t *p4info);
 
@@ -165,6 +171,11 @@ class DummySwitchMock {
                pi_status_t(pi_clone_session_id_t,
                            const pi_clone_session_config_t *));
   MOCK_METHOD1(clone_session_reset, pi_status_t(pi_clone_session_id_t));
+
+  MOCK_METHOD2(learn_config_set,
+               pi_status_t(pi_p4_id_t, const pi_learn_config_t *));
+  MOCK_METHOD2(learn_msg_ack, pi_status_t(pi_p4_id_t, pi_learn_msg_id_t));
+  MOCK_METHOD1(learn_msg_done, pi_status_t(pi_learn_msg_t *));
 
  private:
   std::unique_ptr<DummySwitch> sw;

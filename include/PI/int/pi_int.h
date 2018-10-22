@@ -136,6 +136,9 @@ typedef struct {
   const pi_p4info_t *p4info;
 } pi_device_info_t;
 
+void pi_device_lock();
+void pi_device_unlock();
+
 pi_device_info_t *pi_get_device_info(pi_dev_id_t dev_id);
 pi_device_info_t *pi_get_devices(size_t *num_devices);
 

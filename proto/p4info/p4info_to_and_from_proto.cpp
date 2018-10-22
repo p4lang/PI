@@ -24,6 +24,7 @@
 #include <iostream>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "p4info_int.h"
 
@@ -229,6 +230,61 @@ void read_meters(const p4configv1::P4Info &p4info_proto, pi_p4info_t *p4info) {
   }
 }
 
+struct DigestField {
+  std::string name;
+  size_t bitwidth;
+};
+
+std::vector<DigestField>
+convert_type_spec_to_digest_fields(const p4configv1::P4DataTypeSpec &type_spec,
+                                   const p4configv1::P4TypeInfo &type_info) {
+  std::vector<DigestField> digest_fields;
+
+  auto addField = [&](const std::string &name,
+                      const p4configv1::P4DataTypeSpec& fSpec) {
+    if (!fSpec.has_bitstring() || !fSpec.bitstring().has_bit())
+      throw read_proto_exception("Packed type for digest too complex");
+    auto &bit_type_spec = fSpec.bitstring().bit();
+    if (bit_type_spec.bitwidth() < 0)
+      throw read_proto_exception("Negative bitwidth in type spec");
+    auto bitwidth = static_cast<size_t>(bit_type_spec.bitwidth());
+    digest_fields.push_back({name, bitwidth});
+  };
+
+  if (type_spec.has_struct_()) {
+    auto structName = type_spec.struct_().name();
+    auto p_it = type_info.structs().find(structName);
+    if (p_it == type_info.structs().end())
+      throw read_proto_exception("Struct name not found in P4Info map");
+    for (const auto& member : p_it->second.members())
+      addField(member.name(), member.type_spec());
+  } else if (type_spec.has_tuple()) {
+    for (const auto& member : type_spec.tuple().members())
+      addField("", member);  // members of tuple are unnamed
+  } else if (type_spec.has_bitstring()) {
+    addField("", type_spec);
+  } else {
+    throw read_proto_exception("Packed type for digest too complex");
+  }
+
+  return digest_fields;
+}
+
+void read_digests(const p4configv1::P4Info &p4info_proto, pi_p4info_t *p4info) {
+  const auto &digests = p4info_proto.digests();
+  pi_p4info_digest_init(p4info, digests.size());
+  for (const auto &digest : digests) {
+    const auto &pre = digest.preamble();
+    auto digest_fields = convert_type_spec_to_digest_fields(
+        digest.type_spec(), p4info_proto.type_info());
+    pi_p4info_digest_add(p4info, pre.id(), pre.name().c_str(),
+                         digest_fields.size());
+    for (const auto &f : digest_fields)
+      pi_p4info_digest_add_field(p4info, pre.id(), f.name.c_str(), f.bitwidth);
+    import_common(pre, p4info);
+  }
+}
+
 }  // namespace
 
 bool p4info_proto_reader(const p4configv1::P4Info &p4info_proto,
@@ -240,6 +296,7 @@ bool p4info_proto_reader(const p4configv1::P4Info &p4info_proto,
     read_act_profs(p4info_proto, *p4info);
     read_counters(p4info_proto, *p4info);
     read_meters(p4info_proto, *p4info);
+    read_digests(p4info_proto, *p4info);
   } catch (const read_proto_exception &e) {
     std::cerr << e.what() << "\n";
     return false;
@@ -467,6 +524,29 @@ void p4info_serialize_meters(const pi_p4info_t *p4info,
   }
 }
 
+// This method always serializes digests using P4TupleTypeSpec which breaks
+// symmetry if one first converts from P4Info (Protobuf) to pi_p4info_t and then
+// back to P4Info.
+void p4info_serialize_digests(const pi_p4info_t *p4info,
+                              p4configv1::P4Info *p4info_proto) {
+  for (auto id = pi_p4info_digest_begin(p4info);
+       id != pi_p4info_digest_end(p4info);
+       id = pi_p4info_digest_next(p4info, id)) {
+    auto digest = p4info_proto->add_digests();
+    auto name = pi_p4info_digest_name_from_id(p4info, id);
+    set_preamble(digest, id, name, p4info);
+    auto tuple_spec = digest->mutable_type_spec()->mutable_tuple();
+    auto num_fields = pi_p4info_digest_num_fields(p4info, id);
+    for (size_t idx = 0; idx < num_fields; idx++) {
+      // auto f_name = pi_p4info_digest_field_name(p4info, id, idx);
+      auto bitwidth = pi_p4info_digest_field_bitwidth(p4info, id, idx);
+      auto bit_type_spec =
+          tuple_spec->add_members()->mutable_bitstring()->mutable_bit();
+      bit_type_spec->set_bitwidth(bitwidth);
+    }
+  }
+}
+
 }  // namespace
 
 p4configv1::P4Info p4info_serialize_to_proto(const pi_p4info_t *p4info) {
@@ -476,6 +556,7 @@ p4configv1::P4Info p4info_serialize_to_proto(const pi_p4info_t *p4info) {
   p4info_serialize_act_profs(p4info, &p4info_proto);
   p4info_serialize_counters(p4info, &p4info_proto);
   p4info_serialize_meters(p4info, &p4info_proto);
+  p4info_serialize_digests(p4info, &p4info_proto);
   return p4info_proto;
 }
 

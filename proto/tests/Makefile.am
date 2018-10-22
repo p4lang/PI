@@ -4,6 +4,7 @@ ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 AM_CPPFLAGS = \
 -I$(top_srcdir)/../include \
 -I$(top_srcdir)/frontend \
+-I$(top_srcdir)/third_party \
 -isystem$(top_builddir)/cpp_out \
 -isystem$(top_builddir)/grpc_out \
 -I$(top_srcdir)/../frontends_extra/cpp \
@@ -21,12 +22,14 @@ endif
 TESTS = \
 test_p4info_convert \
 test_proto_fe \
+test_proto_fe_digest \
 test_proto_fe_packet_io \
 test_proto_fe_set_pipeline_config \
 test_server_no_pipeline_config \
 test_server_gnmi \
 test_server_arbitration \
-test_pi_server
+test_pi_server \
+test_task_queue
 
 common_source = main.cpp
 
@@ -50,10 +53,14 @@ matchers.h \
 matchers.cpp
 
 test_proto_fe_SOURCES = $(proto_fe_common_source) test_proto_fe.cpp
+test_proto_fe_digest_SOURCES = $(proto_fe_common_source) \
+test_proto_fe_digest.cpp
 test_proto_fe_packet_io_SOURCES = $(proto_fe_common_source) \
 test_proto_fe_packet_io.cpp
 test_proto_fe_set_pipeline_config_SOURCES =$(proto_fe_common_source) \
 test_proto_fe_set_pipeline_config.cpp
+
+test_task_queue_SOURCES = $(proto_fe_common_source) test_task_queue.cpp
 
 mock_switch_libs = \
 $(top_builddir)/p4info/libpiconvertproto.la \
@@ -69,8 +76,11 @@ $(top_builddir)/libpiprotobuf.la \
 $(PROTOBUF_LIBS)
 
 test_proto_fe_LDADD = $(proto_fe_libs)
+test_proto_fe_digest_LDADD = $(proto_fe_libs)
 test_proto_fe_packet_io_LDADD = $(proto_fe_libs)
 test_proto_fe_set_pipeline_config_LDADD = $(proto_fe_libs)
+
+test_task_queue_LDADD = $(proto_fe_libs)
 
 test_server_common_source = $(proto_fe_common_source) \
 server/utils.h \
@@ -101,9 +111,11 @@ test_pi_server_LDADD = $(test_server_libs)
 check_PROGRAMS = \
 test_p4info_convert \
 test_proto_fe \
+test_proto_fe_digest \
 test_proto_fe_packet_io \
 test_proto_fe_set_pipeline_config \
 test_server_no_pipeline_config \
 test_server_gnmi \
 test_server_arbitration \
-test_pi_server
+test_pi_server \
+test_task_queue

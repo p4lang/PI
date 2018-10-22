@@ -142,6 +142,7 @@ static void __pi_init(char *req) {
   printf("RPC: _pi_init\n");
 
   (void)req;
+  pi_device_lock();
   size_t num_devices;
   pi_device_info_t *devices = pi_get_devices(&num_devices);
   pi_status_t status = PI_STATUS_SUCCESS;
@@ -192,6 +193,7 @@ static void __pi_init(char *req) {
   int bytes = nn_send(state.s, &rep, NN_MSG, 0);
   _PI_UNUSED(bytes);
   assert((size_t)bytes == s);
+  pi_device_unlock();
 }
 
 static void __pi_assign_device(char *req) {

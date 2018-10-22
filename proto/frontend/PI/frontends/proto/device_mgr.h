@@ -48,6 +48,8 @@ class DeviceMgr {
   using Status = ::google::rpc::Status;
   using PacketInCb =
       std::function<void(device_id_t, p4::v1::PacketIn *packet, void *cookie)>;
+  using StreamMessageResponseCb = std::function<void(
+      device_id_t, p4::v1::StreamMessageResponse *msg, void *cookie)>;
 
   explicit DeviceMgr(device_id_t device_id);
 
@@ -74,6 +76,9 @@ class DeviceMgr {
   Status packet_out_send(const p4::v1::PacketOut &packet) const;
 
   void packet_in_register_cb(PacketInCb cb, void *cookie);
+
+  void stream_message_response_register_cb(StreamMessageResponseCb cb,
+                                           void *cookie);
 
   static void init(size_t max_devices);
 

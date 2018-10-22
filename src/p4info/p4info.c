@@ -42,6 +42,7 @@ pi_status_t pi_empty_config(pi_p4info_t **p4info) {
   p4info_->direct_counters = &p4info_->resources[PI_DIRECT_COUNTER_ID];
   p4info_->meters = &p4info_->resources[PI_METER_ID];
   p4info_->direct_meters = &p4info_->resources[PI_DIRECT_METER_ID];
+  p4info_->digests = &p4info_->resources[PI_DIGEST_ID];
 
   *p4info = p4info_;
   return PI_STATUS_SUCCESS;

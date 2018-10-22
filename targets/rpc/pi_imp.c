@@ -36,6 +36,7 @@
 
 // TODO(antonin): devices that don't exist at server?
 static void process_state_sync(const char *rep) {
+  pi_device_lock();
   uint32_t num;
   rep += retrieve_uint32(rep, &num);
   for (size_t i = 0; i < num; i++) {
@@ -58,78 +59,8 @@ static void process_state_sync(const char *rep) {
     pi_add_config(rep, PI_CONFIG_TYPE_NATIVE_JSON, &p4info);
     info->p4info = p4info;
   }
+  pi_device_unlock();
 }
-
-// Saving these functions for later, if needed
-
-/* pi_status_t state_sync_one(pi_dev_id_t dev_id) { */
-/*   typedef struct __attribute__((packed)) { */
-/*     req_hdr_t hdr; */
-/*     uint32_t num; */
-/*     s_pi_dev_id_t dev_id; */
-/*     uint32_t version; */
-/*   } req_t; */
-/*   req_t req; */
-/*   char *req_ = (char *) &req; */
-/*   pi_rpc_id_t req_id = state.req_id++; */
-/*   req_ += emit_req_hdr(req_, req_id, PI_RPC_INT_GET_STATE); */
-/*   req_ += emit_uint32(req_, 1); */
-/*   req_ += emit_dev_id(req_, dev_id); */
-/*   req_ += emit_uint32(req_, pi_get_device_info(dev_id)->version); */
-
-/*   char *rep = NULL; */
-/*   int bytes = nn_recv(state.s, &rep, NN_MSG, 0); */
-/*   if (bytes <= 0) return PI_STATUS_RPC_TRANSPORT_ERROR; */
-
-/*   char *rep_ = rep; */
-/*   pi_status_t status = retrieve_rep_hdr(rep_, req_id); */
-/*   assert(status != PI_STATUS_SUCCESS); */
-/*   rep_ += sizeof(rep_hdr_t); */
-
-/*   process_state_sync(rep_); */
-
-/*   nn_freemsg(rep); */
-
-/*   return status; */
-/* } */
-
-/* static pi_status_t state_sync() { */
-/*   size_t num_devices; */
-/*   pi_device_info_t *devices = pi_get_devices(&num_devices); */
-
-/*   size_t s = sizeof(req_hdr_t); */
-/*   s += sizeof(uint32_t);  // num_devices */
-/*   s += num_devices * (sizeof(s_pi_dev_id_t) + sizeof(uint32_t)); */
-/*   char *req = nn_allocmsg(s, 0); */
-/*   char *req_ = req; */
-/*   pi_rpc_id_t req_id = state.req_id++; */
-/*   req_ += emit_req_hdr(req_, req_id, PI_RPC_INT_GET_STATE); */
-/*   req_ += emit_uint32(req_, num_devices); */
-/*   for (pi_dev_id_t dev_id = 0; dev_id < num_devices; dev_id++) { */
-/*     req_ += emit_dev_id(req_, dev_id); */
-/*     req_ += emit_uint32(req_, devices[dev_id].version); */
-/*   } */
-
-/*   assert((size_t) (req_ - req) == s); */
-
-/*   int rc = nn_send(state.s, (char *) &req, sizeof(req), 0); */
-/*   if (rc != sizeof(req)) return PI_STATUS_RPC_TRANSPORT_ERROR; */
-
-/*   char *rep = NULL; */
-/*   int bytes = nn_recv(state.s, &rep, NN_MSG, 0); */
-/*   if (bytes <= 0) return PI_STATUS_RPC_TRANSPORT_ERROR; */
-
-/*   char *rep_ = rep; */
-/*   pi_status_t status = retrieve_rep_hdr(rep_, req_id); */
-/*   assert(status != PI_STATUS_SUCCESS); */
-/*   rep_ += sizeof(rep_hdr_t); */
-
-/*   process_state_sync(rep_); */
-
-/*   nn_freemsg(rep); */
-
-/*   return PI_STATUS_SUCCESS; */
-/* } */
 
 static void init_addrs(const pi_remote_addr_t *remote_addr) {
   if (!remote_addr || !remote_addr->rpc_addr)

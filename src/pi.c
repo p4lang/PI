@@ -24,14 +24,24 @@
 #include "PI/target/pi_imp.h"
 #include "_assert.h"
 #include "device_map.h"
+#include "pi_learn_int.h"
 #include "utils/logging.h"
 #include "vector.h"
 
+#include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
 
 static device_map_t device_map;
 static vector_t *device_arr = NULL;
+
+// protects access to device_map and device_arr
+// client can manage mutex itself by calling pi_device_lock() /
+// pi_device_unlock() which is useful when a function (e.g. pi_get_devices())
+// returns a pointer offering direct access to shared state
+// these functions are for internal library use only (they are declared in
+// PI/int/pi_int.h)
+static pthread_mutex_t device_map_mutex;
 
 typedef struct {
   int is_set;
@@ -52,19 +62,31 @@ typedef struct {
 static device_map_t device_packetin_cb_data;
 static packetin_cb_data_t default_packetin_cb_data;
 
+// protects access to registered packet-in CBs
+static pthread_mutex_t cb_mutex;
+
+// acquire device_map_mutex first
 pi_device_info_t *pi_get_device_info(pi_dev_id_t dev_id) {
   return (pi_device_info_t *)device_map_get(&device_map, dev_id);
 }
 
+void pi_device_lock() { pthread_mutex_lock(&device_map_mutex); }
+
+void pi_device_unlock() { pthread_mutex_unlock(&device_map_mutex); }
+
+// acquire device_map_mutex first
 pi_device_info_t *pi_get_devices(size_t *nb) {
   *nb = vector_size(device_arr);
   return (pi_device_info_t *)vector_data(device_arr);
 }
 
 const pi_p4info_t *pi_get_device_p4info(pi_dev_id_t dev_id) {
+  const pi_p4info_t *p4info = NULL;
+  pi_device_lock();
   pi_device_info_t *device_info = pi_get_device_info(dev_id);
-  if (device_info == NULL) return NULL;
-  return device_info->p4info;
+  if (device_info != NULL) p4info = device_info->p4info;
+  pi_device_unlock();
+  return p4info;
 }
 
 static size_t direct_res_counter_msg_size(const void *config) {
@@ -110,12 +132,18 @@ pi_status_t pi_init(size_t max_devices, pi_remote_addr_t *remote_addr) {
   // TODO(antonin): best place for this? I don't see another option
   (void)max_devices;
   register_std_direct_res();
+  if (pthread_mutex_init(&device_map_mutex, NULL))
+    return PI_STATUS_PTHREAD_ERROR;
+  if (pthread_mutex_init(&cb_mutex, NULL)) return PI_STATUS_PTHREAD_ERROR;
   device_map_create(&device_map);
   device_arr = vector_create(sizeof(pi_device_info_t), 256);
   device_map_create(&device_packetin_cb_data);
+  pi_status_t status = pi_learn_init();
+  if (status != PI_STATUS_SUCCESS) return status;
   return _pi_init((void *)remote_addr);
 }
 
+// acquire device_map_mutex first
 void pi_update_device_config(pi_dev_id_t dev_id, const pi_p4info_t *p4info) {
   pi_device_info_t *info = pi_get_device_info(dev_id);
   assert(info != NULL);
@@ -124,26 +152,35 @@ void pi_update_device_config(pi_dev_id_t dev_id, const pi_p4info_t *p4info) {
   info->p4info = p4info;
 }
 
+// acquire device_map_mutex first
 void pi_create_device_config(pi_dev_id_t dev_id) {
   vector_push_back_empty(device_arr);
   pi_device_info_t *info = (pi_device_info_t *)vector_back(device_arr);
   _PI_ASSERT(device_map_add(&device_map, dev_id, info));
   info->dev_id = dev_id;
+  pthread_mutex_lock(&cb_mutex);
   packetin_cb_data_t *packetin_cb_data = malloc(sizeof(packetin_cb_data_t));
   _PI_ASSERT(
       device_map_add(&device_packetin_cb_data, dev_id, packetin_cb_data));
+  pthread_mutex_unlock(&cb_mutex);
 }
 
 pi_status_t pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
                              pi_assign_extra_t *extra) {
-  if (device_map_exists(&device_map, dev_id))
+  pi_device_lock();
+  if (device_map_exists(&device_map, dev_id)) {
+    pi_device_unlock();
     return PI_STATUS_DEV_ALREADY_ASSIGNED;
+  }
+
+  _PI_ASSERT(pi_learn_assign_device(dev_id) == PI_STATUS_SUCCESS);
 
   pi_status_t status = _pi_assign_device(dev_id, p4info, extra);
   if (status == PI_STATUS_SUCCESS) {
     pi_create_device_config(dev_id);
     pi_update_device_config(dev_id, p4info);
   }
+  pi_device_unlock();
 
   return status;
 }
@@ -154,7 +191,11 @@ pi_status_t pi_update_device_start(pi_dev_id_t dev_id,
                                    size_t device_data_size) {
   pi_status_t status =
       _pi_update_device_start(dev_id, p4info, device_data, device_data_size);
-  if (status == PI_STATUS_SUCCESS) pi_update_device_config(dev_id, p4info);
+  if (status == PI_STATUS_SUCCESS) {
+    pi_device_lock();
+    pi_update_device_config(dev_id, p4info);
+    pi_device_unlock();
+  }
 
   return status;
 }
@@ -164,32 +205,58 @@ pi_status_t pi_update_device_end(pi_dev_id_t dev_id) {
 }
 
 bool pi_is_device_assigned(pi_dev_id_t dev_id) {
-  return device_map_exists(&device_map, dev_id);
+  pi_device_lock();
+  bool exists = device_map_exists(&device_map, dev_id);
+  pi_device_unlock();
+  return exists;
 }
 
 size_t pi_num_devices() {
-  return (device_arr == NULL) ? 0 : vector_size(device_arr);
+  size_t num_devices = 0;
+  pi_device_lock();
+  if (device_arr != NULL) num_devices = vector_size(device_arr);
+  pi_device_unlock();
+  return num_devices;
 }
 
-void pi_get_device_ids(pi_dev_id_t *dev_ids) {
-  for (size_t idx = 0; idx < pi_num_devices(); idx++) {
-    pi_device_info_t *info = (pi_device_info_t *)vector_at(device_arr, idx);
-    *dev_ids = info->dev_id;
+size_t pi_get_device_ids(pi_dev_id_t *dev_ids, size_t max_num_devices) {
+  pi_device_lock();
+  if (device_arr == NULL) {
+    pi_device_unlock();
+    return 0;
   }
+  size_t num_devices = vector_size(device_arr);
+  size_t idx;
+  for (idx = 0; idx < num_devices && idx < max_num_devices; idx++) {
+    pi_device_info_t *info = (pi_device_info_t *)vector_at(device_arr, idx);
+    dev_ids[idx] = info->dev_id;
+  }
+  pi_device_unlock();
+  return idx;
 }
 
 pi_status_t pi_remove_device(pi_dev_id_t dev_id) {
+  pi_device_lock();
   pi_device_info_t *info = pi_get_device_info(dev_id);
-  if (!info) return PI_STATUS_DEV_NOT_ASSIGNED;
+  if (!info) {
+    pi_device_unlock();
+    return PI_STATUS_DEV_NOT_ASSIGNED;
+  }
 
   pi_status_t status = _pi_remove_device(dev_id);
 
   vector_remove_e(device_arr, (void *)info);
   _PI_ASSERT(device_map_remove(&device_map, dev_id));
+  pthread_mutex_lock(&cb_mutex);
   packetin_cb_data_t *packetin_cb_data =
       (packetin_cb_data_t *)device_map_get(&device_packetin_cb_data, dev_id);
   _PI_ASSERT(device_map_remove(&device_packetin_cb_data, dev_id));
+  pthread_mutex_unlock(&cb_mutex);
   free(packetin_cb_data);
+
+  _PI_ASSERT(pi_learn_remove_device(dev_id) == PI_STATUS_SUCCESS);
+
+  pi_device_unlock();
 
   return status;
 }
@@ -211,9 +278,13 @@ pi_status_t pi_batch_end(pi_session_handle_t session_handle, bool hw_sync) {
 }
 
 pi_status_t pi_destroy() {
+  pthread_mutex_destroy(&device_map_mutex);
+  pthread_mutex_destroy(&cb_mutex);
   vector_destroy(device_arr);
   device_map_destroy(&device_map);
   device_map_destroy(&device_packetin_cb_data);
+  pi_status_t status = pi_learn_destroy();
+  if (status != PI_STATUS_SUCCESS) return status;
   return _pi_destroy();
 }
 
@@ -269,32 +340,46 @@ pi_status_t pi_direct_res_get_fns(pi_res_type_id_t res_type,
 
 pi_status_t pi_packetin_register_cb(pi_dev_id_t dev_id, PIPacketInCb cb,
                                     void *cb_cookie) {
+  pthread_mutex_lock(&cb_mutex);
   packetin_cb_data_t *packetin_cb_data =
       (packetin_cb_data_t *)device_map_get(&device_packetin_cb_data, dev_id);
-  if (packetin_cb_data == NULL) return PI_STATUS_DEV_NOT_ASSIGNED;
+  if (packetin_cb_data == NULL) {
+    pthread_mutex_unlock(&cb_mutex);
+    return PI_STATUS_DEV_NOT_ASSIGNED;
+  }
   packetin_cb_data->cb = cb;
   packetin_cb_data->cookie = cb_cookie;
+  pthread_mutex_unlock(&cb_mutex);
   return PI_STATUS_SUCCESS;
 }
 
 pi_status_t pi_packetin_register_default_cb(PIPacketInCb cb, void *cb_cookie) {
+  pthread_mutex_lock(&cb_mutex);
   default_packetin_cb_data.cb = cb;
   default_packetin_cb_data.cookie = cb_cookie;
+  pthread_mutex_unlock(&cb_mutex);
   return PI_STATUS_SUCCESS;
 }
 
 pi_status_t pi_packetin_deregister_cb(pi_dev_id_t dev_id) {
+  pthread_mutex_lock(&cb_mutex);
   packetin_cb_data_t *packetin_cb_data =
       (packetin_cb_data_t *)device_map_get(&device_packetin_cb_data, dev_id);
-  if (packetin_cb_data == NULL) return PI_STATUS_DEV_NOT_ASSIGNED;
+  if (packetin_cb_data == NULL) {
+    pthread_mutex_unlock(&cb_mutex);
+    return PI_STATUS_DEV_NOT_ASSIGNED;
+  }
   packetin_cb_data->cb = NULL;
   packetin_cb_data->cookie = NULL;
+  pthread_mutex_unlock(&cb_mutex);
   return PI_STATUS_SUCCESS;
 }
 
 pi_status_t pi_packetin_deregister_default_cb() {
+  pthread_mutex_lock(&cb_mutex);
   default_packetin_cb_data.cb = NULL;
   default_packetin_cb_data.cookie = NULL;
+  pthread_mutex_unlock(&cb_mutex);
   return PI_STATUS_SUCCESS;
 }
 
@@ -305,16 +390,23 @@ pi_status_t pi_packetout_send(pi_dev_id_t dev_id, const char *pkt,
 
 pi_status_t pi_packetin_receive(pi_dev_id_t dev_id, const char *pkt,
                                 size_t size) {
+  pthread_mutex_lock(&cb_mutex);
   packetin_cb_data_t *packetin_cb_data =
       (packetin_cb_data_t *)device_map_get(&device_packetin_cb_data, dev_id);
-  if (packetin_cb_data == NULL) return PI_STATUS_DEV_NOT_ASSIGNED;
+  if (packetin_cb_data == NULL) {
+    pthread_mutex_unlock(&cb_mutex);
+    return PI_STATUS_DEV_NOT_ASSIGNED;
+  }
   if (packetin_cb_data->cb) {
     packetin_cb_data->cb(dev_id, pkt, size, packetin_cb_data->cookie);
+    pthread_mutex_unlock(&cb_mutex);
     return PI_STATUS_SUCCESS;
   } else if (default_packetin_cb_data.cb) {
     default_packetin_cb_data.cb(dev_id, pkt, size,
                                 default_packetin_cb_data.cookie);
+    pthread_mutex_unlock(&cb_mutex);
     return PI_STATUS_SUCCESS;
   }
+  pthread_mutex_unlock(&cb_mutex);
   return PI_STATUS_PACKETIN_NO_CB;
 }

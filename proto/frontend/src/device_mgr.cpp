@@ -44,6 +44,7 @@
 #include "action_helpers.h"
 #include "action_prof_mgr.h"
 #include "common.h"
+#include "digest_mgr.h"
 #include "packet_io_mgr.h"
 #include "pre_clone_mgr.h"
 #include "pre_mc_mgr.h"
@@ -67,6 +68,7 @@ using device_id_t = DeviceMgr::device_id_t;
 using p4_id_t = DeviceMgr::p4_id_t;
 using Status = DeviceMgr::Status;
 using PacketInCb = DeviceMgr::PacketInCb;
+using StreamMessageResponseCb = DeviceMgr::StreamMessageResponseCb;
 using Code = ::google::rpc::Code;
 using common::SessionTemp;
 using common::check_proto_bytestring;
@@ -296,7 +298,8 @@ class DeviceMgrImp {
   explicit DeviceMgrImp(device_id_t device_id)
       : device_id(device_id),
         device_tgt({static_cast<pi_dev_id_t>(device_id), 0xffff}),
-        packet_io(device_id) { }
+        packet_io(device_id),
+        digest_mgr(device_id) { }
 
   ~DeviceMgrImp() {
     pi_remove_device(device_id);
@@ -350,6 +353,8 @@ class DeviceMgrImp {
     pre_mc_mgr.reset(pre_mc_mgr_);
 
     packet_io.p4_change(p4info_proto_new);
+
+    digest_mgr.p4_change(p4info_proto_new);
 
     // we do this last, so that the ActProfMgr instances never point to an
     // invalid p4info, even though this is not strictly required here
@@ -1388,6 +1393,11 @@ class DeviceMgrImp {
     packet_io.packet_in_register_cb(std::move(cb), cookie);
   }
 
+  void stream_message_response_register_cb(StreamMessageResponseCb cb,
+                                           void *cookie) {
+    digest_mgr.stream_message_response_register_cb(std::move(cb), cookie);
+  }
+
   Status counter_write(p4v1::Update::Type update,
                        const p4v1::CounterEntry &counter_entry,
                        const SessionTemp &session) {
@@ -1752,8 +1762,7 @@ class DeviceMgrImp {
                               "Register reads are not supported yet");
         break;
       case p4v1::Entity::kDigestEntry:
-        status = ERROR_STATUS(Code::UNIMPLEMENTED,
-                              "Digest config reads are not supported yet");
+        status = digest_mgr.config_read(entity.digest_entry(), response);
         break;
       default:
         status = ERROR_STATUS(Code::UNKNOWN, "Incorrect entity type");
@@ -1820,8 +1829,8 @@ class DeviceMgrImp {
                                 "Register writes are not supported yet");
           break;
         case p4v1::Entity::kDigestEntry:
-          status = ERROR_STATUS(Code::UNIMPLEMENTED,
-                                "Digest config writes are not supported yet");
+          status = digest_mgr.config_write(
+              entity.digest_entry(), update.type(), session);
           break;
         default:
           status = ERROR_STATUS(Code::UNKNOWN, "Incorrect entity type");
@@ -2620,6 +2629,8 @@ class DeviceMgrImp {
 
   PacketIOMgr packet_io;
 
+  DigestMgr digest_mgr;
+
   // ActionProfMgr is not movable because of mutex
   std::unordered_map<pi_p4_id_t, std::unique_ptr<ActionProfMgr> >
   action_profs{};
@@ -2678,7 +2689,13 @@ DeviceMgr::packet_out_send(const p4v1::PacketOut &packet) const {
 
 void
 DeviceMgr::packet_in_register_cb(PacketInCb cb, void *cookie) {
-  return pimp->packet_in_register_cb(cb, cookie);
+  return pimp->packet_in_register_cb(std::move(cb), cookie);
+}
+
+void
+DeviceMgr::stream_message_response_register_cb(StreamMessageResponseCb cb,
+                                               void *cookie) {
+  return pimp->stream_message_response_register_cb(std::move(cb), cookie);
 }
 
 void
