@@ -261,6 +261,18 @@ class DeviceState {
     pkt_out_count++;
   }
 
+  void process_stream_message_request(
+      Connection *connection, const p4v1::StreamMessageRequest &request) {
+    // these are handled directly by StreamChannel
+    assert(request.update_case() != p4v1::StreamMessageRequest::kArbitration);
+    std::lock_guard<std::mutex> lock(m);
+    if (!is_master(connection)) return;
+    if (device_mgr == nullptr) return;
+    device_mgr->stream_message_request_handle(request);
+    if (request.update_case() == p4v1::StreamMessageRequest::kPacket)
+      pkt_out_count++;
+  }
+
   uint64_t get_pkt_out_count() {
     std::lock_guard<std::mutex> lock(m);
     return pkt_out_count;
@@ -496,9 +508,12 @@ class P4RuntimeServiceImpl : public p4v1::P4Runtime::Service {
           }
           break;
         case p4v1::StreamMessageRequest::kDigestAck:
-          // DigestAck not supported, and not expected either since we do not
-          // support generating DigestList notifications yet.
-          SIMPLELOG << "DigestAck not supported yet\n";
+          {
+            if (connection_status.connection == nullptr) break;
+            auto device_id = connection_status.device_id;
+            Devices::get(device_id)->process_stream_message_request(
+                connection_status.connection.get(), request);
+          }
           break;
         default:
           break;

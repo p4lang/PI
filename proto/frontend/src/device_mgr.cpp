@@ -1389,6 +1389,25 @@ class DeviceMgrImp {
     return packet_io.packet_out_send(packet);
   }
 
+  Status stream_message_request_handle(
+      const p4::v1::StreamMessageRequest &request) {
+    switch (request.update_case()) {
+      case p4v1::StreamMessageRequest::kArbitration:
+        // must be handled by server code
+        RETURN_ERROR_STATUS(
+            Code::INTERNAL, "Arbitration mesages must be handled by server");
+      case p4v1::StreamMessageRequest::kPacket:
+        return packet_io.packet_out_send(request.packet());
+      case p4v1::StreamMessageRequest::kDigestAck:
+        digest_mgr.ack(request.digest_ack());
+        RETURN_OK_STATUS();
+      default:
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
+    }
+    assert(0);
+    RETURN_ERROR_STATUS(Code::UNKNOWN);  // unreachable
+  }
+
   void packet_in_register_cb(PacketInCb cb, void *cookie) {
     packet_io.packet_in_register_cb(std::move(cb), cookie);
   }
@@ -2685,6 +2704,12 @@ DeviceMgr::read_one(const p4v1::Entity &entity,
 Status
 DeviceMgr::packet_out_send(const p4v1::PacketOut &packet) const {
   return pimp->packet_out_send(packet);
+}
+
+Status
+DeviceMgr::stream_message_request_handle(
+    const p4::v1::StreamMessageRequest &request) {
+  return pimp->stream_message_request_handle(request);
 }
 
 void
