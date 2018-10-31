@@ -61,11 +61,6 @@ using SessionTemp = pi::fe::proto::common::SessionTemp;
 using ::testing::_;
 using ::testing::AnyNumber;
 
-MATCHER_P(EqDigestConfig, config, "") {
-  return (arg->max_size == config.max_list_size()) &&
-      (arg->max_timeout_ns == config.max_timeout_ns());
-}
-
 class Sample {
  public:
   Sample &operator<<(std::string s) {
@@ -144,7 +139,10 @@ class DigestMgrTest : public ::testing::Test {
   boost::optional<p4v1::DigestList> digest_receive(
       const std::chrono::duration<Rep, Period> &timeout) {
     Lock lock(mutex);
-    if (cvar.wait_for(lock, timeout, [this] { return !digests.empty(); })) {
+    // using wait_until and not wait_for to account for spurious awakenings.
+    // if (cvar.wait_for(lock, timeout, [this] { return !digests.empty(); })) {
+    if (cvar.wait_until(lock, Clock::now() + timeout,
+                        [this] { return !digests.empty(); })) {
       auto digest = digests.front();
       digests.pop();
       return digest;

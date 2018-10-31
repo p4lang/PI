@@ -848,7 +848,7 @@ DigestMgr::config_write(const p4v1::DigestEntry &entry,
   future.wait();
   auto status = future.get();
   if (IS_ERROR(status)) return status;
-  {
+  if (type == p4v1::Update::INSERT || type == p4v1::Update::MODIFY) {
     pi_learn_config_t pi_config;
     pi_config.max_size = entry.config().max_list_size();
     pi_config.max_timeout_ns = entry.config().max_timeout_ns();
@@ -857,6 +857,12 @@ DigestMgr::config_write(const p4v1::DigestEntry &entry,
     if (pi_status != PI_STATUS_SUCCESS)
       RETURN_ERROR_STATUS(Code::INTERNAL,
                           "Error when configuring digest with target");
+  } else if (type == p4v1::Update::DELETE) {
+    auto pi_status = pi_learn_config_set(
+        session.get(), device_id, entry.digest_id(), nullptr);
+    if (pi_status != PI_STATUS_SUCCESS)
+      RETURN_ERROR_STATUS(Code::INTERNAL,
+                          "Error when disabling digest with target");
   }
   RETURN_OK_STATUS();
 }
