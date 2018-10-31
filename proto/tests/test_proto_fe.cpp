@@ -92,6 +92,7 @@ using ::testing::AnyNumber;
 using ::testing::Args;
 using ::testing::AtLeast;
 using ::testing::ElementsAre;
+using ::testing::IsNull;
 
 // Used to make sure that a google::rpc::Status object has the correct format
 // and contains a single p4v1::Error message with a matching canonical error
@@ -2835,6 +2836,8 @@ TEST_F(DigestTest, WriteAndRead) {
   auto *digest_entry = entity->mutable_digest_entry();
   digest_entry->set_digest_id(digest_id);
   digest_entry->mutable_config()->set_max_list_size(100);
+  EXPECT_CALL(*mock, learn_config_set(
+      digest_id, EqDigestConfig(digest_entry->config())));
   EXPECT_OK(mgr.write(request));
   p4v1::ReadResponse response;
   EXPECT_OK(mgr.read_one(*entity, &response));
@@ -2842,6 +2845,9 @@ TEST_F(DigestTest, WriteAndRead) {
   ASSERT_EQ(read_entities.size(), 1);
   EXPECT_TRUE(MessageDifferencer::Equals(
       *digest_entry, read_entities.Get(0).digest_entry()));
+  update->set_type(p4v1::Update::DELETE);
+  EXPECT_CALL(*mock, learn_config_set(digest_id, IsNull()));
+  EXPECT_OK(mgr.write(request));
 }
 
 // This test verifies that the ReadRequest gets a unique lock (no concurrent

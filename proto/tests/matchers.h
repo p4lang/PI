@@ -237,6 +237,11 @@ inline Matcher<const pi_clone_session_config_t *> CorrectCloneSessionConfig(
   return MakeMatcher(new CloneSessionConfigMatcher(session_entry));
 }
 
+MATCHER_P(EqDigestConfig, config, "") {
+  return (arg->max_size == config.max_list_size()) &&
+      (arg->max_timeout_ns == config.max_timeout_ns());
+}
+
 }  // namespace testing
 }  // namespace proto
 }  // namespace pi
