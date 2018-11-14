@@ -75,8 +75,8 @@ void generic_extract(const char *data, int bit_offset, int bitwidth,
     for (i = 0; i < nbytes - 1; i++) {
       dst[i] = (udata[i] << offset) | (udata[i + 1] >> (8 - offset));
     }
-    dst[0] &= (0xFF >> dst_offset);
     dst[i] = udata[i] << offset;
+    dst[0] &= (0xFF >> dst_offset);
     if ((bit_offset + bitwidth) > (nbytes << 3)) {
       dst[i] |= (udata[i + 1] >> (8 - offset));
     }
