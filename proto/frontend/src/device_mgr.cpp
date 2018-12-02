@@ -2139,13 +2139,69 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
-  Status construct_action_data(uint32_t table_id, const p4v1::Action &action,
-                               pi::ActionEntry *action_entry) const {
-    auto action_id = action.action_id();
+  // Called in table_insert & table_modify
+  Status validate_action(const p4v1::TableEntry &entry) const {
+    const auto table_id = entry.table_id();
+    const auto &table_action = entry.action();
+    auto action_prof_id = pi_p4info_table_get_implementation(p4info.get(),
+                                                             table_id);
+    auto table_is_indirect = (action_prof_id != PI_INVALID_ID);
+    if (table_is_indirect && entry.is_default_action()) {
+      RETURN_ERROR_STATUS(
+          Code::INVALID_ARGUMENT,
+          "Cannot set / reset default action for indirect table {}", table_id);
+    }
+    if (entry.is_default_action() &&
+        pi_p4info_table_has_const_default_action(p4info.get(), table_id)) {
+      RETURN_ERROR_STATUS(
+          Code::PERMISSION_DENIED,
+          "Cannot set / reset default action for table {} which has a const "
+          "default action", table_id);
+    }
+    if (!entry.has_action()) RETURN_OK_STATUS();
+    if (table_is_indirect &&
+        table_action.type_case() == p4v1::TableAction::kAction) {
+      RETURN_ERROR_STATUS(
+          Code::INVALID_ARGUMENT,
+          "Cannot provide direct action for indirect table {}", table_id);
+    }
+    if (!table_is_indirect &&
+        table_action.type_case() != p4v1::TableAction::kAction) {
+      RETURN_ERROR_STATUS(
+          Code::INVALID_ARGUMENT,
+          "Cannot provide indirect action for direct table {}", table_id);
+    }
+    // The PSA spec & the P4Runtime spec specify that tables with an action
+    // profile implementation cannot define a default action, which means that
+    // the rest of the checks are meaningless for indirect tables.
+    if (table_is_indirect) RETURN_OK_STATUS();
+    auto action_id = table_action.action().action_id();
     if (!check_p4_id(action_id, P4Ids::ACTION))
       return make_invalid_p4_id_status();
-    if (!pi_p4info_table_is_action_of(p4info.get(), table_id, action_id))
+    auto action_info = pi_p4info_table_get_action_info(
+        p4info.get(), table_id, action_id);
+    if (!action_info)
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid action for table");
+    // most common case
+    if (action_info->scope == PI_P4INFO_ACTION_SCOPE_TABLE_AND_DEFAULT)
+      RETURN_OK_STATUS();
+    if (action_info->scope == PI_P4INFO_ACTION_SCOPE_TABLE_ONLY &&
+        entry.is_default_action()) {
+      RETURN_ERROR_STATUS(
+          Code::PERMISSION_DENIED,
+          "Cannot use TABLE_ONLY action as default action");
+    }
+    if (action_info->scope == PI_P4INFO_ACTION_SCOPE_DEFAULT_ONLY &&
+        !entry.is_default_action()) {
+      RETURN_ERROR_STATUS(
+          Code::PERMISSION_DENIED,
+          "Cannot use DEFAULT_ONLY action in table entry");
+    }
+    RETURN_OK_STATUS();
+  }
+
+  Status construct_action_data(uint32_t table_id, const p4v1::Action &action,
+                               pi::ActionEntry *action_entry) const {
     auto status = validate_action_data(p4info.get(), action);
     if (IS_ERROR(status)) return status;
     action_entry->init_action_data(p4info.get(), action.action_id());
@@ -2161,12 +2217,8 @@ class DeviceMgrImp {
                                          pi::ActionEntry *action_entry) {
     auto action_prof_id = pi_p4info_table_get_implementation(p4info.get(),
                                                              table_id);
-    // check that table is indirect
-    if (action_prof_id == PI_INVALID_ID) {
-      RETURN_ERROR_STATUS(
-          Code::INVALID_ARGUMENT,
-          "Expected indirect table but table {} is not", table_id);
-    }
+    // validate_action checked that table was indirect
+    assert(action_prof_id != PI_INVALID_ID);
     auto action_prof_mgr = get_action_prof_mgr(action_prof_id);
     // cannot assert because the action prof id is provided by the PI
     assert(action_prof_mgr);
@@ -2221,12 +2273,8 @@ class DeviceMgrImp {
       SessionTemp *session) {
     auto action_prof_id = pi_p4info_table_get_implementation(p4info.get(),
                                                              table_id);
-    // check that table is indirect
-    if (action_prof_id == PI_INVALID_ID) {
-      RETURN_ERROR_STATUS(
-          Code::INVALID_ARGUMENT,
-          "Expected indirect table but table {} is not", table_id);
-    }
+    // validate_action checked that table was indirect
+    assert(action_prof_id != PI_INVALID_ID);
     auto action_prof_mgr = get_action_prof_mgr(action_prof_id);
     // cannot assert because the action prof id is provided by the PI
     assert(action_prof_mgr);
@@ -2282,11 +2330,16 @@ class DeviceMgrImp {
                           "Cannot use INSERT for default entry");
     }
 
+    if (!table_entry.has_action())
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "'action' field must be set");
+
     pi::MatchKey match_key(p4info.get(), table_id);
     {
       auto status = construct_match_key(table_entry, &match_key);
       if (IS_ERROR(status)) return status;
     }
+
+    RETURN_IF_ERROR(validate_action(table_entry));
 
     pi::ActionEntry action_entry;
     pi_meter_spec_t _meter_spec_storage;
@@ -2347,6 +2400,8 @@ class DeviceMgrImp {
       auto status = construct_match_key(table_entry, &match_key);
       if (IS_ERROR(status)) return status;
     }
+
+    RETURN_IF_ERROR(validate_action(table_entry));
 
     pi::ActionEntry action_entry;
     pi_meter_spec_t _meter_spec_storage;

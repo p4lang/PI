@@ -116,14 +116,26 @@ void read_tables(const p4configv1::P4Info &p4info_proto, pi_p4info_t *p4info) {
     }
 
     for (const auto &action_ref : table.action_refs()) {
-      pi_p4info_table_add_action(p4info, pre.id(), action_ref.id());
-      // TODO(antonin): ignoring action ref annotations
+      auto scope_convert = [&action_ref]() {
+        switch (action_ref.scope()) {
+          case p4configv1::ActionRef::TABLE_AND_DEFAULT:
+            return PI_P4INFO_ACTION_SCOPE_TABLE_AND_DEFAULT;
+          case p4configv1::ActionRef::TABLE_ONLY:
+            return PI_P4INFO_ACTION_SCOPE_TABLE_ONLY;
+          case p4configv1::ActionRef::DEFAULT_ONLY:
+            return PI_P4INFO_ACTION_SCOPE_DEFAULT_ONLY;
+          default:
+            throw read_proto_exception("Invalid action scope");
+        }
+      };
+      pi_p4info_table_add_action(
+          p4info, pre.id(), action_ref.id(), scope_convert());
+      // TODO(antonin): ignoring action ref annotations for now
     }
 
     if (table.const_default_action_id() != PI_INVALID_ID) {
       pi_p4info_table_set_const_default_action(
-          p4info, pre.id(), table.const_default_action_id(),
-          table.const_default_action_has_mutable_params());
+          p4info, pre.id(), table.const_default_action_id());
     }
 
     if (table.implementation_id() != PI_INVALID_ID) {
@@ -393,7 +405,23 @@ void p4info_serialize_tables(const pi_p4info_t *p4info,
     auto action_ids = pi_p4info_table_get_actions(p4info, id, &num_actions);
     for (size_t i = 0; i < num_actions; i++) {
       auto action_ref = table->add_action_refs();
+      auto action_info = pi_p4info_table_get_action_info(
+          p4info, id, action_ids[i]);
+      assert(action_info);
+      auto scope_convert = [action_info]() {
+        switch (action_info->scope) {
+          case PI_P4INFO_ACTION_SCOPE_TABLE_AND_DEFAULT:
+            return p4configv1::ActionRef::TABLE_AND_DEFAULT;
+          case PI_P4INFO_ACTION_SCOPE_TABLE_ONLY:
+            return p4configv1::ActionRef::TABLE_ONLY;
+          case PI_P4INFO_ACTION_SCOPE_DEFAULT_ONLY:
+            return p4configv1::ActionRef::DEFAULT_ONLY;
+          default:
+            throw read_proto_exception("Invalid action scope");
+        }
+      };
       action_ref->set_id(action_ids[i]);
+      action_ref->set_scope(scope_convert());
       // TODO(antonin): p4info C struct does not store action ref annotations
     }
 
@@ -401,8 +429,6 @@ void p4info_serialize_tables(const pi_p4info_t *p4info,
     auto const_default_action_id = pi_p4info_table_get_const_default_action(
         p4info, id, &has_mutable_action_params);
     table->set_const_default_action_id(const_default_action_id);
-    table->set_const_default_action_has_mutable_params(
-        has_mutable_action_params);
 
     table->set_implementation_id(
         pi_p4info_table_get_implementation(p4info, id));

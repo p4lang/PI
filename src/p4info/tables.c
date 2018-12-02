@@ -57,10 +57,17 @@ typedef struct _table_data_s {
     pi_p4_id_t direct[INLINE_ACTIONS];
     pi_p4_id_t *indirect;
   } action_ids;
+  union {
+    pi_p4info_action_info_t direct[INLINE_ACTIONS];
+    pi_p4info_action_info_t *indirect;
+  } action_info;
   size_t match_fields_added;
   size_t actions_added;
   // PI_INVALID_ID if no const default action
   pi_p4_id_t const_default_action_id;
+  // DEPRECATED
+  // Always set to (const_default_action_id == PI_INVALID_ID)
+  // e.g. no const action => mutable action params
   bool has_mutable_action_params;
   // PI_INVALID_ID if default
   pi_p4_id_t implementation;
@@ -92,6 +99,11 @@ static _match_field_data_t *get_match_field_data(_table_data_t *table) {
 static pi_p4_id_t *get_action_ids(_table_data_t *table) {
   return (table->num_actions <= INLINE_ACTIONS) ? table->action_ids.direct
                                                 : table->action_ids.indirect;
+}
+
+static pi_p4info_action_info_t *get_action_info(_table_data_t *table) {
+  return (table->num_actions <= INLINE_ACTIONS) ? table->action_info.direct
+                                                : table->action_info.indirect;
 }
 
 static pi_p4_id_t *get_direct_resources(_table_data_t *table) {
@@ -139,7 +151,9 @@ static void free_table_data(void *data) {
   }
   if (table->num_actions > INLINE_ACTIONS) {
     assert(table->action_ids.indirect);
+    assert(table->action_info.indirect);
     free(table->action_ids.indirect);
+    free(table->action_info.indirect);
   }
   ID_VECTOR_DESTROY(table->direct_resources);
   p4info_common_destroy(&table->common);
@@ -169,9 +183,11 @@ void pi_p4info_table_serialize(cJSON *root, const pi_p4info_t *p4info) {
     cJSON_AddItemToObject(tObject, "match_fields", mfArray);
 
     cJSON *actionsArray = cJSON_CreateArray();
-    pi_p4_id_t *action_ids = get_action_ids(table);
     for (size_t j = 0; j < table->num_actions; j++) {
-      cJSON *action = cJSON_CreateNumber(action_ids[j]);
+      pi_p4info_action_info_t *action_info = &get_action_info(table)[j];
+      cJSON *action = cJSON_CreateObject();
+      cJSON_AddNumberToObject(action, "id", action_info->id);
+      cJSON_AddNumberToObject(action, "scope", action_info->scope);
       cJSON_AddItemToArray(actionsArray, action);
     }
     cJSON_AddItemToObject(tObject, "actions", actionsArray);
@@ -223,10 +239,12 @@ void pi_p4info_table_add(pi_p4info_t *p4info, pi_p4_id_t table_id,
   }
   if (num_actions > INLINE_ACTIONS) {
     table->action_ids.indirect = calloc(num_actions, sizeof(pi_p4_id_t));
+    table->action_info.indirect =
+        calloc(num_actions, sizeof(pi_p4info_action_info_t));
   }
 
   table->const_default_action_id = PI_INVALID_ID;
-  table->has_mutable_action_params = false;
+  table->has_mutable_action_params = true;
   table->implementation = PI_INVALID_ID;
   table->num_direct_resources = 0;
   table->match_fields_added = 0;
@@ -268,10 +286,14 @@ void pi_p4info_table_add_match_field(pi_p4info_t *p4info, pi_p4_id_t table_id,
 }
 
 void pi_p4info_table_add_action(pi_p4info_t *p4info, pi_p4_id_t table_id,
-                                pi_p4_id_t action_id) {
+                                pi_p4_id_t action_id,
+                                pi_p4info_action_scope_t action_scope) {
   _table_data_t *table = get_table(p4info, table_id);
   assert(table->actions_added < table->num_actions);
   get_action_ids(table)[table->actions_added] = action_id;
+  pi_p4info_action_info_t *info = &get_action_info(table)[table->actions_added];
+  info->id = action_id;
+  info->scope = action_scope;
   table->actions_added++;
 }
 
@@ -284,13 +306,12 @@ void pi_p4info_table_set_implementation(pi_p4info_t *p4info,
 
 void pi_p4info_table_set_const_default_action(pi_p4info_t *p4info,
                                               pi_p4_id_t table_id,
-                                              pi_p4_id_t default_action_id,
-                                              bool has_mutable_action_params) {
+                                              pi_p4_id_t default_action_id) {
   _table_data_t *table = get_table(p4info, table_id);
   assert(table->num_actions > 0);
   assert(pi_p4info_table_is_action_of(p4info, table_id, default_action_id));
   table->const_default_action_id = default_action_id;
-  table->has_mutable_action_params = has_mutable_action_params;
+  table->has_mutable_action_params = false;
 }
 
 void pi_p4info_table_add_direct_resource(pi_p4info_t *p4info,
@@ -424,6 +445,15 @@ const pi_p4_id_t *pi_p4info_table_get_actions(const pi_p4info_t *p4info,
   return get_action_ids(table);
 }
 
+const pi_p4info_action_info_t *pi_p4info_table_get_action_info(
+    const pi_p4info_t *p4info, pi_p4_id_t table_id, pi_p4_id_t action_id) {
+  _table_data_t *table = get_table(p4info, table_id);
+  pi_p4info_action_info_t *info = get_action_info(table);
+  for (size_t i = 0; i < table->num_actions; i++)
+    if (info[i].id == action_id) return &info[i];
+  return NULL;
+}
+
 bool pi_p4info_table_has_const_default_action(const pi_p4info_t *p4info,
                                               pi_p4_id_t table_id) {
   _table_data_t *table = get_table(p4info, table_id);
@@ -434,7 +464,6 @@ pi_p4_id_t pi_p4info_table_get_const_default_action(
     const pi_p4info_t *p4info, pi_p4_id_t table_id,
     bool *has_mutable_action_params) {
   _table_data_t *table = get_table(p4info, table_id);
-  // false by default (if default action is not const)
   *has_mutable_action_params = table->has_mutable_action_params;
   return table->const_default_action_id;
 }

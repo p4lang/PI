@@ -72,6 +72,9 @@ static pi_status_t check_table_entry(const pi_p4info_t *p4info,
                                      const pi_table_entry_t *t_entry) {
   if (!check_direct_res_config(p4info, table_id, t_entry->direct_res_config))
     return PI_STATUS_NOT_A_DIRECT_RES_OF_TABLE;
+  // TODO(antonin): we should check that the action is valid for the table and
+  // that the action scope is respected, but this is already done in the
+  // P4Runtime server...
   return PI_STATUS_SUCCESS;
 }
 

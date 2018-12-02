@@ -32,6 +32,7 @@
 #include <iterator>  // std::distance
 #include <memory>
 #include <ostream>
+#include <regex>
 #include <string>
 #include <thread>
 #include <tuple>
@@ -92,6 +93,7 @@ using ::testing::AnyNumber;
 using ::testing::Args;
 using ::testing::AtLeast;
 using ::testing::ElementsAre;
+using ::testing::Exactly;
 using ::testing::IsNull;
 
 // Used to make sure that a google::rpc::Status object has the correct format
@@ -119,7 +121,10 @@ bool operator==(const DeviceMgr::Status &status,
   p4v1::Error error;
   if (!error_any.UnpackTo(&error)) return false;
   if (error.canonical_code() != expected.code) return false;
-  if (!expected.msg.empty() && (expected.msg != error.message())) return false;
+  if (!expected.msg.empty() &&
+      !std::regex_search(error.message(), std::regex(expected.msg))) {
+    return false;
+  }
   return true;
 }
 
@@ -132,7 +137,7 @@ bool operator==(const DeviceMgr::Status &status,
 
 std::ostream &operator<<(std::ostream &out, const OneExpectedError &error) {
   out << "code=" << error.code;
-  if (!error.msg.empty()) out << ", message='" << error.msg << "'";
+  if (!error.msg.empty()) out << ", message regex='" << error.msg << "'";
   return out;
 }
 
@@ -631,20 +636,11 @@ TEST_P(MatchTableTest, SetDefault) {
     // cannot INSERT default entries
     EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
   }
-  {
-    auto status = modify_entry(&entry);
-    EXPECT_EQ(status.code(), Code::OK);
-  }
-  {
-    auto status = modify_entry(&entry);
-    EXPECT_EQ(status.code(), Code::OK);
-  }
+  EXPECT_OK(modify_entry(&entry));
+  EXPECT_OK(modify_entry(&entry));
   EXPECT_CALL(*mock, table_default_action_reset(t_id));
   entry.clear_action();
-  {
-    auto status = modify_entry(&entry);
-    EXPECT_EQ(status.code(), Code::OK);
-  }
+  EXPECT_OK(modify_entry(&entry));
   {
     auto status = remove_entry(&entry);
     // cannot DELETE default entries
@@ -1251,15 +1247,18 @@ class MatchTableIndirectTest : public DeviceMgrTest {
 
   template <typename It>
   p4v1::TableEntry make_indirect_entry_one_shot(
-      const std::string &mf_v, It params_begin, It params_end) {
+      const boost::optional<std::string> &mf_v,
+      It params_begin, It params_end) {
     p4v1::TableEntry table_entry;
     auto t_id = pi_p4info_table_id_from_name(p4info, "IndirectWS");
     table_entry.set_table_id(t_id);
-    auto mf = table_entry.add_match();
-    mf->set_field_id(pi_p4info_table_match_field_id_from_name(
-        p4info, t_id, "header_test.field32"));
-    auto mf_exact = mf->mutable_exact();
-    mf_exact->set_value(mf_v);
+    if (mf_v.is_initialized()) {
+      auto mf = table_entry.add_match();
+      mf->set_field_id(pi_p4info_table_match_field_id_from_name(
+          p4info, t_id, "header_test.field32"));
+      auto mf_exact = mf->mutable_exact();
+      mf_exact->set_value(*mf_v);
+    }
     auto entry = table_entry.mutable_action();
     auto ap_action_set = entry->mutable_action_profile_action_set();
     for (auto param_it = params_begin; param_it != params_end; param_it++) {
@@ -1454,6 +1453,20 @@ TEST_F(MatchTableIndirectTest, MixedSelectorModes) {
   // the selector is now in MANUAL mode, trying to use it in ONESHOT mode should
   // trigger an error
   ASSERT_EQ(add_entry(&entry), OneExpectedError(Code::INVALID_ARGUMENT));
+}
+
+TEST_F(MatchTableIndirectTest, SetDefault) {
+  std::vector<std::string> params;
+  params.emplace_back(6, '\x00');
+  params.emplace_back(6, '\x01');
+  auto entry = make_indirect_entry_one_shot(
+      boost::none /* no match */, params.begin(), params.end());
+  entry.set_is_default_action(true);
+  // Cannot set default entry for indirect table
+  EXPECT_EQ(
+      modify_entry(&entry),
+      OneExpectedError(Code::INVALID_ARGUMENT,
+                       "Cannot set / reset default action for indirect table"));
 }
 
 
@@ -2964,6 +2977,129 @@ TEST_F(ReadExclusiveAccess, ConcurrentReadAndWrites) {
   t1.join();
   stop = true;
   t2.join();
+}
+
+
+class MatchTableConstDefaultActionTest : public DeviceMgrTest {
+ protected:
+  MatchTableConstDefaultActionTest() {
+    t_id = pi_p4info_table_id_from_name(p4info, "ConstDefaultActionTable");
+    aB_id = pi_p4info_action_id_from_name(p4info, "actionB");
+    aC_id = pi_p4info_action_id_from_name(p4info, "actionC");
+  }
+
+  DeviceMgr::Status set_default(pi_p4_id_t a_id,
+                                const boost::optional<std::string> &param_v) {
+    p4v1::TableEntry table_entry;
+    table_entry.set_table_id(t_id);
+    table_entry.set_is_default_action(true);
+    auto entry = table_entry.mutable_action();
+    auto action = entry->mutable_action();
+    action->set_action_id(a_id);
+    if (param_v.is_initialized()) {
+      auto param = action->add_params();
+      param->set_param_id(
+          pi_p4info_action_param_id_from_name(p4info, a_id, "param"));
+      param->set_value(*param_v);
+    }
+    return modify_entry(&table_entry);
+  }
+
+  pi_p4_id_t t_id;
+  pi_p4_id_t aB_id;  // DEFAULT_ONLY scope, const default action
+  pi_p4_id_t aC_id;  // TABLE_AND_DEFAULT scope
+};
+
+TEST_F(MatchTableConstDefaultActionTest, MutateParam) {
+  EXPECT_EQ(set_default(aB_id, std::string("\xaa")),
+            OneExpectedError(Code::PERMISSION_DENIED, "const default action"));
+}
+
+TEST_F(MatchTableConstDefaultActionTest, MutateAction) {
+  EXPECT_EQ(set_default(aC_id, boost::none),
+            OneExpectedError(Code::PERMISSION_DENIED, "const default action"));
+}
+
+
+class MatchTableActionAnnotationsTest : public DeviceMgrTest {
+ protected:
+  MatchTableActionAnnotationsTest() {
+    t_id = pi_p4info_table_id_from_name(p4info, "ActionsAnnotationsTable");
+    mf_id = pi_p4info_table_match_field_id_from_name(
+        p4info, t_id, "header_test.field16");
+    aA_id = pi_p4info_action_id_from_name(p4info, "actionA");
+    aB_id = pi_p4info_action_id_from_name(p4info, "actionB");
+    aC_id = pi_p4info_action_id_from_name(p4info, "actionC");
+  }
+
+  DeviceMgr::Status set_default(pi_p4_id_t a_id,
+                                const boost::optional<std::string> &param_v) {
+    p4v1::TableEntry table_entry;
+    table_entry.set_table_id(t_id);
+    table_entry.set_is_default_action(true);
+    set_action(&table_entry, a_id, param_v);
+    return modify_entry(&table_entry);
+  }
+
+  DeviceMgr::Status insert_entry(const std::string &mf_v,
+                                 pi_p4_id_t a_id,
+                                 const boost::optional<std::string> &param_v) {
+    p4v1::TableEntry table_entry;
+    table_entry.set_table_id(t_id);
+    auto mf = table_entry.add_match();
+    mf->set_field_id(mf_id);
+    auto mf_exact = mf->mutable_exact();
+    mf_exact->set_value(mf_v);
+    set_action(&table_entry, a_id, param_v);
+    return add_entry(&table_entry);
+  }
+
+  pi_p4_id_t t_id;
+  pi_p4_id_t mf_id;
+  pi_p4_id_t aA_id;  // TABLE_AND_DEFAULT scope
+  pi_p4_id_t aB_id;  // TABLE_ONLY scope
+  pi_p4_id_t aC_id;  // DEFAULT_ONLY scope
+
+ private:
+  void set_action(p4v1::TableEntry *table_entry,
+                  pi_p4_id_t a_id,
+                  const boost::optional<std::string> &param_v) const {
+    auto entry = table_entry->mutable_action();
+    auto action = entry->mutable_action();
+    action->set_action_id(a_id);
+    if (param_v.is_initialized()) {
+      auto param = action->add_params();
+      param->set_param_id(
+          pi_p4info_action_param_id_from_name(p4info, a_id, "param"));
+      param->set_value(*param_v);
+    }
+  }
+};
+
+TEST_F(MatchTableActionAnnotationsTest, TableAndDefault) {
+  EXPECT_CALL(*mock, table_default_action_set(t_id, _));
+  EXPECT_OK(set_default(aA_id, std::string(6, '\xaa')));
+  EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
+  EXPECT_OK(insert_entry(
+      std::string("\x01\x02"), aA_id, std::string(6, '\xaa')));
+}
+
+TEST_F(MatchTableActionAnnotationsTest, TableOnly) {
+  EXPECT_CALL(*mock, table_default_action_set(t_id, _)).Times(Exactly(0));
+  EXPECT_EQ(set_default(aB_id, std::string("\xaa")),
+            OneExpectedError(Code::PERMISSION_DENIED,
+                             "Cannot use TABLE_ONLY action as default action"));
+  EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
+  EXPECT_OK(insert_entry(std::string("\x01\x02"), aB_id, std::string("\xaa")));
+}
+
+TEST_F(MatchTableActionAnnotationsTest, DefaultOnly) {
+  EXPECT_CALL(*mock, table_default_action_set(t_id, _));
+  EXPECT_OK(set_default(aC_id, boost::none));
+  EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _)).Times(Exactly(0));
+  EXPECT_EQ(insert_entry(std::string("\x01\x02"), aC_id, boost::none),
+            OneExpectedError(Code::PERMISSION_DENIED,
+                             "Cannot use DEFAULT_ONLY action in table entry"));
 }
 
 }  // namespace

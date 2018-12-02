@@ -49,6 +49,17 @@ typedef struct {
   size_t bitwidth;
 } pi_p4info_match_field_info_t;
 
+typedef enum {
+  PI_P4INFO_ACTION_SCOPE_TABLE_AND_DEFAULT = 0,
+  PI_P4INFO_ACTION_SCOPE_TABLE_ONLY = 1,
+  PI_P4INFO_ACTION_SCOPE_DEFAULT_ONLY = 2,
+} pi_p4info_action_scope_t;
+
+typedef struct {
+  pi_p4_id_t id;
+  pi_p4info_action_scope_t scope;
+} pi_p4info_action_info_t;
+
 pi_p4_id_t pi_p4info_table_id_from_name(const pi_p4info_t *p4info,
                                         const char *name);
 
@@ -104,12 +115,19 @@ const pi_p4_id_t *pi_p4info_table_get_actions(const pi_p4info_t *p4info,
                                               pi_p4_id_t table_id,
                                               size_t *num_actions);
 
+//! Returns NULL if @action_id is not valid for the table.
+const pi_p4info_action_info_t *pi_p4info_table_get_action_info(
+    const pi_p4info_t *p4info, pi_p4_id_t table_id, pi_p4_id_t action_id);
+
 bool pi_p4info_table_has_const_default_action(const pi_p4info_t *p4info,
                                               pi_p4_id_t table_id);
 
+// has_mutable_action_params is deprecated
+// it will always be set to false if the table has a const default action, true
+// otherwise
 pi_p4_id_t pi_p4info_table_get_const_default_action(
     const pi_p4info_t *p4info, pi_p4_id_t table_id,
-    bool *has_mutable_action_params);
+    bool *has_mutable_action_params /* deprecated */);
 
 pi_p4_id_t pi_p4info_table_get_implementation(const pi_p4info_t *p4info,
                                               pi_p4_id_t table_id);
