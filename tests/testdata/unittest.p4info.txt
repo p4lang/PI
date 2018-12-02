@@ -19,6 +19,7 @@ tables {
   action_refs {
     id: 16800567
     annotations: "@defaultonly()"
+    scope: DEFAULT_ONLY
   }
   direct_resource_ids: 318768298
   direct_resource_ids: 352326600
@@ -42,6 +43,7 @@ tables {
   action_refs {
     id: 16800567
     annotations: "@defaultonly()"
+    scope: DEFAULT_ONLY
   }
   size: 512
 }
@@ -63,6 +65,7 @@ tables {
   action_refs {
     id: 16800567
     annotations: "@defaultonly()"
+    scope: DEFAULT_ONLY
   }
   size: 512
 }
@@ -90,6 +93,7 @@ tables {
   action_refs {
     id: 16800567
     annotations: "@defaultonly()"
+    scope: DEFAULT_ONLY
   }
   size: 512
 }
@@ -111,6 +115,7 @@ tables {
   action_refs {
     id: 16800567
     annotations: "@defaultonly()"
+    scope: DEFAULT_ONLY
   }
   size: 512
 }
@@ -153,6 +158,7 @@ tables {
   action_refs {
     id: 16800567
     annotations: "@defaultonly()"
+    scope: DEFAULT_ONLY
   }
   size: 512
 }
@@ -177,6 +183,7 @@ tables {
   action_refs {
     id: 16800567
     annotations: "@defaultonly()"
+    scope: DEFAULT_ONLY
   }
   implementation_id: 285237193
   size: 512
@@ -202,6 +209,7 @@ tables {
   action_refs {
     id: 16800567
     annotations: "@defaultonly()"
+    scope: DEFAULT_ONLY
   }
   size: 512
 }
@@ -226,9 +234,65 @@ tables {
   action_refs {
     id: 16800567
     annotations: "@defaultonly()"
+    scope: DEFAULT_ONLY
   }
   size: 1024
   is_const_table: true
+}
+tables {
+  preamble {
+    id: 33561884
+    name: "ActionsAnnotationsTable"
+    alias: "ActionsAnnotationsTable"
+  }
+  match_fields {
+    id: 1
+    name: "header_test.field16"
+    bitwidth: 16
+    match_type: EXACT
+  }
+  action_refs {
+    id: 16783703
+  }
+  action_refs {
+    id: 16809468
+    annotations: "@tableonly()"
+    scope: TABLE_ONLY
+  }
+  action_refs {
+    id: 16827074
+    annotations: "@defaultonly()"
+    scope: DEFAULT_ONLY
+  }
+  action_refs {
+    id: 16800567
+    annotations: "@defaultonly()"
+    scope: DEFAULT_ONLY
+  }
+  size: 512
+}
+tables {
+  preamble {
+    id: 33562613
+    name: "ConstDefaultActionTable"
+    alias: "ConstDefaultActionTable"
+  }
+  match_fields {
+    id: 1
+    name: "header_test.field16"
+    bitwidth: 16
+    match_type: EXACT
+  }
+  action_refs {
+    id: 16783703
+  }
+  action_refs {
+    id: 16827074
+    annotations: "@defaultonly()"
+    scope: DEFAULT_ONLY
+  }
+  const_default_action_id: 16827074
+  size: 512
 }
 actions {
   preamble {

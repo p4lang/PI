@@ -555,7 +555,8 @@ static pi_status_t read_tables(reader_state_t *state, cJSON *root,
     cJSON_ArrayForEach(action, json_actions) {
       const char *aname = action->valuestring;
       pi_p4_id_t aid = pi_p4info_action_id_from_name(p4info, aname);
-      pi_p4info_table_add_action(p4info, pi_id, aid);
+      pi_p4info_table_add_action(p4info, pi_id, aid,
+                                 PI_P4INFO_ACTION_SCOPE_TABLE_AND_DEFAULT);
     }
 
     item = cJSON_GetObjectItem(table, "type");

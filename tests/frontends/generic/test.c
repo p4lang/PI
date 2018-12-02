@@ -64,7 +64,8 @@ static void p4info_init(size_t bitwidth, pi_p4info_match_type_t match_type) {
   pi_p4info_table_add(p4info, tid, "t0", 1, 1, DEFAULT_TABLE_SIZE,
                       DEFAULT_TABLE_IS_CONST);
   pi_p4info_table_add_match_field(p4info, tid, 0, "f0", match_type, bitwidth);
-  pi_p4info_table_add_action(p4info, tid, aid);
+  pi_p4info_table_add_action(p4info, tid, aid,
+                             PI_P4INFO_ACTION_SCOPE_TABLE_AND_DEFAULT);
 
   pi_match_key_allocate(p4info, tid, &mkey);
 

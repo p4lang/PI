@@ -39,7 +39,8 @@ void pi_p4info_table_add_match_field(pi_p4info_t *p4info, pi_p4_id_t table_id,
                                      size_t bitwidth);
 
 void pi_p4info_table_add_action(pi_p4info_t *p4info, pi_p4_id_t table_id,
-                                pi_p4_id_t action_id);
+                                pi_p4_id_t action_id,
+                                pi_p4info_action_scope_t action_scope);
 
 void pi_p4info_table_set_implementation(pi_p4info_t *p4info,
                                         pi_p4_id_t table_id,
@@ -47,8 +48,7 @@ void pi_p4info_table_set_implementation(pi_p4info_t *p4info,
 
 void pi_p4info_table_set_const_default_action(pi_p4info_t *p4info,
                                               pi_p4_id_t table_id,
-                                              pi_p4_id_t default_action_id,
-                                              bool has_mutable_action_params);
+                                              pi_p4_id_t default_action_id);
 
 void pi_p4info_table_add_direct_resource(pi_p4info_t *p4info,
                                          pi_p4_id_t table_id,
