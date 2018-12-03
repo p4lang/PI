@@ -202,8 +202,8 @@ static int hexstr_to_bytes(char *param, char *bytes, size_t max_s) {
 int param_to_bytes(const char *param, char *bytes, size_t bitwidth) {
   size_t s = (bitwidth + 7) / 8;
   // making a copy, so that we can call strtok on it
-  char param_copy[128];
-  strncpy(param_copy, param, sizeof(param_copy));
+  char param_copy[128] = {'\0'};
+  strncpy(param_copy, param, sizeof(param_copy) - 1);
   if (param_copy[sizeof(param_copy) - 1] != '\0') return 1;
   if (bitwidth == 32) {
     if (!try_to_parse_ipv4(param_copy, bytes)) return 0;
