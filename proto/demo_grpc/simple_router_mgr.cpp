@@ -271,6 +271,11 @@ SimpleRouterMgr::assign(const std::string &config_buffer,
   ClientContext context;
   auto status = pi_stub_->SetForwardingPipelineConfig(&context, request, &rep);
   config->release_p4info();
+  if (!status.ok()) {
+    std::cout << "SetForwardingPipelineConfig RPC failed with error code "
+              << status.error_code() << " and error message "
+              << status.error_message() << "\n";
+  }
   assert(status.ok());
 
   packet_io_client->send_init(dev_id);
