@@ -9,8 +9,7 @@ def PI_deps():
         remote_workspace(
             name = "com_github_p4lang_p4runtime",
             remote = "https://github.com/p4lang/p4runtime",
-            # TODO(antonin): move to 1.0.0-rc3 when available
-            commit = "028552d98b774301c51be0fe5bc97c9e95716759",
+            tag = "1.0.0-rc4",
         )
 
     if "judy" not in native.existing_rules():

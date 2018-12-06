@@ -34,14 +34,18 @@ cc_library(
             "@judy//:JudySL"],
 )
 
+# not using glob to list all .h / .c files since a few files are excluded on
+# purpose
 cc_library(
     name = "pi",
     srcs = ["src/pi.c",
             "src/pi_tables.c",
             "src/pi_act_prof.c",
+            "src/pi_clone.c",
             "src/pi_counter.c",
             "src/pi_meter.c",
             "src/pi_learn.c",
+            "src/pi_learn_int.h",
             "src/pi_value.c",
             "src/pi_mc.c",
             "src/device_map.c",
