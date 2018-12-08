@@ -221,7 +221,7 @@ def load_json(json_str):
         table = Table(j_table["name"], j_table["id"])
         table.type_ = TableType.SIMPLE
         for action in j_table["actions"]:
-            a = ACTIONS_BY_ID[action]
+            a = ACTIONS_BY_ID[action["id"]]
             table.actions[a.name] = a
         for j_key in j_table["match_fields"]:
             fid = j_key["id"]
