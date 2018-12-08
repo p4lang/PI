@@ -22,6 +22,9 @@
 
 #include <unistd.h>
 
+#include <google/protobuf/io/zero_copy_stream_impl.h>
+#include <google/protobuf/text_format.h>
+
 #include <fstream>  // std::ifstream, std::ofstream
 #include <iostream>
 #include <string>
@@ -36,9 +39,9 @@ void print_help(const char *prog_name) {
   std::cerr << "Usage: " << prog_name << " [OPTIONS]...\n"
             << "Utility to convert P4Info proto from and to other formats\n\n"
             << "-f          format of source (from)\n"
-            << "            one of 'bmv2', 'native', 'proto'\n"
+            << "            one of 'bmv2', 'native', 'proto', 'prototext'\n"
             << "-t          desired format of destination dir (to)\n"
-            << "            one of 'native', 'proto'\n"
+            << "            one of 'native', 'proto', 'prototext'\n"
             << "-i          path to input config\n"
             << "-o          path where to write output\n";
 }
@@ -100,7 +103,6 @@ int parse_opts(int argc, char *argv[]) {
 
 }  // namespace
 
-// TODO(antonin)
 int main(int argc, char *argv[]) {
   int rc;
   if ((rc = parse_opts(argc, argv)) != 0) return rc;
@@ -140,6 +142,23 @@ int main(int argc, char *argv[]) {
       std::cerr << "Error while importing protobuf message to p4info.\n";
       return 1;
     }
+  } else if (from_str == "prototext") {
+    p4::config::v1::P4Info p4info_proto;
+    std::ifstream is(input_path_str);
+    if (!is) {
+      std::cerr << "Error while opening protobuf text input file.\n";
+      return 1;
+    }
+    google::protobuf::io::IstreamInputStream is_(&is);
+    auto status = google::protobuf::TextFormat::Parse(&is_, &p4info_proto);
+    if (!status) {
+      std::cerr << "Error while importing protobuf text message.\n";
+      return 1;
+    }
+    if (!pi::p4info::p4info_proto_reader(p4info_proto, &p4info)) {
+      std::cerr << "Error while importing protobuf message to p4info.\n";
+      return 1;
+    }
   } else {
     std::cerr << "Invalid value for -f option.\n";
     return 1;
@@ -159,6 +178,15 @@ int main(int argc, char *argv[]) {
     const auto p4info_proto = pi::p4info::p4info_serialize_to_proto(p4info);
     std::cout << p4info_proto.DebugString();
     p4info_proto.SerializeToOstream(&os);
+  } else if (to_str == "prototext") {
+    const auto p4info_proto = pi::p4info::p4info_serialize_to_proto(p4info);
+    std::cout << p4info_proto.DebugString();
+    google::protobuf::io::OstreamOutputStream os_(&os);
+    auto status = google::protobuf::TextFormat::Print(p4info_proto, &os_);
+    if (!status) {
+      std::cerr << "Error while writing protobuf text file.\n";
+      return 1;
+    }
   } else {
     std::cerr << "Invalid value for -t option.\n";
     return 1;
