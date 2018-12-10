@@ -67,7 +67,6 @@ namespace proto {
 using device_id_t = DeviceMgr::device_id_t;
 using p4_id_t = DeviceMgr::p4_id_t;
 using Status = DeviceMgr::Status;
-using PacketInCb = DeviceMgr::PacketInCb;
 using StreamMessageResponseCb = DeviceMgr::StreamMessageResponseCb;
 using Code = ::google::rpc::Code;
 using common::SessionTemp;
@@ -1408,13 +1407,10 @@ class DeviceMgrImp {
     RETURN_ERROR_STATUS(Code::UNKNOWN);  // unreachable
   }
 
-  void packet_in_register_cb(PacketInCb cb, void *cookie) {
-    packet_io.packet_in_register_cb(std::move(cb), cookie);
-  }
-
   void stream_message_response_register_cb(StreamMessageResponseCb cb,
                                            void *cookie) {
-    digest_mgr.stream_message_response_register_cb(std::move(cb), cookie);
+    packet_io.packet_in_register_cb(cb, cookie);
+    digest_mgr.stream_message_response_register_cb(cb, cookie);
   }
 
   Status counter_write(p4v1::Update::Type update,
@@ -2757,19 +2753,9 @@ DeviceMgr::read_one(const p4v1::Entity &entity,
 }
 
 Status
-DeviceMgr::packet_out_send(const p4v1::PacketOut &packet) const {
-  return pimp->packet_out_send(packet);
-}
-
-Status
 DeviceMgr::stream_message_request_handle(
     const p4::v1::StreamMessageRequest &request) {
   return pimp->stream_message_request_handle(request);
-}
-
-void
-DeviceMgr::packet_in_register_cb(PacketInCb cb, void *cookie) {
-  return pimp->packet_in_register_cb(std::move(cb), cookie);
 }
 
 void

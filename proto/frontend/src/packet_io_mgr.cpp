@@ -290,7 +290,7 @@ PacketIOMgr::packet_out_send(const p4v1::PacketOut &packet) const {
 }
 
 void
-PacketIOMgr::packet_in_register_cb(PacketInCb cb, void *cookie) {
+PacketIOMgr::packet_in_register_cb(StreamMessageResponseCb cb, void *cookie) {
   cb_ = std::move(cb);
   cookie_ = cookie;
   pi_packetin_register_cb(device_id, &PacketIOMgr::packet_in_cb,
@@ -302,15 +302,16 @@ PacketIOMgr::packet_in_cb(pi_dev_id_t dev_id, const char *pkt, size_t size,
                           void *cookie) {
   auto mgr = static_cast<PacketIOMgr *>(cookie);
   assert(dev_id == mgr->device_id);
-  p4v1::PacketIn packet_in;
+  p4v1::StreamMessageResponse msg;
+  auto *packet_in = msg.mutable_packet();
   if (mgr->packet_in_mutate) {
     Lock lock(mgr->mutex);
-    auto success = (*mgr->packet_in_mutate)(pkt, size, &packet_in);
+    auto success = (*mgr->packet_in_mutate)(pkt, size, packet_in);
     if (!success) return;
   } else {
-    packet_in.set_payload(pkt, size);
+    packet_in->set_payload(pkt, size);
   }
-  mgr->cb_(mgr->device_id, &packet_in, mgr->cookie_);
+  mgr->cb_(mgr->device_id, &msg, mgr->cookie_);
 }
 
 }  // namespace proto
