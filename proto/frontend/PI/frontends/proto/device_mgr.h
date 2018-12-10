@@ -44,10 +44,7 @@ class DeviceMgr {
  public:
   using device_id_t = uint64_t;
   using p4_id_t = uint32_t;
-  // may change when we introduce specific error namespace
   using Status = ::google::rpc::Status;
-  using PacketInCb =
-      std::function<void(device_id_t, p4::v1::PacketIn *packet, void *cookie)>;
   using StreamMessageResponseCb = std::function<void(
       device_id_t, p4::v1::StreamMessageResponse *msg, void *cookie)>;
 
@@ -65,7 +62,6 @@ class DeviceMgr {
       p4::v1::GetForwardingPipelineConfigRequest::ResponseType response_type,
       p4::v1::ForwardingPipelineConfig *config);
 
-  // New write and read methods, meant to replace all the methods below
   Status write(const p4::v1::WriteRequest &request);
 
   Status read(const p4::v1::ReadRequest &request,
@@ -73,16 +69,8 @@ class DeviceMgr {
   Status read_one(const p4::v1::Entity &entity,
                   p4::v1::ReadResponse *response) const;
 
-  // TODO(antonin): deprecate and use stream_message_request_handle() for
-  // PacketOut as well
-  Status packet_out_send(const p4::v1::PacketOut &packet) const;
-
   Status stream_message_request_handle(
       const p4::v1::StreamMessageRequest &request);
-
-  // TODO(antonin): deprecate and use StreamMessageResponseCb for PacketIn as
-  // well.
-  void packet_in_register_cb(PacketInCb cb, void *cookie);
 
   void stream_message_response_register_cb(StreamMessageResponseCb cb,
                                            void *cookie);

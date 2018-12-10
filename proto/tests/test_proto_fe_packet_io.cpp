@@ -89,11 +89,12 @@ class DeviceMgrPacketIORegTest : public DeviceMgrPacketIOTest { };
 TEST_F(DeviceMgrPacketIORegTest, PacketIn) {
   p4v1::PacketIn packet_in;
   bool received = false;
-  auto cb_fn = [&packet_in, &received](device_id_t, p4v1::PacketIn *p, void *) {
-    packet_in.CopyFrom(*p);
+  auto cb_fn = [&packet_in, &received](
+      device_id_t, p4v1::StreamMessageResponse *msg, void *) {
+    packet_in.CopyFrom(msg->packet());
     received = true;
   };
-  mgr.packet_in_register_cb(cb_fn, nullptr);
+  mgr.stream_message_response_register_cb(cb_fn, nullptr);
   std::string packet(10, '\xab');
   // we don't need an async task because packetin_inject blocks until the
   // callback is called
@@ -103,11 +104,12 @@ TEST_F(DeviceMgrPacketIORegTest, PacketIn) {
 }
 
 TEST_F(DeviceMgrPacketIORegTest, PacketOut) {
-  p4v1::PacketOut packet_out;
+  p4::v1::StreamMessageRequest msg;
+  auto *packet_out = msg.mutable_packet();
   std::string payload(10, '\xab');
-  packet_out.set_payload(payload);
+  packet_out->set_payload(payload);
   EXPECT_CALL(*mock, packetout_send(StrEq(payload.c_str()), payload.size()));
-  auto status = mgr.packet_out_send(packet_out);
+  auto status = mgr.stream_message_request_handle(msg);
   EXPECT_EQ(status.code(), Code::OK);
 }
 
@@ -287,11 +289,12 @@ TEST_F(DeviceMgrPacketIOMetadataTest, PacketIn) {
   std::vector<std::string> binary_strs(num);
   p4v1::PacketIn packet_in;
   bool received;
-  auto cb_fn = [&packet_in, &received](device_id_t, p4v1::PacketIn *p, void *) {
-    packet_in.CopyFrom(*p);
+  auto cb_fn = [&packet_in, &received](
+      device_id_t, p4v1::StreamMessageResponse *msg, void *) {
+    packet_in.CopyFrom(msg->packet());
     received = true;
   };
-  mgr.packet_in_register_cb(cb_fn, nullptr);
+  mgr.stream_message_response_register_cb(cb_fn, nullptr);
   for (const auto &v : values) {
     received = false;
     BitPattern pattern;
@@ -315,18 +318,19 @@ TEST_F(DeviceMgrPacketIOMetadataTest, PacketOut) {
   ValueIterator<VType> values(bitwidths, steps);
   std::vector<std::string> binary_strs(num);
   for (const auto &v : values) {
-    p4v1::PacketOut packet_out;
-    packet_out.set_payload(payload);
+    p4::v1::StreamMessageRequest msg;
+    auto *packet_out = msg.mutable_packet();
+    packet_out->set_payload(payload);
     BitPattern pattern;
     for (uint32_t id = 0; id < num; id++) {
-      auto metadata = packet_out.add_metadata();
+      auto metadata = packet_out->add_metadata();
       metadata->set_metadata_id(id + 1);
       metadata->set_value(to_binary(v[id], bitwidths[id]));
       pattern.push_back(v[id], bitwidths[id]);
     }
     PacketOutMatcher matcher(pattern.bits, payload);
     EXPECT_CALL(*mock, packetout_send(_, _)).With(AllArgs(Truly(matcher)));
-    auto status = mgr.packet_out_send(packet_out);
+    auto status = mgr.stream_message_request_handle(msg);
     EXPECT_EQ(status.code(), Code::OK);
   }
 }

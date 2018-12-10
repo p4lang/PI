@@ -43,7 +43,7 @@ class PacketOutMutate;
 class PacketIOMgr {
  public:
   using device_id_t = DeviceMgr::device_id_t;
-  using PacketInCb = DeviceMgr::PacketInCb;
+  using StreamMessageResponseCb = DeviceMgr::StreamMessageResponseCb;
   using Status = DeviceMgr::Status;
 
   explicit PacketIOMgr(device_id_t device_id);
@@ -53,7 +53,7 @@ class PacketIOMgr {
 
   Status packet_out_send(const p4::v1::PacketOut &packet) const;
 
-  void packet_in_register_cb(PacketInCb cb, void *cookie);
+  void packet_in_register_cb(StreamMessageResponseCb cb, void *cookie);
 
   PacketIOMgr(const PacketIOMgr &) = delete;
   PacketIOMgr &operator=(const PacketIOMgr &) = delete;
@@ -71,7 +71,7 @@ class PacketIOMgr {
   std::unique_ptr<PacketInMutate> packet_in_mutate;
   std::unique_ptr<PacketOutMutate> packet_out_mutate;
 
-  PacketInCb cb_;
+  StreamMessageResponseCb cb_;
   void *cookie_;
 };
 
