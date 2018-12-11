@@ -156,7 +156,9 @@ py_out/gnmi/gnmi_pb2.py
 
 BUILT_SOURCES += \
 $(nodist_p4py_PYTHON) \
+$(nodist_p4v1py_PYTHON) \
 $(nodist_p4configpy_PYTHON) \
+$(nodist_p4configv1py_PYTHON) \
 $(nodist_p4tmppy_PYTHON) \
 $(nodist_googlepy_PYTHON) \
 $(nodist_googlerpcpy_PYTHON) \
