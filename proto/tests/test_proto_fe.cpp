@@ -95,6 +95,7 @@ using ::testing::AtLeast;
 using ::testing::ElementsAre;
 using ::testing::Exactly;
 using ::testing::IsNull;
+using ::testing::Return;
 
 // Used to make sure that a google::rpc::Status object has the correct format
 // and contains a single p4v1::Error message with a matching canonical error
@@ -210,6 +211,8 @@ class DeviceMgrTest : public ::testing::Test {
     dummy_device_config_.set_device_data("This is a dummy device config");
     dummy_device_config_.SerializeToString(&dummy_device_config);
     config.set_p4_device_config(dummy_device_config);
+    EXPECT_CALL(*mock, action_prof_api_support())
+        .WillRepeatedly(Return(action_prof_api_choice));
     auto status = mgr.pipeline_config_set(
         p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT,
         config);
@@ -273,6 +276,7 @@ class DeviceMgrTest : public ::testing::Test {
   device_id_t device_id;
   DeviceMgr mgr;
   uint64_t cookie{666};
+  PiActProfApiSupport action_prof_api_choice{PiActProfApiSupport_BOTH};
   std::string dummy_device_config;
 };
 
@@ -817,8 +821,28 @@ INSTANTIATE_TEST_CASE_P(
 #undef LPM_MK
 
 
-class ActionProfTest : public DeviceMgrTest {
+// some helper macros to make the tests below a bit easier to read (maybe?)
+#define EXPECT_CALL_GROUP_SET_MEMBERS(mock, ...) \
+  EXPECT_CALL(mock, action_prof_group_set_members(__VA_ARGS__))
+#define EXPECT_CALL_GROUP_ADD_MEMBER(mock, ...) \
+  EXPECT_CALL(mock, action_prof_group_add_member(__VA_ARGS__))
+#define EXPECT_CALL_GROUP_REMOVE_MEMBER(mock, ...) \
+  EXPECT_CALL(mock, action_prof_group_remove_member(__VA_ARGS__))
+
+#define EXPECT_NO_CALL_GROUP_ADD_MEMBER(mock) \
+  EXPECT_CALL(mock, action_prof_group_add_member(_, _, _)).Times(0)
+#define EXPECT_NO_CALL_GROUP_REMOVE_MEMBER(mock) \
+  EXPECT_CALL(mock, action_prof_group_remove_member(_, _, _)).Times(0)
+#define EXPECT_NO_CALL_GROUP_SET_MEMBERS(mock) \
+  EXPECT_CALL(mock, action_prof_group_set_members(_, _, _, _)).Times(0)
+
+class ActionProfTest
+    : public DeviceMgrTest, public WithParamInterface<PiActProfApiSupport> {
  protected:
+  ActionProfTest() {
+    action_prof_api_choice = GetParam();
+  }
+
   void set_action(p4v1::Action *action, const std::string &param_v) {
     auto a_id = pi_p4info_action_id_from_name(p4info, "actionA");
     action->set_action_id(a_id);
@@ -912,7 +936,7 @@ class ActionProfTest : public DeviceMgrTest {
   }
 };
 
-TEST_F(ActionProfTest, Member) {
+TEST_P(ActionProfTest, Member) {
   auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
   auto a_id = pi_p4info_action_id_from_name(p4info, "actionA");
   uint32_t member_id_1 = 123, member_id_2 = 234;  // can be arbitrary
@@ -924,30 +948,30 @@ TEST_F(ActionProfTest, Member) {
   // add one member
   auto member_1 = make_member(member_id_1, adata_1);
   EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, ad_matcher_1, _));
-  EXPECT_EQ(create_member(&member_1).code(), Code::OK);
+  EXPECT_OK(create_member(&member_1));
   auto mbr_h_1 = mock->get_action_prof_handle();
 
   // modify member
   member_1 = make_member(member_id_1, adata_2);
   EXPECT_CALL(*mock, action_prof_member_modify(
       act_prof_id, mbr_h_1, ad_matcher_2));
-  EXPECT_EQ(modify_member(&member_1).code(), Code::OK);
+  EXPECT_OK(modify_member(&member_1));
 
   // add another member
   auto member_2 = make_member(member_id_2, adata_2);
   EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, ad_matcher_2, _));
-  EXPECT_EQ(create_member(&member_2).code(), Code::OK);
+  EXPECT_OK(create_member(&member_2));
   auto mbr_h_2 = mock->get_action_prof_handle();
   ASSERT_NE(mbr_h_1, mbr_h_2);
 
   // delete both members
   EXPECT_CALL(*mock, action_prof_member_delete(act_prof_id, mbr_h_1));
-  EXPECT_EQ(delete_member(&member_1).code(), Code::OK);
+  EXPECT_OK(delete_member(&member_1));
   EXPECT_CALL(*mock, action_prof_member_delete(act_prof_id, mbr_h_2));
-  EXPECT_EQ(delete_member(&member_2).code(), Code::OK);
+  EXPECT_OK(delete_member(&member_2));
 }
 
-TEST_F(ActionProfTest, CreateDupMemberId) {
+TEST_P(ActionProfTest, CreateDupMemberId) {
   DeviceMgr::Status status;
   auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
   uint32_t member_id = 123;
@@ -955,23 +979,23 @@ TEST_F(ActionProfTest, CreateDupMemberId) {
   EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _))
       .Times(AtLeast(1));
   auto member = make_member(member_id, adata);
-  EXPECT_EQ(create_member(&member).code(), Code::OK);
-  EXPECT_NE(create_member(&member).code(), Code::OK);
+  EXPECT_OK(create_member(&member));
+  EXPECT_EQ(create_member(&member), OneExpectedError(Code::ALREADY_EXISTS));
 }
 
-TEST_F(ActionProfTest, BadMemberId) {
+TEST_P(ActionProfTest, BadMemberId) {
   DeviceMgr::Status status;
   uint32_t member_id = 123;
   std::string adata(6, '\x00');
   // in this test we do not expect any call to a mock method
   auto member = make_member(member_id, adata);
   // try to modify a member id which does not exist
-  EXPECT_NE(modify_member(&member).code(), Code::OK);
+  EXPECT_EQ(modify_member(&member), OneExpectedError(Code::NOT_FOUND));
   // try to delete a member id which does not exist
-  EXPECT_NE(delete_member(&member).code(), Code::OK);
+  EXPECT_EQ(delete_member(&member), OneExpectedError(Code::NOT_FOUND));
 }
 
-TEST_F(ActionProfTest, Group) {
+TEST_P(ActionProfTest, Group) {
   DeviceMgr::Status status;
   auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
   uint32_t group_id = 1000;
@@ -982,46 +1006,67 @@ TEST_F(ActionProfTest, Group) {
   EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _))
       .Times(2);
   auto member_1 = make_member(member_id_1, adata);
-  EXPECT_EQ(create_member(&member_1).code(), Code::OK);
+  EXPECT_OK(create_member(&member_1));
   auto mbr_h_1 = mock->get_action_prof_handle();
   auto member_2 = make_member(member_id_2, adata);
-  EXPECT_EQ(create_member(&member_2).code(), Code::OK);
+  EXPECT_OK(create_member(&member_2));
   auto mbr_h_2 = mock->get_action_prof_handle();
 
   // create group with one member
   auto group = make_group(group_id);
   add_member_to_group(&group, member_id_1);
   EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, _, _));
-  EXPECT_CALL(*mock, action_prof_group_add_member(act_prof_id, _, mbr_h_1));
-  ASSERT_EQ(create_group(&group).code(), Code::OK);
+  if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
+    EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, mbr_h_1);
+  } else {
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _)
+      .With(Args<3, 2>(ElementsAre(mbr_h_1)));
+  }
+  ASSERT_OK(create_group(&group));
   auto grp_h = mock->get_action_prof_handle();
 
-  // add the same member, expect no call but valid operation
-  EXPECT_CALL(*mock, action_prof_group_add_member(_, _, _)).Times(0);
-  ASSERT_EQ(modify_group(&group).code(), Code::OK);
+  // add the same member
+  //   * expect no call when using individual add / remove
+  //   * expect same call when using set membership
+  EXPECT_NO_CALL_GROUP_ADD_MEMBER(*mock);
+  if (GetParam() != PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _)
+        .With(Args<3, 2>(ElementsAre(mbr_h_1)));
+  }
+  ASSERT_OK(modify_group(&group));
 
   // add a second member
   add_member_to_group(&group, member_id_2);
-  EXPECT_CALL(*mock, action_prof_group_add_member(act_prof_id, grp_h, mbr_h_2));
-  ASSERT_EQ(modify_group(&group).code(), Code::OK);
+  if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
+  EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, grp_h, mbr_h_2);
+  } else {
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _)
+        .With(Args<3, 2>(ElementsAre(mbr_h_1, mbr_h_2)));
+  }
+  ASSERT_OK(modify_group(&group));
 
   // remove one member
   group.clear_members();
   add_member_to_group(&group, member_id_2);
-  EXPECT_CALL(*mock,
-              action_prof_group_remove_member(act_prof_id, grp_h, mbr_h_1));
-  ASSERT_EQ(modify_group(&group).code(), Code::OK);
+  if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
+    EXPECT_CALL_GROUP_REMOVE_MEMBER(*mock, act_prof_id, grp_h, mbr_h_1);
+  } else {
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _)
+        .With(Args<3, 2>(ElementsAre(mbr_h_2)));
+  }
+  ASSERT_OK(modify_group(&group));
 
   // delete group, which has one remaining member
   group.clear_members();  // not needed
   EXPECT_CALL(*mock, action_prof_group_delete(act_prof_id, grp_h));
-  // we do not expect a call to remove_member, the target is supposed to be able
-  // to handle removing non-empty groups
-  EXPECT_CALL(*mock, action_prof_group_remove_member(_, _, _)).Times(0);
-  ASSERT_EQ(delete_group(&group).code(), Code::OK);
+  // we do not expect a call to remove_member or set_members, the target is
+  // supposed to be able to handle removing non-empty groups
+  EXPECT_NO_CALL_GROUP_REMOVE_MEMBER(*mock);
+  EXPECT_NO_CALL_GROUP_SET_MEMBERS(*mock);
+  ASSERT_OK(delete_group(&group));
 }
 
-TEST_F(ActionProfTest, Read) {
+TEST_P(ActionProfTest, Read) {
   auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
   uint32_t group_id = 1000;
   uint32_t member_id_1 = 1;
@@ -1030,7 +1075,7 @@ TEST_F(ActionProfTest, Read) {
   std::string adata(6, '\x00');
   EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _));
   auto member_1 = make_member(member_id_1, adata);
-  EXPECT_EQ(create_member(&member_1).code(), Code::OK);
+  EXPECT_OK(create_member(&member_1));
 
   auto mbr_h_1 = mock->get_action_prof_handle();
 
@@ -1038,8 +1083,13 @@ TEST_F(ActionProfTest, Read) {
   auto group = make_group(group_id);
   add_member_to_group(&group, member_id_1);
   EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, _, _));
-  EXPECT_CALL(*mock, action_prof_group_add_member(act_prof_id, _, mbr_h_1));
-  ASSERT_EQ(create_group(&group).code(), Code::OK);
+  if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
+    EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, mbr_h_1);
+  } else {
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _)
+        .With(Args<3, 2>(ElementsAre(mbr_h_1)));
+  }
+  ASSERT_OK(create_group(&group));
 
   EXPECT_CALL(*mock, action_prof_entries_fetch(act_prof_id, _)).Times(2);
   p4v1::ReadResponse response;
@@ -1054,47 +1104,51 @@ TEST_F(ActionProfTest, Read) {
     auto group = entity->mutable_action_profile_group();
     group->set_action_profile_id(act_prof_id);
   }
-  ASSERT_EQ(mgr.read(request, &response).code(), Code::OK);
+  ASSERT_OK(mgr.read(request, &response));
   const auto &entities = response.entities();
   ASSERT_EQ(2, entities.size());
   ASSERT_TRUE(MessageDifferencer::Equals(
       member_1, entities.Get(0).action_profile_member()));
 }
 
-TEST_F(ActionProfTest, CreateDupGroupId) {
+TEST_P(ActionProfTest, CreateDupGroupId) {
   DeviceMgr::Status status;
   auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
   uint32_t group_id = 1000;
   auto group = make_group(group_id);
   EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, _, _))
       .Times(AtLeast(1));
-  EXPECT_EQ(create_group(&group).code(), Code::OK);
-  EXPECT_NE(create_group(&group).code(), Code::OK);
+  if (GetParam() != PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, 0, _);
+  }
+  EXPECT_OK(create_group(&group));
+  EXPECT_EQ(create_group(&group), OneExpectedError(Code::ALREADY_EXISTS));
 }
 
-TEST_F(ActionProfTest, BadGroupId) {
+TEST_P(ActionProfTest, BadGroupId) {
   DeviceMgr::Status status;
   uint32_t group_id = 1000;
   auto group = make_group(group_id);
   // in this test we do not expect any call to a mock method
   // try to modify a group id which does not exist
-  EXPECT_NE(modify_group(&group).code(), Code::OK);
+  EXPECT_EQ(modify_group(&group), OneExpectedError(Code::NOT_FOUND));
   // try to delete a group id which does not exist
-  EXPECT_NE(delete_group(&group).code(), Code::OK);
+  EXPECT_EQ(delete_group(&group), OneExpectedError(Code::NOT_FOUND));
 }
 
-TEST_F(ActionProfTest, AddBadMemberIdToGroup) {
+TEST_P(ActionProfTest, AddBadMemberIdToGroup) {
   DeviceMgr::Status status;
   uint32_t group_id = 1000;
   uint32_t bad_member_id = 123;
   auto group = make_group(group_id);
   add_member_to_group(&group, bad_member_id);
   EXPECT_CALL(*mock, action_prof_group_create(_, _, _));
-  EXPECT_CALL(*mock, action_prof_group_add_member(_, _, _)).Times(0);
-  EXPECT_NE(create_group(&group).code(), Code::OK);
+  EXPECT_NO_CALL_GROUP_ADD_MEMBER(*mock);
+  EXPECT_NO_CALL_GROUP_SET_MEMBERS(*mock);
+  EXPECT_EQ(create_group(&group), OneExpectedError(Code::NOT_FOUND));
 }
 
-TEST_F(ActionProfTest, InvalidActionProfId) {
+TEST_P(ActionProfTest, InvalidActionProfId) {
   DeviceMgr::Status status;
   uint32_t member_id = 123;
   std::string adata(6, '\x00');
@@ -1132,7 +1186,7 @@ TEST_F(ActionProfTest, InvalidActionProfId) {
   }
 }
 
-TEST_F(ActionProfTest, InvalidActionId) {
+TEST_P(ActionProfTest, InvalidActionId) {
   DeviceMgr::Status status;
   uint32_t member_id = 123;
   std::string adata(6, '\x00');
@@ -1162,14 +1216,27 @@ TEST_F(ActionProfTest, InvalidActionId) {
   }
 }
 
+INSTANTIATE_TEST_CASE_P(
+    ActionProfPiApis, ActionProfTest,
+    Values(PiActProfApiSupport_SET_MBRS,
+           PiActProfApiSupport_ADD_AND_REMOVE_MBR,
+           PiActProfApiSupport_BOTH));
 
-class MatchTableIndirectTest : public DeviceMgrTest {
+
+class MatchTableIndirectTest
+    : public DeviceMgrTest, public WithParamInterface<PiActProfApiSupport> {
  protected:
-  MatchTableIndirectTest() {
+  // a constructor that doesn't use GetParam()
+  // This is meant as a convenience for subclasses that do no want to be
+  // value-parameterized (and use TEST_F instead of TEST_P).
+  explicit MatchTableIndirectTest(PiActProfApiSupport choice) {
+    action_prof_api_choice = choice;
     t_id = pi_p4info_table_id_from_name(p4info, "IndirectWS");
     act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
     a_id = pi_p4info_action_id_from_name(p4info, "actionA");
   }
+
+  MatchTableIndirectTest() : MatchTableIndirectTest(GetParam()) { }
 
   void set_action(p4v1::Action *action, const std::string &param_v) {
     action->set_action_id(a_id);
@@ -1218,8 +1285,13 @@ class MatchTableIndirectTest : public DeviceMgrTest {
   template <typename It>
   void create_group(uint32_t group_id, It members_begin, It members_end) {
     EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, _, _));
-    EXPECT_CALL(*mock, action_prof_group_add_member(act_prof_id, _, _))
-        .Times(std::distance(members_begin, members_end));
+    if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
+      EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, _)
+          .Times(std::distance(members_begin, members_end));
+    } else {
+      EXPECT_CALL_GROUP_SET_MEMBERS(
+          *mock, act_prof_id, _, std::distance(members_begin, members_end), _);
+    }
     auto group = make_group(group_id, members_begin, members_end);
     p4v1::WriteRequest request;
     auto update = request.add_updates();
@@ -1228,7 +1300,7 @@ class MatchTableIndirectTest : public DeviceMgrTest {
     entity->set_allocated_action_profile_group(&group);
     auto status = mgr.write(request);
     entity->release_action_profile_group();
-    EXPECT_EQ(status.code(), Code::OK);
+    EXPECT_OK(status);
   }
 
   void create_group(uint32_t group_id, uint32_t member_id) {
@@ -1278,8 +1350,11 @@ class MatchTableIndirectTest : public DeviceMgrTest {
     auto params_size = static_cast<size_t>(
         std::distance(params_begin, params_end));
     EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, params_size, _));
-    EXPECT_CALL(*mock, action_prof_group_add_member(act_prof_id, _, _))
-        .Times(params_size);
+    if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
+      EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, _).Times(params_size);
+    } else {
+      EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, params_size, _);
+    }
     EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
     return add_entry(entry);
   }
@@ -1309,7 +1384,7 @@ class MatchTableIndirectTest : public DeviceMgrTest {
   }
 };
 
-TEST_F(MatchTableIndirectTest, Member) {
+TEST_P(MatchTableIndirectTest, Member) {
   uint32_t member_id = 123;
   std::string mf("\xaa\xbb\xcc\xdd", 4);
   std::string adata(6, '\x00');
@@ -1334,7 +1409,7 @@ TEST_F(MatchTableIndirectTest, Member) {
   ASSERT_TRUE(MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
 }
 
-TEST_F(MatchTableIndirectTest, Group) {
+TEST_P(MatchTableIndirectTest, Group) {
   uint32_t member_id = 123;
   uint32_t group_id = 1000;
   std::string mf("\xaa\xbb\xcc\xdd", 4);
@@ -1361,7 +1436,7 @@ TEST_F(MatchTableIndirectTest, Group) {
   ASSERT_TRUE(MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
 }
 
-TEST_F(MatchTableIndirectTest, OneShotInsertAndRead) {
+TEST_P(MatchTableIndirectTest, OneShotInsertAndRead) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
   std::vector<std::string> params;
   params.emplace_back(6, '\x00');
@@ -1380,7 +1455,7 @@ TEST_F(MatchTableIndirectTest, OneShotInsertAndRead) {
       MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
 }
 
-TEST_F(MatchTableIndirectTest, OneShotInsertAndModify) {
+TEST_P(MatchTableIndirectTest, OneShotInsertAndModify) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
   std::vector<std::string> params;
   params.emplace_back(6, '\x00');
@@ -1397,15 +1472,18 @@ TEST_F(MatchTableIndirectTest, OneShotInsertAndModify) {
   EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _))
       .Times(params.size());
   EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, params.size(), _));
-  EXPECT_CALL(*mock, action_prof_group_add_member(act_prof_id, _, _))
-      .Times(params.size());
+  if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
+    EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, _).Times(params.size());
+  } else {
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, params.size(), _);
+  }
   EXPECT_CALL(*mock, table_entry_modify_wkey(t_id, _, _));
 
   auto entry_2 = make_indirect_entry_one_shot(mf, params.begin(), params.end());
   EXPECT_OK(modify_entry(&entry_2));
 }
 
-TEST_F(MatchTableIndirectTest, OneShotInsertAndDelete) {
+TEST_P(MatchTableIndirectTest, OneShotInsertAndDelete) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
   std::vector<std::string> params;
   params.emplace_back(6, '\x00');
@@ -1421,7 +1499,7 @@ TEST_F(MatchTableIndirectTest, OneShotInsertAndDelete) {
   EXPECT_OK(remove_entry(&entry));
 }
 
-TEST_F(MatchTableIndirectTest, MixedSelectorModes) {
+TEST_P(MatchTableIndirectTest, MixedSelectorModes) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
   std::string adata(6, '\x00');
   std::vector<std::string> params({adata});
@@ -1455,7 +1533,7 @@ TEST_F(MatchTableIndirectTest, MixedSelectorModes) {
   ASSERT_EQ(add_entry(&entry), OneExpectedError(Code::INVALID_ARGUMENT));
 }
 
-TEST_F(MatchTableIndirectTest, SetDefault) {
+TEST_P(MatchTableIndirectTest, SetDefault) {
   std::vector<std::string> params;
   params.emplace_back(6, '\x00');
   params.emplace_back(6, '\x01');
@@ -1468,6 +1546,12 @@ TEST_F(MatchTableIndirectTest, SetDefault) {
       OneExpectedError(Code::INVALID_ARGUMENT,
                        "Cannot set / reset default action for indirect table"));
 }
+
+INSTANTIATE_TEST_CASE_P(
+    ActionProfPiApis, MatchTableIndirectTest,
+    Values(PiActProfApiSupport_SET_MBRS,
+           PiActProfApiSupport_ADD_AND_REMOVE_MBR,
+           PiActProfApiSupport_BOTH));
 
 
 class ExactOneTest : public DeviceMgrTest {
@@ -2576,7 +2660,7 @@ TEST_F(PREMulticastTest, Write) {
   replicas.push_back(port1, rid1).push_back(port2, rid2);
   EXPECT_CALL(*mock, mc_grp_create(group_id, _));
   // need a more complicated matcher because of the C array. The ElementsAre
-  // matcher can be used but required 2 arguments (the count + pointer, in this
+  // matcher can be used but required 2 arguments (the pointer + count, in this
   // order)
   EXPECT_CALL(*mock, mc_node_create(rid1, _, _, _))
       .With(Args<2, 1>(ElementsAre(port1)));
@@ -2869,7 +2953,8 @@ TEST_F(DigestTest, WriteAndRead) {
 // / action profile modifiers).
 class ReadExclusiveAccess : public MatchTableIndirectTest {
  public:
-  ReadExclusiveAccess() {
+  ReadExclusiveAccess()
+      : MatchTableIndirectTest(PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
     t_id = pi_p4info_table_id_from_name(p4info, "IndirectWS");
     act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
   }

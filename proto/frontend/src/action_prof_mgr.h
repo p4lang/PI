@@ -35,14 +35,14 @@
 #include "p4/v1/p4runtime.pb.h"
 
 #include "common.h"
+#include "report_error.h"
+#include "statusor.h"
 
 namespace pi {
 
 namespace fe {
 
 namespace proto {
-
-using Code = ::google::rpc::Code;
 
 template <typename T1, typename T2>
 class BiMap {
@@ -127,8 +127,21 @@ class ActionProfMgr {
 
   enum class SelectorUsage { UNSPECIFIED, ONESHOT, MANUAL };
 
+  // The ActionProfMgr is essentially a frontend to the pi_act_prof_* methods in
+  // the PI C library. PI offers 2 ways of programming action profile groups:
+  // either by performing individual add & remove operations, or a more
+  // intent-based way where the entire group membership is set with a single API
+  // call. ActionProfMgr can integrate with PI using either one of these
+  // programming methods.
+  // Concretely when DeviceMgr instantiates new ActionProfMgr objects, it checks
+  // which API is supported by the PI target implementation and use that one. If
+  // both are supported, the intent-based API (SET_MEMBERSHIP) will be
+  // preferred. This is done through the static ActionProfMgr::choose_pi_api
+  // method.
+  enum class PiApiChoice { INDIVIDUAL_ADDS_AND_REMOVES, SET_MEMBERSHIP };
+
   ActionProfMgr(pi_dev_tgt_t device_tgt, pi_p4_id_t act_prof_id,
-                pi_p4info_t *p4info);
+                pi_p4info_t *p4info, PiApiChoice pi_api_choice);
 
   Status member_create(const p4::v1::ActionProfileMember &member,
                        const SessionTemp &session);
@@ -178,6 +191,10 @@ class ActionProfMgr {
   bool retrieve_member_id(pi_indirect_handle_t member_h, Id *member_id) const;
   bool retrieve_group_id(pi_indirect_handle_t group_h, Id *group_id) const;
 
+  // Choose the best programming style (individual adds / removes, or set
+  // membership) for the target.
+  static StatusOr<PiApiChoice> choose_pi_api(pi_dev_id_t device_id);
+
  private:
   bool check_p4_action_id(pi_p4_id_t p4_id) const;
 
@@ -186,36 +203,34 @@ class ActionProfMgr {
 
   // using RepeatedMembers = decltype(
   //     static_cast<p4::v1::ActionProfileGroup *>(nullptr)->member_id());
-  Code group_update_members(pi::ActProf &ap,  // NOLINT(runtime/references)
-                            const p4::v1::ActionProfileGroup &group);
+  Status group_update_members(pi::ActProf &ap,  // NOLINT(runtime/references)
+                              const p4::v1::ActionProfileGroup &group);
 
   template <typename It>
   // NOLINTNEXTLINE(runtime/references)
-  Code group_add_members(pi::ActProf &ap, const Id &group_id,
-                         It first, It last) {
+  Status group_add_members(pi::ActProf &ap, const Id &group_id,
+                           It first, It last) {
     for (auto it = first; it != last; ++it) {
-      auto code = group_add_member(ap, group_id, *it);
-      if (code != Code::OK) return code;
+      RETURN_IF_ERROR(group_add_member(ap, group_id, *it));
     }
-    return Code::OK;
+    RETURN_OK_STATUS();
   }
   // NOLINTNEXTLINE(runtime/references)
-  Code group_add_member(pi::ActProf &ap, const Id &group_id,
-                        const Id &member_id);
+  Status group_add_member(pi::ActProf &ap, const Id &group_id,
+                          const Id &member_id);
 
   template <typename It>
   // NOLINTNEXTLINE(runtime/references)
-  Code group_remove_members(pi::ActProf &ap, const Id &group_id,
-                            It first, It last) {
+  Status group_remove_members(pi::ActProf &ap, const Id &group_id,
+                              It first, It last) {
     for (auto it = first; it != last; ++it) {
-      auto code = group_remove_member(ap, group_id, *it);
-      if (code != Code::OK) return code;
+      RETURN_IF_ERROR(group_remove_member(ap, group_id, *it));
     }
-    return Code::OK;
+    RETURN_OK_STATUS();
   }
   // NOLINTNEXTLINE(runtime/references)
-  Code group_remove_member(pi::ActProf &ap, const Id &group_id,
-                           const Id &member_id);
+  Status group_remove_member(pi::ActProf &ap, const Id &group_id,
+                             const Id &member_id);
 
   // iterates over groups to remove member
   void update_group_membership(const Id &removed_member_id);
@@ -231,10 +246,14 @@ class ActionProfMgr {
   pi_p4info_t *p4info;
   ActionProfBiMap member_bimap{};
   ActionProfBiMap group_bimap{};
+  // only used when pi_api_choice is INDIVIDUAL_ADDS_AND_REMOVES
   std::map<Id, ActionProfGroupMembership> group_members{};
   std::unordered_map<pi_indirect_handle_t, std::vector<pi_indirect_handle_t> >
   oneshot_group_members{};
   SelectorUsage selector_usage{SelectorUsage::UNSPECIFIED};
+  // set at construction time, cannot be changed durting the lifetime of the
+  // object
+  PiApiChoice pi_api_choice;
   mutable Mutex mutex{};
 };
 

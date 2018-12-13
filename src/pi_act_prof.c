@@ -80,6 +80,15 @@ pi_status_t pi_act_prof_grp_remove_mbr(pi_session_handle_t session_handle,
                                      grp_handle, mbr_handle);
 }
 
+pi_status_t pi_act_prof_grp_set_mbrs(pi_session_handle_t session_handle,
+                                     pi_dev_id_t dev_id, pi_p4_id_t act_prof_id,
+                                     pi_indirect_handle_t grp_handle,
+                                     size_t num_mbrs,
+                                     const pi_indirect_handle_t *mbr_handles) {
+  return _pi_act_prof_grp_set_mbrs(session_handle, dev_id, act_prof_id,
+                                   grp_handle, num_mbrs, mbr_handles);
+}
+
 pi_status_t pi_act_prof_entries_fetch(pi_session_handle_t session_handle,
                                       pi_dev_id_t dev_id,
                                       pi_p4_id_t act_prof_id,
@@ -163,4 +172,8 @@ size_t pi_act_prof_grps_next(pi_act_prof_fetch_res_t *res,
   res->curr_groups = curr;
 
   return res->idx_groups++;
+}
+
+int pi_act_prof_api_support(pi_dev_id_t dev_id) {
+  return _pi_act_prof_api_support(dev_id);
 }
