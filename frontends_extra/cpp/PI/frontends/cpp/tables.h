@@ -357,6 +357,10 @@ class ActProf {
   pi_status_t group_remove_member(pi_indirect_handle_t group_handle,
                                   pi_indirect_handle_t member_handle);
 
+  pi_status_t group_set_members(pi_indirect_handle_t group_handle,
+                                size_t num_members,
+                                const pi_indirect_handle_t *member_handles);
+
  private:
   pi_session_handle_t sess;
   pi_dev_tgt_t dev_tgt;

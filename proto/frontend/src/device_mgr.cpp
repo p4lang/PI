@@ -339,11 +339,14 @@ class DeviceMgrImp {
     }
 
     action_profs.clear();
+    // TODO(antonin): use something like Google's ASSIGN_OR_RETURN
+    auto pi_api_choice = ActionProfMgr::choose_pi_api(device_id);
+    RETURN_IF_ERROR(pi_api_choice.status());
     for (auto act_prof_id = pi_p4info_act_prof_begin(p4info_new);
          act_prof_id != pi_p4info_act_prof_end(p4info_new);
          act_prof_id = pi_p4info_act_prof_next(p4info_new, act_prof_id)) {
-      std::unique_ptr<ActionProfMgr> mgr(
-          new ActionProfMgr(device_tgt, act_prof_id, p4info_new));
+      std::unique_ptr<ActionProfMgr> mgr(new ActionProfMgr(
+          device_tgt, act_prof_id, p4info_new, pi_api_choice.ValueOrDie()));
       action_profs.emplace(act_prof_id, std::move(mgr));
     }
 

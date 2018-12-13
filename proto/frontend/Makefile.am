@@ -33,7 +33,8 @@ src/pre_clone_mgr.h \
 src/pre_clone_mgr.cpp \
 src/task_queue.h \
 src/digest_mgr.h \
-src/digest_mgr.cpp
+src/digest_mgr.cpp \
+src/statusor.h
 
 libpifeproto_la_LIBADD = \
 $(top_builddir)/../frontends_extra/cpp/libpifecpp.la \

@@ -70,6 +70,13 @@ pi_status_t pi_act_prof_grp_remove_mbr(pi_session_handle_t session_handle,
                                        pi_indirect_handle_t grp_handle,
                                        pi_indirect_handle_t mbr_handle);
 
+//! Set all members of a group in one go.
+pi_status_t pi_act_prof_grp_set_mbrs(pi_session_handle_t session_handle,
+                                     pi_dev_id_t dev_id, pi_p4_id_t act_prof_id,
+                                     pi_indirect_handle_t grp_handle,
+                                     size_t num_mbrs,
+                                     const pi_indirect_handle_t *mbr_handles);
+
 typedef struct pi_act_prof_fetch_res_s pi_act_prof_fetch_res_t;
 
 //! Retrieve all entries in an action profile as one big blob
@@ -98,6 +105,13 @@ size_t pi_act_prof_mbrs_next(pi_act_prof_fetch_res_t *res,
 size_t pi_act_prof_grps_next(pi_act_prof_fetch_res_t *res,
                              pi_indirect_handle_t **mbrs, size_t *num_mbrs,
                              pi_indirect_handle_t *grp_handle);
+
+typedef enum {
+  PI_ACT_PROF_API_SUPPORT_GRP_SET_MBRS = 1 << 0,
+  PI_ACT_PROF_API_SUPPORT_GRP_ADD_AND_REMOVE_MBR = 1 << 1,
+} pi_act_prof_api_support_t;
+
+int pi_act_prof_api_support(pi_dev_id_t dev_id);
 
 #ifdef __cplusplus
 }

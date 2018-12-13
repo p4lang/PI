@@ -42,6 +42,14 @@ namespace testing {
 
 using device_id_t = uint64_t;
 
+enum PiActProfApiSupport {
+  PiActProfApiSupport_SET_MBRS = PI_ACT_PROF_API_SUPPORT_GRP_SET_MBRS,
+  PiActProfApiSupport_ADD_AND_REMOVE_MBR =
+    PI_ACT_PROF_API_SUPPORT_GRP_ADD_AND_REMOVE_MBR,
+  PiActProfApiSupport_BOTH = PI_ACT_PROF_API_SUPPORT_GRP_SET_MBRS |
+    PI_ACT_PROF_API_SUPPORT_GRP_ADD_AND_REMOVE_MBR,
+};
+
 class DummySwitch;
 
 class DummySwitchMock {
@@ -127,8 +135,12 @@ class DummySwitchMock {
   MOCK_METHOD3(action_prof_group_remove_member,
                pi_status_t(pi_p4_id_t, pi_indirect_handle_t,
                            pi_indirect_handle_t));
+  MOCK_METHOD4(action_prof_group_set_members,
+               pi_status_t(pi_p4_id_t, pi_indirect_handle_t,
+                           size_t, const pi_indirect_handle_t *));
   MOCK_METHOD2(action_prof_entries_fetch,
                pi_status_t(pi_p4_id_t, pi_act_prof_fetch_res_t *));
+  MOCK_METHOD0(action_prof_api_support, int());
 
   MOCK_METHOD3(meter_read,
                pi_status_t(pi_p4_id_t, size_t, pi_meter_spec_t *));

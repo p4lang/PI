@@ -48,6 +48,7 @@ namespace {
 
 using ::testing::_;
 using ::testing::Invoke;
+using ::testing::Return;
 
 class DummyMatchKey {
   friend struct DummyMatchKeyHash;
@@ -433,6 +434,16 @@ class DummyActionProf {
     return (count == 0) ? PI_STATUS_TARGET_ERROR : PI_STATUS_SUCCESS;
   }
 
+  pi_status_t group_set_members(pi_indirect_handle_t grp_handle,
+                                size_t num_mbrs,
+                                const pi_indirect_handle_t *mbr_handles) {
+    auto it = groups.find(grp_handle);
+    if (it == groups.end()) return PI_STATUS_TARGET_ERROR;
+    it->second.clear();
+    it->second.insert(mbr_handles, mbr_handles + num_mbrs);
+    return PI_STATUS_SUCCESS;
+  }
+
   pi_status_t entries_fetch(pi_act_prof_fetch_res_t *res) {
     res->num_members = members.size();
     res->num_groups = groups.size();
@@ -661,6 +672,15 @@ class DummySwitch {
                                               pi_indirect_handle_t mbr_handle) {
     return action_profs[act_prof_id].group_remove_member(
         grp_handle, mbr_handle);
+  }
+
+  pi_status_t action_prof_group_set_members(
+      pi_p4_id_t act_prof_id,
+      pi_indirect_handle_t grp_handle,
+      size_t num_mbrs,
+      const pi_indirect_handle_t *mbr_handles) {
+    return action_profs[act_prof_id].group_set_members(
+        grp_handle, num_mbrs, mbr_handles);
   }
 
   pi_status_t action_prof_entries_fetch(pi_p4_id_t act_prof_id,
@@ -895,8 +915,12 @@ DummySwitchMock::DummySwitchMock(device_id_t device_id)
   ON_CALL(*this, action_prof_group_remove_member(_, _, _))
       .WillByDefault(
           Invoke(sw_, &DummySwitch::action_prof_group_remove_member));
+  ON_CALL(*this, action_prof_group_set_members(_, _, _, _))
+      .WillByDefault(Invoke(sw_, &DummySwitch::action_prof_group_set_members));
   ON_CALL(*this, action_prof_entries_fetch(_, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::action_prof_entries_fetch));
+  ON_CALL(*this, action_prof_api_support()).WillByDefault(Return(
+      static_cast<int>(PiActProfApiSupport_BOTH)));
 
   ON_CALL(*this, meter_read(_, _, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::meter_read));
@@ -1224,6 +1248,16 @@ pi_status_t _pi_act_prof_grp_remove_mbr(pi_session_handle_t,
       act_prof_id, grp_handle, mbr_handle);
 }
 
+pi_status_t _pi_act_prof_grp_set_mbrs(pi_session_handle_t,
+                                      pi_dev_id_t dev_id,
+                                      pi_p4_id_t act_prof_id,
+                                      pi_indirect_handle_t grp_handle,
+                                      size_t num_mbrs,
+                                      const pi_indirect_handle_t *mbr_handles) {
+  return DeviceResolver::get_switch(dev_id)->action_prof_group_set_members(
+      act_prof_id, grp_handle, num_mbrs, mbr_handles);
+}
+
 pi_status_t _pi_act_prof_entries_fetch(pi_session_handle_t,
                                        pi_dev_id_t dev_id,
                                        pi_p4_id_t act_prof_id,
@@ -1238,6 +1272,10 @@ pi_status_t _pi_act_prof_entries_fetch_done(pi_session_handle_t,
   delete[] res->entries_groups;
   delete[] res->mbr_handles;
   return PI_STATUS_SUCCESS;
+}
+
+int _pi_act_prof_api_support(pi_dev_id_t dev_id) {
+  return DeviceResolver::get_switch(dev_id)->action_prof_api_support();
 }
 
 pi_status_t _pi_meter_read(pi_session_handle_t,

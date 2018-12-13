@@ -32,6 +32,7 @@
 #include "common.h"
 #include "logger.h"
 #include "report_error.h"
+#include "statusor.h"
 
 namespace p4v1 = ::p4::v1;
 namespace p4configv1 = ::p4::config::v1;
@@ -45,6 +46,7 @@ namespace proto {
 using Id = ActionProfBiMap::Id;
 using common::SessionTemp;
 using common::make_invalid_p4_id_status;
+using Code = ::google::rpc::Code;
 
 void
 ActionProfBiMap::add(const Id &id, pi_indirect_handle_t h) {
@@ -111,8 +113,9 @@ ActionProfGroupMembership::compute_members_to_remove(
 using Status = ActionProfMgr::Status;
 
 ActionProfMgr::ActionProfMgr(pi_dev_tgt_t device_tgt, pi_p4_id_t act_prof_id,
-                             pi_p4info_t *p4info)
-    : device_tgt(device_tgt), act_prof_id(act_prof_id), p4info(p4info) { }
+                             pi_p4info_t *p4info, PiApiChoice pi_api_choice)
+    : device_tgt(device_tgt), act_prof_id(act_prof_id), p4info(p4info),
+      pi_api_choice(pi_api_choice) { }
 
 Status
 ActionProfMgr::member_create(const p4v1::ActionProfileMember &member,
@@ -126,7 +129,7 @@ ActionProfMgr::member_create(const p4v1::ActionProfileMember &member,
   // we check if the member id already exists
   if (member_bimap.retrieve_handle(member.member_id()) != nullptr) {
     RETURN_ERROR_STATUS(
-        Code::INVALID_ARGUMENT, "Duplicate member id: {}", member.member_id());
+        Code::ALREADY_EXISTS, "Duplicate member id: {}", member.member_id());
   }
   pi_indirect_handle_t member_h;
   auto pi_status = ap.member_create(action_data, &member_h);
@@ -146,17 +149,17 @@ ActionProfMgr::group_create(const p4v1::ActionProfileGroup &group,
   // we check if the group id already exists
   if (group_bimap.retrieve_handle(group.group_id()) != nullptr) {
     RETURN_ERROR_STATUS(
-        Code::INVALID_ARGUMENT, "Duplicate group id: {}", group.group_id());
+        Code::ALREADY_EXISTS, "Duplicate group id: {}", group.group_id());
   }
   pi_indirect_handle_t group_h;
   auto pi_status = ap.group_create(group.max_size(), &group_h);
   if (pi_status != PI_STATUS_SUCCESS)
     RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when creating group on target");
   group_bimap.add(group.group_id(), group_h);
-  group_members.emplace(group.group_id(), ActionProfGroupMembership());
+  if (pi_api_choice == PiApiChoice::INDIVIDUAL_ADDS_AND_REMOVES)
+    group_members.emplace(group.group_id(), ActionProfGroupMembership());
   selector_usage = SelectorUsage::MANUAL;
-  auto code = group_update_members(ap, group);
-  RETURN_STATUS(code);
+  return group_update_members(ap, group);
 }
 
 Status
@@ -170,7 +173,7 @@ ActionProfMgr::member_modify(const p4v1::ActionProfileMember &member,
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   auto member_h = member_bimap.retrieve_handle(member.member_id());
   if (member_h == nullptr) {
-    RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+    RETURN_ERROR_STATUS(Code::NOT_FOUND,
                         "Member id does not exist: {}", member.member_id());
   }
   auto pi_status = ap.member_modify(*member_h, action_data);
@@ -190,11 +193,10 @@ ActionProfMgr::group_modify(const p4v1::ActionProfileGroup &group,
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   auto group_h = group_bimap.retrieve_handle(group_id);
   if (group_h == nullptr) {
-    RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+    RETURN_ERROR_STATUS(Code::NOT_FOUND,
                         "Group id does not exist: {}", group.group_id());
   }
-  auto code = group_update_members(ap, group);
-  RETURN_STATUS(code);
+  return group_update_members(ap, group);
 }
 
 Status
@@ -205,7 +207,7 @@ ActionProfMgr::member_delete(const p4v1::ActionProfileMember &member,
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   auto member_h = member_bimap.retrieve_handle(member.member_id());
   if (member_h == nullptr) {
-    RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+    RETURN_ERROR_STATUS(Code::NOT_FOUND,
                         "Member id does not exist: {}", member.member_id());
   }
   auto pi_status = ap.member_delete(*member_h);
@@ -225,14 +227,15 @@ ActionProfMgr::group_delete(const p4v1::ActionProfileGroup &group,
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   auto group_h = group_bimap.retrieve_handle(group.group_id());
   if (group_h == nullptr) {
-    RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+    RETURN_ERROR_STATUS(Code::NOT_FOUND,
                         "Group id does not exist: {}", group.group_id());
   }
   auto pi_status = ap.group_delete(*group_h);
   if (pi_status != PI_STATUS_SUCCESS)
     RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when deleting group on target");
   group_bimap.remove(group.group_id());
-  group_members.erase(group.group_id());
+  if (pi_api_choice == PiApiChoice::INDIVIDUAL_ADDS_AND_REMOVES)
+    group_members.erase(group.group_id());
   reset_selector_usage();
   RETURN_OK_STATUS();
 }
@@ -331,13 +334,24 @@ ActionProfMgr::oneshot_group_create(
     session->cleanup_task_push(std::unique_ptr<OneShotGroupCleanupTask>(
         new OneShotGroupCleanupTask(&ap, *group_h)));
   }
-  for (const auto &member_h : members) {
-    // TODO(antonin): weight + watch
-    auto pi_status = ap.group_add_member(*group_h, member_h);
+  if (pi_api_choice == PiApiChoice::INDIVIDUAL_ADDS_AND_REMOVES) {
+    for (const auto &member_h : members) {
+      // TODO(antonin): weight + watch
+      auto pi_status = ap.group_add_member(*group_h, member_h);
+      if (pi_status != PI_STATUS_SUCCESS) {
+        RETURN_ERROR_STATUS(
+            Code::UNKNOWN, "Error when adding member to group on target");
+      }
+    }
+  } else if (pi_api_choice == PiApiChoice::SET_MEMBERSHIP) {
+    auto pi_status = ap.group_set_members(
+        *group_h, members.size(), members.data());
     if (pi_status != PI_STATUS_SUCCESS) {
       RETURN_ERROR_STATUS(
-          Code::UNKNOWN, "Error when adding member to group on target");
+          Code::UNKNOWN, "Error when setting group membership on target");
     }
+  } else {
+    RETURN_ERROR_STATUS(Code::INTERNAL, "Unknown PiApiChoice");
   }
   session->cleanup_scope_pop();
   auto p = oneshot_group_members.emplace(*group_h, members);
@@ -437,34 +451,58 @@ ActionProfMgr::reset_selector_usage() {
 
 void
 ActionProfMgr::update_group_membership(const Id &removed_member_id) {
-  for (auto &kv : group_members) kv.second.remove_member(removed_member_id);
+  if (pi_api_choice == PiApiChoice::INDIVIDUAL_ADDS_AND_REMOVES)
+    for (auto &kv : group_members) kv.second.remove_member(removed_member_id);
 }
 
-Code
+Status
 ActionProfMgr::group_update_members(pi::ActProf &ap,
                                     const p4v1::ActionProfileGroup &group) {
-  Code code;
+  auto group_id = group.group_id();
   std::vector<Id> new_membership(group.members().size());
   std::transform(
       group.members().begin(), group.members().end(), new_membership.begin(),
       [](const p4v1::ActionProfileGroup::Member &m) { return m.member_id(); });
-  std::sort(new_membership.begin(), new_membership.end());
-  auto group_id = group.group_id();
-  auto &membership = group_members.at(group_id);
-  auto members_to_add = membership.compute_members_to_add(new_membership);
-  auto members_to_remove = membership.compute_members_to_remove(new_membership);
-  // remove members as needed
-  code = group_remove_members(
-      ap, group_id, members_to_remove.cbegin(), members_to_remove.cend());
-  if (code != Code::OK) return code;
-  // add members as needed
-  code = group_add_members(
-      ap, group_id, members_to_add.cbegin(), members_to_add.cend());
-  if (code != Code::OK) return code;
-  return Code::OK;
+
+  if (pi_api_choice == PiApiChoice::INDIVIDUAL_ADDS_AND_REMOVES) {
+    std::sort(new_membership.begin(), new_membership.end());
+    // TODO(antonin): make this code smarter so that the group is never empty
+    // and never too big at any given time.
+    auto &membership = group_members.at(group_id);
+    auto members_to_add = membership.compute_members_to_add(new_membership);
+    auto members_to_remove = membership.compute_members_to_remove(
+        new_membership);
+    // remove members as needed
+    RETURN_IF_ERROR(group_remove_members(
+        ap, group_id, members_to_remove.cbegin(), members_to_remove.cend()));
+    // add members as needed
+    RETURN_IF_ERROR(group_add_members(
+        ap, group_id, members_to_add.cbegin(), members_to_add.cend()));
+    RETURN_OK_STATUS();
+  } else if (pi_api_choice == PiApiChoice::SET_MEMBERSHIP) {
+    auto group_h = group_bimap.retrieve_handle(group_id);
+    assert(group_h);  // we already confirmed that the group existed
+    std::vector<pi_indirect_handle_t> members_h;
+    for (auto member_id : new_membership) {
+      auto member_h = member_bimap.retrieve_handle(member_id);
+      if (member_h == nullptr) {  // the member does not exist
+        RETURN_ERROR_STATUS(
+            Code::NOT_FOUND, "Member id does not exist: {}", member_id);
+      }
+      members_h.push_back(*member_h);
+    }
+    auto pi_status = ap.group_set_members(
+        *group_h, members_h.size(), members_h.data());
+    if (pi_status != PI_STATUS_SUCCESS) {
+      RETURN_ERROR_STATUS(
+          Code::UNKNOWN, "Error when setting group membership on target");
+    }
+    RETURN_OK_STATUS();
+  }
+  RETURN_ERROR_STATUS(Code::INTERNAL, "Unknown PiApiChoice");
 }
 
-Code
+Status
 ActionProfMgr::group_add_member(pi::ActProf &ap, const Id &group_id,
                                 const Id &member_id) {
   auto &membership = group_members.at(group_id);
@@ -472,19 +510,19 @@ ActionProfMgr::group_add_member(pi::ActProf &ap, const Id &group_id,
   assert(group_h);
   auto member_h = member_bimap.retrieve_handle(member_id);
   if (member_h == nullptr) {  // the member does not exist
-    Logger::get()->error("Member id does not exist: {}", member_id);
-    return Code::INVALID_ARGUMENT;
+    RETURN_ERROR_STATUS(
+        Code::NOT_FOUND, "Member id does not exist: {}", member_id);
   }
   auto pi_status = ap.group_add_member(*group_h, *member_h);
   if (pi_status != PI_STATUS_SUCCESS) {
-    Logger::get()->error("Error when adding member to group on target");
-    return Code::UNKNOWN;
+    RETURN_ERROR_STATUS(
+        Code::UNKNOWN, "Error when adding member to group on target");
   }
   membership.add_member(member_id);
-  return Code::OK;
+  RETURN_OK_STATUS();
 }
 
-Code
+Status
 ActionProfMgr::group_remove_member(pi::ActProf &ap, const Id &group_id,
                                    const Id &member_id) {
   auto &membership = group_members.at(group_id);
@@ -492,16 +530,16 @@ ActionProfMgr::group_remove_member(pi::ActProf &ap, const Id &group_id,
   assert(group_h);
   auto member_h = member_bimap.retrieve_handle(member_id);
   if (member_h == nullptr) {  // the member does not exist
-    Logger::get()->error("Member id does not exist: {}", member_id);
-    return Code::INVALID_ARGUMENT;
+    RETURN_ERROR_STATUS(
+        Code::NOT_FOUND, "Member id does not exist: {}", member_id);
   }
   auto pi_status = ap.group_remove_member(*group_h, *member_h);
   if (pi_status != PI_STATUS_SUCCESS) {
-    Logger::get()->error("Error when removing member from group on target");
-    return Code::UNKNOWN;
+    RETURN_ERROR_STATUS(
+        Code::UNKNOWN, "Error when removing member from group on target");
   }
   membership.remove_member(member_id);
-  return Code::OK;
+  RETURN_OK_STATUS();
 }
 
 bool
@@ -536,12 +574,25 @@ ActionProfMgr::retrieve_member_id(pi_indirect_handle_t member_h,
 
 bool
 ActionProfMgr::retrieve_group_id(pi_indirect_handle_t group_h,
-                                  Id *group_id) const {
+                                 Id *group_id) const {
   Lock lock(mutex);
   auto *id_ptr = group_bimap.retrieve_id(group_h);
   if (!id_ptr) return false;
   *group_id = *id_ptr;
   return true;
+}
+
+/* static */
+StatusOr<ActionProfMgr::PiApiChoice>
+ActionProfMgr::choose_pi_api(pi_dev_id_t device_id) {
+  int pi_api_support = pi_act_prof_api_support(device_id);
+  if (pi_api_support & PI_ACT_PROF_API_SUPPORT_GRP_SET_MBRS) {
+    return PiApiChoice::SET_MEMBERSHIP;
+  } else if (pi_api_support & PI_ACT_PROF_API_SUPPORT_GRP_ADD_AND_REMOVE_MBR) {
+    return PiApiChoice::INDIVIDUAL_ADDS_AND_REMOVES;
+  }
+  RETURN_ERROR_STATUS(Code::INTERNAL,
+                      "Invalid return value from pi_act_prof_api_support");
 }
 
 }  // namespace proto
