@@ -81,12 +81,6 @@ AM_COND_IF([WITH_SYSREPO], [
                  [AC_MSG_ERROR([Missing libsysrepo])])
 ])
 
-dnl cannot use the path below, which would break 'make dist'
-dnl googleapis_check_f=$ac_abs_confdir/googleapis/google/rpc/status.proto
-googleapis_check_f=$ac_abs_confdir/google/rpc/status.proto
-AC_CHECK_FILE([$googleapis_check_f], [],
-              [AC_MSG_ERROR([Cannot find googleapis; did you run 'git submodule update --init'?])])
-
 p4runtime_check_f=$ac_abs_confdir/p4/v1/p4runtime.proto
 AC_CHECK_FILE([$p4runtime_check_f], [],
               [AC_MSG_ERROR([Cannot find p4runtime; did you run 'git submodule update --init'?])])
