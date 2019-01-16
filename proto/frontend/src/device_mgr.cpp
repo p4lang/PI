@@ -607,7 +607,7 @@ class DeviceMgrImp {
     auto index = static_cast<size_t>(meter_entry.index().index());
     switch (update) {
       case p4v1::Update::UNSPECIFIED:
-        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Update type is not set");
       case p4v1::Update::INSERT:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                             "INSERT update type not supported for meters");
@@ -638,7 +638,7 @@ class DeviceMgrImp {
         }
         break;
       default:
-        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid update type");
     }
     RETURN_OK_STATUS();
   }
@@ -691,7 +691,7 @@ class DeviceMgrImp {
     }
     switch (update) {
       case p4v1::Update::UNSPECIFIED:
-        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Update type is not set");
       case p4v1::Update::INSERT:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                             "INSERT update type not supported for meters");
@@ -726,7 +726,7 @@ class DeviceMgrImp {
         }
         break;
       default:
-        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid update type");
     }
     RETURN_OK_STATUS();
   }
@@ -788,7 +788,7 @@ class DeviceMgrImp {
   Status direct_meter_read_one(const p4v1::TableEntry &table_entry,
                                const SessionTemp &session,
                                p4v1::ReadResponse *response) const {
-    if (table_entry.match_size() > 0) {
+    if (!table_entry.match().empty()) {
       auto table_lock = table_info_store.lock_table(table_entry.table_id());
 
       pi_entry_handle_t entry_handle = 0;
@@ -1065,13 +1065,13 @@ class DeviceMgrImp {
                         const SessionTemp &session,
                         p4v1::ReadResponse *response) const {
     pi::MatchKey expected_match_key(p4info.get(), table_id);
-    if (requested_entry.match_size() > 0) {
-      if (requested_entry.is_default_action()) {
-        RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
-                            "Reading default entry not supported yet");
-      }
-      auto status = construct_match_key(requested_entry, &expected_match_key);
-      if (IS_ERROR(status)) return status;
+    if (requested_entry.is_default_action()) {
+      RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
+                          "Reading default entry not supported yet");
+    }
+    if (!requested_entry.match().empty()) {
+      RETURN_IF_ERROR(
+          construct_match_key(requested_entry, &expected_match_key));
     }
 
     std::unordered_map<pi_indirect_handle_t,
@@ -1108,7 +1108,7 @@ class DeviceMgrImp {
       // format and I use this for the lookup. If this is a performance issue,
       // we can find a better solution.
       mk.from(entry.match_key);
-      if (requested_entry.match_size() > 0 &&
+      if (!requested_entry.match().empty() &&
           !pi::MatchKeyEq()(mk, expected_match_key)) {
         continue;
       }
@@ -1210,7 +1210,7 @@ class DeviceMgrImp {
     }
     switch (update) {
       case p4v1::Update::UNSPECIFIED:
-        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Update type is not set");
       case p4v1::Update::INSERT:
         return action_prof_mgr->member_create(member, session);
       case p4v1::Update::MODIFY:
@@ -1218,10 +1218,10 @@ class DeviceMgrImp {
       case p4v1::Update::DELETE:
         return action_prof_mgr->member_delete(member, session);
       default:
-        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid update type");
     }
     assert(0);
-    RETURN_ERROR_STATUS(Code::UNKNOWN);  // UNREACHABLE
+    RETURN_ERROR_STATUS(Code::INTERNAL);  // UNREACHABLE
   }
 
   Status action_profile_group_write(p4v1::Update::Type update,
@@ -1237,7 +1237,7 @@ class DeviceMgrImp {
     }
     switch (update) {
       case p4v1::Update::UNSPECIFIED:
-        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Update type is not set");
       case p4v1::Update::INSERT:
         return action_prof_mgr->group_create(group, session);
       case p4v1::Update::MODIFY:
@@ -1245,10 +1245,10 @@ class DeviceMgrImp {
       case p4v1::Update::DELETE:
         return action_prof_mgr->group_delete(group, session);
       default:
-        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid update type");
     }
     assert(0);
-    RETURN_ERROR_STATUS(Code::UNKNOWN);  // UNREACHABLE
+    RETURN_ERROR_STATUS(Code::INTERNAL);  // UNREACHABLE
   }
 
   template <typename T, typename MemberAccessor, typename GroupAccessor>
@@ -1404,10 +1404,11 @@ class DeviceMgrImp {
         digest_mgr.ack(request.digest_ack());
         RETURN_OK_STATUS();
       default:
-        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
+        RETURN_ERROR_STATUS(
+            Code::INVALID_ARGUMENT, "Invalid stream message request type");
     }
     assert(0);
-    RETURN_ERROR_STATUS(Code::UNKNOWN);  // unreachable
+    RETURN_ERROR_STATUS(Code::INTERNAL);  // unreachable
   }
 
   void stream_message_response_register_cb(StreamMessageResponseCb cb,
@@ -1433,7 +1434,7 @@ class DeviceMgrImp {
     auto index = static_cast<size_t>(counter_entry.index().index());
     switch (update) {
       case p4v1::Update::UNSPECIFIED:
-        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Update type is not set");
       case p4v1::Update::INSERT:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                             "INSERT update type not supported for counters");
@@ -1462,7 +1463,7 @@ class DeviceMgrImp {
         }
         break;
       default:
-        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid update type");
     }
     RETURN_OK_STATUS();
   }
@@ -1498,7 +1499,7 @@ class DeviceMgrImp {
     }
     switch (update) {
       case p4v1::Update::UNSPECIFIED:
-        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Update type is not set");
       case p4v1::Update::INSERT:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                             "INSERT update type not supported for counters");
@@ -1531,7 +1532,7 @@ class DeviceMgrImp {
         }
         break;
       default:
-        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid update type");
     }
     RETURN_OK_STATUS();
   }
@@ -1601,7 +1602,7 @@ class DeviceMgrImp {
   Status direct_counter_read_one(const p4v1::TableEntry &table_entry,
                                  const SessionTemp &session,
                                  p4v1::ReadResponse *response) const {
-    if (table_entry.match_size() > 0) {
+    if (!table_entry.match().empty()) {
       auto table_lock = table_info_store.lock_table(table_entry.table_id());
 
       pi_entry_handle_t entry_handle = 0;
@@ -1665,7 +1666,7 @@ class DeviceMgrImp {
     }
     switch (update) {
       case p4v1::Update::UNSPECIFIED:
-        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Update type is not set");
       case p4v1::Update::INSERT:
         return pre_mc_mgr->group_create(mc_group_entry);
       case p4v1::Update::MODIFY:
@@ -1675,7 +1676,7 @@ class DeviceMgrImp {
       default:
         break;
     }
-    RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid PRE update type");
+    RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid update type");
   }
 
   Status pre_clone_write(p4v1::Update::Type update,
@@ -1683,7 +1684,7 @@ class DeviceMgrImp {
                          const SessionTemp &session) {
     switch (update) {
       case p4v1::Update::UNSPECIFIED:
-        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Update type is not set");
       case p4v1::Update::INSERT:
         return pre_clone_mgr->session_create(clone_session_entry, session);
       case p4v1::Update::MODIFY:
@@ -1693,7 +1694,7 @@ class DeviceMgrImp {
       default:
         break;
     }
-    RETURN_OK_STATUS();
+    RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid update type");
   }
 
   Status pre_write(p4v1::Update::Type update,
@@ -2261,7 +2262,8 @@ class DeviceMgrImp {
         RETURN_ERROR_STATUS(Code::INTERNAL,
                             "Unexpected call to construct_action_entry");
       default:
-        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT);
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                            "Invalid table action type");
     }
   }
 
