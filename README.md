@@ -7,10 +7,15 @@
 
 ## Install script
 
-To use one script that installs all that PI needs and also intalls PI,
-use the script below.
+To use a script that installs all that PI needs and also intalls PI,
+use the script below.  First, copy the scirpt to another directory and
+remove the existing PI. Then install a fresh PI and its dependencies
+using the script.
 
 install-p4dev-p4runtime.sh
+
+After installation is complete, use `./configure` from PI root directory
+to configure different options.
 
 ## Dependencies
 
