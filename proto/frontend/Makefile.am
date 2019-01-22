@@ -20,6 +20,8 @@ src/table_info_store.h \
 src/table_info_store.cpp \
 src/action_helpers.h \
 src/action_helpers.cpp \
+src/match_key_helpers.h \
+src/match_key_helpers.cpp \
 src/packet_io_mgr.h \
 src/packet_io_mgr.cpp \
 src/common.h \
@@ -34,7 +36,9 @@ src/pre_clone_mgr.cpp \
 src/task_queue.h \
 src/digest_mgr.h \
 src/digest_mgr.cpp \
-src/statusor.h
+src/statusor.h \
+src/idle_timeout_buffer.h \
+src/idle_timeout_buffer.cpp
 
 libpifeproto_la_LIBADD = \
 $(top_builddir)/../frontends_extra/cpp/libpifecpp.la \

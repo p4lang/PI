@@ -47,7 +47,11 @@ pi_value.c \
 pi_mc.c \
 pi_clone.c \
 device_map.c \
-device_map.h
+device_map.h \
+cb_mgr.c \
+cb_mgr.h \
+pi_tables_int.h \
+pi_learn_int.h
 
 if WITH_INTERNAL_RPC
 libpi_la_SOURCES += \

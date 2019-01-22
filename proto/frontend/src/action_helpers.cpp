@@ -36,7 +36,8 @@ namespace proto {
 using Code = ::google::rpc::Code;
 using common::check_proto_bytestring;
 
-Status validate_action_data(pi_p4info_t *p4info, const p4v1::Action &action) {
+Status validate_action_data(const pi_p4info_t *p4info,
+                            const p4v1::Action &action) {
   Status status;
   Code code;
   size_t exp_num_params = pi_p4info_action_num_params(

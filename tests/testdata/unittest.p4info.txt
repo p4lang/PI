@@ -1,3 +1,6 @@
+pkg_info {
+  arch: "v1model"
+}
 tables {
   preamble {
     id: 33582705
@@ -18,7 +21,7 @@ tables {
   }
   action_refs {
     id: 16800567
-    annotations: "@defaultonly()"
+    annotations: "@defaultonly"
     scope: DEFAULT_ONLY
   }
   direct_resource_ids: 318768298
@@ -42,7 +45,7 @@ tables {
   }
   action_refs {
     id: 16800567
-    annotations: "@defaultonly()"
+    annotations: "@defaultonly"
     scope: DEFAULT_ONLY
   }
   size: 512
@@ -64,7 +67,7 @@ tables {
   }
   action_refs {
     id: 16800567
-    annotations: "@defaultonly()"
+    annotations: "@defaultonly"
     scope: DEFAULT_ONLY
   }
   size: 512
@@ -92,7 +95,7 @@ tables {
   }
   action_refs {
     id: 16800567
-    annotations: "@defaultonly()"
+    annotations: "@defaultonly"
     scope: DEFAULT_ONLY
   }
   size: 512
@@ -114,7 +117,7 @@ tables {
   }
   action_refs {
     id: 16800567
-    annotations: "@defaultonly()"
+    annotations: "@defaultonly"
     scope: DEFAULT_ONLY
   }
   size: 512
@@ -157,7 +160,7 @@ tables {
   }
   action_refs {
     id: 16800567
-    annotations: "@defaultonly()"
+    annotations: "@defaultonly"
     scope: DEFAULT_ONLY
   }
   size: 512
@@ -182,7 +185,7 @@ tables {
   }
   action_refs {
     id: 16800567
-    annotations: "@defaultonly()"
+    annotations: "@defaultonly"
     scope: DEFAULT_ONLY
   }
   implementation_id: 285237193
@@ -208,7 +211,7 @@ tables {
   }
   action_refs {
     id: 16800567
-    annotations: "@defaultonly()"
+    annotations: "@defaultonly"
     scope: DEFAULT_ONLY
   }
   size: 512
@@ -233,7 +236,7 @@ tables {
   }
   action_refs {
     id: 16800567
-    annotations: "@defaultonly()"
+    annotations: "@defaultonly"
     scope: DEFAULT_ONLY
   }
   size: 1024
@@ -256,17 +259,17 @@ tables {
   }
   action_refs {
     id: 16809468
-    annotations: "@tableonly()"
+    annotations: "@tableonly"
     scope: TABLE_ONLY
   }
   action_refs {
     id: 16827074
-    annotations: "@defaultonly()"
+    annotations: "@defaultonly"
     scope: DEFAULT_ONLY
   }
   action_refs {
     id: 16800567
-    annotations: "@defaultonly()"
+    annotations: "@defaultonly"
     scope: DEFAULT_ONLY
   }
   size: 512
@@ -284,15 +287,41 @@ tables {
     match_type: EXACT
   }
   action_refs {
+    id: 16827074
+  }
+  action_refs {
+    id: 16809468
+    annotations: "@defaultonly"
+    scope: DEFAULT_ONLY
+  }
+  const_default_action_id: 16809468
+  size: 512
+}
+tables {
+  preamble {
+    id: 33599229
+    name: "IdleTimeoutTable"
+    alias: "IdleTimeoutTable"
+  }
+  match_fields {
+    id: 1
+    name: "header_test.field16"
+    bitwidth: 16
+    match_type: EXACT
+  }
+  action_refs {
     id: 16783703
   }
   action_refs {
-    id: 16827074
-    annotations: "@defaultonly()"
+    id: 16809468
+  }
+  action_refs {
+    id: 16800567
+    annotations: "@defaultonly"
     scope: DEFAULT_ONLY
   }
-  const_default_action_id: 16827074
   size: 512
+  idle_timeout_behavior: NOTIFY_CONTROL
 }
 actions {
   preamble {

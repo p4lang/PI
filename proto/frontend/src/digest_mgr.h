@@ -32,6 +32,8 @@
 #include "p4/config/v1/p4info.pb.h"
 #include "p4/v1/p4runtime.pb.h"
 
+#include "common.h"
+
 namespace pi {
 
 namespace fe {
@@ -48,7 +50,7 @@ using DigestTaskQueue = TaskQueue<std::chrono::steady_clock>;
 class DigestMgr {
  public:
   using device_id_t = DeviceMgr::device_id_t;
-  using p4_id_t = DeviceMgr::p4_id_t;
+  using p4_id_t = common::p4_id_t;
   using StreamMessageResponseCb = DeviceMgr::StreamMessageResponseCb;
   using Status = DeviceMgr::Status;
 

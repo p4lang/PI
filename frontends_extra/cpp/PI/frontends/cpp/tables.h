@@ -217,7 +217,9 @@ class ActionEntry {
   friend class MatchTable;
 
   ActionEntry()
-      : tag(Tag::NONE) { }
+      : tag(Tag::NONE) {
+    pi_entry_properties_clear(&properties);
+  }
 
   ~ActionEntry() {
     switch (tag) {
@@ -275,6 +277,10 @@ class ActionEntry {
     direct_config.configs = _configs.data();
   }
 
+  void set_ttl(uint64_t ttl_ns) {
+    pi_entry_properties_set_ttl(&properties, ttl_ns);
+  }
+
  private:
   enum class Tag { NONE, ACTION_DATA, INDIRECT_HANDLE } tag;
 
@@ -282,6 +288,8 @@ class ActionEntry {
 
   std::vector<pi_direct_res_config_one_t> _configs;
   pi_direct_res_config_t direct_config{0u, nullptr};
+
+  pi_entry_properties_t properties;
 
   union {
     ActionData _action_data;

@@ -33,28 +33,24 @@ extern "C" {
 //! Possible properties for a table entry
 typedef enum {
   //! Entry TTL, for entry ageing
-  PI_ENTRY_PROPERTY_TYPE_TTL,
-  PI_ENTRY_PROPERTY_TYPE_END
+  PI_ENTRY_PROPERTY_TYPE_TTL = 0,
+  PI_ENTRY_PROPERTY_TYPE_END = 32
 } pi_entry_property_type_t;
 
 // TODO(antonin): hide this?
 //! List of properties for a new entry, will probably be improved in the future.
 struct pi_entry_properties_s {
   uint32_t valid_properties;
-  uint32_t ttl;
+  uint64_t ttl_ns;
 };
 
 typedef struct pi_entry_properties_s pi_entry_properties_t;
 
 //! Clear all properties.
 void pi_entry_properties_clear(pi_entry_properties_t *properties);
-// for now both properties are uint32_t, we'll see if we need to change it in
-// the future
-//! Set a property.
-pi_status_t pi_entry_properties_set(pi_entry_properties_t *properties,
-                                    pi_entry_property_type_t property_type,
-                                    uint32_t property_value);
-/* const pi_value_t *property_value); */
+//! Set the TTL property.
+pi_status_t pi_entry_properties_set_ttl(pi_entry_properties_t *properties,
+                                        uint64_t ttl_ns);
 //! Test if a property is set.
 bool pi_entry_properties_is_set(const pi_entry_properties_t *properties,
                                 pi_entry_property_type_t property_type);
@@ -108,6 +104,20 @@ typedef struct {
   pi_match_key_t *match_key;
   pi_table_entry_t entry;
 } pi_table_ma_entry_t;
+
+typedef struct {
+  // minimum TTL value to use for this table, may be useful to configure target
+  uint64_t min_ttl_ns;
+} pi_idle_timeout_config_t;
+
+//! Callback type for idle timeout events.
+//! Target owns the memory for match_key and can free it after the function
+//! returns. Which means the application must copy the match key if required
+//! before returning from the callback.
+typedef void (*PIIdleTimeoutCb)(pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                const pi_match_key_t *match_key,
+                                pi_entry_handle_t entry_handle,
+                                void *cb_cookie);
 
 //! Adds an entry to a table. Trying to add an entry that already exists should
 //! return an error, unless the \p overwrite flag is set.
@@ -186,6 +196,22 @@ size_t pi_table_entries_num(pi_table_fetch_res_t *res);
 size_t pi_table_entries_next(pi_table_fetch_res_t *res,
                              pi_table_ma_entry_t *entry,
                              pi_entry_handle_t *entry_handle);
+
+pi_status_t pi_table_idle_timeout_config_set(
+    pi_session_handle_t session_handle, pi_dev_id_t dev_id, pi_p4_id_t table_id,
+    const pi_idle_timeout_config_t *config);
+
+pi_status_t pi_table_idle_timeout_register_cb(pi_dev_id_t dev_id,
+                                              PIIdleTimeoutCb cb,
+                                              void *cb_cookie);
+
+pi_status_t pi_table_idle_timeout_deregister_cb(pi_dev_id_t dev_id);
+
+pi_status_t pi_table_entry_get_remaining_ttl(pi_session_handle_t session_handle,
+                                             pi_dev_id_t dev_id,
+                                             pi_p4_id_t table_id,
+                                             pi_entry_handle_t entry_handle,
+                                             uint64_t *ttl_ns);
 
 #ifdef __cplusplus
 }

@@ -31,6 +31,7 @@
 
 #define DEFAULT_TABLE_SIZE 1024
 #define DEFAULT_TABLE_IS_CONST false
+#define DEFAULT_TABLE_IDLE_TIMEOUT false
 
 static pi_p4info_t *p4info;
 static size_t num_fields;
@@ -62,7 +63,7 @@ static void p4info_init(size_t bitwidth, pi_p4info_match_type_t match_type) {
   pi_p4info_action_add_param(p4info, aid, pid, "p0_0", bitwidth);
   tid = pi_make_table_id(0);
   pi_p4info_table_add(p4info, tid, "t0", 1, 1, DEFAULT_TABLE_SIZE,
-                      DEFAULT_TABLE_IS_CONST);
+                      DEFAULT_TABLE_IS_CONST, DEFAULT_TABLE_IDLE_TIMEOUT);
   pi_p4info_table_add_match_field(p4info, tid, 0, "f0", match_type, bitwidth);
   pi_p4info_table_add_action(p4info, tid, aid,
                              PI_P4INFO_ACTION_SCOPE_TABLE_AND_DEFAULT);

@@ -196,6 +196,16 @@ control ingress(inout headers_t hdr, inout metadata_t meta, inout standard_metad
         size = 512;
     }
 
+    @name(".IdleTimeoutTable")
+    table IdleTimeoutTable {
+        key = {
+            hdr.header_test.field16 : exact;
+        }
+        actions = { actionA; actionB; }
+        size = 512;
+        support_timeout = true;
+    }
+
     apply {
         ExactOne.apply();
         LpmOne.apply();
@@ -210,6 +220,7 @@ control ingress(inout headers_t hdr, inout metadata_t meta, inout standard_metad
         ConstTable.apply();
         ActionsAnnotationsTable.apply();
         ConstDefaultActionTable.apply();
+        IdleTimeoutTable.apply();
 
         test_digest = {hdr.header_test.field48, hdr.header_test.field12};
         digest(1, test_digest);

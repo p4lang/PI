@@ -23,27 +23,46 @@
 #include <PI/pi.h>
 #include <PI/pi_tables.h>
 #include <PI/target/pi_tables_imp.h>
+#include "cb_mgr.h"
+#include "pi_tables_int.h"
 
+#include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
+
+// for idle timeout
+static cb_mgr_t cb_mgr;
+static pthread_mutex_t cb_mutex;
+
+pi_status_t pi_table_init() {
+  if (pthread_mutex_init(&cb_mutex, NULL)) return PI_STATUS_PTHREAD_ERROR;
+  cb_mgr_init(&cb_mgr);
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_table_destroy() {
+  if (pthread_mutex_destroy(&cb_mutex)) return PI_STATUS_PTHREAD_ERROR;
+  cb_mgr_destroy(&cb_mgr);
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_table_assign_device(pi_dev_id_t dev_id) {
+  (void)dev_id;
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_table_remove_device(pi_dev_id_t dev_id) {
+  return pi_table_idle_timeout_deregister_cb(dev_id);
+}
 
 void pi_entry_properties_clear(pi_entry_properties_t *properties) {
   memset(properties, 0, sizeof(*properties));
 }
 
-pi_status_t pi_entry_properties_set(pi_entry_properties_t *properties,
-                                    pi_entry_property_type_t property_type,
-                                    uint32_t property_value) {
-  /* const pi_value_t *property_value) { */
-  switch (property_type) {
-    case PI_ENTRY_PROPERTY_TYPE_TTL:
-      properties->ttl = property_value;
-      break;
-    default:
-      return PI_STATUS_INVALID_ENTRY_PROPERTY;
-  }
-  assert(property_type <= 8 * sizeof(properties->valid_properties));
-  properties->valid_properties |= (1 << property_type);
+pi_status_t pi_entry_properties_set_ttl(pi_entry_properties_t *properties,
+                                        uint64_t ttl_ns) {
+  properties->valid_properties |= (1 << PI_ENTRY_PROPERTY_TYPE_TTL);
+  properties->ttl_ns = ttl_ns;
   // TODO(antonin): return different code if the property was set previously
   return PI_STATUS_SUCCESS;
 }
@@ -298,7 +317,7 @@ size_t pi_table_entries_next(pi_table_fetch_res_t *res,
   res->curr +=
       retrieve_uint32(res->entries + res->curr, &properties->valid_properties);
   if (properties->valid_properties & (1 << PI_ENTRY_PROPERTY_TYPE_TTL)) {
-    res->curr += retrieve_uint32(res->entries + res->curr, &properties->ttl);
+    res->curr += retrieve_uint64(res->entries + res->curr, &properties->ttl_ns);
   }
 
   // direct resources
@@ -339,4 +358,68 @@ size_t pi_table_entries_next(pi_table_fetch_res_t *res,
   }
 
   return res->idx++;
+}
+
+pi_status_t pi_table_idle_timeout_config_set(
+    pi_session_handle_t session_handle, pi_dev_id_t dev_id, pi_p4_id_t table_id,
+    const pi_idle_timeout_config_t *config) {
+  const pi_p4info_t *p4info = pi_get_device_p4info(dev_id);
+  if (!p4info) return PI_STATUS_DEV_NOT_ASSIGNED;
+  if (!pi_p4info_table_supports_idle_timeout(p4info, table_id))
+    return PI_STATUS_TABLE_NO_IDLE_TIMEOUT;
+  return _pi_table_idle_timeout_config_set(session_handle, dev_id, table_id,
+                                           config);
+}
+
+pi_status_t pi_table_idle_timeout_register_cb(pi_dev_id_t dev_id,
+                                              PIIdleTimeoutCb cb,
+                                              void *cb_cookie) {
+  pthread_mutex_lock(&cb_mutex);
+  cb_mgr_add(&cb_mgr, dev_id, (GenericFnPtr)cb, cb_cookie);
+  pthread_mutex_unlock(&cb_mutex);
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_table_idle_timeout_deregister_cb(pi_dev_id_t dev_id) {
+  pthread_mutex_lock(&cb_mutex);
+  cb_mgr_rm(&cb_mgr, dev_id);
+  pthread_mutex_unlock(&cb_mutex);
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_table_idle_timeout_notify(pi_dev_id_t dev_id,
+                                         pi_p4_id_t table_id,
+                                         pi_match_key_t *match_key,
+                                         pi_entry_handle_t entry_handle) {
+  match_key->p4info = pi_get_device_p4info(dev_id);
+  pthread_mutex_lock(&cb_mutex);
+  const cb_data_t *cb_data = cb_mgr_get(&cb_mgr, dev_id);
+  if (cb_data) {
+    ((PIIdleTimeoutCb)(cb_data->cb))(dev_id, table_id, match_key, entry_handle,
+                                     cb_data->cookie);
+    pthread_mutex_unlock(&cb_mutex);
+    return PI_STATUS_SUCCESS;
+  }
+  const cb_data_t *default_cb_data = cb_mgr_get_default(&cb_mgr);
+  if (default_cb_data->cb) {
+    ((PIIdleTimeoutCb)(default_cb_data->cb))(dev_id, table_id, match_key,
+                                             entry_handle, cb_data->cookie);
+    pthread_mutex_unlock(&cb_mutex);
+    return PI_STATUS_SUCCESS;
+  }
+  pthread_mutex_unlock(&cb_mutex);
+  return PI_STATUS_IDLE_TIMEOUT_NO_MATCHING_CB;
+}
+
+pi_status_t pi_table_entry_get_remaining_ttl(pi_session_handle_t session_handle,
+                                             pi_dev_id_t dev_id,
+                                             pi_p4_id_t table_id,
+                                             pi_entry_handle_t entry_handle,
+                                             uint64_t *ttl_ns) {
+  const pi_p4info_t *p4info = pi_get_device_p4info(dev_id);
+  if (!p4info) return PI_STATUS_DEV_NOT_ASSIGNED;
+  if (!pi_p4info_table_supports_idle_timeout(p4info, table_id))
+    return PI_STATUS_TABLE_NO_IDLE_TIMEOUT;
+  return _pi_table_entry_get_remaining_ttl(session_handle, dev_id, table_id,
+                                           entry_handle, ttl_ns);
 }

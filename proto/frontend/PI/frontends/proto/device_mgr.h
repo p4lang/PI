@@ -43,7 +43,6 @@ class DeviceMgrImp;
 class DeviceMgr {
  public:
   using device_id_t = uint64_t;
-  using p4_id_t = uint32_t;
   using Status = ::google::rpc::Status;
   using StreamMessageResponseCb = std::function<void(
       device_id_t, p4::v1::StreamMessageResponse *msg, void *cookie)>;

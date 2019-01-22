@@ -18,6 +18,9 @@
  *
  */
 
+#ifndef PI_SRC_DEVICE_MAP_H_
+#define PI_SRC_DEVICE_MAP_H_
+
 #include <PI/pi_base.h>
 
 #include <stdbool.h>
@@ -45,3 +48,5 @@ void device_map_for_each(device_map_t *map, DeviceMapApplyFn fn, void *cookie);
 size_t device_map_count(device_map_t *map);
 
 void device_map_destroy(device_map_t *map);
+
+#endif  // PI_SRC_DEVICE_MAP_H_

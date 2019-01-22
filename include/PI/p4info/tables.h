@@ -147,6 +147,9 @@ size_t pi_p4info_table_max_size(const pi_p4info_t *p4info, pi_p4_id_t table_id);
 
 bool pi_p4info_table_is_const(const pi_p4info_t *p4info, pi_p4_id_t table_id);
 
+bool pi_p4info_table_supports_idle_timeout(const pi_p4info_t *p4info,
+                                           pi_p4_id_t table_id);
+
 pi_p4_id_t pi_p4info_table_begin(const pi_p4info_t *p4info);
 pi_p4_id_t pi_p4info_table_next(const pi_p4info_t *p4info, pi_p4_id_t id);
 pi_p4_id_t pi_p4info_table_end(const pi_p4info_t *p4info);

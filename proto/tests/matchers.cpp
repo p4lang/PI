@@ -236,6 +236,11 @@ TableEntryMatcher_Base::add_direct_counter(pi_p4_id_t counter_id,
                    CounterDataMatcher(data, check_bytes, check_packets));
 }
 
+void
+TableEntryMatcher_Base::set_ttl(boost::optional<int64_t> ttl_ns) {
+  ttl = ttl_ns;
+}
+
 bool
 TableEntryMatcher_Base::match_direct(const pi_table_entry_t *t_entry,
                                      MatchResultListener *listener) const {
@@ -266,6 +271,24 @@ TableEntryMatcher_Base::match_direct(const pi_table_entry_t *t_entry,
       }
     }
   }
+
+  auto *properties = t_entry->entry_properties;
+  bool is_ttl_set = pi_entry_properties_is_set(
+      properties, PI_ENTRY_PROPERTY_TYPE_TTL);
+  if (ttl) {
+    if (!is_ttl_set) {
+      *listener << "Expected TTL property in table entry";
+      return false;
+    } else if (*ttl != static_cast<int64_t>(properties->ttl_ns)) {
+      *listener << "Expected a TTL value of " << *ttl << " but got "
+                << properties->ttl_ns;
+      return false;
+    }
+  } else if (is_ttl_set) {
+    *listener << "Unexpected TTL property in table entry";
+      return false;
+  }
+
   return true;
 }
 

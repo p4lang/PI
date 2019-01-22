@@ -149,3 +149,26 @@ pi_status_t _pi_table_entries_fetch_done(pi_session_handle_t session_handle,
   func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
+
+pi_status_t _pi_table_idle_timeout_config_set(
+    pi_session_handle_t session_handle, pi_dev_id_t dev_id, pi_p4_id_t table_id,
+    const pi_idle_timeout_config_t *config) {
+  (void)session_handle;
+  (void)dev_id;
+  (void)table_id;
+  (void)config;
+  func_counter_increment(__func__);
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_table_entry_get_remaining_ttl(
+    pi_session_handle_t session_handle, pi_dev_id_t dev_id, pi_p4_id_t table_id,
+    pi_entry_handle_t entry_handle, uint64_t *ttl_ns) {
+  (void)session_handle;
+  (void)dev_id;
+  (void)table_id;
+  (void)entry_handle;
+  (void)ttl_ns;
+  func_counter_increment(__func__);
+  return PI_STATUS_SUCCESS;
+}

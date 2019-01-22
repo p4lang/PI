@@ -596,7 +596,7 @@ MatchTable::MatchTable(pi_session_handle_t sess, pi_dev_tgt_t dev_tgt,
 pi_table_entry_t
 MatchTable::build_table_entry(const ActionEntry &action_entry) const {
   pi_table_entry_t entry;
-  entry.entry_properties = NULL;
+  entry.entry_properties = &action_entry.properties;
   // TODO(antonin): we could simply use entry.direct_res_config =
   // &action_entry.direct_config? Is it better to use a NULL pointer when the
   // direct resource list is empty?
