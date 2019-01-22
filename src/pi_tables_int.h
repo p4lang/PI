@@ -1,4 +1,4 @@
-/* Copyright 2013-present Barefoot Networks, Inc.
+/* Copyright 2018-present Barefoot Networks, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,29 +18,25 @@
  *
  */
 
-#ifndef SRC_ACTION_HELPERS_H_
-#define SRC_ACTION_HELPERS_H_
+#ifndef PI_SRC_PI_TABLE_INT_H_
+#define PI_SRC_PI_TABLE_INT_H_
 
-#include <PI/pi.h>
+#include "PI/pi_base.h"
 
-#include "google/rpc/status.pb.h"
-#include "p4/v1/p4runtime.pb.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-namespace pi {
+pi_status_t pi_table_init();
 
-namespace fe {
+pi_status_t pi_table_destroy();
 
-namespace proto {
+pi_status_t pi_table_assign_device(pi_dev_id_t dev_id);
 
-using Status = ::google::rpc::Status;
+pi_status_t pi_table_remove_device(pi_dev_id_t dev_id);
 
-Status validate_action_data(const pi_p4info_t *p4info,
-                            const p4::v1::Action &action);
+#ifdef __cplusplus
+}
+#endif
 
-}  // namespace proto
-
-}  // namespace fe
-
-}  // namespace pi
-
-#endif  // SRC_ACTION_HELPERS_H_
+#endif  // PI_SRC_PI_TABLE_INT_H_

@@ -31,7 +31,8 @@ void pi_p4info_table_init(pi_p4info_t *p4info, size_t num_tables);
 
 void pi_p4info_table_add(pi_p4info_t *p4info, pi_p4_id_t table_id,
                          const char *name, size_t num_match_fields,
-                         size_t num_actions, size_t max_size, bool is_const);
+                         size_t num_actions, size_t max_size, bool is_const,
+                         bool supports_idle_timeout);
 
 void pi_p4info_table_add_match_field(pi_p4info_t *p4info, pi_p4_id_t table_id,
                                      pi_p4_id_t field_id, const char *name,

@@ -39,7 +39,7 @@ TEST_SETUP(GetNetv) {
   pi_p4info_table_init(p4info, 1);
   tid = pi_make_table_id(0);
   const size_t num_mfs = 256;
-  pi_p4info_table_add(p4info, tid, "t", num_mfs, 0, 1, false);
+  pi_p4info_table_add(p4info, tid, "t", num_mfs, 0, 1, false, false);
   for (size_t i = 0; i < num_mfs; i++) {
     char name[16];
     snprintf(name, sizeof(name), "f%zu", i);

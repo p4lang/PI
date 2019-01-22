@@ -90,9 +90,12 @@ void read_tables(const p4configv1::P4Info &p4info_proto, pi_p4info_t *p4info) {
   pi_p4info_table_init(p4info, tables.size());
   for (const auto &table : tables) {
     const auto &pre = table.preamble();
+    bool supports_idle_timeout =
+        (table.idle_timeout_behavior() == p4configv1::Table::NOTIFY_CONTROL);
     pi_p4info_table_add(p4info, pre.id(), pre.name().c_str(),
                         table.match_fields().size(), table.action_refs().size(),
-                        table.size(), table.is_const_table());
+                        table.size(), table.is_const_table(),
+                        supports_idle_timeout);
 
     for (const auto &mf : table.match_fields()) {
       auto match_type_convert = [&mf]() {
@@ -442,6 +445,12 @@ void p4info_serialize_tables(const pi_p4info_t *p4info,
     table->set_size(pi_p4info_table_max_size(p4info, id));
 
     table->set_is_const_table(pi_p4info_table_is_const(p4info, id));
+
+    bool supports_idle_timeout = pi_p4info_table_supports_idle_timeout(
+        p4info, id);
+    table->set_idle_timeout_behavior(
+        supports_idle_timeout ?
+            p4configv1::Table::NOTIFY_CONTROL : p4configv1::Table::NO_TIMEOUT);
   }
 }
 

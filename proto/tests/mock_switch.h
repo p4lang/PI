@@ -97,6 +97,9 @@ class DummySwitchMock {
                             pi_learn_msg_id_t msg_id,
                             const std::vector<std::string> &samples) const;
 
+  pi_status_t age_entry(pi_p4_id_t table_id,
+                        pi_entry_handle_t entry_handle) const;
+
   void set_p4info(const pi_p4info_t *p4info);
 
   void reset();
@@ -116,6 +119,10 @@ class DummySwitchMock {
                            const pi_table_entry_t *));
   MOCK_METHOD2(table_entries_fetch,
                pi_status_t(pi_p4_id_t, pi_table_fetch_res_t *));
+  MOCK_METHOD2(table_idle_timeout_config_set,
+               pi_status_t(pi_p4_id_t, const pi_idle_timeout_config_t *));
+  MOCK_METHOD3(table_entry_get_remaining_ttl,
+               pi_status_t(pi_p4_id_t, pi_entry_handle_t, uint64_t *));
 
   MOCK_METHOD3(action_prof_member_create,
                pi_status_t(pi_p4_id_t, const pi_action_data_t *,

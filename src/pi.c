@@ -25,6 +25,7 @@
 #include "_assert.h"
 #include "device_map.h"
 #include "pi_learn_int.h"
+#include "pi_tables_int.h"
 #include "utils/logging.h"
 #include "vector.h"
 
@@ -129,8 +130,9 @@ static void register_std_direct_res() {
 }
 
 pi_status_t pi_init(size_t max_devices, pi_remote_addr_t *remote_addr) {
-  // TODO(antonin): best place for this? I don't see another option
   (void)max_devices;
+  pi_status_t status;
+  // TODO(antonin): best place for this? I don't see another option
   register_std_direct_res();
   if (pthread_mutex_init(&device_map_mutex, NULL))
     return PI_STATUS_PTHREAD_ERROR;
@@ -138,7 +140,9 @@ pi_status_t pi_init(size_t max_devices, pi_remote_addr_t *remote_addr) {
   device_map_create(&device_map);
   device_arr = vector_create(sizeof(pi_device_info_t), 256);
   device_map_create(&device_packetin_cb_data);
-  pi_status_t status = pi_learn_init();
+  status = pi_learn_init();
+  if (status != PI_STATUS_SUCCESS) return status;
+  status = pi_table_init();
   if (status != PI_STATUS_SUCCESS) return status;
   return _pi_init((void *)remote_addr);
 }
@@ -174,6 +178,7 @@ pi_status_t pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
   }
 
   _PI_ASSERT(pi_learn_assign_device(dev_id) == PI_STATUS_SUCCESS);
+  _PI_ASSERT(pi_table_assign_device(dev_id) == PI_STATUS_SUCCESS);
 
   pi_status_t status = _pi_assign_device(dev_id, p4info, extra);
   if (status == PI_STATUS_SUCCESS) {
@@ -255,6 +260,7 @@ pi_status_t pi_remove_device(pi_dev_id_t dev_id) {
   free(packetin_cb_data);
 
   _PI_ASSERT(pi_learn_remove_device(dev_id) == PI_STATUS_SUCCESS);
+  _PI_ASSERT(pi_table_remove_device(dev_id) == PI_STATUS_SUCCESS);
 
   pi_device_unlock();
 
@@ -278,12 +284,15 @@ pi_status_t pi_batch_end(pi_session_handle_t session_handle, bool hw_sync) {
 }
 
 pi_status_t pi_destroy() {
+  pi_status_t status;
   pthread_mutex_destroy(&device_map_mutex);
   pthread_mutex_destroy(&cb_mutex);
   vector_destroy(device_arr);
   device_map_destroy(&device_map);
   device_map_destroy(&device_packetin_cb_data);
-  pi_status_t status = pi_learn_destroy();
+  status = pi_learn_destroy();
+  if (status != PI_STATUS_SUCCESS) return status;
+  status = pi_table_destroy();
   if (status != PI_STATUS_SUCCESS) return status;
   return _pi_destroy();
 }

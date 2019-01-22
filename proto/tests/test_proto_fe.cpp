@@ -27,11 +27,15 @@
 #include <google/protobuf/util/message_differencer.h>
 
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <cstring>  // std::memcmp
 #include <fstream>  // std::ifstream
 #include <iterator>  // std::distance
 #include <memory>
+#include <mutex>
 #include <ostream>
+#include <queue>
 #include <regex>
 #include <string>
 #include <thread>
@@ -213,6 +217,8 @@ class DeviceMgrTest : public ::testing::Test {
     config.set_p4_device_config(dummy_device_config);
     EXPECT_CALL(*mock, action_prof_api_support())
         .WillRepeatedly(Return(action_prof_api_choice));
+    EXPECT_CALL(*mock, table_idle_timeout_config_set(
+        pi_p4info_table_id_from_name(p4info, "IdleTimeoutTable"), _));
     auto status = mgr.pipeline_config_set(
         p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT,
         config);
@@ -353,6 +359,8 @@ TEST_F(DeviceMgrTest, PipelineConfigGetLarge) {
     large_device_config_.set_device_data(std::string(32768, 'a'));
     large_device_config_.SerializeToString(&large_device_config);
     config.set_p4_device_config(large_device_config);
+    EXPECT_CALL(*mock, table_idle_timeout_config_set(
+        pi_p4info_table_id_from_name(p4info, "IdleTimeoutTable"), _));
     ASSERT_OK(mgr.pipeline_config_set(
         p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT,
         config));
@@ -3185,6 +3193,199 @@ TEST_F(MatchTableActionAnnotationsTest, DefaultOnly) {
   EXPECT_EQ(insert_entry(std::string("\x01\x02"), aC_id, boost::none),
             OneExpectedError(Code::PERMISSION_DENIED,
                              "Cannot use DEFAULT_ONLY action in table entry"));
+}
+
+
+class IdleTimeoutTest : public ExactOneTest {
+ protected:
+  IdleTimeoutTest()
+      : ExactOneTest("IdleTimeoutTable", "header_test.field16") { }
+
+  void SetUp() override {
+    ExactOneTest::SetUp();
+
+    mgr.stream_message_response_register_cb([this](
+        device_id_t, p4::v1::StreamMessageResponse *msg, void *) {
+      if (!msg->has_idle_timeout_notification()) return;
+      Lock lock(mutex);
+      notifications.push(msg->idle_timeout_notification());
+      cvar.notify_one();
+    }, nullptr);
+  }
+
+  // prevent name hiding
+  using ExactOneTest::make_entry;
+
+  template<typename Rep, typename Period>
+  p4v1::TableEntry make_entry(
+      const boost::optional<std::string> &mf_v,
+      const std::string &param_v,
+      const std::chrono::duration<Rep, Period> &timeout) {
+    auto table_entry = make_entry(mf_v, param_v);
+    table_entry.set_idle_timeout_ns(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(timeout).count());
+    return table_entry;
+  }
+
+  template<typename Rep, typename Period>
+  boost::optional<p4v1::IdleTimeoutNotification> notification_receive(
+      const std::chrono::duration<Rep, Period> &timeout) {
+    using Clock = std::chrono::steady_clock;
+    Lock lock(mutex);
+    // using wait_until and not wait_for to account for spurious awakenings.
+    if (cvar.wait_until(lock, Clock::now() + timeout,
+                        [this] { return !notifications.empty(); })) {
+      auto notification = notifications.front();
+      notifications.pop();
+      return notification;
+    }
+    return boost::none;
+  }
+
+  boost::optional<p4v1::IdleTimeoutNotification> notification_receive() {
+    return notification_receive(defaultTimeout);
+  }
+
+  using Lock = std::unique_lock<std::mutex>;
+
+  static constexpr std::chrono::seconds defaultIdleTimeout{1};
+  static constexpr std::chrono::milliseconds defaultTimeout{500};
+  static constexpr std::chrono::milliseconds negativeTimeout{100};
+  // DeviceMgr will not delay notifications (for batching) by more than 100ms
+  static constexpr std::chrono::milliseconds notificationMaxDelay{100};
+
+  std::queue<p4v1::IdleTimeoutNotification> notifications;
+  mutable std::mutex mutex;
+  mutable std::condition_variable cvar;
+};
+
+/* static */ constexpr std::chrono::seconds IdleTimeoutTest::defaultIdleTimeout;
+/* static */
+constexpr std::chrono::milliseconds IdleTimeoutTest::defaultTimeout;
+/* static */
+constexpr std::chrono::milliseconds IdleTimeoutTest::negativeTimeout;
+/* static */
+constexpr std::chrono::milliseconds IdleTimeoutTest::notificationMaxDelay;
+
+TEST_F(IdleTimeoutTest, EntryAgeing) {
+  std::string mf(2, '\x00');
+  std::string adata(6, '\x00');
+  auto entry = make_entry(mf, adata, defaultIdleTimeout);
+
+  auto *entry_matcher_ = new TableEntryMatcher_Direct(a_id, adata);
+  entry_matcher_->set_ttl(entry.idle_timeout_ns());
+  auto entry_matcher = ::testing::MakeMatcher(entry_matcher_);
+
+  EXPECT_CALL(*mock, table_entry_add(t_id, _, entry_matcher, _));
+  EXPECT_OK(add_entry(&entry));
+  auto entry_handle = mock->get_table_entry_handle();
+  EXPECT_EQ(mock->age_entry(t_id, entry_handle), PI_STATUS_SUCCESS);
+  auto notification = notification_receive();
+  ASSERT_NE(notification, boost::none);
+  ASSERT_EQ(notification->table_entry_size(), 1);
+  const auto &table_entry = notification->table_entry(0);
+  entry.clear_action();
+  EXPECT_TRUE(MessageDifferencer::Equals(table_entry, entry));
+  EXPECT_EQ(notification_receive(negativeTimeout), boost::none);
+}
+
+// Checks that idle notifications which are close to each other in time are
+// batched together in the P4Runtime notification messages (to reduce client
+// load). By default the DeviceMgr implementation delays notifications by at
+// most 100ms.
+TEST_F(IdleTimeoutTest, Buffering) {
+  std::string adata(6, '\x00');
+  constexpr size_t num_entries = 3;
+  EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _)).Times(num_entries);
+  for (size_t i = 0; i < num_entries; i++) {
+    std::string mf(2, static_cast<char>(i));
+    auto entry = make_entry(mf, adata, defaultIdleTimeout);
+    EXPECT_OK(add_entry(&entry));
+    auto entry_handle = mock->get_table_entry_handle();
+    EXPECT_EQ(mock->age_entry(t_id, entry_handle), PI_STATUS_SUCCESS);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+  auto notification = notification_receive();
+  ASSERT_NE(notification, boost::none);
+  EXPECT_EQ(notification->table_entry_size(), static_cast<int>(num_entries));
+  EXPECT_EQ(notification_receive(negativeTimeout), boost::none);
+}
+
+// Checks that notifications are not buffered for too long.
+TEST_F(IdleTimeoutTest, MaxBuffering) {
+  std::string adata(6, '\x00');
+  constexpr size_t num_entries = 3;
+  EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _)).Times(num_entries);
+  for (size_t i = 0; i < num_entries; i++) {
+    std::string mf(2, static_cast<char>(i));
+    auto entry = make_entry(mf, adata, defaultIdleTimeout);
+    EXPECT_OK(add_entry(&entry));
+    auto entry_handle = mock->get_table_entry_handle();
+    EXPECT_EQ(mock->age_entry(t_id, entry_handle), PI_STATUS_SUCCESS);
+    std::this_thread::sleep_for(notificationMaxDelay);
+  }
+  int num_notifications = 0;
+  while (notification_receive() != boost::none) num_notifications++;
+  EXPECT_GT(num_notifications, 1);
+}
+
+TEST_F(IdleTimeoutTest, ModifyTTL) {
+  std::string mf(2, '\x00');
+  std::string adata(6, '\x00');
+  auto entry = make_entry(mf, adata, defaultIdleTimeout);
+
+  auto *entry_matcher_ = new TableEntryMatcher_Direct(a_id, adata);
+  entry_matcher_->set_ttl(entry.idle_timeout_ns());
+  auto entry_matcher = ::testing::MakeMatcher(entry_matcher_);
+
+  EXPECT_CALL(*mock, table_entry_add(t_id, _, entry_matcher, _));
+  EXPECT_OK(add_entry(&entry));
+
+  entry.set_idle_timeout_ns(
+      std::chrono::duration_cast<std::chrono::nanoseconds>(
+          2 * defaultIdleTimeout).count());
+  entry_matcher_->set_ttl(entry.idle_timeout_ns());
+
+  EXPECT_CALL(*mock, table_entry_modify_wkey(t_id, _, entry_matcher));
+  EXPECT_OK(modify_entry(&entry));
+
+  entry_matcher_->set_ttl(boost::none);
+
+  EXPECT_CALL(*mock, table_entry_modify_wkey(t_id, _, entry_matcher));
+  EXPECT_OK(modify_entry(&entry));
+}
+
+TEST_F(IdleTimeoutTest, ReadEntry) {
+  std::string mf(2, '\x00');
+  std::string adata(6, '\x00');
+  auto entry = make_entry(mf, adata, defaultIdleTimeout);
+
+  EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
+  EXPECT_OK(add_entry(&entry));
+
+  EXPECT_CALL(*mock, table_entries_fetch(t_id, _)).Times(2);
+
+  {
+    p4v1::ReadResponse response;
+    auto status = read_table_entry(&entry, &response);
+    ASSERT_EQ(status.code(), Code::OK);
+    const auto &entities = response.entities();
+    ASSERT_EQ(1, entities.size());
+    EXPECT_TRUE(
+        MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
+  }
+
+  entry.mutable_time_since_last_hit();
+
+  {
+    EXPECT_CALL(*mock, table_entry_get_remaining_ttl(t_id, _, _));
+    p4v1::ReadResponse response;
+    auto status = read_table_entry(&entry, &response);
+    ASSERT_EQ(status.code(), Code::OK);
+    const auto &entities = response.entities();
+    ASSERT_EQ(1, entities.size());
+    EXPECT_TRUE(entities.Get(0).table_entry().has_time_since_last_hit());
+  }
 }
 
 }  // namespace

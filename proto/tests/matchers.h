@@ -21,6 +21,8 @@
 #ifndef PROTO_TESTS_MATCHERS_H_
 #define PROTO_TESTS_MATCHERS_H_
 
+#include <boost/optional.hpp>
+
 #include <gmock/gmock.h>
 
 #include <iosfwd>
@@ -161,6 +163,9 @@ class TableEntryMatcher_Base {
                           const p4::v1::CounterData &data,
                           bool check_bytes, bool check_packets);
 
+  // boost:none means to TTL expected in the entry properties
+  void set_ttl(boost::optional<int64_t> ttl_ns);
+
  protected:
   TableEntryMatcher_Base();
 
@@ -169,6 +174,7 @@ class TableEntryMatcher_Base {
 
   std::unordered_map<pi_p4_id_t, MeterSpecMatcher> meters;
   std::unordered_map<pi_p4_id_t, CounterDataMatcher> counters;
+  boost::optional<int64_t> ttl;
 };
 
 class TableEntryMatcher_Direct

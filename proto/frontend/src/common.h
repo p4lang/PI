@@ -43,6 +43,8 @@ using Status = ::google::rpc::Status;
 
 namespace common {
 
+using p4_id_t = uint32_t;
+
 struct SessionTemp;
 
 struct LocalCleanupIface {

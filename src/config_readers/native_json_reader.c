@@ -125,9 +125,16 @@ static pi_status_t read_tables(cJSON *root, pi_p4info_t *p4info) {
     if (item->type != cJSON_True && item->type != cJSON_False)
       return PI_STATUS_CONFIG_READER_ERROR;
     bool is_const = (item->type == cJSON_True);
+    item = cJSON_GetObjectItem(table, "supports_idle_timeout");
+    bool supports_idle_timeout = false;
+    if (item) {
+      if (item->type != cJSON_True && item->type != cJSON_False)
+        return PI_STATUS_CONFIG_READER_ERROR;
+      supports_idle_timeout = (item->type == cJSON_True);
+    }
 
     pi_p4info_table_add(p4info, pi_id, name, num_match_fields, num_actions,
-                        max_size, is_const);
+                        max_size, is_const, supports_idle_timeout);
 
     import_common(table, p4info, pi_id);
 
