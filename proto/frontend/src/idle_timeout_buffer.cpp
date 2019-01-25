@@ -221,8 +221,16 @@ IdleTimeoutBuffer::handle_notification(p4_id_t table_id,
   };
 
   // non-blocking
-  task_queue->execute_task(std::unique_ptr<TaskIface>(
-      new TaskHandleNotification(this, table_id, std::move(match_key))));
+  size_t count = task_queue->execute_task_or_drop(
+      std::unique_ptr<TaskIface>(
+          new TaskHandleNotification(this, table_id, std::move(match_key))),
+      max_queue_size);
+  if (count == 0) {
+    Logger::get()->debug(
+        "Dropping idle time notification for table {} because queue is full",
+        table_id);
+    drop_count++;
+  }
 }
 
 }  // namespace proto
