@@ -24,6 +24,7 @@
 #include <PI/frontends/cpp/tables.h>
 #include <PI/frontends/proto/device_mgr.h>
 
+#include <atomic>
 #include <chrono>
 #include <memory>
 #include <thread>
@@ -81,6 +82,10 @@ class IdleTimeoutBuffer {
   void *cookie{nullptr};
   std::thread task_queue_thread;
   p4::v1::IdleTimeoutNotification notifications;
+  std::atomic<size_t> drop_count{0};
+
+  // start dropping notifications if queue grows too large
+  static constexpr size_t max_queue_size = 1000;
 };
 
 }  // namespace proto

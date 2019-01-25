@@ -91,23 +91,28 @@ class TaskQueue {
     cv.notify_one();
   }
 
-  void execute_task(std::unique_ptr<TaskIface> task) {
-    push_task(std::move(task), Clock::now());
+  size_t execute_task(std::unique_ptr<TaskIface> task) {
+    return push_task(std::move(task), Clock::now());
   }
 
-  void execute_task_at(std::unique_ptr<TaskIface> task,
-                       const typename Clock::time_point &tp) {
-    push_task(std::move(task), tp);
+  size_t execute_task_or_drop(std::unique_ptr<TaskIface> task,
+                              size_t max_size) {
+    return push_task_or_drop(std::move(task), Clock::now(), max_size);
+  }
+
+  size_t execute_task_at(std::unique_ptr<TaskIface> task,
+                         const typename Clock::time_point &tp) {
+    return push_task(std::move(task), tp);
   }
 
   template <typename Rep, typename Period>
-  void execute_task_in(std::unique_ptr<TaskIface> task,
-                       const std::chrono::duration<Rep, Period> &duration) {
-    push_task(std::move(task), Clock::now() + duration);
+  size_t execute_task_in(std::unique_ptr<TaskIface> task,
+                         const std::chrono::duration<Rep, Period> &duration) {
+    return push_task(std::move(task), Clock::now() + duration);
   }
 
   template <typename Rep, typename Period>
-  void execute_periodic_task(
+  size_t execute_periodic_task(
       std::unique_ptr<TaskIface> task,
       const std::chrono::duration<Rep, Period> &interval,
       bool wait_first = false) {
@@ -136,9 +141,9 @@ class TaskQueue {
     std::unique_ptr<TaskIface> timer_task(new PeriodicTask(
         this, std::move(task), interval));
     if (wait_first)
-      push_task(std::move(timer_task), Clock::now() + interval);
+      return push_task(std::move(timer_task), Clock::now() + interval);
     else
-      push_task(std::move(timer_task), Clock::now());
+      return push_task(std::move(timer_task), Clock::now());
   }
 
   TaskQueue(const TaskQueue &) = delete;
@@ -165,11 +170,23 @@ class TaskQueue {
   };
 
   template <typename Duration>
-  void push_task(std::unique_ptr<TaskIface> task,
-                 const std::chrono::time_point<Clock, Duration> &tp) {
+  size_t push_task(std::unique_ptr<TaskIface> task,
+                   const std::chrono::time_point<Clock, Duration> &tp) {
     Lock lock(m);
     queue.emplace(std::move(task), tp);
     cv.notify_one();
+    return 1;
+  }
+
+  template <typename Duration>
+  size_t push_task_or_drop(std::unique_ptr<TaskIface> task,
+                           const std::chrono::time_point<Clock, Duration> &tp,
+                           size_t max_size) {
+    Lock lock(m);
+    if (queue.size() >= max_size) return 0;
+    queue.emplace(std::move(task), tp);
+    cv.notify_one();
+    return 1;
   }
 
   bool stop_processing{false};
