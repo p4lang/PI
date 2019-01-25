@@ -212,7 +212,8 @@ void pi_p4info_table_serialize(cJSON *root, const pi_p4info_t *p4info) {
 
     cJSON_AddBoolToObject(tObject, "is_const", table->is_const);
 
-    cJSON_AddBoolToObject(tObject, "is_const", table->supports_idle_timeout);
+    cJSON_AddBoolToObject(tObject, "supports_idle_timeout",
+                          table->supports_idle_timeout);
 
     p4info_common_serialize(tObject, &table->common);
 
