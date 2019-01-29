@@ -340,6 +340,43 @@ static pi_status_t read_direct_meters(cJSON *root, pi_p4info_t *p4info) {
   return read_meters_generic(meters, p4info);
 }
 
+static pi_status_t read_digests(cJSON *root, pi_p4info_t *p4info) {
+  assert(root);
+  cJSON *digests = cJSON_GetObjectItem(root, "digests");
+  if (!digests) return PI_STATUS_CONFIG_READER_ERROR;
+  size_t num_digests = cJSON_GetArraySize(digests);
+  pi_p4info_digest_init(p4info, num_digests);
+
+  cJSON *digest;
+  cJSON_ArrayForEach(digest, digests) {
+    const cJSON *item;
+    item = cJSON_GetObjectItem(digest, "name");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    const char *name = item->valuestring;
+    item = cJSON_GetObjectItem(digest, "id");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    pi_p4_id_t pi_id = item->valueint;
+
+    cJSON *fields = cJSON_GetObjectItem(digest, "fields");
+    if (!fields) return PI_STATUS_CONFIG_READER_ERROR;
+    pi_p4info_digest_add(p4info, pi_id, name, cJSON_GetArraySize(fields));
+    import_common(digest, p4info, pi_id);
+
+    cJSON *field;
+    cJSON_ArrayForEach(field, fields) {
+      item = cJSON_GetObjectItem(field, "name");
+      if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+      const char *f_name = item->valuestring;
+      item = cJSON_GetObjectItem(field, "bitwidth");
+      if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+      pi_p4_id_t f_bitwidth = item->valueint;
+      pi_p4info_digest_add_field(p4info, pi_id, f_name, f_bitwidth);
+    }
+  }
+
+  return PI_STATUS_SUCCESS;
+}
+
 pi_status_t pi_native_json_reader(const char *config, pi_p4info_t *p4info) {
   cJSON *root = cJSON_Parse(config);
   if (!root) return PI_STATUS_CONFIG_READER_ERROR;
@@ -371,6 +408,10 @@ pi_status_t pi_native_json_reader(const char *config, pi_p4info_t *p4info) {
   }
 
   if ((status = read_direct_meters(root, p4info)) != PI_STATUS_SUCCESS) {
+    return status;
+  }
+
+  if ((status = read_digests(root, p4info)) != PI_STATUS_SUCCESS) {
     return status;
   }
 

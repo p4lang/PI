@@ -752,6 +752,16 @@ static pi_status_t read_meters(reader_state_t *state, cJSON *root,
   return PI_STATUS_SUCCESS;
 }
 
+static pi_status_t read_digests(reader_state_t *state, cJSON *root,
+                                pi_p4info_t *p4info) {
+  (void)state;
+  (void)root;
+  assert(root);
+  // TODO(antonin): skeleton so that unit tests pass, implement later if needed
+  pi_p4info_digest_init(p4info, 0);
+  return PI_STATUS_SUCCESS;
+}
+
 static bool check_json_version(cJSON *root) {
   cJSON *item;
   item = cJSON_GetObjectItem(root, "__meta__");
@@ -801,6 +811,10 @@ pi_status_t pi_bmv2_json_reader(const char *config, pi_p4info_t *p4info) {
   }
 
   if ((status = read_meters(&state, root, p4info)) != PI_STATUS_SUCCESS) {
+    return status;
+  }
+
+  if ((status = read_digests(&state, root, p4info)) != PI_STATUS_SUCCESS) {
     return status;
   }
 
