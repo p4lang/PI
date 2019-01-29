@@ -161,6 +161,13 @@ class DigestMgrTest : public ::testing::Test {
     return digest_mgr.config_write(entry, type, session);
   }
 
+  Status config_delete() {
+    p4v1::DigestEntry entry;
+    entry.set_digest_id(digest_id);
+    EXPECT_CALL(*mock, learn_config_set(digest_id, NULL));
+    return digest_mgr.config_write(entry, p4v1::Update::DELETE, session);
+  }
+
   template<typename Rep1, typename Period1, typename Rep2, typename Period2>
   Status config_digest(
       int32_t max_list_size,
@@ -323,6 +330,35 @@ TEST_F(DigestMgrTest, MaxTimeout) {
   EXPECT_GT(diff, max_timeout / 2);
   // it can take up to twice the max_timeout based on the current implementation
   EXPECT_LT(diff, max_timeout * 3);
+}
+
+TEST_F(DigestMgrTest, Reset) {
+  auto ack_timeout = std::chrono::seconds(10);
+  auto ack_timeout_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+      ack_timeout).count();
+  Sample s;
+  s << "\x11\x22\x33\x44\x55\x66" << "\x01\x23";
+
+  EXPECT_CALL(*mock, learn_msg_ack(digest_id, _)).Times(AnyNumber());
+  EXPECT_CALL(*mock, learn_msg_done(_)).Times(AnyNumber());
+
+  p4v1::DigestEntry config;
+  config.set_digest_id(digest_id);
+  config.mutable_config()->set_ack_timeout_ns(ack_timeout_ns);
+  ASSERT_OK(config_write(config, p4v1::Update::INSERT));
+
+  ASSERT_EQ(digest_inject({s}), PI_STATUS_SUCCESS);
+  ASSERT_NE(digest_receive(), boost::none);
+
+  ASSERT_EQ(digest_inject({s}), PI_STATUS_SUCCESS);
+  ASSERT_EQ(digest_receive(), boost::none);  // cache hit
+
+  // deleting the config should reset the state of the DigestMgr, so it should
+  // clear the cache
+  ASSERT_OK(config_delete());
+  ASSERT_OK(config_write(config, p4v1::Update::INSERT));
+  ASSERT_EQ(digest_inject({s}), PI_STATUS_SUCCESS);
+  ASSERT_NE(digest_receive(), boost::none);
 }
 
 }  // namespace

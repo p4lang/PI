@@ -447,8 +447,7 @@ class DigestData {
         RETURN_ERROR_STATUS(
             Code::NOT_FOUND, "Digest {} not configured", digest.digest_id());
       }
-      config.Clear();
-      config_set = false;
+      reset();
       RETURN_OK_STATUS();
     }
     RETURN_ERROR_STATUS(
@@ -527,6 +526,19 @@ class DigestData {
     current_list_data = {};
     digest.set_list_id(digest.list_id() + 1);
     digest.clear_data();
+  }
+
+  void reset() {
+    config.Clear();
+    config_set = false;
+    for (auto it = list_id_to_data.begin(); it != list_id_to_data.end(); it++)
+      purge_cache(it);
+    assert(cache.empty());
+    list_id_to_data.clear();
+    // digest.set_list_id(1);
+    digest.clear_data();
+    current_list_data = {};
+    timeout_bit = false;
   }
 
   DigestMgr::device_id_t device_id;
