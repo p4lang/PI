@@ -171,6 +171,11 @@ class P4ErrorReporter {
         auto error_any = status.add_details();
         error_any->PackFrom(p.second);
       }
+      // add trailing OKs
+      for (; i++ < index;) {
+        auto success_any = status.add_details();
+        success_any->PackFrom(success);
+      }
     }
     return status;
   }

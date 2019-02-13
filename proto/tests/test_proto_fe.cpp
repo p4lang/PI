@@ -799,6 +799,12 @@ TEST_P(MatchTableTest, WriteBatchWithError) {
     update->mutable_entity()->mutable_table_entry()->CopyFrom(entry);
     expected_errors.push_back(Code::ALREADY_EXISTS);
   }
+  {
+    auto update = request.add_updates();
+    update->set_type(p4v1::Update::DELETE);
+    update->mutable_entity()->mutable_table_entry()->CopyFrom(entry);
+    expected_errors.push_back(Code::OK);
+  }
   auto status = mgr.write(request);
   EXPECT_EQ(status, expected_errors);
 }
