@@ -10,8 +10,6 @@ AM_CPPFLAGS = \
 -I$(top_srcdir)/p4info \
 -I$(top_srcdir)/third_party
 
-AM_CXXFLAGS = -Wall -Werror
-
 libpifeproto_la_SOURCES = \
 src/device_mgr.cpp \
 src/action_prof_mgr.h \

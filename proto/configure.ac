@@ -85,10 +85,16 @@ p4runtime_check_f=$ac_abs_confdir/p4/v1/p4runtime.proto
 AC_CHECK_FILE([$p4runtime_check_f], [],
               [AC_MSG_ERROR([Cannot find p4runtime; did you run 'git submodule update --init'?])])
 
+AC_ARG_ENABLE([Werror],
+    AS_HELP_STRING([--enable-Werror], [Make all compiler warnings fatal]),
+    [enable_Werror="$enableval"], [enable_Werror=no])
+
 # check for pthreads
 AX_PTHREAD([], [AC_MSG_ERROR([Missing pthread library])])
 
-AC_SUBST([AM_CXXFLAGS], ["$PTHREAD_CFLAGS -Wall -Werror -Wextra"])
+EXTRA_CXXFLAGS="-Wall -Wextra"
+AS_IF([test "$enable_Werror" = "yes"], [EXTRA_CXXFLAGS="$EXTRA_CXXFLAGS -Werror"])
+AC_SUBST([AM_CXXFLAGS], ["$PTHREAD_CFLAGS $EXTRA_CXXFLAGS"])
 
 # Determine the right way to ignore unresolved symbols in shared libraries.
 # Unfortunately this varies by platform. Right now we assume that on non-Darwin

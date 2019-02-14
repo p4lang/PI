@@ -37,7 +37,7 @@ RUN apt-get update && \
     apt-get update && \
     apt-get install -y --no-install-recommends $PI_DEPS $PI_RUNTIME_DEPS && \
     ./autogen.sh && \
-    ./configure --without-bmv2 --without-internal-rpc --without-cli --with-proto --with-sysrepo && \
+    ./configure --enable-Werror --without-bmv2 --without-internal-rpc --without-cli --with-proto --with-sysrepo && \
     make && \
     make install-strip && \
     (test "$IMAGE_TYPE" = "build" && \
