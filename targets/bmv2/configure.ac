@@ -37,15 +37,22 @@ AC_CHECK_LIB([pcap], [pcap_set_immediate_mode], [pcap_fix=yes], [pcap_fix=no])
 
 AM_CONDITIONAL([WITH_PCAP_FIX], [test "$pcap_fix" = "yes"])
 
+AC_ARG_ENABLE([Werror],
+    AS_HELP_STRING([--enable-Werror], [Make all compiler warnings fatal]),
+    [enable_Werror="$enableval"], [enable_Werror=no])
+
 AC_TYPE_UINT8_T
 AC_TYPE_UINT16_T
 AC_TYPE_UINT32_T
 AC_TYPE_UINT64_T
 AC_TYPE_SIZE_T
 
+EXTRA_CXXFLAGS="-Wall -Wextra"
+AS_IF([test "$enable_Werror" = "yes"], [EXTRA_CXXFLAGS="$EXTRA_CXXFLAGS -Werror"])
+
 AC_SUBST([AM_CPPFLAGS], ["-isystem$INCLUDE_DIR"])
 AC_SUBST([AM_LDFLAGS], ["-L$LIB_DIR"])
-AC_SUBST([AM_CXXFLAGS], ["$PTHREAD_CFLAGS -Wall -Werror -Wextra"])
+AC_SUBST([AM_CXXFLAGS], ["$PTHREAD_CFLAGS $EXTRA_CXXFLAGS"])
 AC_SUBST([AM_CFLAGS], ["$PTHREAD_CFLAGS"])
 
 # Generate makefiles

@@ -73,6 +73,10 @@ AC_ARG_WITH([cli],
 
 AM_CONDITIONAL([WITH_CLI], [test "$with_cli" = yes])
 
+AC_ARG_ENABLE([Werror],
+    AS_HELP_STRING([--enable-Werror], [Make all compiler warnings fatal]),
+    [enable_Werror="$enableval"], [enable_Werror=no])
+
 LT_INIT
 
 AC_CONFIG_MACRO_DIR([m4])
@@ -166,17 +170,17 @@ AC_COMPILE_IFELSE(
 [CLANG=yes], [CLANG=no])
 AC_MSG_RESULT([$CLANG])
 
-EXTRA_CFLAGS=""
-AS_IF([test "x$CLANG" = "xyes"],
-      [EXTRA_CFLAGS="$EXTRA_CFLAGS -Wno-tautological-constant-out-of-range-compare"])
-
-AC_SUBST([AM_CPPFLAGS], ["-DPI_LOG_ON -isystem$INCLUDE_DIR"])
-AC_SUBST([AM_LDFLAGS], ["-L$LIB_DIR"])
-
 # Enable all warnings. -Wno-tautological-constant-out-of-range-compare is
 # necessary because clang is excessively aggressive with this warning and
 # complains about some reasonable assertions.
-AC_SUBST([AM_CFLAGS], ["$PTHREAD_CFLAGS -Wall -Werror -Wextra $EXTRA_CFLAGS"])
+EXTRA_CFLAGS="-Wall -Wextra"
+AS_IF([test "$enable_Werror" = "yes"], [EXTRA_CFLAGS="$EXTRA_CFLAGS -Werror"])
+AS_IF([test "x$CLANG" = "xyes"],
+      [EXTRA_CFLAGS="$EXTRA_CFLAGS -Wno-tautological-constant-out-of-range-compare"])
+AC_SUBST([AM_CFLAGS], ["$PTHREAD_CFLAGS $EXTRA_CFLAGS"])
+
+AC_SUBST([AM_CPPFLAGS], ["-DPI_LOG_ON -isystem$INCLUDE_DIR"])
+AC_SUBST([AM_LDFLAGS], ["-L$LIB_DIR"])
 
 # Generate makefiles
 AC_CONFIG_FILES([Makefile

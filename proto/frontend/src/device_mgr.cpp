@@ -2210,6 +2210,7 @@ class DeviceMgrImp {
 
   Status construct_action_data(uint32_t table_id, const p4v1::Action &action,
                                pi::ActionEntry *action_entry) const {
+    (void) table_id;
     auto status = validate_action_data(p4info.get(), action);
     if (IS_ERROR(status)) return status;
     action_entry->init_action_data(p4info.get(), action.action_id());

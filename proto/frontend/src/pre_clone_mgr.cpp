@@ -128,6 +128,7 @@ PreCloneMgr::session_create(const CloneSession &clone_session,
 Status
 PreCloneMgr::session_modify(const CloneSession &clone_session,
                             const SessionTemp &session) {
+  (void) session;
   auto session_id = static_cast<CloneSessionId>(clone_session.session_id());
   RETURN_IF_ERROR(validate_session_id(session_id));
   Lock lock(mutex);
