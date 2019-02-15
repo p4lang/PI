@@ -122,7 +122,6 @@ ActionProfMgr::member_create(const p4v1::ActionProfileMember &member,
                              const SessionTemp &session) {
   RETURN_IF_ERROR(validate_action(member.action()));
   auto action_data = construct_action_data(member.action());
-  // TODO(antonin): weight / watch?
   Lock lock(mutex);
   RETURN_IF_ERROR(check_selector_usage(SelectorUsage::MANUAL));
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
@@ -167,7 +166,6 @@ ActionProfMgr::member_modify(const p4v1::ActionProfileMember &member,
                              const SessionTemp &session) {
   RETURN_IF_ERROR(validate_action(member.action()));
   auto action_data = construct_action_data(member.action());
-  // TODO(antonin): weight / watch?
   Lock lock(mutex);
   RETURN_IF_ERROR(check_selector_usage(SelectorUsage::MANUAL));
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
@@ -309,6 +307,24 @@ ActionProfMgr::oneshot_group_create(
   for (const auto &action : action_set.action_profile_actions())
     RETURN_IF_ERROR(validate_action(action.action()));
 
+  for (const auto &action : action_set.action_profile_actions()) {
+    if (action.weight() <= 0) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "Member weight must be a positive integer value");
+    }
+    // TODO(antonin): support arbitrary weight
+    if (action.weight() != 1) {
+      RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
+                          "Only weight values of 1 are currently supported");
+    }
+    // TODO(antonin): support watch
+    if (action.watch() != 0) {
+      // do not reject the request outright in case it breaks an existing
+      // controller.
+      Logger::get()->warn("Watch attribute for members not implemented yet");
+    }
+  }
+
   Lock lock(mutex);
   RETURN_IF_ERROR(check_selector_usage(SelectorUsage::ONESHOT));
   session->cleanup_scope_push();
@@ -336,7 +352,6 @@ ActionProfMgr::oneshot_group_create(
   }
   if (pi_api_choice == PiApiChoice::INDIVIDUAL_ADDS_AND_REMOVES) {
     for (const auto &member_h : members) {
-      // TODO(antonin): weight + watch
       auto pi_status = ap.group_add_member(*group_h, member_h);
       if (pi_status != PI_STATUS_SUCCESS) {
         RETURN_ERROR_STATUS(
@@ -458,6 +473,24 @@ ActionProfMgr::update_group_membership(const Id &removed_member_id) {
 Status
 ActionProfMgr::group_update_members(pi::ActProf &ap,
                                     const p4v1::ActionProfileGroup &group) {
+  for (const auto& member : group.members()) {
+    if (member.weight() <= 0) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "Member weight must be a positive integer value");
+    }
+    // TODO(antonin): support arbitrary weight
+    if (member.weight() != 1) {
+      RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
+                          "Only weight values of 1 are currently supported");
+    }
+    // TODO(antonin): support watch
+    if (member.watch() != 0) {
+      // do not reject the request outright in case it breaks an existing
+      // controller.
+      Logger::get()->warn("Watch attribute for members not implemented yet");
+    }
+  }
+
   auto group_id = group.group_id();
   std::vector<Id> new_membership(group.members().size());
   std::transform(
