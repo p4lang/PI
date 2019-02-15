@@ -901,9 +901,11 @@ class ActionProfTest
   }
 
   void add_member_to_group(p4v1::ActionProfileGroup *group,
-                           uint32_t member_id) {
+                           uint32_t member_id,
+                           int weight = 1) {
     auto member = group->add_members();
     member->set_member_id(member_id);
+    member->set_weight(weight);
   }
 
   template <typename It>
@@ -916,6 +918,7 @@ class ActionProfTest
     for (auto it = members_begin; it != members_end; ++it) {
       auto member = group.add_members();
       member->set_member_id(*it);
+      member->set_weight(1);
     }
     return group;
   }
@@ -1162,6 +1165,47 @@ TEST_P(ActionProfTest, AddBadMemberIdToGroup) {
   EXPECT_EQ(create_group(&group), OneExpectedError(Code::NOT_FOUND));
 }
 
+TEST_P(ActionProfTest, InvalidMemberWeight) {
+  DeviceMgr::Status status;
+  uint32_t group_id = 1000;
+  uint32_t member_id = 1;
+
+  // create 1 member
+  std::string adata(6, '\x00');
+  EXPECT_CALL(*mock, action_prof_member_create(_, _, _));
+  auto member = make_member(member_id, adata);
+  EXPECT_OK(create_member(&member));
+
+  EXPECT_CALL(*mock, action_prof_group_create(_, _, _));
+  EXPECT_NO_CALL_GROUP_ADD_MEMBER(*mock);
+  EXPECT_NO_CALL_GROUP_SET_MEMBERS(*mock);
+  auto group = make_group(group_id);
+  add_member_to_group(&group, member_id, 0);
+  EXPECT_EQ(
+      create_group(&group),
+      OneExpectedError(Code::INVALID_ARGUMENT,
+                       "weight must be a positive integer value"));
+}
+
+TEST_P(ActionProfTest, UnsupportedMemberWeight) {
+  DeviceMgr::Status status;
+  uint32_t group_id = 1000;
+  uint32_t member_id = 1;
+
+  // create 1 member
+  std::string adata(6, '\x00');
+  EXPECT_CALL(*mock, action_prof_member_create(_, _, _));
+  auto member = make_member(member_id, adata);
+  EXPECT_OK(create_member(&member));
+
+  EXPECT_CALL(*mock, action_prof_group_create(_, _, _));
+  EXPECT_NO_CALL_GROUP_ADD_MEMBER(*mock);
+  EXPECT_NO_CALL_GROUP_SET_MEMBERS(*mock);
+  auto group = make_group(group_id);
+  add_member_to_group(&group, member_id, 2);
+  EXPECT_EQ(create_group(&group), OneExpectedError(Code::UNIMPLEMENTED));
+}
+
 TEST_P(ActionProfTest, InvalidActionProfId) {
   DeviceMgr::Status status;
   uint32_t member_id = 123;
@@ -1291,6 +1335,7 @@ class MatchTableIndirectTest
     for (auto it = members_begin; it != members_end; ++it) {
       auto member = group.add_members();
       member->set_member_id(*it);
+      member->set_weight(1);
     }
     return group;
   }
@@ -1334,7 +1379,8 @@ class MatchTableIndirectTest
   template <typename It>
   p4v1::TableEntry make_indirect_entry_one_shot(
       const boost::optional<std::string> &mf_v,
-      It params_begin, It params_end) {
+      It params_begin, It params_end,
+      int weight = 1) {
     p4v1::TableEntry table_entry;
     auto t_id = pi_p4info_table_id_from_name(p4info, "IndirectWS");
     table_entry.set_table_id(t_id);
@@ -1350,6 +1396,7 @@ class MatchTableIndirectTest
     for (auto param_it = params_begin; param_it != params_end; param_it++) {
       auto ap_action = ap_action_set->add_action_profile_actions();
       set_action(ap_action->mutable_action(), *param_it);
+      ap_action->set_weight(weight);
     }
     return table_entry;
   }
@@ -1511,6 +1558,29 @@ TEST_P(MatchTableIndirectTest, OneShotInsertAndDelete) {
   EXPECT_CALL(*mock, table_entry_delete_wkey(t_id, _));
 
   EXPECT_OK(remove_entry(&entry));
+}
+
+TEST_P(MatchTableIndirectTest, OneShotInvalidActionWeight) {
+  std::string mf("\xaa\xbb\xcc\xdd", 4);
+  std::vector<std::string> params;
+  params.emplace_back(6, '\x00');
+  params.emplace_back(6, '\x01');
+  auto entry =
+      make_indirect_entry_one_shot(mf, params.begin(), params.end(), 0);
+  EXPECT_EQ(
+      add_entry(&entry),
+      OneExpectedError(Code::INVALID_ARGUMENT,
+                       "weight must be a positive integer value"));
+}
+
+TEST_P(MatchTableIndirectTest, OneShotUnsupportedActionWeight) {
+  std::string mf("\xaa\xbb\xcc\xdd", 4);
+  std::vector<std::string> params;
+  params.emplace_back(6, '\x00');
+  params.emplace_back(6, '\x01');
+  auto entry =
+      make_indirect_entry_one_shot(mf, params.begin(), params.end(), 2);
+  EXPECT_EQ(add_entry(&entry), OneExpectedError(Code::UNIMPLEMENTED));
 }
 
 TEST_P(MatchTableIndirectTest, MixedSelectorModes) {

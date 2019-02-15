@@ -1012,8 +1012,13 @@ class DeviceMgrImp {
         auto action_spec_it = mbr_h_to_action.find(members_h_in_order[j]);
         if (action_spec_it == mbr_h_to_action.end())
           RETURN_ERROR_STATUS(Code::INTERNAL, "Invalid member handle in group");
-        // TODO(antonin): watch & weigth?
         ap_action->mutable_action()->CopyFrom(action_spec_it->second);
+        // TODO(antonin): support arbitrary weight
+        // We set the weight to 1 unconditionally in every read response,
+        // because this is the only value we currently support and the only
+        // value we accept in write requests.
+        ap_action->set_weight(1);
+        // TODO(antonin): support watch
       }
     }
 
@@ -1320,6 +1325,12 @@ class DeviceMgrImp {
         }
         auto member = group->add_members();
         member->set_member_id(member_id);
+        // TODO(antonin): support arbitrary weight
+        // We set the weight to 1 unconditionally in every read response,
+        // because this is the only value we currently support and the only
+        // value we accept in write requests.
+        member->set_weight(1);
+        // TODO(antonin): support watch
       }
     }
 
