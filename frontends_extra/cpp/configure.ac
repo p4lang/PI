@@ -20,7 +20,7 @@ AX_CXX_COMPILE_STDCXX_11([noext],[mandatory])
 want_bmv2=no
 AC_ARG_WITH([bmv2],
     AS_HELP_STRING([--with-bmv2], [Build for bmv2 target]),
-    [want_bmv2=yes], [])
+    [want_bmv2="$withval"], [])
 
 AM_CONDITIONAL([WITH_BMV2], [test "$want_bmv2" = yes])
 
