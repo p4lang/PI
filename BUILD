@@ -34,23 +34,16 @@ cc_library(
             "@judy//:JudySL"],
 )
 
-# not using glob to list all .h / .c files since a few files are excluded on
-# purpose
+# using glob looks a bit nasty because of the files we have to exclude, but in
+# the absence of a CI for the Bazel build, it is less error-prone that listing
+# all files manually.
 cc_library(
     name = "pi",
-    srcs = ["src/pi.c",
-            "src/pi_tables.c",
-            "src/pi_act_prof.c",
-            "src/pi_clone.c",
-            "src/pi_counter.c",
-            "src/pi_meter.c",
-            "src/pi_learn.c",
-            "src/pi_learn_int.h",
-            "src/pi_value.c",
-            "src/pi_mc.c",
-            "src/device_map.c",
-            "src/device_map.h",
-            ":pihdrs"],
+    srcs = [":pihdrs"]
+        + glob(["src/*.c"], exclude=[
+              "src/pi_notifications_pub.c", "src/pi_rpc_server.c"])
+        + glob(["src/*.h"], exclude=[
+              "src/p4info_int.h", "src/pi_notifications_pub.h"]),
     hdrs = glob(["include/PI/*.h", "include/PI/target/*.h"])
         + ["include/PI/int/pi_int.h", "include/PI/int/serialize.h"],
     includes = ["include"],
