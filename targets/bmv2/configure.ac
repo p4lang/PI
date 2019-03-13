@@ -32,6 +32,10 @@ AC_CHECK_HEADER([bm/Standard.h], [],
 AC_PATH_PROG([THRIFT], [thrift], [])
 AC_CHECK_HEADER([thrift/Thrift.h], [], [AC_MSG_ERROR([Thrift headers not found. Install Thrift from http://thrift.apache.org/docs/install/])])
 
+AC_CHECK_HEADER([thrift/stdcxx.h], [
+        AC_DEFINE([HAVE_THRIFT_STDCXX_H], [], [Found Thrift stdcxx wrapper])
+], [])
+
 AC_CHECK_LIB([pcap], [pcap_create], [], [AC_MSG_ERROR([Missing libpcap])])
 AC_CHECK_LIB([pcap], [pcap_set_immediate_mode], [pcap_fix=yes], [pcap_fix=no])
 
@@ -57,5 +61,7 @@ AC_SUBST([AM_CFLAGS], ["$PTHREAD_CFLAGS"])
 
 # Generate makefiles
 AC_CONFIG_FILES([Makefile])
+
+AX_PREFIX_CONFIG_H()
 
 AC_OUTPUT
