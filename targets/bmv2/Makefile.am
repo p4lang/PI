@@ -7,6 +7,7 @@ AM_CPPFLAGS += -DWITH_PCAP_FIX
 endif
 
 libpi_bmv2_la_SOURCES = \
+pi-bmv2-config.h \
 pi_imp.cpp \
 pi_tables_imp.cpp \
 pi_act_prof_imp.cpp \

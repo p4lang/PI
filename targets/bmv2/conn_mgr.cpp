@@ -29,14 +29,23 @@
 #include <memory>
 #include <unordered_map>
 
-namespace pibmv2 {
+#include "pi-bmv2-config.h"
+
+#ifdef PI_BMV2_HAVE_THRIFT_STDCXX_H
+#include <thrift/stdcxx.h>
+namespace stdcxx = ::apache::thrift::stdcxx;
+#else
+namespace stdcxx = boost;
+#endif
 
 using namespace ::apache::thrift;  // NOLINT(build/namespaces)
 using namespace ::apache::thrift::protocol;  // NOLINT(build/namespaces)
 using namespace ::apache::thrift::transport;  // NOLINT(build/namespaces)
 
+namespace pibmv2 {
+
 struct ClientImp {
-  boost::shared_ptr<TTransport> transport{nullptr};
+  ::stdcxx::shared_ptr<TTransport> transport{nullptr};
   std::unique_ptr<StandardClient> client{nullptr};
   std::unique_ptr<SimplePreLAGClient> mc_client{nullptr};
   std::mutex mutex{};
@@ -61,14 +70,14 @@ int conn_mgr_client_init(conn_mgr_t *conn_mgr_state, dev_id_t dev_id,
   assert(conn_mgr_state->clients.find(dev_id) == conn_mgr_state->clients.end());
   auto &client = conn_mgr_state->clients[dev_id];  // construct
 
-  boost::shared_ptr<TTransport> socket(
+  ::stdcxx::shared_ptr<TTransport> socket(
       new TSocket("localhost", thrift_port_num));
-  boost::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
-  boost::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
+  ::stdcxx::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
+  ::stdcxx::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
 
-  boost::shared_ptr<TMultiplexedProtocol> standard_protocol(
+  ::stdcxx::shared_ptr<TMultiplexedProtocol> standard_protocol(
       new TMultiplexedProtocol(protocol, "standard"));
-  boost::shared_ptr<TMultiplexedProtocol> mc_protocol(
+  ::stdcxx::shared_ptr<TMultiplexedProtocol> mc_protocol(
       new TMultiplexedProtocol(protocol, "simple_pre_lag"));
 
   try {
