@@ -66,14 +66,13 @@ def main():
     tmp_dir = tempfile.mkdtemp()
     out_json = os.path.join(tmp_dir, 'dp.json')
     out_p4info = os.path.join(tmp_dir, 'p4info.proto.txt')
-    cmd = [args.compiler, '--p4-16', args.src, '-o', out_json,
+    cmd = [args.compiler, '--std', 'p4-16', args.src, '-o', out_json,
            '--p4runtime-format', 'text', '--p4runtime-file', out_p4info]
     print ' '.join(cmd)
     try:
         subprocess.check_output(cmd, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError:
         print "Error when compiling P4 program"
-        print out
         shutil.rmtree(tmp_dir)
         sys.exit(1)
     except OSError:

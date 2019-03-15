@@ -31,6 +31,7 @@ import sys
 
 import grpc
 from p4.v1 import p4runtime_pb2
+from p4.v1 import p4runtime_pb2_grpc
 from p4.config.v1 import p4info_pb2
 import google.protobuf.text_format
 
@@ -64,7 +65,7 @@ def update_config(config_path, p4info_path, grpc_addr, device_id):
     P4Info and binary device config
     '''
     channel = grpc.insecure_channel(grpc_addr)
-    stub = p4runtime_pb2.P4RuntimeStub(channel)
+    stub = p4runtime_pb2_grpc.P4RuntimeStub(channel)
 
     info("Sending P4 config")
     request = p4runtime_pb2.SetForwardingPipelineConfigRequest()
