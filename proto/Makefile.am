@@ -121,6 +121,7 @@ p4v1pydir = $(pythondir)/p4/v1
 nodist_p4v1py_PYTHON = \
 py_out/p4/v1/p4data_pb2.py \
 py_out/p4/v1/p4runtime_pb2.py \
+py_out/p4/v1/p4runtime_pb2_grpc.py \
 py_out/p4/v1/__init__.py
 
 p4configpydir = $(pythondir)/p4/config
@@ -152,7 +153,8 @@ py_out/google/rpc/__init__.py
 gnmipydir = $(pythondir)/gnmi
 nodist_gnmipy_PYTHON = \
 py_out/gnmi/__init__.py \
-py_out/gnmi/gnmi_pb2.py
+py_out/gnmi/gnmi_pb2.py \
+py_out/gnmi/gnmi_pb2_grpc.py
 
 BUILT_SOURCES += \
 $(nodist_p4py_PYTHON) \

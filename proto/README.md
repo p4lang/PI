@@ -83,7 +83,7 @@ Here is an example of a supported `ONCE` subscription request from a Python
 client:
 ```
 channel = grpc.insecure_channel(<SERVER_ADDR>)
-stub = gnmi_pb2.gNMIStub(channel)
+stub = gnmi_pb2_grpc.gNMIStub(channel)
 
 def req_iterator():
     while True:

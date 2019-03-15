@@ -35,6 +35,7 @@ import grpc
 
 from google.rpc import status_pb2, code_pb2
 from p4.v1 import p4runtime_pb2
+from p4.v1 import p4runtime_pb2_grpc
 from p4.config.v1 import p4info_pb2
 from p4.tmp import p4config_pb2
 import google.protobuf.text_format
@@ -209,7 +210,7 @@ class P4RuntimeTest(BaseTest):
             grpc_addr = 'localhost:50051'
 
         self.channel = grpc.insecure_channel(grpc_addr)
-        self.stub = p4runtime_pb2.P4RuntimeStub(self.channel)
+        self.stub = p4runtime_pb2_grpc.P4RuntimeStub(self.channel)
 
         proto_txt_path = testutils.test_param_get("p4info")
         print "Importing p4info proto from", proto_txt_path
