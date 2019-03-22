@@ -53,6 +53,9 @@ class partialmethod(partial):
 # Equivalent to Python 3.2 int.to_bytes
 # See
 # https://stackoverflow.com/questions/16022556/has-python-3-to-bytes-been-back-ported-to-python-2-7
+# TODO: When P4Runtime implementation is ready for it, use
+# minimum-length byte sequences to represent integers.  For unsigned
+# integers, this should only require removing the zfill() call below.
 def stringify(n, length):
     """Take a non-negative integer 'n' as the first parameter, and a
     non-negative integer 'length' in units of _bytes_ as the second
