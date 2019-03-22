@@ -54,16 +54,40 @@ class partialmethod(partial):
 # See
 # https://stackoverflow.com/questions/16022556/has-python-3-to-bytes-been-back-ported-to-python-2-7
 def stringify(n, length):
+    """Take a non-negative integer 'n' as the first parameter, and a
+    non-negative integer 'length' in units of _bytes_ as the second
+    parameter.  Return a string with binary contents expected by the
+    Python P4Runtime client operations.  If 'n' does not fit in
+    'length' bytes, it is represented in the fewest number of bytes it
+    does fit into without loss of precision.  It always returns a
+    string at least one byte long, even if value=width=0."""
     h = '%x' % n
     s = ('0'*(len(h) % 2) + h).zfill(length*2).decode('hex')
     return s
 
 def ipv4_to_binary(addr):
+    """Take an argument 'addr' containing an IPv4 address written as a
+    string in dotted decimal notation, e.g. '10.1.2.3', and convert it
+    to a string with binary contents expected by the Python P4Runtime
+    client operations."""
     bytes_ = [int(b, 10) for b in addr.split('.')]
+    assert len(bytes_) == 4
+    # Note: The chr(b) call below will throw exception if any b is
+    # outside of the range [0, 255]], so no need to add a separate
+    # check for that here.
     return "".join(chr(b) for b in bytes_)
 
 def mac_to_binary(addr):
+    """Take an argument 'addr' containing an Ethernet MAC address written
+    as a string in hexadecimal notation, with each byte separated by a
+    colon, e.g. '00:de:ad:be:ef:ff', and convert it to a string with
+    binary contents expected by the Python P4Runtime client
+    operations."""
     bytes_ = [int(b, 16) for b in addr.split(':')]
+    assert len(bytes_) == 6
+    # Note: The chr(b) call below will throw exception if any b is
+    # outside of the range [0, 255]], so no need to add a separate
+    # check for that here.
     return "".join(chr(b) for b in bytes_)
 
 # Used to indicate that the gRPC error Status object returned by the server has
@@ -417,7 +441,11 @@ class P4RuntimeTest(BaseTest):
             mf.add_to(mf_id, table_entry.match)
 
     def set_action(self, action, a_name, params):
-        action.action_id = self.get_action_id(a_name)
+        try:
+            action.action_id = self.get_action_id(a_name)
+        except TypeError:
+            print("Failed to get id of action '%s' - perhaps the action name is misspelled?" % (a_name))
+            raise
         for p_name, v in params:
             param = action.params.add()
             param.param_id = self.get_param_id(a_name, p_name)
@@ -528,6 +556,7 @@ class P4RuntimeTest(BaseTest):
             self.set_match_key(table_entry, t_name, mk)
         else:
             table_entry.is_default_action = True
+            update.type = p4runtime_pb2.Update.MODIFY
         self.set_action_entry(table_entry, a_name, params)
 
     def send_request_add_entry_to_action(self, t_name, mk, a_name, params):
