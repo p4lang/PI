@@ -54,6 +54,9 @@ bool pi_p4info_act_prof_is_action_of(const pi_p4info_t *p4info,
 size_t pi_p4info_act_prof_max_size(const pi_p4info_t *p4info,
                                    pi_p4_id_t act_prof_id);
 
+size_t pi_p4info_act_prof_max_grp_size(const pi_p4info_t *p4info,
+                                       pi_p4_id_t act_prof_id);
+
 pi_p4_id_t pi_p4info_act_prof_begin(const pi_p4info_t *p4info);
 pi_p4_id_t pi_p4info_act_prof_next(const pi_p4info_t *p4info, pi_p4_id_t id);
 pi_p4_id_t pi_p4info_act_prof_end(const pi_p4info_t *p4info);

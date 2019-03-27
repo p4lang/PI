@@ -78,7 +78,8 @@ ActionProfBiMap::empty() const {
   return bimap.empty();
 }
 
-ActionProfGroupMembership::ActionProfGroupMembership() { }
+ActionProfGroupMembership::ActionProfGroupMembership(size_t max_size_user)
+    : max_size_user(max_size_user) { }
 
 void
 ActionProfGroupMembership::add_member(const Id &member_id) {
@@ -110,12 +111,19 @@ ActionProfGroupMembership::compute_members_to_remove(
   return diff;
 }
 
+size_t
+ActionProfGroupMembership::get_max_size_user() const {
+  return max_size_user;
+}
+
 using Status = ActionProfMgr::Status;
 
 ActionProfMgr::ActionProfMgr(pi_dev_tgt_t device_tgt, pi_p4_id_t act_prof_id,
                              pi_p4info_t *p4info, PiApiChoice pi_api_choice)
     : device_tgt(device_tgt), act_prof_id(act_prof_id), p4info(p4info),
-      pi_api_choice(pi_api_choice) { }
+      pi_api_choice(pi_api_choice) {
+  max_group_size = pi_p4info_act_prof_max_grp_size(p4info, act_prof_id);
+}
 
 Status
 ActionProfMgr::member_create(const p4v1::ActionProfileMember &member,
@@ -139,9 +147,46 @@ ActionProfMgr::member_create(const p4v1::ActionProfileMember &member,
   RETURN_OK_STATUS();
 }
 
+StatusOr<size_t>
+ActionProfMgr::validate_max_group_size(int max_size) {
+/*
+ - If max_group_size is greater than 0, then max_size must be greater than 0,
+   and less than or equal to max_group_size. We assume that the target can
+   support selector groups for which the sum of all member weights is up to
+   max_group_size, or the P4Runtime server would have rejected the Forwarding
+   Pipeline Config. If max_size is greater than max_group_size, the server must
+   return INVALID_ARGUMENT.
+
+ - Otherwise (i.e. if max_group_size is 0), the P4Runtime client can set
+   max_size to any value greater than or equal to 0.
+
+   - A max_size of 0 indicates that the client is not able to specify a maximum
+     size at group-creation time, and the target should use the maximum value it
+     can support. If the maximum value supported by the target is exceeded
+     during a write update (INSERT or MODIFY), the target must return a
+     RESOURCE_EXHAUSTED error.
+
+   - If max_size is greater than 0 and the value is not supported by the target,
+     the server must return a RESOURCE_EXHAUSTED error at group-creation time.
+*/
+  if (max_size < 0) {
+    RETURN_ERROR_STATUS(
+        Code::INVALID_ARGUMENT, "Group max_size cannot be less than 0");
+  }
+  auto max_size_ = static_cast<size_t>(max_size);
+  if (max_group_size > 0 && max_size_ > max_group_size) {
+    RETURN_ERROR_STATUS(
+        Code::INVALID_ARGUMENT,
+        "Group max_size cannot exceed static max_group_size (from P4Info)");
+  }
+  return max_size_;
+}
+
 Status
 ActionProfMgr::group_create(const p4v1::ActionProfileGroup &group,
                             const SessionTemp &session) {
+  auto max_size = validate_max_group_size(group.max_size());
+  RETURN_IF_ERROR(max_size.status());
   Lock lock(mutex);
   RETURN_IF_ERROR(check_selector_usage(SelectorUsage::MANUAL));
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
@@ -151,12 +196,12 @@ ActionProfMgr::group_create(const p4v1::ActionProfileGroup &group,
         Code::ALREADY_EXISTS, "Duplicate group id: {}", group.group_id());
   }
   pi_indirect_handle_t group_h;
-  auto pi_status = ap.group_create(group.max_size(), &group_h);
+  auto pi_status = ap.group_create(max_size.ValueOrDie(), &group_h);
   if (pi_status != PI_STATUS_SUCCESS)
     RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when creating group on target");
   group_bimap.add(group.group_id(), group_h);
-  if (pi_api_choice == PiApiChoice::INDIVIDUAL_ADDS_AND_REMOVES)
-    group_members.emplace(group.group_id(), ActionProfGroupMembership());
+  group_members.emplace(group.group_id(),
+                        ActionProfGroupMembership(group.max_size()));
   selector_usage = SelectorUsage::MANUAL;
   return group_update_members(ap, group);
 }
@@ -193,6 +238,16 @@ ActionProfMgr::group_modify(const p4v1::ActionProfileGroup &group,
   if (group_h == nullptr) {
     RETURN_ERROR_STATUS(Code::NOT_FOUND,
                         "Group id does not exist: {}", group.group_id());
+  }
+  auto max_size_user = group_members.at(group_id).get_max_size_user();
+  // TODO(antonin): I don't want to take the risk to break existing
+  // implementations (for not much benefit) so no check is performed if max_size
+  // is "unset".
+  if (group.max_size() != 0 &&
+      static_cast<size_t>(group.max_size()) != max_size_user) {
+    RETURN_ERROR_STATUS(
+        Code::INVALID_ARGUMENT,
+        "Cannot change group max_size after group creation");
   }
   return group_update_members(ap, group);
 }
@@ -236,6 +291,15 @@ ActionProfMgr::group_delete(const p4v1::ActionProfileGroup &group,
     group_members.erase(group.group_id());
   reset_selector_usage();
   RETURN_OK_STATUS();
+}
+
+bool
+ActionProfMgr::group_get_max_size_user(const Id &group_id,
+                                       size_t *max_size_user) const {
+  auto it = group_members.find(group_id);
+  if (it == group_members.end()) return false;
+  *max_size_user = it->second.get_max_size_user();
+  return true;
 }
 
 namespace {
@@ -307,6 +371,7 @@ ActionProfMgr::oneshot_group_create(
   for (const auto &action : action_set.action_profile_actions())
     RETURN_IF_ERROR(validate_action(action.action()));
 
+  size_t sum_of_weights = 0;
   for (const auto &action : action_set.action_profile_actions()) {
     if (action.weight() <= 0) {
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
@@ -323,6 +388,13 @@ ActionProfMgr::oneshot_group_create(
       // controller.
       Logger::get()->warn("Watch attribute for members not implemented yet");
     }
+    sum_of_weights += action.weight();
+  }
+
+  if (max_group_size > 0 && sum_of_weights > max_group_size) {
+    RETURN_ERROR_STATUS(
+        Code::RESOURCE_EXHAUSTED,
+        "Sum of weights exceeds static max_group_size (from P4Info)");
   }
 
   Lock lock(mutex);
@@ -473,6 +545,7 @@ ActionProfMgr::update_group_membership(const Id &removed_member_id) {
 Status
 ActionProfMgr::group_update_members(pi::ActProf &ap,
                                     const p4v1::ActionProfileGroup &group) {
+  size_t sum_of_weights = 0;
   for (const auto& member : group.members()) {
     if (member.weight() <= 0) {
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
@@ -489,19 +562,46 @@ ActionProfMgr::group_update_members(pi::ActProf &ap,
       // controller.
       Logger::get()->warn("Watch attribute for members not implemented yet");
     }
+    sum_of_weights += member.weight();
   }
 
   auto group_id = group.group_id();
+  auto &membership = group_members.at(group_id);
+
+  auto max_size_user = membership.get_max_size_user();
+  auto max_size = (max_size_user == 0) ? max_group_size : max_size_user;
+  if (max_size > 0 && sum_of_weights > max_size) {
+    RETURN_ERROR_STATUS(Code::RESOURCE_EXHAUSTED,
+                        "Sum of member weights exceeds maximum group size");
+  }
+
   std::vector<Id> new_membership(group.members().size());
   std::transform(
       group.members().begin(), group.members().end(), new_membership.begin(),
       [](const p4v1::ActionProfileGroup::Member &m) { return m.member_id(); });
+  std::sort(new_membership.begin(), new_membership.end());
+
+  // TODO(antonin): uncomment when weights are supported
+  // // check for duplicates (new_membership is sorted)
+  // if (new_membership.size() > 0) {
+  //   auto prev_it = new_membership.begin();
+  //   for (auto it = new_membership.begin() + 1;
+  //        it != new_membership.end();
+  //        it++) {
+  //     if (*it == *prev_it) {
+  //       RETURN_ERROR_STATUS(
+  //           Code::INVALID_ARGUMENT,
+  //           "Duplicate member id {} for group {}, use weights instead",
+  //           *it, group_id);
+  //       break;
+  //     }
+  //     prev_it = it;
+  //   }
+  // }
 
   if (pi_api_choice == PiApiChoice::INDIVIDUAL_ADDS_AND_REMOVES) {
-    std::sort(new_membership.begin(), new_membership.end());
     // TODO(antonin): make this code smarter so that the group is never empty
     // and never too big at any given time.
-    auto &membership = group_members.at(group_id);
     auto members_to_add = membership.compute_members_to_add(new_membership);
     auto members_to_remove = membership.compute_members_to_remove(
         new_membership);
@@ -516,7 +616,8 @@ ActionProfMgr::group_update_members(pi::ActProf &ap,
     auto group_h = group_bimap.retrieve_handle(group_id);
     assert(group_h);  // we already confirmed that the group existed
     std::vector<pi_indirect_handle_t> members_h;
-    for (auto member_id : new_membership) {
+    for (auto member : group.members()) {
+      auto member_id = member.member_id();
       auto member_h = member_bimap.retrieve_handle(member_id);
       if (member_h == nullptr) {  // the member does not exist
         RETURN_ERROR_STATUS(

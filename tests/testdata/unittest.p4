@@ -134,6 +134,7 @@ control ingress(inout headers_t hdr, inout metadata_t meta, inout standard_metad
     }
 
     @name(".ActProfWS")
+    @max_group_size(200)
     action_selector(HashAlgorithm.crc16, 32w128, 32w16) ActProfWS;
 
     @name(".IndirectWS")

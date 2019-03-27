@@ -231,6 +231,10 @@ static pi_status_t read_act_profs(cJSON *root, pi_p4info_t *p4info) {
       pi_p4_id_t id = table->valueint;
       pi_p4info_act_prof_add_table(p4info, pi_id, id);
     }
+
+    item = cJSON_GetObjectItem(act_prof, "max_group_size");
+    if (item)
+      pi_p4info_act_prof_set_max_grp_size(p4info, pi_id, item->valueint);
   }
 
   return PI_STATUS_SUCCESS;
