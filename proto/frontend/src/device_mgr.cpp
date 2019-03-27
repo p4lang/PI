@@ -1317,6 +1317,12 @@ class DeviceMgrImp {
                             "Cannot map group handle to group id");
       }
       group->set_group_id(group_id);
+      size_t max_size;
+      if (!action_prof_mgr->group_get_max_size_user(group_id, &max_size)) {
+        RETURN_ERROR_STATUS(Code::INTERNAL,
+                            "Cannot retrieve max_size for group {}", group_id);
+      }
+      group->set_max_size(static_cast<int>(max_size));
       for (size_t j = 0; j < num; j++) {
         ActionProfMgr::Id member_id;
         if (!action_prof_mgr->retrieve_member_id(members_h[j], &member_id)) {

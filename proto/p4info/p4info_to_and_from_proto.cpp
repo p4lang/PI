@@ -164,6 +164,9 @@ void read_act_profs(const p4configv1::P4Info &p4info_proto,
     for (const auto table_id : act_prof.table_ids())
       pi_p4info_act_prof_add_table(p4info, pre.id(), table_id);
 
+    pi_p4info_act_prof_set_max_grp_size(
+        p4info, pre.id(), act_prof.max_group_size());
+
     import_common(pre, p4info);
   }
 }
@@ -468,6 +471,7 @@ void p4info_serialize_act_profs(const pi_p4info_t *p4info,
       act_prof->add_table_ids(table_ids[i]);
     act_prof->set_with_selector(pi_p4info_act_prof_has_selector(p4info, id));
     act_prof->set_size(pi_p4info_act_prof_max_size(p4info, id));
+    act_prof->set_max_group_size(pi_p4info_act_prof_max_grp_size(p4info, id));
   }
 }
 

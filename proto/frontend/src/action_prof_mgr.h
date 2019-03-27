@@ -102,7 +102,7 @@ class ActionProfGroupMembership {
  public:
   using Id = ActionProfBiMap::Id;
 
-  ActionProfGroupMembership();
+  explicit ActionProfGroupMembership(size_t max_size_user);
 
   // in both cases, desired membership must be sorted
   std::vector<Id> compute_members_to_add(
@@ -114,8 +114,13 @@ class ActionProfGroupMembership {
   void add_member(const Id &member_id);
   void remove_member(const Id &member_id);
 
+  size_t get_max_size_user() const;
+
  private:
+  // only used when pi_api_choice is INDIVIDUAL_ADDS_AND_REMOVES
   std::set<Id> members{};
+
+  size_t max_size_user{0};
 };
 
 class ActionProfMgr {
@@ -161,6 +166,8 @@ class ActionProfMgr {
   Status group_delete(const p4::v1::ActionProfileGroup &group,
                       const SessionTemp &session);
 
+  bool group_get_max_size_user(const Id &group_id, size_t *max_size_user) const;
+
   Status oneshot_group_create(const p4::v1::ActionProfileActionSet &action_set,
                               pi_indirect_handle_t *group_h,
                               SessionTemp *session);
@@ -170,6 +177,8 @@ class ActionProfMgr {
   // we don't trust the target to return the members in the correct order
   // (read-write symmetry) and ActionProfMgr has to store this anyway
   // returns true iff group_h is valid (can be found)
+  // according to the P4Runtime 1.0.0 specification, this level of read-write
+  // symmetry is no longer required (repeated fields can be ordered in any way).
   bool oneshot_group_get_members(
       pi_indirect_handle_t group_h,
       std::vector<pi_indirect_handle_t> *members_h) const;
@@ -200,6 +209,8 @@ class ActionProfMgr {
 
   Status validate_action(const p4::v1::Action &action);
   pi::ActionData construct_action_data(const p4::v1::Action &action);
+
+  StatusOr<size_t> validate_max_group_size(int max_size);
 
   // using RepeatedMembers = decltype(
   //     static_cast<p4::v1::ActionProfileGroup *>(nullptr)->member_id());
@@ -244,9 +255,9 @@ class ActionProfMgr {
   pi_dev_tgt_t device_tgt;
   pi_p4_id_t act_prof_id;
   pi_p4info_t *p4info;
+  size_t max_group_size{0};
   ActionProfBiMap member_bimap{};
   ActionProfBiMap group_bimap{};
-  // only used when pi_api_choice is INDIVIDUAL_ADDS_AND_REMOVES
   std::map<Id, ActionProfGroupMembership> group_members{};
   std::unordered_map<pi_indirect_handle_t, std::vector<pi_indirect_handle_t> >
   oneshot_group_members{};

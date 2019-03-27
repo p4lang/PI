@@ -38,6 +38,7 @@ typedef struct _act_prof_data_s {
   id_vector_t table_ids;
   bool with_selector;
   size_t max_size;
+  size_t max_grp_size;
 } _act_prof_data_t;
 
 static _act_prof_data_t *get_act_prof(const pi_p4info_t *p4info,
@@ -85,6 +86,8 @@ void pi_p4info_act_prof_serialize(cJSON *root, const pi_p4info_t *p4info) {
 
     cJSON_AddNumberToObject(aObject, "max_size", act_prof->max_size);
 
+    cJSON_AddNumberToObject(aObject, "max_group_size", act_prof->max_grp_size);
+
     p4info_common_serialize(aObject, &act_prof->common);
 
     cJSON_AddItemToArray(aArray, aObject);
@@ -107,6 +110,7 @@ void pi_p4info_act_prof_add(pi_p4info_t *p4info, pi_p4_id_t act_prof_id,
   act_prof->num_tables = 0;
   act_prof->with_selector = with_selector;
   act_prof->max_size = max_size;
+  act_prof->max_grp_size = 0;
 }
 
 void pi_p4info_act_prof_add_table(pi_p4info_t *p4info, pi_p4_id_t act_prof_id,
@@ -114,6 +118,13 @@ void pi_p4info_act_prof_add_table(pi_p4info_t *p4info, pi_p4_id_t act_prof_id,
   _act_prof_data_t *act_prof = get_act_prof(p4info, act_prof_id);
   ID_VECTOR_PUSH_BACK(act_prof->table_ids, table_id);
   act_prof->num_tables++;
+}
+
+void pi_p4info_act_prof_set_max_grp_size(pi_p4info_t *p4info,
+                                         pi_p4_id_t act_prof_id,
+                                         size_t max_grp_size) {
+  _act_prof_data_t *act_prof = get_act_prof(p4info, act_prof_id);
+  act_prof->max_grp_size = max_grp_size;
 }
 
 pi_p4_id_t pi_p4info_act_prof_id_from_name(const pi_p4info_t *p4info,
@@ -167,6 +178,12 @@ size_t pi_p4info_act_prof_max_size(const pi_p4info_t *p4info,
                                    pi_p4_id_t act_prof_id) {
   _act_prof_data_t *act_prof = get_act_prof(p4info, act_prof_id);
   return act_prof->max_size;
+}
+
+size_t pi_p4info_act_prof_max_grp_size(const pi_p4info_t *p4info,
+                                       pi_p4_id_t act_prof_id) {
+  _act_prof_data_t *act_prof = get_act_prof(p4info, act_prof_id);
+  return act_prof->max_grp_size;
 }
 
 pi_p4_id_t pi_p4info_act_prof_begin(const pi_p4info_t *p4info) {

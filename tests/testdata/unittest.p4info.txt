@@ -370,6 +370,7 @@ action_profiles {
   table_ids: 33586946
   with_selector: true
   size: 128
+  max_group_size: 200
 }
 counters {
   preamble {

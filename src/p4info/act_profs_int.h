@@ -38,6 +38,10 @@ void pi_p4info_act_prof_add(pi_p4info_t *p4info, pi_p4_id_t act_prof_id,
 void pi_p4info_act_prof_add_table(pi_p4info_t *p4info, pi_p4_id_t act_prof_id,
                                   pi_p4_id_t table_id);
 
+void pi_p4info_act_prof_set_max_grp_size(pi_p4info_t *p4info,
+                                         pi_p4_id_t act_prof_id,
+                                         size_t max_grp_size);
+
 #ifdef __cplusplus
 }
 #endif

@@ -26,6 +26,7 @@
 #include <google/protobuf/text_format.h>
 #include <google/protobuf/util/message_differencer.h>
 
+#include <algorithm>  // std::generate
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -96,6 +97,7 @@ using ::testing::_;
 using ::testing::AnyNumber;
 using ::testing::Args;
 using ::testing::AtLeast;
+using ::testing::AtMost;
 using ::testing::ElementsAre;
 using ::testing::Exactly;
 using ::testing::IsNull;
@@ -855,6 +857,9 @@ class ActionProfTest
  protected:
   ActionProfTest() {
     action_prof_api_choice = GetParam();
+    act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
+    max_group_size_p4info = pi_p4info_act_prof_max_grp_size(
+        p4info, act_prof_id);
   }
 
   void set_action(p4v1::Action *action, const std::string &param_v) {
@@ -869,7 +874,6 @@ class ActionProfTest
   p4v1::ActionProfileMember make_member(uint32_t member_id,
                                         const std::string &param_v = "") {
     p4v1::ActionProfileMember member;
-    auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
     member.set_action_profile_id(act_prof_id);
     member.set_member_id(member_id);
     set_action(member.mutable_action(), param_v);
@@ -912,7 +916,6 @@ class ActionProfTest
   p4v1::ActionProfileGroup make_group(uint32_t group_id,
                                       It members_begin, It members_end) {
     p4v1::ActionProfileGroup group;
-    auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
     group.set_action_profile_id(act_prof_id);
     group.set_group_id(group_id);
     for (auto it = members_begin; it != members_end; ++it) {
@@ -951,6 +954,9 @@ class ActionProfTest
   DeviceMgr::Status delete_group(p4v1::ActionProfileGroup *group) {
     return write_group(p4v1::Update::DELETE, group);
   }
+
+  pi_p4_id_t act_prof_id{0};
+  size_t max_group_size_p4info{0};
 };
 
 TEST_P(ActionProfTest, Member) {
@@ -1274,6 +1280,98 @@ TEST_P(ActionProfTest, InvalidActionId) {
   }
 }
 
+TEST_P(ActionProfTest, InvalidMaxSize) {
+  {
+    uint32_t group_id = 1000;
+    auto group = make_group(group_id);
+    group.set_max_size(max_group_size_p4info);
+    EXPECT_CALL(*mock, action_prof_group_create(_, _, _));
+    if (GetParam() != PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
+      // empty member set
+      EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, 0, _);
+    }
+    EXPECT_OK(create_group(&group));
+  }
+  {
+    uint32_t group_id = 1001;
+    auto group = make_group(group_id);
+    group.set_max_size(max_group_size_p4info + 1);
+    EXPECT_EQ(create_group(&group), OneExpectedError(Code::INVALID_ARGUMENT));
+  }
+}
+
+TEST_P(ActionProfTest, MaxSizeExceeded) {
+  uint32_t group_id = 1000;
+  std::string adata(6, '\x00');
+  std::vector<uint32_t> members(max_group_size_p4info + 1);
+  int n = 1;
+  std::generate(members.begin(), members.end(), [&n] () { return n++; });
+
+  EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _))
+      .Times(members.size());
+  for (auto member_id : members) {
+    auto member = make_member(member_id, adata);
+    EXPECT_OK(create_member(&member));
+  }
+
+  auto group = make_group(group_id, members.begin(), members.end());
+  EXPECT_CALL(*mock, action_prof_group_create(_, _, _));
+  EXPECT_EQ(create_group(&group), OneExpectedError(Code::RESOURCE_EXHAUSTED));
+}
+
+// TODO(antonin): uncomment when duplicate check is enabled in
+// action_prof_mgr.cpp (I'm waiting for weights to be supported).
+// TEST_P(ActionProfTest, DuplicateMemberIds) {
+//   uint32_t group_id = 1000, member_id = 1;
+//   std::string adata(6, '\x00');
+
+//   EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _));
+//   auto member = make_member(member_id, adata);
+//   EXPECT_OK(create_member(&member));
+
+//   auto group = make_group(group_id);
+//   add_member_to_group(&group, member_id);
+//   add_member_to_group(&group, member_id);
+//   EXPECT_CALL(*mock, action_prof_group_create(_, _, _)).Times(AtMost(1));
+//   EXPECT_EQ(create_group(&group), OneExpectedError(Code::INVALID_ARGUMENT));
+// }
+
+TEST_P(ActionProfTest, MaxSizeModify) {
+  DeviceMgr::Status status;
+  auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
+  uint32_t group_id = 1000;
+  uint32_t member_id_1 = 1, member_id_2 = 2;
+
+  // create 2 members
+  std::string adata(6, '\x00');
+  EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _))
+      .Times(2);
+  auto member_1 = make_member(member_id_1, adata);
+  EXPECT_OK(create_member(&member_1));
+  auto member_2 = make_member(member_id_2, adata);
+  EXPECT_OK(create_member(&member_2));
+
+  // create group with one member
+  auto group = make_group(group_id);
+  group.set_max_size(10);
+  add_member_to_group(&group, member_id_1);
+
+  EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, _, _));
+  if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
+    EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, _);
+  } else {
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _);
+  }
+  EXPECT_OK(create_group(&group));
+
+  // try to modify size
+  group.set_max_size(20);
+  add_member_to_group(&group, member_id_2);
+  EXPECT_EQ(
+      modify_group(&group),
+      OneExpectedError(Code::INVALID_ARGUMENT, "Cannot change group max_size"));
+}
+
 INSTANTIATE_TEST_CASE_P(
     ActionProfPiApis, ActionProfTest,
     Values(PiActProfApiSupport_SET_MBRS,
@@ -1581,6 +1679,18 @@ TEST_P(MatchTableIndirectTest, OneShotUnsupportedActionWeight) {
   auto entry =
       make_indirect_entry_one_shot(mf, params.begin(), params.end(), 2);
   EXPECT_EQ(add_entry(&entry), OneExpectedError(Code::UNIMPLEMENTED));
+}
+
+TEST_P(MatchTableIndirectTest, OneShotMaxSizeExceeded) {
+  auto max_group_size_p4info = pi_p4info_act_prof_max_grp_size(
+      p4info, act_prof_id);
+  std::string mf("\xaa\xbb\xcc\xdd", 4);
+  std::vector<std::string> params(
+      max_group_size_p4info + 1, std::string(6, '\x01'));
+  auto entry =
+      make_indirect_entry_one_shot(mf, params.begin(), params.end(), 1);
+  EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, _, _)).Times(0);
+  EXPECT_EQ(add_entry(&entry), OneExpectedError(Code::RESOURCE_EXHAUSTED));
 }
 
 TEST_P(MatchTableIndirectTest, MixedSelectorModes) {
