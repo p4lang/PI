@@ -63,14 +63,14 @@ AM_COND_IF([WITH_GTEST], [
 
 AC_ARG_WITH([internal-rpc],
     AS_HELP_STRING([--with-internal-rpc],
-                   [Build internal rpc (nanomsg) code @<:@default=yes@:>@]),
-    [with_internal_rpc="$withval"], [with_internal_rpc=yes])
+                   [Build internal rpc (nanomsg) code @<:@default=no@:>@]),
+    [with_internal_rpc="$withval"], [with_internal_rpc=no])
 
 AM_CONDITIONAL([WITH_INTERNAL_RPC], [test "$with_internal_rpc" = yes])
 
 AC_ARG_WITH([cli],
-    AS_HELP_STRING([--with-cli], [Build PI C CLI @<:@default=yes@:>@]),
-    [with_cli="$withval"], [with_cli=yes])
+    AS_HELP_STRING([--with-cli], [Build PI C CLI @<:@default=no@:>@]),
+    [with_cli="$withval"], [with_cli=no])
 
 AM_CONDITIONAL([WITH_CLI], [test "$with_cli" = yes])
 
