@@ -21,8 +21,8 @@ to install different dependencies.
 | `--with-bmv2`         | no  | bmv2 and its deps | Implies `--with-fe-cpp` |
 | `--with-proto`        | no  | protobuf, grpc, libboost-thread-dev | - |
 | `--with-fe-cpp`       | no  | - | - |
-| `--with-internal-rpc` | yes | nanomsg | - |
-| `--with-cli`          | yes | readline | - |
+| `--with-internal-rpc` | no  | nanomsg | - |
+| `--with-cli`          | no  | readline | - |
 | `--with-sysrepo`      | no  | same as `--with-proto` + sysrepo and its deps| - |
 
 ### Additional CI tests dependencies
@@ -86,7 +86,7 @@ To include `p4runtime.proto` in the build, please run `configure` with
 
 ```
 ./autogen.sh
-./configure --with-proto --without-internal-rpc [--without-cli]
+./configure --with-proto
 make
 make check
 [sudo] make install
@@ -123,7 +123,8 @@ For now the PI CLI supports an experimental version of `table_add` and
 `table_delete`. Because these two functions have been implemented in the bmv2 PI
 implementation, you can test the PI CLI with the bmv2 `simple_switch`. Assuming
 bmv2 is installed on your system, build the PI and the CLI with `./configure
---with-bmv2 && make`. You can then experiment with the following commands:
+--with-bmv2 --with-cli && make`. You can then experiment with the following
+commands:
 
     simple_switch tests/testdata/simple_router.json  // to start the switch
     ./CLI/pi_CLI_bmv2 -c tests/testdata/simple_router.json  // to start the CLI
