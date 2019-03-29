@@ -3,6 +3,7 @@
 
 AC_PREREQ([2.68])
 AC_INIT([PI-proto], [0.1], [])
+AC_CONFIG_AUX_DIR([.])
 AM_INIT_AUTOMAKE([foreign subdir-objects])
 AC_CONFIG_HEADERS([config.h])
 
