@@ -33,8 +33,10 @@
 
 #include <cstdio>
 #include <limits>
+#include <map>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <utility>  // for std::pair
 #include <vector>
 
@@ -999,25 +1001,23 @@ class DeviceMgrImp {
       // we cannot rely on the target returning the members in the correct order
       // (read-write symmetry), so we use the member list stored in
       // ActionProfMgr.
-      std::vector<pi_indirect_handle_t> members_h_in_order;
+      std::vector<ActionProfMgr::OneShotMember> members_in_order;
       if (!action_prof_mgr->oneshot_group_get_members(
-              group_h, &members_h_in_order)) {
+              group_h, &members_in_order)) {
         RETURN_ERROR_STATUS(Code::INTERNAL, "Unknown group handle");
       }
-      if (num != members_h_in_order.size())
+      if (num != members_in_order.size())
         RETURN_ERROR_STATUS(Code::INTERNAL, "Mismatch in group size");
       auto *ap_action_set = &p.first->second;
       for (size_t j = 0; j < num; j++) {
+        const auto &member = members_in_order[j];
+        if (member.weight == 0) continue;
         auto *ap_action = ap_action_set->add_action_profile_actions();
-        auto action_spec_it = mbr_h_to_action.find(members_h_in_order[j]);
+        auto action_spec_it = mbr_h_to_action.find(member.member_h);
         if (action_spec_it == mbr_h_to_action.end())
           RETURN_ERROR_STATUS(Code::INTERNAL, "Invalid member handle in group");
         ap_action->mutable_action()->CopyFrom(action_spec_it->second);
-        // TODO(antonin): support arbitrary weight
-        // We set the weight to 1 unconditionally in every read response,
-        // because this is the only value we currently support and the only
-        // value we accept in write requests.
-        ap_action->set_weight(1);
+        ap_action->set_weight(member.weight);
         // TODO(antonin): support watch
       }
     }
@@ -1323,19 +1323,23 @@ class DeviceMgrImp {
                             "Cannot retrieve max_size for group {}", group_id);
       }
       group->set_max_size(static_cast<int>(max_size));
+      // TODO(antonin): while this is probably good to read from PI and validate
+      // consistency, it is quite expensive compared to just using the state
+      // stored in ActionProfMgr. Maybe we should consider doing that (or maybe
+      // have a flag to choose one or the other).
+      std::map<ActionProfMgr::Id, int> member_weights;
       for (size_t j = 0; j < num; j++) {
         ActionProfMgr::Id member_id;
         if (!action_prof_mgr->retrieve_member_id(members_h[j], &member_id)) {
           RETURN_ERROR_STATUS(Code::INTERNAL,
                               "Cannot map member handle to member id");
         }
+        member_weights[member_id]++;
+      }
+      for (const auto &m : member_weights) {
         auto member = group->add_members();
-        member->set_member_id(member_id);
-        // TODO(antonin): support arbitrary weight
-        // We set the weight to 1 unconditionally in every read response,
-        // because this is the only value we currently support and the only
-        // value we accept in write requests.
-        member->set_weight(1);
+        member->set_member_id(m.first);
+        member->set_weight(m.second);
         // TODO(antonin): support watch
       }
     }

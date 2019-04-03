@@ -192,6 +192,11 @@ class ActionData {
 
   error_code_t get_arg(pi_p4_id_t ap_id, std::string *arg) const;
 
+  ActionData(const ActionData &other);
+  ActionData &operator=(const ActionData &other);
+  ActionData(ActionData &&other) = default;
+  ActionData &operator=(ActionData &&other) = default;
+
  private:
   template <typename T>
   error_code_t format(pi_p4_id_t ap_id, T v);

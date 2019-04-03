@@ -588,6 +588,23 @@ ActionData::get_arg(pi_p4_id_t ap_id, std::string *arg) const {
   return reader.get_arg(ap_id, arg);
 }
 
+ActionData::ActionData(const ActionData &other)
+    : p4info(other.p4info),
+      action_id(other.action_id),
+      ad_size(other.ad_size),
+      _data(other._data),
+      action_data(reinterpret_cast<decltype(action_data)>(_data.data())),
+      reader(action_data) {
+  action_data->data = _data.data() + sizeof(*action_data);
+}
+
+ActionData &
+ActionData::operator=(const ActionData &other) {
+  ActionData tmp(other);  // re-use copy-constructor
+  *this = std::move(tmp);  // re-use move-assignment
+  return *this;
+}
+
 
 MatchTable::MatchTable(pi_session_handle_t sess, pi_dev_tgt_t dev_tgt,
                        const pi_p4info_t *p4info, pi_p4_id_t table_id)
