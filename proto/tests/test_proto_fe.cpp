@@ -1193,7 +1193,7 @@ TEST_P(ActionProfTest, InvalidMemberWeight) {
                        "weight must be a positive integer value"));
 }
 
-TEST_P(ActionProfTest, UnsupportedMemberWeight) {
+TEST_P(ActionProfTest, MemberWeights) {
   DeviceMgr::Status status;
   uint32_t group_id = 1000;
   uint32_t member_id = 1;
@@ -1204,12 +1204,56 @@ TEST_P(ActionProfTest, UnsupportedMemberWeight) {
   auto member = make_member(member_id, adata);
   EXPECT_OK(create_member(&member));
 
+  // we are creating a group with a single member with weight 3
+  // this will cause 2 new copies of the member to be created and both members
+  // will be added to the group
+  EXPECT_CALL(*mock, action_prof_member_create(_, _, _)).Times(2);
   EXPECT_CALL(*mock, action_prof_group_create(_, _, _));
-  EXPECT_NO_CALL_GROUP_ADD_MEMBER(*mock);
-  EXPECT_NO_CALL_GROUP_SET_MEMBERS(*mock);
+  if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
+    EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, _).Times(3);
+  } else {
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, 3, _);
+  }
   auto group = make_group(group_id);
+  add_member_to_group(&group, member_id, 3);
+  EXPECT_OK(create_group(&group));
+
+  // read group and check contents
+  EXPECT_CALL(*mock, action_prof_entries_fetch(act_prof_id, _));
+  p4v1::ReadResponse response;
+  p4v1::ReadRequest request;
+  {
+    auto entity = request.add_entities();
+    auto group = entity->mutable_action_profile_group();
+    group->set_action_profile_id(act_prof_id);
+  }
+  ASSERT_OK(mgr.read(request, &response));
+  const auto &entities = response.entities();
+  ASSERT_EQ(1, entities.size());
+  ASSERT_TRUE(MessageDifferencer::Equals(
+      group, entities.Get(0).action_profile_group()));
+
+  // change the weight to 2, this should cause one of the member copies to be
+  // removed from the group and the member copy should also be deleted, since it
+  // is not used anymore
+  if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
+    EXPECT_CALL_GROUP_REMOVE_MEMBER(*mock, act_prof_id, _, _);
+  } else {
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, 2, _);
+  }
+  EXPECT_CALL(*mock, action_prof_member_delete(_, _));
+  group.clear_members();
   add_member_to_group(&group, member_id, 2);
-  EXPECT_EQ(create_group(&group), OneExpectedError(Code::UNIMPLEMENTED));
+  EXPECT_OK(modify_group(&group));
+
+  // delete group, this should cause another member copy to be deleted
+  // we do not expect a call to remove_member or set_members, the target is
+  // supposed to be able to handle removing non-empty groups
+  EXPECT_NO_CALL_GROUP_REMOVE_MEMBER(*mock);
+  EXPECT_NO_CALL_GROUP_SET_MEMBERS(*mock);
+  EXPECT_CALL(*mock, action_prof_member_delete(_, _));
+  EXPECT_CALL(*mock, action_prof_group_delete(act_prof_id, _));
+  EXPECT_OK(delete_group(&group));
 }
 
 TEST_P(ActionProfTest, InvalidActionProfId) {
@@ -1319,22 +1363,20 @@ TEST_P(ActionProfTest, MaxSizeExceeded) {
   EXPECT_EQ(create_group(&group), OneExpectedError(Code::RESOURCE_EXHAUSTED));
 }
 
-// TODO(antonin): uncomment when duplicate check is enabled in
-// action_prof_mgr.cpp (I'm waiting for weights to be supported).
-// TEST_P(ActionProfTest, DuplicateMemberIds) {
-//   uint32_t group_id = 1000, member_id = 1;
-//   std::string adata(6, '\x00');
+TEST_P(ActionProfTest, DuplicateMemberIds) {
+  uint32_t group_id = 1000, member_id = 1;
+  std::string adata(6, '\x00');
 
-//   EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _));
-//   auto member = make_member(member_id, adata);
-//   EXPECT_OK(create_member(&member));
+  EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _));
+  auto member = make_member(member_id, adata);
+  EXPECT_OK(create_member(&member));
 
-//   auto group = make_group(group_id);
-//   add_member_to_group(&group, member_id);
-//   add_member_to_group(&group, member_id);
-//   EXPECT_CALL(*mock, action_prof_group_create(_, _, _)).Times(AtMost(1));
-//   EXPECT_EQ(create_group(&group), OneExpectedError(Code::INVALID_ARGUMENT));
-// }
+  auto group = make_group(group_id);
+  add_member_to_group(&group, member_id);
+  add_member_to_group(&group, member_id);
+  EXPECT_CALL(*mock, action_prof_group_create(_, _, _)).Times(AtMost(1));
+  EXPECT_EQ(create_group(&group), OneExpectedError(Code::INVALID_ARGUMENT));
+}
 
 TEST_P(ActionProfTest, MaxSizeModify) {
   DeviceMgr::Status status;
@@ -1501,18 +1543,21 @@ class MatchTableIndirectTest
 
   template <typename It>
   DeviceMgr::Status add_indirect_entry_one_shot(
-      p4v1::TableEntry *entry, It params_begin, It params_end) {
+      p4v1::TableEntry *entry, It params_begin, It params_end, int weight = 1) {
     for (auto param_it = params_begin; param_it != params_end; param_it++) {
       auto ad_matcher = CorrectActionData(a_id, *param_it);
-      EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, ad_matcher, _));
+      EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, ad_matcher, _))
+          .Times(weight);
     }
     auto params_size = static_cast<size_t>(
         std::distance(params_begin, params_end));
     EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, params_size, _));
     if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
-      EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, _).Times(params_size);
+      EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, _)
+          .Times(params_size * weight);
     } else {
-      EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, params_size, _);
+      EXPECT_CALL_GROUP_SET_MEMBERS(
+          *mock, act_prof_id, _, params_size * weight, _);
     }
     EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
     return add_entry(entry);
@@ -1671,14 +1716,25 @@ TEST_P(MatchTableIndirectTest, OneShotInvalidActionWeight) {
                        "weight must be a positive integer value"));
 }
 
-TEST_P(MatchTableIndirectTest, OneShotUnsupportedActionWeight) {
+TEST_P(MatchTableIndirectTest, OneShotWeights) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
   std::vector<std::string> params;
   params.emplace_back(6, '\x00');
   params.emplace_back(6, '\x01');
   auto entry =
       make_indirect_entry_one_shot(mf, params.begin(), params.end(), 2);
-  EXPECT_EQ(add_entry(&entry), OneExpectedError(Code::UNIMPLEMENTED));
+  ASSERT_OK(add_indirect_entry_one_shot(
+      &entry, params.begin(), params.end(), 2));
+
+  EXPECT_CALL(*mock, table_entries_fetch(t_id, _));
+  EXPECT_CALL(*mock, action_prof_entries_fetch(act_prof_id, _));
+
+  p4v1::ReadResponse response;
+  ASSERT_OK(read_table_entries(t_id, &response));
+  const auto &entities = response.entities();
+  ASSERT_EQ(1, entities.size());
+  EXPECT_TRUE(
+      MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
 }
 
 TEST_P(MatchTableIndirectTest, OneShotMaxSizeExceeded) {
@@ -3166,7 +3222,6 @@ TEST_F(ReadExclusiveAccess, ConcurrentReadAndWrites) {
   // table and an empty action profile, b) both the member and the table
   // entry, or c) just the member. Based on read semantics, we cannot have just
   // the table entry!!!
-
   auto do_write = [this](size_t iters) {
     EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _))
         .Times(iters);
