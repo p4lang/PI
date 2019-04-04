@@ -21,6 +21,7 @@
 #include <PI/proto/util.h>
 
 #include <algorithm>
+#include <map>
 #include <unordered_map>
 #include <vector>
 
@@ -139,7 +140,7 @@ ActionProfGroupMembership::ActionProfGroupMembership(size_t max_size_user)
 // the weight, new_weight == current_weight.
 std::vector<ActionProfGroupMembership::MembershipUpdate>
 ActionProfGroupMembership::compute_membership_update(
-    const std::vector<Membership> &desired_membership) const {
+    const std::map<Id, int> &desired_membership) const {
   std::vector<MembershipUpdate> update;
 
   auto new_it = desired_membership.begin();
@@ -147,24 +148,25 @@ ActionProfGroupMembership::compute_membership_update(
   while (new_it != desired_membership.end() || current_it != members.end()) {
     if (new_it == desired_membership.end()) {
       for (; current_it != members.end(); current_it++)
-        update.emplace_back(current_it->id, current_it->weight, 0);
+        update.emplace_back(current_it->first, current_it->second, 0);
       break;
     }
     if (current_it == members.end()) {
       for (; new_it != desired_membership.end(); new_it++)
-        update.emplace_back(new_it->id, 0, new_it->weight);
+        update.emplace_back(new_it->first, 0, new_it->second);
       break;
     }
-    if (current_it->id < new_it->id) {
+    if (current_it->first < new_it->first) {
       // member no longer exists
-      update.emplace_back(current_it->id, current_it->weight, 0);
+      update.emplace_back(current_it->first, current_it->second, 0);
       current_it++;
-    } else if (current_it->id > new_it->id) {
+    } else if (current_it->first > new_it->first) {
       // new member
-      update.emplace_back(new_it->id, 0, new_it->weight);
+      update.emplace_back(new_it->first, 0, new_it->second);
       new_it++;
     } else {
-      update.emplace_back(current_it->id, current_it->weight, new_it->weight);
+      update.emplace_back(
+          current_it->first, current_it->second, new_it->second);
       current_it++;
       new_it++;
     }
@@ -174,13 +176,17 @@ ActionProfGroupMembership::compute_membership_update(
 }
 
 void
-ActionProfGroupMembership::set_membership(
-    std::vector<Membership> &&new_members) {
+ActionProfGroupMembership::set_membership(std::map<Id, int> &&new_members) {
   members = std::move(new_members);
 }
 
-const std::vector<ActionProfGroupMembership::Membership> &
+const std::map<Id, int> &
 ActionProfGroupMembership::get_membership() const {
+  return members;
+}
+
+std::map<Id, int> &
+ActionProfGroupMembership::get_membership() {
   return members;
 }
 
@@ -262,9 +268,10 @@ ActionProfMgr::validate_max_group_size(int max_size) {
   return max_size_;
 }
 
-// TODO(antonin): we should try to do some cleanup in case of error when
+// TODO(antonin): we could try to do some better cleanup in case of error when
 // creating a group or modifying it. However, especially now that we have weight
-// support, it is more complex than for the one-shot case.
+// support, it is more complex than for the one-shot case. At least, we try to
+// ensure that the ActionProfMgr state is consistent with HW.
 
 Status
 ActionProfMgr::group_create(const p4v1::ActionProfileGroup &group,
@@ -350,6 +357,8 @@ ActionProfMgr::member_delete(const p4v1::ActionProfileMember &member,
     RETURN_ERROR_STATUS(Code::NOT_FOUND,
                         "Member id does not exist: {}", member.member_id());
   }
+  // at this point there should probably be a single handle; otherwise the
+  // member is still used by a group and the target should fail to delete it.
   for (auto member_h : member_state->handles) {
     auto pi_status = ap.member_delete(member_h);
     if (pi_status != PI_STATUS_SUCCESS) {
@@ -393,15 +402,15 @@ ActionProfMgr::group_delete(const p4v1::ActionProfileGroup &group,
   }
   const auto &members = it->second.get_membership();
   for (const auto &m : members) {
-    auto member_state = member_map.access_member_state(m.id);
+    auto member_state = member_map.access_member_state(m.first);
     if (!member_state) {
       RETURN_ERROR_STATUS(
           Code::INTERNAL, "Cannot access state for member {} in group {}",
-          m.id, group.group_id());
+          m.first, group.group_id());
     }
-    assert(m.weight > 0);
-    member_state->weight_counts[m.weight]--;
-    RETURN_IF_ERROR(purge_unused_weighted_members(ap, member_state));
+    assert(m.second > 0);
+    member_state->weight_counts[m.second]--;
+    RETURN_IF_ERROR(purge_unused_weighted_members_wrapper(ap, member_state));
   }
   group_members.erase(it);
 
@@ -712,6 +721,21 @@ ActionProfMgr::purge_unused_weighted_members(
 }
 
 Status
+ActionProfMgr::purge_unused_weighted_members_wrapper(
+    pi::ActProf &ap,
+    ActionProfMemberMap::MemberState *member_state) {
+  if (IS_ERROR(purge_unused_weighted_members(ap, member_state))) {
+    RETURN_ERROR_STATUS(
+        Code::INTERNAL,
+        "Error encountered when cleaning up action profile member copies "
+        "created for weighted member programming. This is a serious error and "
+        "there may be dangling action profile members. You may need to do a "
+        "SetForwardingPipelineConfig again or reboot the switch.");
+  }
+  RETURN_OK_STATUS();
+}
+
+Status
 ActionProfMgr::group_update_members(pi::ActProf &ap,
                                     const p4v1::ActionProfileGroup &group) {
   size_t sum_of_weights = 0;
@@ -741,47 +765,41 @@ ActionProfMgr::group_update_members(pi::ActProf &ap,
                         "Sum of member weights exceeds maximum group size");
   }
 
-  using Membership = ActionProfGroupMembership::Membership;
-  std::vector<Membership> new_membership(group.members().size());
-  std::transform(
-      group.members().begin(), group.members().end(), new_membership.begin(),
-      [](const p4v1::ActionProfileGroup::Member &m) {
-        return Membership{m.member_id(), m.weight()}; });
-  std::sort(new_membership.begin(), new_membership.end(), Membership::Comp());
-
-  // check for duplicates (new_membership is sorted)
-  if (new_membership.size() > 0) {
-    auto prev_it = new_membership.begin();
-    for (auto it = new_membership.begin() + 1;
-         it != new_membership.end();
-         it++) {
-      if (it->id == prev_it->id) {
-        RETURN_ERROR_STATUS(
-            Code::INVALID_ARGUMENT,
-            "Duplicate member id {} for group {}, use weights instead",
-            it->id, group_id);
-        break;
-      }
-      prev_it = it;
-    }
-  }
-
-  // check that member ids exist
-  for (const auto& member : new_membership) {
-    if (!member_map.access_member_state(member.id)) {
+  std::map<Id, int> new_membership;
+  for (const auto &m : group.members()) {
+    // check that member id exists
+    if (!member_map.access_member_state(m.member_id())) {
       RETURN_ERROR_STATUS(
-          Code::NOT_FOUND, "Member id does not exist: {}", member.id);
+          Code::NOT_FOUND, "Member id does not exist: {}", m.member_id());
     }
+    // check if duplicate
+    if (new_membership.count(m.member_id()) > 0) {
+      RETURN_ERROR_STATUS(
+          Code::INVALID_ARGUMENT,
+          "Duplicate member id {} for group {}, use weights instead",
+          m.member_id(), group_id);
+    }
+    new_membership.emplace(m.member_id(), m.weight());
   }
 
   auto membership_update = membership.compute_membership_update(
       new_membership);
 
+  auto cleanup_members = [&membership_update, &ap, this]() {
+    for (const auto &m : membership_update) {
+      auto member_state = member_map.access_member_state(m.id);
+      assert(member_state);
+      // TODO(antonin): try to purge subsequent members even if one fails
+      RETURN_IF_ERROR(purge_unused_weighted_members_wrapper(ap, member_state));
+    }
+    RETURN_OK_STATUS();
+  };
+
+  auto &current_membership = membership.get_membership();
+
   if (pi_api_choice == PiApiChoice::INDIVIDUAL_ADDS_AND_REMOVES) {
     // TODO(antonin): make this code smarter so that the group is never empty
     // and never too big at any given time.
-    std::vector<pi_indirect_handle_t> members_to_add;
-    std::vector<pi_indirect_handle_t> members_to_remove;
 
     for (const auto &m : membership_update) {
       auto member_state = member_map.access_member_state(m.id);
@@ -789,28 +807,64 @@ ActionProfMgr::group_update_members(pi::ActProf &ap,
 
       RETURN_IF_ERROR(create_missing_weighted_members(ap, member_state, m));
 
-      if (m.current_weight < m.new_weight) {
-        members_to_add.insert(
-            members_to_add.end(),
-            member_state->handles.begin() + m.current_weight,
-            member_state->handles.begin() + m.new_weight);
-      } else if (m.current_weight > m.new_weight) {
-        members_to_remove.insert(
-            members_to_remove.end(),
-            member_state->handles.begin() + m.new_weight,
-            member_state->handles.begin() + m.current_weight);
+      if (m.current_weight > 0) member_state->weight_counts[m.current_weight]--;
+
+      int end_weight = m.current_weight;
+
+      auto add_member = [&ap, group_h](pi_indirect_handle_t h)
+          -> Status {
+        auto pi_status = ap.group_add_member(*group_h, h);
+        if (pi_status != PI_STATUS_SUCCESS) {
+          RETURN_ERROR_STATUS(
+              Code::UNKNOWN, "Error when adding member to group on target");
+        }
+        RETURN_OK_STATUS();
+      };
+
+      auto remove_member = [&end_weight, &ap, group_h](pi_indirect_handle_t h)
+          -> Status {
+        auto pi_status = ap.group_remove_member(*group_h, h);
+        if (pi_status != PI_STATUS_SUCCESS) {
+          RETURN_ERROR_STATUS(
+              Code::UNKNOWN, "Error when removing member from group on target");
+        }
+        RETURN_OK_STATUS();
+      };
+
+      Status status = OK_STATUS();
+      // only one of these 2 loops will be "executed"
+      // remove members as needed
+      for (int i = m.current_weight - 1; i >= m.new_weight; i--) {
+        status = remove_member(member_state->handles.at(i));
+        if (IS_ERROR(status)) break;
+        end_weight--;
+        auto it = current_membership.find(m.id);
+        assert(it != current_membership.end());
+        if (it->second == 1)
+          current_membership.erase(it);
+        else
+          it->second--;
+      }
+      // add members as needed
+      for (int i = m.current_weight; i < m.new_weight; i++) {
+        status = add_member(member_state->handles.at(i));
+        if (IS_ERROR(status)) break;
+        end_weight++;
+        current_membership[m.id]++;
       }
 
-      if (m.current_weight > 0) member_state->weight_counts[m.current_weight]--;
-      if (m.new_weight > 0) member_state->weight_counts[m.new_weight]++;
+      if (end_weight > 0) member_state->weight_counts[end_weight]++;
+
+      if (IS_ERROR(status)) {
+        RETURN_IF_ERROR(cleanup_members());
+        return status;
+      }
+
+      RETURN_IF_ERROR(status);
+      assert(end_weight == m.new_weight);
     }
 
-    // remove members as needed
-    RETURN_IF_ERROR(group_remove_members(
-        ap, *group_h, members_to_remove.cbegin(), members_to_remove.cend()));
-    // add members as needed
-    RETURN_IF_ERROR(group_add_members(
-        ap, *group_h, members_to_add.cbegin(), members_to_add.cend()));
+    assert(current_membership == new_membership);
   } else if (pi_api_choice == PiApiChoice::SET_MEMBERSHIP) {
     std::vector<pi_indirect_handle_t> members_to_set;
 
@@ -826,54 +880,31 @@ ActionProfMgr::group_update_members(pi::ActProf &ap,
       members_to_set.insert(members_to_set.end(),
                             member_state->handles.begin(),
                             member_state->handles.begin() + m.new_weight);
-
-      if (m.current_weight > 0) member_state->weight_counts[m.current_weight]--;
-      if (m.new_weight > 0) member_state->weight_counts[m.new_weight]++;
     }
 
     auto pi_status = ap.group_set_members(
         *group_h, members_to_set.size(), members_to_set.data());
     if (pi_status != PI_STATUS_SUCCESS) {
+      RETURN_IF_ERROR(cleanup_members());
       RETURN_ERROR_STATUS(
           Code::UNKNOWN, "Error when setting group membership on target");
     }
+
+    for (const auto &m : membership_update) {
+      auto member_state = member_map.access_member_state(m.id);
+      assert(member_state);
+      if (m.current_weight > 0) member_state->weight_counts[m.current_weight]--;
+      if (m.new_weight > 0) member_state->weight_counts[m.new_weight]++;
+    }
+
+    membership.set_membership(std::move(new_membership));
   } else {
     RETURN_ERROR_STATUS(Code::INTERNAL, "Unknown PiApiChoice");
   }
 
-  membership.set_membership(std::move(new_membership));
-
   // cleanup members which are not used anymore
-  for (const auto &m : membership_update) {
-    auto member_state = member_map.access_member_state(m.id);
-    assert(member_state);  // checked previously
-    RETURN_IF_ERROR(purge_unused_weighted_members(ap, member_state));
-  }
+  RETURN_IF_ERROR(cleanup_members());
 
-  RETURN_OK_STATUS();
-}
-
-Status
-ActionProfMgr::group_add_member(pi::ActProf &ap,
-                                pi_indirect_handle_t group_h,
-                                pi_indirect_handle_t member_h) {
-  auto pi_status = ap.group_add_member(group_h, member_h);
-  if (pi_status != PI_STATUS_SUCCESS) {
-    RETURN_ERROR_STATUS(
-        Code::UNKNOWN, "Error when adding member to group on target");
-  }
-  RETURN_OK_STATUS();
-}
-
-Status
-ActionProfMgr::group_remove_member(pi::ActProf &ap,
-                                   pi_indirect_handle_t group_h,
-                                   pi_indirect_handle_t member_h) {
-  auto pi_status = ap.group_remove_member(group_h, member_h);
-  if (pi_status != PI_STATUS_SUCCESS) {
-    RETURN_ERROR_STATUS(
-        Code::UNKNOWN, "Error when removing member from group on target");
-  }
   RETURN_OK_STATUS();
 }
 

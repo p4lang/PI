@@ -97,7 +97,7 @@ struct SessionTemp {
     RETURN_ERROR_STATUS(
         Code::INTERNAL,
         "{} serious errors when encountered during cleanup; you may need to "
-        "reboot the device");
+        "reboot the device", error_cnt);
   }
 
   void cleanup_scope_push() {
