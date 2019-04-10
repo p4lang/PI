@@ -37,7 +37,6 @@ from google.rpc import status_pb2, code_pb2
 from p4.v1 import p4runtime_pb2
 from p4.v1 import p4runtime_pb2_grpc
 from p4.config.v1 import p4info_pb2
-from p4.tmp import p4config_pb2
 import google.protobuf.text_format
 
 # See https://gist.github.com/carymrobbins/8940382
@@ -446,7 +445,7 @@ class P4RuntimeTest(BaseTest):
     def set_action(self, action, a_name, params):
         action_id = self.get_action_id(a_name)
         if action_id is None:
-            self.fail("Failed to get id of action '{}' - perhaps the action name is misspelled?".format(a_name)
+            self.fail("Failed to get id of action '{}' - perhaps the action name is misspelled?").format(a_name)
         action.action_id = action_id
         for p_name, v in params:
             param = action.params.add()
