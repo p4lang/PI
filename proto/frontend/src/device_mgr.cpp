@@ -425,11 +425,14 @@ class DeviceMgrImp {
       RETURN_OK_STATUS();
 
     p4::tmp::P4DeviceConfig p4_device_config;
-    if (!p4_device_config.ParseFromString(config.p4_device_config())) {
-      RETURN_ERROR_STATUS(
-          Code::INVALID_ARGUMENT,
-          "Invalid 'p4_device_config', not an instance of "
-          "p4::tmp::P4DeviceConfig");
+    const std::string *device_data = nullptr;
+    bool uses_legacy_p4_device_config = false;
+    if (p4_device_config.ParseFromString(config.p4_device_config())) {
+      device_data = &p4_device_config.device_data();
+      uses_legacy_p4_device_config = true;
+      Logger::get()->warn("p4::tmp::P4DeviceConfig is deprecated");
+    } else {
+      device_data = &config.p4_device_config();
     }
 
     auto lock = unique_lock();
@@ -459,7 +462,8 @@ class DeviceMgrImp {
 
     // This is for legacy support of bmv2
     if (action == SetConfigRequest::VERIFY_AND_COMMIT &&
-        p4_device_config.device_data().empty()) {
+        uses_legacy_p4_device_config &&
+        device_data->empty()) {
       if (pi_is_device_assigned(device_id)) remove_device();
       assert(!pi_is_device_assigned(device_id));
       auto assign_options = make_assign_options();
@@ -478,8 +482,11 @@ class DeviceMgrImp {
     if (action == SetConfigRequest::VERIFY_AND_SAVE ||
         action == SetConfigRequest::VERIFY_AND_COMMIT ||
         action == SetConfigRequest::RECONCILE_AND_COMMIT) {
-      if (pi_is_device_assigned(device_id) && p4_device_config.reassign())
+      if (uses_legacy_p4_device_config &&
+          pi_is_device_assigned(device_id) &&
+          p4_device_config.reassign()) {
         remove_device();
+      }
       if (!pi_is_device_assigned(device_id)) {
         auto assign_options = make_assign_options();
         pi_status = pi_assign_device(device_id, NULL, assign_options.data());
@@ -506,10 +513,9 @@ class DeviceMgrImp {
     if (action == SetConfigRequest::VERIFY_AND_SAVE ||
         action == SetConfigRequest::VERIFY_AND_COMMIT ||
         action == SetConfigRequest::RECONCILE_AND_COMMIT) {
-      const auto &device_data = p4_device_config.device_data();
       pi_status = pi_update_device_start(device_id, p4info_tmp,
-                                         device_data.data(),
-                                         device_data.size());
+                                         device_data->data(),
+                                         device_data->size());
       if (pi_status != PI_STATUS_SUCCESS) {
         pi_destroy_config(p4info_tmp);
         RETURN_ERROR_STATUS(Code::UNKNOWN,

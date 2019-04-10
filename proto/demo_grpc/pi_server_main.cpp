@@ -19,6 +19,7 @@
  */
 
 #include <PI/frontends/proto/device_mgr.h>
+#include <PI/frontends/proto/logging.h>
 
 #include <PI/proto/pi_server.h>
 
@@ -45,6 +46,28 @@ int main(int argc, char** argv) {
     std::cout << "Server shutting down\n";
     PIGrpcServerForceShutdown(1);  // 1 second deadline
   };
+
+  {
+    using pi::fe::proto::LogWriterIface;
+    using pi::fe::proto::LoggerConfig;
+    class P4RuntimeLogger : public LogWriterIface {
+      void write(Severity severity, const char *msg) override {
+        auto severity_map = [&severity]() -> const char * {
+          switch (severity) {
+            case Severity::TRACE : return "trace";
+            case Severity::DEBUG: return "debug";
+            case Severity::INFO: return "info";
+            case Severity::WARN: return "warn";
+            case Severity::ERROR: return "error";
+            case Severity::CRITICAL: return "critical";
+          }
+          return "unknown severity";
+        };
+        std::cout << "[P4Runtime] [" << severity_map() << "] " << msg << "\n";
+      }
+    };
+    LoggerConfig::set_writer(std::make_shared<P4RuntimeLogger>());
+  }
 
   PIGrpcServerRunAddr(server_address);
 

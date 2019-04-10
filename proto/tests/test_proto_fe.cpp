@@ -43,8 +43,6 @@
 #include <tuple>
 #include <vector>
 
-#include "p4/tmp/p4config.pb.h"
-
 #include "PI/frontends/cpp/tables.h"
 #include "PI/frontends/proto/device_mgr.h"
 #include "PI/int/pi_int.h"
@@ -213,9 +211,7 @@ class DeviceMgrTest : public ::testing::Test {
     p4v1::ForwardingPipelineConfig config;
     config.set_allocated_p4info(&p4info_proto);
     config.mutable_cookie()->set_cookie(cookie);
-    p4::tmp::P4DeviceConfig dummy_device_config_;
-    dummy_device_config_.set_device_data("This is a dummy device config");
-    dummy_device_config_.SerializeToString(&dummy_device_config);
+    dummy_device_config = "This is a dummy device config";
     config.set_p4_device_config(dummy_device_config);
     EXPECT_CALL(*mock, action_prof_api_support())
         .WillRepeatedly(Return(action_prof_api_choice));
@@ -353,13 +349,10 @@ TEST_F(DeviceMgrTest, PipelineConfigGet) {
 }
 
 TEST_F(DeviceMgrTest, PipelineConfigGetLarge) {
-  std::string large_device_config;
+  std::string large_device_config(32768, 'a');
   {
     p4v1::ForwardingPipelineConfig config;
     config.mutable_p4info()->CopyFrom(p4info_proto);
-    p4::tmp::P4DeviceConfig large_device_config_;
-    large_device_config_.set_device_data(std::string(32768, 'a'));
-    large_device_config_.SerializeToString(&large_device_config);
     config.set_p4_device_config(large_device_config);
     EXPECT_CALL(*mock, table_idle_timeout_config_set(
         pi_p4info_table_id_from_name(p4info, "IdleTimeoutTable"), _));
