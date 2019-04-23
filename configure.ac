@@ -17,8 +17,12 @@ AC_PROG_CC_C99
 # long as --with-bmv2 / --with-fe-cpp / --with-proto is not specified of course)
 AC_PROG_CXX
 
-# TODO: make this conditional on the PD if possible
-AM_PATH_PYTHON([2.7],, [:])
+# TODO: this can be removed when the Python scripts are updated to work with
+# python3 or when the PD generator code is removed altogether.
+m4_define_default([_AM_PYTHON_INTERPRETER_LIST], [python2 python2.7])
+AM_PATH_PYTHON([2.7],, [
+    AC_MSG_WARN([Cannot detect python2.7, is it installed? As a result we will skip installation of the PD generator (deprecated).])])
+AM_CONDITIONAL([HAVE_PYTHON2], [test "$PYTHON" != :])
 
 DX_DOT_FEATURE([ON])
 DX_PDF_FEATURE([ON])

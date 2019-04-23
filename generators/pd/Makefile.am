@@ -1,5 +1,7 @@
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 
+if HAVE_PYTHON2
+
 python_PYTHON = \
 gen_pd.py \
 tenjin_wrapper.py
@@ -41,3 +43,5 @@ templates/thrift-src/pd_rpc_server.cpp \
 templates/thrift-src/pd_rpc_server.h
 
 CLEANFILES = $(bin_SCRIPTS)
+
+endif  # HAVE_PYTHON2
