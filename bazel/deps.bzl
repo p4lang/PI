@@ -1,5 +1,6 @@
 """Load dependencies needed to compile PI as a 3rd-party consumer."""
 
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("//bazel:workspace_rule.bzl", "remote_workspace")
 
 def PI_deps():
@@ -13,7 +14,7 @@ def PI_deps():
         )
 
     if "judy" not in native.existing_rules():
-        native.new_http_archive(
+        http_archive(
             name = "judy",
             build_file = "@com_github_p4lang_PI//bazel/external:judy.BUILD",
             url = "http://archive.ubuntu.com/ubuntu/pool/universe/j/judy/judy_1.0.5.orig.tar.gz",
