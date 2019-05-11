@@ -427,16 +427,16 @@ ActionProfMgr::group_get_max_size_user(const Id &group_id,
   return true;
 }
 
-namespace {
-
-struct OneShotGroupCleanupTask : common::LocalCleanupIface {
-  OneShotGroupCleanupTask(pi::ActProf *ap, pi_indirect_handle_t group_h)
-      : ap(ap), group_h(group_h) { }
+struct ActionProfMgr::OneShotGroupCleanupTask : common::LocalCleanupIface {
+  OneShotGroupCleanupTask(ActionProfMgr *action_prof_mgr,
+                          pi_indirect_handle_t group_h)
+      : mgr(action_prof_mgr), group_h(group_h) { }
 
   Status cleanup(const SessionTemp &session) override {
-    (void)session;
-    if (!ap) RETURN_OK_STATUS();
-    auto pi_status = ap->group_delete(group_h);
+    if (!mgr) RETURN_OK_STATUS();
+    pi::ActProf ap(
+        session.get(), mgr->device_tgt, mgr->p4info, mgr->act_prof_id);
+    auto pi_status = ap.group_delete(group_h);
     if (pi_status != PI_STATUS_SUCCESS) {
       RETURN_ERROR_STATUS(
           Code::INTERNAL,
@@ -449,21 +449,23 @@ struct OneShotGroupCleanupTask : common::LocalCleanupIface {
   }
 
   void cancel() override {
-    ap = nullptr;
+    mgr = nullptr;
   }
 
-  pi::ActProf *ap;
+  ActionProfMgr *mgr;
   pi_indirect_handle_t group_h;
 };
 
-struct OneShotMemberCleanupTask : common::LocalCleanupIface {
-  OneShotMemberCleanupTask(pi::ActProf *ap, pi_indirect_handle_t member_h)
-      : ap(ap), member_h(member_h) { }
+struct ActionProfMgr::OneShotMemberCleanupTask : common::LocalCleanupIface {
+  OneShotMemberCleanupTask(ActionProfMgr *action_prof_mgr,
+                           pi_indirect_handle_t member_h)
+      : mgr(action_prof_mgr), member_h(member_h) { }
 
   Status cleanup(const SessionTemp &session) override {
-    (void)session;
-    if (!ap) RETURN_OK_STATUS();
-    auto pi_status = ap->member_delete(member_h);
+    if (!mgr) RETURN_OK_STATUS();
+    pi::ActProf ap(
+        session.get(), mgr->device_tgt, mgr->p4info, mgr->act_prof_id);
+    auto pi_status = ap.member_delete(member_h);
     if (pi_status != PI_STATUS_SUCCESS) {
       RETURN_ERROR_STATUS(
           Code::INTERNAL,
@@ -475,14 +477,12 @@ struct OneShotMemberCleanupTask : common::LocalCleanupIface {
   }
 
   void cancel() override {
-    ap = nullptr;
+    mgr = nullptr;
   }
 
-  pi::ActProf *ap;
+  ActionProfMgr *mgr;
   pi_indirect_handle_t member_h;
 };
-
-}  // namespace
 
 Status
 ActionProfMgr::oneshot_group_create(
@@ -535,7 +535,7 @@ ActionProfMgr::oneshot_group_create(
       members.push_back({member_h, (i == 0) ? action.weight() : 0});
       members_h.push_back(member_h);
       session->cleanup_task_push(std::unique_ptr<OneShotMemberCleanupTask>(
-          new OneShotMemberCleanupTask(&ap, member_h)));
+          new OneShotMemberCleanupTask(this, member_h)));
     }
   }
   {
@@ -544,7 +544,7 @@ ActionProfMgr::oneshot_group_create(
     if (pi_status != PI_STATUS_SUCCESS)
       RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when creating group on target");
     session->cleanup_task_push(std::unique_ptr<OneShotGroupCleanupTask>(
-        new OneShotGroupCleanupTask(&ap, *group_h)));
+        new OneShotGroupCleanupTask(this, *group_h)));
   }
   if (pi_api_choice == PiApiChoice::INDIVIDUAL_ADDS_AND_REMOVES) {
     for (const auto &member_h : members_h) {

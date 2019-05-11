@@ -239,6 +239,11 @@ class ActionProfMgr {
   static StatusOr<PiApiChoice> choose_pi_api(pi_dev_id_t device_id);
 
  private:
+  // nested classes so they have access to private data members and can create a
+  // pi::ActProf instance.
+  struct OneShotGroupCleanupTask;
+  struct OneShotMemberCleanupTask;
+
   bool check_p4_action_id(pi_p4_id_t p4_id) const;
 
   Status validate_action(const p4::v1::Action &action);
