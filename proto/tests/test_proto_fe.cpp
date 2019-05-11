@@ -92,11 +92,14 @@ using Code = ::google::rpc::Code;
 using google::protobuf::util::MessageDifferencer;
 
 using ::testing::_;
+using ::testing::AllOf;
 using ::testing::AnyNumber;
 using ::testing::Args;
 using ::testing::AtLeast;
 using ::testing::AtMost;
+using ::testing::DoDefault;
 using ::testing::ElementsAre;
+using ::testing::ElementsAreArray;
 using ::testing::Exactly;
 using ::testing::IsNull;
 using ::testing::Return;
@@ -1742,6 +1745,111 @@ TEST_P(MatchTableIndirectTest, OneShotMaxSizeExceeded) {
   EXPECT_EQ(add_entry(&entry), OneExpectedError(Code::RESOURCE_EXHAUSTED));
 }
 
+class OneShotCleanupTest : public MatchTableIndirectTest {
+ protected:
+  DeviceMgr::Status make_and_add_entry() {
+    std::string mf("\xaa\xbb\xcc\xdd", 4);
+    std::vector<std::string> params;
+    for (size_t i = 0; i < num_actions; i++) {
+      auto c = static_cast<char>(i);
+      params.emplace_back(6, c);
+    }
+    auto entry = make_indirect_entry_one_shot(mf, params.begin(), params.end());
+    return add_entry(&entry);
+  }
+  size_t num_actions{2};
+};
+
+TEST_P(OneShotCleanupTest, MemberCreateError) {
+  {
+    ::testing::InSequence s;
+    // one member created successfully, the other one fails
+    EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _))
+        .Times(num_actions - 1);
+    EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _))
+        .WillOnce(Return(PI_STATUS_TARGET_ERROR));
+  }
+  // as a result we expect no calls to add_member / set_members
+  EXPECT_NO_CALL_GROUP_ADD_MEMBER(*mock);
+  EXPECT_NO_CALL_GROUP_SET_MEMBERS(*mock);
+  // and no call to group_create
+  EXPECT_CALL(*mock, action_prof_group_create(_, _, _)).Times(0);
+  // and we expect the first member to be deleted
+  EXPECT_CALL(*mock, action_prof_member_delete(act_prof_id, _))
+      .Times(num_actions - 1);
+
+  EXPECT_EQ(make_and_add_entry(), OneExpectedError(Code::UNKNOWN));
+}
+
+TEST_P(OneShotCleanupTest, MemberCreateErrorCritical) {
+  {
+    ::testing::InSequence s;
+    // one member created successfully, the other one fails
+    EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _))
+        .Times(num_actions - 1);
+    EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _))
+        .WillOnce(Return(PI_STATUS_TARGET_ERROR));
+  }
+  // we simulate errors during the cleanup
+  EXPECT_CALL(*mock, action_prof_member_delete(act_prof_id, _))
+      .WillRepeatedly(Return(PI_STATUS_TARGET_ERROR));
+
+  EXPECT_EQ(make_and_add_entry(),
+            OneExpectedError(Code::INTERNAL, "serious error"));
+}
+
+TEST_P(OneShotCleanupTest, GroupCreateError) {
+  // we expect 2 members to be created
+  EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _))
+      .Times(num_actions);
+  // we return an error when the group is created
+  EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, num_actions, _))
+      .WillOnce(Return(PI_STATUS_TARGET_ERROR));
+  // as a result we expect no calls to add_member / set_members
+  EXPECT_NO_CALL_GROUP_ADD_MEMBER(*mock);
+  EXPECT_NO_CALL_GROUP_SET_MEMBERS(*mock);
+  // and we expect the members to be deleted
+  EXPECT_CALL(*mock, action_prof_member_delete(act_prof_id, _))
+      .Times(num_actions);
+
+  EXPECT_EQ(make_and_add_entry(), OneExpectedError(Code::UNKNOWN));
+}
+
+TEST_P(OneShotCleanupTest, GroupCreateErrorCritical) {
+  // we expect 2 members to be created
+  EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _))
+      .Times(num_actions);
+  // we return an error when the group is created
+  EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, num_actions, _))
+      .WillOnce(Return(PI_STATUS_TARGET_ERROR));
+  // we simulate errors during the cleanup
+  EXPECT_CALL(*mock, action_prof_member_delete(act_prof_id, _))
+      .WillRepeatedly(Return(PI_STATUS_TARGET_ERROR));
+
+  EXPECT_EQ(make_and_add_entry(),
+            OneExpectedError(Code::INTERNAL, "serious errors"));
+}
+
+TEST_P(OneShotCleanupTest, MemberAddError) {
+  EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _))
+      .Times(num_actions);
+  EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, _, _));
+  // we return an error when updating group membership
+  if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
+    EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, _)
+        .WillOnce(Return(PI_STATUS_TARGET_ERROR));
+  } else {
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, num_actions, _)
+        .WillOnce(Return(PI_STATUS_TARGET_ERROR));
+  }
+  // we expect the following calls for cleanup:
+  EXPECT_CALL(*mock, action_prof_group_delete(act_prof_id, _));
+  EXPECT_CALL(*mock, action_prof_member_delete(act_prof_id, _))
+      .Times(num_actions);
+
+  EXPECT_EQ(make_and_add_entry(), OneExpectedError(Code::UNKNOWN));
+}
+
 TEST_P(MatchTableIndirectTest, MixedSelectorModes) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
   std::string adata(6, '\x00');
@@ -1792,6 +1900,12 @@ TEST_P(MatchTableIndirectTest, SetDefault) {
 
 INSTANTIATE_TEST_CASE_P(
     ActionProfPiApis, MatchTableIndirectTest,
+    Values(PiActProfApiSupport_SET_MBRS,
+           PiActProfApiSupport_ADD_AND_REMOVE_MBR,
+           PiActProfApiSupport_BOTH));
+
+INSTANTIATE_TEST_CASE_P(
+    ActionProfPiApis, OneShotCleanupTest,
     Values(PiActProfApiSupport_SET_MBRS,
            PiActProfApiSupport_ADD_AND_REMOVE_MBR,
            PiActProfApiSupport_BOTH));
