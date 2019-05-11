@@ -481,11 +481,27 @@ class DummyActionProf {
 
   pi_status_t group_set_members(pi_indirect_handle_t grp_handle,
                                 size_t num_mbrs,
-                                const pi_indirect_handle_t *mbr_handles) {
+                                const pi_indirect_handle_t *mbr_handles,
+                                const bool *activate) {
+    (void)activate;
     auto it = groups.find(grp_handle);
     if (it == groups.end()) return PI_STATUS_TARGET_ERROR;
     it->second.clear();
     it->second.insert(mbr_handles, mbr_handles + num_mbrs);
+    return PI_STATUS_SUCCESS;
+  }
+
+  pi_status_t group_activate_member(pi_indirect_handle_t grp_handle,
+                                    pi_indirect_handle_t mbr_handle) {
+    (void)grp_handle;
+    (void)mbr_handle;
+    return PI_STATUS_SUCCESS;
+  }
+
+  pi_status_t group_deactivate_member(pi_indirect_handle_t grp_handle,
+                                      pi_indirect_handle_t mbr_handle) {
+    (void)grp_handle;
+    (void)mbr_handle;
     return PI_STATUS_SUCCESS;
   }
 
@@ -734,9 +750,26 @@ class DummySwitch {
       pi_p4_id_t act_prof_id,
       pi_indirect_handle_t grp_handle,
       size_t num_mbrs,
-      const pi_indirect_handle_t *mbr_handles) {
+      const pi_indirect_handle_t *mbr_handles,
+      const bool *activate) {
     return action_profs[act_prof_id].group_set_members(
-        grp_handle, num_mbrs, mbr_handles);
+        grp_handle, num_mbrs, mbr_handles, activate);
+  }
+
+  pi_status_t action_prof_group_activate_member(
+      pi_p4_id_t act_prof_id,
+      pi_indirect_handle_t grp_handle,
+      pi_indirect_handle_t mbr_handle) {
+    return action_profs[act_prof_id].group_activate_member(
+        grp_handle, mbr_handle);
+  }
+
+  pi_status_t action_prof_group_deactivate_member(
+      pi_p4_id_t act_prof_id,
+      pi_indirect_handle_t grp_handle,
+      pi_indirect_handle_t mbr_handle) {
+    return action_profs[act_prof_id].group_deactivate_member(
+        grp_handle, mbr_handle);
   }
 
   pi_status_t action_prof_entries_fetch(pi_p4_id_t act_prof_id,
@@ -796,6 +829,11 @@ class DummySwitch {
 
   pi_status_t packetin_inject(const std::string &packet) const {
     return pi_packetin_receive(device_id, packet.data(), packet.size());
+  }
+
+  pi_status_t port_status_event_inject(pi_port_t port,
+                                       pi_port_status_t status) const {
+    return pi_port_status_event_notify(device_id, port, status);
   }
 
   pi_status_t mc_grp_create(pi_mc_grp_id_t grp_id,
@@ -980,7 +1018,7 @@ DummySwitchMock::DummySwitchMock(device_id_t device_id)
   ON_CALL(*this, action_prof_group_remove_member(_, _, _))
       .WillByDefault(
           Invoke(sw_, &DummySwitch::action_prof_group_remove_member));
-  ON_CALL(*this, action_prof_group_set_members(_, _, _, _))
+  ON_CALL(*this, action_prof_group_set_members(_, _, _, _, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::action_prof_group_set_members));
   ON_CALL(*this, action_prof_entries_fetch(_, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::action_prof_entries_fetch));
@@ -1116,6 +1154,12 @@ DummySwitchMock::digest_inject(pi_p4_id_t learn_id,
                                pi_learn_msg_id_t msg_id,
                                const std::vector<std::string> &samples) const {
   return sw->learn_new_msg(learn_id, msg_id, samples);
+}
+
+pi_status_t
+DummySwitchMock::port_status_event_inject(pi_port_t port,
+                                          pi_port_status_t status) const {
+  return sw->port_status_event_inject(port, status);
 }
 
 pi_status_t
@@ -1342,10 +1386,36 @@ pi_status_t _pi_act_prof_grp_set_mbrs(pi_session_handle_t,
                                       pi_p4_id_t act_prof_id,
                                       pi_indirect_handle_t grp_handle,
                                       size_t num_mbrs,
-                                      const pi_indirect_handle_t *mbr_handles) {
+                                      const pi_indirect_handle_t *mbr_handles,
+                                      const bool *activate) {
   return DeviceResolver::get_switch(dev_id)->action_prof_group_set_members(
-      act_prof_id, grp_handle, num_mbrs, mbr_handles);
+      act_prof_id, grp_handle, num_mbrs, mbr_handles, activate);
 }
+
+pi_status_t _pi_act_prof_grp_activate_mbr(pi_session_handle_t,
+                                          pi_dev_id_t dev_id,
+                                          pi_p4_id_t act_prof_id,
+                                          pi_indirect_handle_t grp_handle,
+                                          pi_indirect_handle_t mbr_handle) {
+  return DeviceResolver::get_switch(dev_id)->action_prof_group_activate_member(
+      act_prof_id, grp_handle, mbr_handle);
+}
+
+pi_status_t _pi_act_prof_grp_deactivate_mbr(pi_session_handle_t,
+                                            pi_dev_id_t dev_id,
+                                            pi_p4_id_t act_prof_id,
+                                            pi_indirect_handle_t grp_handle,
+                                            pi_indirect_handle_t mbr_handle) {
+  return DeviceResolver::get_switch(dev_id)
+      ->action_prof_group_deactivate_member(
+          act_prof_id, grp_handle, mbr_handle);
+}
+
+pi_status_t _pi_act_prof_grp_deactivate_mbr(pi_session_handle_t session_handle,
+                                            pi_dev_id_t dev_id,
+                                            pi_p4_id_t act_prof_id,
+                                            pi_indirect_handle_t grp_handle,
+                                            pi_indirect_handle_t mbr_handle);
 
 pi_status_t _pi_act_prof_entries_fetch(pi_session_handle_t,
                                        pi_dev_id_t dev_id,

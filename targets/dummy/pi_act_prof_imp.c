@@ -113,18 +113,45 @@ pi_status_t _pi_act_prof_grp_remove_mbr(pi_session_handle_t session_handle,
   return PI_STATUS_SUCCESS;
 }
 
-pi_status_t _pi_act_prof_grp_set_mbrs(pi_session_handle_t session_handle,
-                                      pi_dev_id_t dev_id,
-                                      pi_p4_id_t act_prof_id,
-                                      pi_indirect_handle_t grp_handle,
-                                      size_t num_mbrs,
-                                      const pi_indirect_handle_t *mbr_handles) {
+pi_status_t _pi_act_prof_grp_set_mbrs(
+    pi_session_handle_t session_handle, pi_dev_id_t dev_id,
+    pi_p4_id_t act_prof_id, pi_indirect_handle_t grp_handle, size_t num_mbrs,
+    const pi_indirect_handle_t *mbr_handles, const bool *activate) {
   (void)session_handle;
   (void)dev_id;
   (void)act_prof_id;
   (void)grp_handle;
   (void)num_mbrs;
   (void)mbr_handles;
+  (void)activate;
+  func_counter_increment(__func__);
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_act_prof_grp_activate_mbr(pi_session_handle_t session_handle,
+                                          pi_dev_id_t dev_id,
+                                          pi_p4_id_t act_prof_id,
+                                          pi_indirect_handle_t grp_handle,
+                                          pi_indirect_handle_t mbr_handle) {
+  (void)session_handle;
+  (void)dev_id;
+  (void)act_prof_id;
+  (void)grp_handle;
+  (void)mbr_handle;
+  func_counter_increment(__func__);
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_act_prof_grp_deactivate_mbr(pi_session_handle_t session_handle,
+                                            pi_dev_id_t dev_id,
+                                            pi_p4_id_t act_prof_id,
+                                            pi_indirect_handle_t grp_handle,
+                                            pi_indirect_handle_t mbr_handle) {
+  (void)session_handle;
+  (void)dev_id;
+  (void)act_prof_id;
+  (void)grp_handle;
+  (void)mbr_handle;
   func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }

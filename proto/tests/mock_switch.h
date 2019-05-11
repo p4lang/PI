@@ -97,6 +97,9 @@ class DummySwitchMock {
                             pi_learn_msg_id_t msg_id,
                             const std::vector<std::string> &samples) const;
 
+  pi_status_t port_status_event_inject(pi_port_t port,
+                                       pi_port_status_t status) const;
+
   pi_status_t age_entry(pi_p4_id_t table_id,
                         pi_entry_handle_t entry_handle) const;
 
@@ -142,9 +145,15 @@ class DummySwitchMock {
   MOCK_METHOD3(action_prof_group_remove_member,
                pi_status_t(pi_p4_id_t, pi_indirect_handle_t,
                            pi_indirect_handle_t));
-  MOCK_METHOD4(action_prof_group_set_members,
+  MOCK_METHOD5(action_prof_group_set_members,
                pi_status_t(pi_p4_id_t, pi_indirect_handle_t,
-                           size_t, const pi_indirect_handle_t *));
+                           size_t, const pi_indirect_handle_t *, const bool *));
+  MOCK_METHOD3(action_prof_group_activate_member,
+               pi_status_t(pi_p4_id_t, pi_indirect_handle_t,
+                           pi_indirect_handle_t));
+  MOCK_METHOD3(action_prof_group_deactivate_member,
+               pi_status_t(pi_p4_id_t, pi_indirect_handle_t,
+                           pi_indirect_handle_t));
   MOCK_METHOD2(action_prof_entries_fetch,
                pi_status_t(pi_p4_id_t, pi_act_prof_fetch_res_t *));
   MOCK_METHOD0(action_prof_api_support, int());

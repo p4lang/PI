@@ -760,9 +760,25 @@ ActProf::group_remove_member(pi_indirect_handle_t group_handle,
 pi_status_t
 ActProf::group_set_members(pi_indirect_handle_t group_handle,
                            size_t num_members,
-                           const pi_indirect_handle_t *member_handles) {
+                           const pi_indirect_handle_t *member_handles,
+                           const bool *activate) {
   return pi_act_prof_grp_set_mbrs(sess, dev_tgt.dev_id, act_prof_id,
-                                  group_handle, num_members, member_handles);
+                                  group_handle, num_members, member_handles,
+                                  activate);
+}
+
+pi_status_t
+ActProf::group_activate_member(pi_indirect_handle_t group_handle,
+                               pi_indirect_handle_t member_handle) {
+  return pi_act_prof_grp_activate_mbr(sess, dev_tgt.dev_id, act_prof_id,
+                                      group_handle, member_handle);
+}
+
+pi_status_t
+ActProf::group_deactivate_member(pi_indirect_handle_t group_handle,
+                                 pi_indirect_handle_t member_handle) {
+  return pi_act_prof_grp_deactivate_mbr(sess, dev_tgt.dev_id, act_prof_id,
+                                        group_handle, member_handle);
 }
 
 }  // namespace pi

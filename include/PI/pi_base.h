@@ -94,6 +94,7 @@ typedef enum {
   PI_STATUS_LEARN_NO_MATCHING_CB,
   PI_STATUS_PACKETIN_NO_CB,
   PI_STATUS_PACKETOUT_SEND_ERROR,
+  PI_STATUS_PORT_STATUS_EVENT_NO_CB,
 
   PI_STATUS_NOT_IMPLEMENTED_BY_TARGET,
 
@@ -122,6 +123,11 @@ typedef uint32_t pi_session_handle_t;
 typedef struct pi_p4info_s pi_p4info_t;
 
 typedef int32_t pi_port_t;
+
+typedef enum {
+  PI_PORT_STATUS_DOWN = 0,
+  PI_PORT_STATUS_UP = 1,
+} pi_port_status_t;
 
 #define PI_ACTION_ID 0x01
 #define PI_TABLE_ID 0x02

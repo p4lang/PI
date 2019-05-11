@@ -38,7 +38,9 @@ src/digest_mgr.h \
 src/digest_mgr.cpp \
 src/statusor.h \
 src/idle_timeout_buffer.h \
-src/idle_timeout_buffer.cpp
+src/idle_timeout_buffer.cpp \
+src/watch_port_enforcer.h \
+src/watch_port_enforcer.cpp
 
 libpifeproto_la_LIBADD = \
 $(top_builddir)/../frontends_extra/cpp/libpifecpp.la \

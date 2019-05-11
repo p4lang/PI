@@ -23,6 +23,7 @@
 #include "PI/int/serialize.h"
 #include "PI/target/pi_imp.h"
 #include "_assert.h"
+#include "cb_mgr.h"
 #include "device_map.h"
 #include "pi_learn_int.h"
 #include "pi_tables_int.h"
@@ -55,16 +56,13 @@ typedef struct {
 // allocate at runtime?
 static pi_direct_res_rpc_t direct_res_rpc[PI_RES_TYPE_MAX];
 
-typedef struct {
-  PIPacketInCb cb;
-  void *cookie;
-} packetin_cb_data_t;
-
-static device_map_t device_packetin_cb_data;
-static packetin_cb_data_t default_packetin_cb_data;
-
+static cb_mgr_t packet_cb_mgr;
 // protects access to registered packet-in CBs
-static pthread_mutex_t cb_mutex;
+static pthread_mutex_t packet_cb_mutex;
+
+static cb_mgr_t port_cb_mgr;
+// protects access to registered port event CBs
+static pthread_mutex_t port_cb_mutex;
 
 // acquire device_map_mutex first
 pi_device_info_t *pi_get_device_info(pi_dev_id_t dev_id) {
@@ -136,10 +134,13 @@ pi_status_t pi_init(size_t max_devices, pi_remote_addr_t *remote_addr) {
   register_std_direct_res();
   if (pthread_mutex_init(&device_map_mutex, NULL))
     return PI_STATUS_PTHREAD_ERROR;
-  if (pthread_mutex_init(&cb_mutex, NULL)) return PI_STATUS_PTHREAD_ERROR;
+  if (pthread_mutex_init(&packet_cb_mutex, NULL))
+    return PI_STATUS_PTHREAD_ERROR;
+  if (pthread_mutex_init(&port_cb_mutex, NULL)) return PI_STATUS_PTHREAD_ERROR;
   device_map_create(&device_map);
   device_arr = vector_create(sizeof(pi_device_info_t), 256);
-  device_map_create(&device_packetin_cb_data);
+  cb_mgr_init(&packet_cb_mgr);
+  cb_mgr_init(&port_cb_mgr);
   status = pi_learn_init();
   if (status != PI_STATUS_SUCCESS) return status;
   status = pi_table_init();
@@ -162,11 +163,6 @@ void pi_create_device_config(pi_dev_id_t dev_id) {
   pi_device_info_t *info = (pi_device_info_t *)vector_back(device_arr);
   _PI_ASSERT(device_map_add(&device_map, dev_id, info));
   info->dev_id = dev_id;
-  pthread_mutex_lock(&cb_mutex);
-  packetin_cb_data_t *packetin_cb_data = malloc(sizeof(packetin_cb_data_t));
-  _PI_ASSERT(
-      device_map_add(&device_packetin_cb_data, dev_id, packetin_cb_data));
-  pthread_mutex_unlock(&cb_mutex);
 }
 
 pi_status_t pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
@@ -252,12 +248,14 @@ pi_status_t pi_remove_device(pi_dev_id_t dev_id) {
 
   vector_remove_e(device_arr, (void *)info);
   _PI_ASSERT(device_map_remove(&device_map, dev_id));
-  pthread_mutex_lock(&cb_mutex);
-  packetin_cb_data_t *packetin_cb_data =
-      (packetin_cb_data_t *)device_map_get(&device_packetin_cb_data, dev_id);
-  _PI_ASSERT(device_map_remove(&device_packetin_cb_data, dev_id));
-  pthread_mutex_unlock(&cb_mutex);
-  free(packetin_cb_data);
+
+  pthread_mutex_lock(&packet_cb_mutex);
+  cb_mgr_rm(&packet_cb_mgr, dev_id);
+  pthread_mutex_unlock(&packet_cb_mutex);
+
+  pthread_mutex_lock(&port_cb_mutex);
+  cb_mgr_rm(&port_cb_mgr, dev_id);
+  pthread_mutex_unlock(&port_cb_mutex);
 
   _PI_ASSERT(pi_learn_remove_device(dev_id) == PI_STATUS_SUCCESS);
   _PI_ASSERT(pi_table_remove_device(dev_id) == PI_STATUS_SUCCESS);
@@ -286,10 +284,12 @@ pi_status_t pi_batch_end(pi_session_handle_t session_handle, bool hw_sync) {
 pi_status_t pi_destroy() {
   pi_status_t status;
   pthread_mutex_destroy(&device_map_mutex);
-  pthread_mutex_destroy(&cb_mutex);
+  pthread_mutex_destroy(&packet_cb_mutex);
+  pthread_mutex_destroy(&port_cb_mutex);
   vector_destroy(device_arr);
   device_map_destroy(&device_map);
-  device_map_destroy(&device_packetin_cb_data);
+  cb_mgr_destroy(&packet_cb_mgr);
+  cb_mgr_destroy(&port_cb_mgr);
   status = pi_learn_destroy();
   if (status != PI_STATUS_SUCCESS) return status;
   status = pi_table_destroy();
@@ -349,46 +349,30 @@ pi_status_t pi_direct_res_get_fns(pi_res_type_id_t res_type,
 
 pi_status_t pi_packetin_register_cb(pi_dev_id_t dev_id, PIPacketInCb cb,
                                     void *cb_cookie) {
-  pthread_mutex_lock(&cb_mutex);
-  packetin_cb_data_t *packetin_cb_data =
-      (packetin_cb_data_t *)device_map_get(&device_packetin_cb_data, dev_id);
-  if (packetin_cb_data == NULL) {
-    pthread_mutex_unlock(&cb_mutex);
-    return PI_STATUS_DEV_NOT_ASSIGNED;
-  }
-  packetin_cb_data->cb = cb;
-  packetin_cb_data->cookie = cb_cookie;
-  pthread_mutex_unlock(&cb_mutex);
+  pthread_mutex_lock(&packet_cb_mutex);
+  cb_mgr_add(&packet_cb_mgr, dev_id, (GenericFnPtr)cb, cb_cookie);
+  pthread_mutex_unlock(&packet_cb_mutex);
   return PI_STATUS_SUCCESS;
 }
 
 pi_status_t pi_packetin_register_default_cb(PIPacketInCb cb, void *cb_cookie) {
-  pthread_mutex_lock(&cb_mutex);
-  default_packetin_cb_data.cb = cb;
-  default_packetin_cb_data.cookie = cb_cookie;
-  pthread_mutex_unlock(&cb_mutex);
+  pthread_mutex_lock(&packet_cb_mutex);
+  cb_mgr_set_default(&packet_cb_mgr, (GenericFnPtr)cb, cb_cookie);
+  pthread_mutex_unlock(&packet_cb_mutex);
   return PI_STATUS_SUCCESS;
 }
 
 pi_status_t pi_packetin_deregister_cb(pi_dev_id_t dev_id) {
-  pthread_mutex_lock(&cb_mutex);
-  packetin_cb_data_t *packetin_cb_data =
-      (packetin_cb_data_t *)device_map_get(&device_packetin_cb_data, dev_id);
-  if (packetin_cb_data == NULL) {
-    pthread_mutex_unlock(&cb_mutex);
-    return PI_STATUS_DEV_NOT_ASSIGNED;
-  }
-  packetin_cb_data->cb = NULL;
-  packetin_cb_data->cookie = NULL;
-  pthread_mutex_unlock(&cb_mutex);
+  pthread_mutex_lock(&packet_cb_mutex);
+  cb_mgr_rm(&packet_cb_mgr, dev_id);
+  pthread_mutex_unlock(&packet_cb_mutex);
   return PI_STATUS_SUCCESS;
 }
 
 pi_status_t pi_packetin_deregister_default_cb() {
-  pthread_mutex_lock(&cb_mutex);
-  default_packetin_cb_data.cb = NULL;
-  default_packetin_cb_data.cookie = NULL;
-  pthread_mutex_unlock(&cb_mutex);
+  pthread_mutex_lock(&packet_cb_mutex);
+  cb_mgr_reset_default(&packet_cb_mgr);
+  pthread_mutex_unlock(&packet_cb_mutex);
   return PI_STATUS_SUCCESS;
 }
 
@@ -399,23 +383,56 @@ pi_status_t pi_packetout_send(pi_dev_id_t dev_id, const char *pkt,
 
 pi_status_t pi_packetin_receive(pi_dev_id_t dev_id, const char *pkt,
                                 size_t size) {
-  pthread_mutex_lock(&cb_mutex);
-  packetin_cb_data_t *packetin_cb_data =
-      (packetin_cb_data_t *)device_map_get(&device_packetin_cb_data, dev_id);
-  if (packetin_cb_data == NULL) {
-    pthread_mutex_unlock(&cb_mutex);
-    return PI_STATUS_DEV_NOT_ASSIGNED;
-  }
-  if (packetin_cb_data->cb) {
-    packetin_cb_data->cb(dev_id, pkt, size, packetin_cb_data->cookie);
-    pthread_mutex_unlock(&cb_mutex);
-    return PI_STATUS_SUCCESS;
-  } else if (default_packetin_cb_data.cb) {
-    default_packetin_cb_data.cb(dev_id, pkt, size,
-                                default_packetin_cb_data.cookie);
-    pthread_mutex_unlock(&cb_mutex);
+  pthread_mutex_lock(&packet_cb_mutex);
+  const cb_data_t *cb_data = cb_mgr_get_or_default(&packet_cb_mgr, dev_id);
+  if (cb_data) {
+    ((PIPacketInCb)(cb_data->cb))(dev_id, pkt, size, cb_data->cookie);
+    pthread_mutex_unlock(&packet_cb_mutex);
     return PI_STATUS_SUCCESS;
   }
-  pthread_mutex_unlock(&cb_mutex);
+  pthread_mutex_unlock(&packet_cb_mutex);
   return PI_STATUS_PACKETIN_NO_CB;
+}
+
+pi_status_t pi_port_status_register_cb(pi_dev_id_t dev_id, PIPortStatusCb cb,
+                                       void *cb_cookie) {
+  pthread_mutex_lock(&port_cb_mutex);
+  cb_mgr_add(&port_cb_mgr, dev_id, (GenericFnPtr)cb, cb_cookie);
+  pthread_mutex_unlock(&port_cb_mutex);
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_port_status_register_default_cb(PIPortStatusCb cb,
+                                               void *cb_cookie) {
+  pthread_mutex_lock(&port_cb_mutex);
+  cb_mgr_set_default(&port_cb_mgr, (GenericFnPtr)cb, cb_cookie);
+  pthread_mutex_unlock(&port_cb_mutex);
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_port_status_deregister_cb(pi_dev_id_t dev_id) {
+  pthread_mutex_lock(&port_cb_mutex);
+  cb_mgr_rm(&port_cb_mgr, dev_id);
+  pthread_mutex_unlock(&port_cb_mutex);
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_port_status_deregister_default_cb() {
+  pthread_mutex_lock(&port_cb_mutex);
+  cb_mgr_reset_default(&port_cb_mgr);
+  pthread_mutex_unlock(&port_cb_mutex);
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_port_status_event_notify(pi_dev_id_t dev_id, pi_port_t port,
+                                        pi_port_status_t status) {
+  pthread_mutex_lock(&port_cb_mutex);
+  const cb_data_t *cb_data = cb_mgr_get_or_default(&port_cb_mgr, dev_id);
+  if (cb_data) {
+    ((PIPortStatusCb)(cb_data->cb))(dev_id, port, status, cb_data->cookie);
+    pthread_mutex_unlock(&port_cb_mutex);
+    return PI_STATUS_SUCCESS;
+  }
+  pthread_mutex_unlock(&port_cb_mutex);
+  return PI_STATUS_PORT_STATUS_EVENT_NO_CB;
 }
