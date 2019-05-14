@@ -25,6 +25,7 @@ test_proto_fe \
 test_proto_fe_digest \
 test_proto_fe_packet_io \
 test_proto_fe_set_pipeline_config \
+test_proto_fe_access_arbitration \
 test_server_no_pipeline_config \
 test_server_gnmi \
 test_server_arbitration \
@@ -50,7 +51,9 @@ proto_fe_common_source = $(common_source) \
 mock_switch.h \
 mock_switch.cpp \
 matchers.h \
-matchers.cpp
+matchers.cpp \
+test_proto_fe_base.h \
+test_proto_fe_base.cpp
 
 test_proto_fe_SOURCES = $(proto_fe_common_source) test_proto_fe.cpp
 test_proto_fe_digest_SOURCES = $(proto_fe_common_source) \
@@ -59,6 +62,8 @@ test_proto_fe_packet_io_SOURCES = $(proto_fe_common_source) \
 test_proto_fe_packet_io.cpp
 test_proto_fe_set_pipeline_config_SOURCES =$(proto_fe_common_source) \
 test_proto_fe_set_pipeline_config.cpp
+test_proto_fe_access_arbitration_SOURCES = $(proto_fe_common_source) \
+test_proto_fe_access_arbitration.cpp
 
 test_task_queue_SOURCES = $(proto_fe_common_source) test_task_queue.cpp
 
@@ -79,6 +84,7 @@ test_proto_fe_LDADD = $(proto_fe_libs)
 test_proto_fe_digest_LDADD = $(proto_fe_libs)
 test_proto_fe_packet_io_LDADD = $(proto_fe_libs)
 test_proto_fe_set_pipeline_config_LDADD = $(proto_fe_libs)
+test_proto_fe_access_arbitration_LDADD = $(proto_fe_libs)
 
 test_task_queue_LDADD = $(proto_fe_libs)
 
@@ -115,6 +121,7 @@ test_proto_fe_digest \
 test_proto_fe_packet_io \
 test_proto_fe_set_pipeline_config \
 test_server_no_pipeline_config \
+test_proto_fe_access_arbitration \
 test_server_gnmi \
 test_server_arbitration \
 test_pi_server \

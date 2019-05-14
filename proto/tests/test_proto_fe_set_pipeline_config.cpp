@@ -37,6 +37,7 @@
 
 #include "matchers.h"
 #include "mock_switch.h"
+#include "test_proto_fe_base.h"
 
 namespace p4v1 = ::p4::v1;
 namespace p4configv1 = ::p4::config::v1;
@@ -52,19 +53,8 @@ using Code = ::google::rpc::Code;
 using ::testing::_;
 using ::testing::AnyNumber;
 
-class DeviceMgrSetPipelineConfigTest : public ::testing::Test {
+class DeviceMgrSetPipelineConfigTest : public DeviceMgrBaseTest {
  public:
-  DeviceMgrSetPipelineConfigTest()
-      : mock(wrapper.sw()), device_id(wrapper.device_id()), mgr(device_id) { }
-
-  static void SetUpTestCase() {
-    DeviceMgr::init(256);
-  }
-
-  static void TearDownTestCase() {
-    DeviceMgr::destroy();
-  }
-
   p4configv1::P4Info read_p4info(const std::string &p4info_path) {
     p4configv1::P4Info p4info_proto;
     std::ifstream istream(p4info_path);
@@ -82,22 +72,6 @@ class DeviceMgrSetPipelineConfigTest : public ::testing::Test {
     config.release_p4info();
     return status;
   }
-
-  DeviceMgr::Status add_entry(p4v1::TableEntry *entry) {
-    p4v1::WriteRequest request;
-    auto update = request.add_updates();
-    update->set_type(p4v1::Update_Type_INSERT);
-    auto entity = update->mutable_entity();
-    entity->set_allocated_table_entry(entry);
-    auto status = mgr.write(request);
-    entity->release_table_entry();
-    return status;
-  }
-
-  DummySwitchWrapper wrapper{};
-  DummySwitchMock *mock;
-  device_id_t device_id;
-  DeviceMgr mgr;
 };
 
 TEST_F(DeviceMgrSetPipelineConfigTest, Reconcile) {

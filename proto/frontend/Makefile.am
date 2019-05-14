@@ -12,6 +12,8 @@ AM_CPPFLAGS = \
 
 libpifeproto_la_SOURCES = \
 src/device_mgr.cpp \
+src/access_arbitration.h \
+src/access_arbitration.cpp \
 src/action_prof_mgr.h \
 src/action_prof_mgr.cpp \
 src/table_info_store.h \
