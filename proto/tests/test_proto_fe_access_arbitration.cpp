@@ -140,6 +140,8 @@ class AccessArbitrationTest : public DeviceMgrUnittestBaseTest {
 
 /* static */ constexpr std::chrono::milliseconds AccessArbitrationTest::timeout;
 
+// TODO(antonin): unify test code when possible
+
 TEST_F(AccessArbitrationTest, ConcurrentWrites) {
   int x = 0;
   auto action = [this, &x]() -> pi_status_t {
@@ -193,11 +195,7 @@ TEST_F(AccessArbitrationTest, ExclusiveWrites) {
   thread2.join();
 }
 
-class DISABLED_AccessArbitrationTest : public AccessArbitrationTest {};
-
-// TODO(antonin): this test doesn't pass at the moment because each table store
-// instance has a unique lock.
-TEST_F(DISABLED_AccessArbitrationTest, ConcurrentReads1) {
+TEST_F(AccessArbitrationTest, ConcurrentReadsSameObject) {
   int x = 0;
   auto action = [this, &x] {
     std::unique_lock<std::mutex> lock(mutex);
@@ -226,7 +224,7 @@ TEST_F(DISABLED_AccessArbitrationTest, ConcurrentReads1) {
   thread2.join();
 }
 
-TEST_F(AccessArbitrationTest, ConcurrentReads2) {
+TEST_F(AccessArbitrationTest, ConcurrentReadsDifferentObjects) {
   int x = 0;
   auto action = [this, &x] {
     std::unique_lock<std::mutex> lock(mutex);

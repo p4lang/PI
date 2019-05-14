@@ -241,7 +241,7 @@ class DeviceMgrImp {
         device_tgt({static_cast<pi_dev_id_t>(device_id), 0xffff}),
         packet_io(device_id),
         digest_mgr(device_id),
-        idle_timeout_buffer(device_id, &table_info_store) { }
+        idle_timeout_buffer(device_id) { }
 
   ~DeviceMgrImp() {
     pi_remove_device(device_id);
@@ -660,7 +660,6 @@ class DeviceMgrImp {
           Code::UNIMPLEMENTED,
           "Writing DirectMeterEntry not supported for default entry yet");
     }
-    auto table_lock = table_info_store.lock_table(table_entry.table_id());
 
     pi_entry_handle_t entry_handle = 0;
     {
@@ -774,8 +773,6 @@ class DeviceMgrImp {
                                const SessionTemp &session,
                                p4v1::ReadResponse *response) const {
     if (!table_entry.match().empty()) {
-      auto table_lock = table_info_store.lock_table(table_entry.table_id());
-
       pi_entry_handle_t entry_handle = 0;
       {
         auto status = entry_handle_from_table_entry(table_entry, &entry_handle);
@@ -1044,7 +1041,6 @@ class DeviceMgrImp {
     }
 
     pi_table_fetch_res_t *res;
-    auto table_lock = table_info_store.lock_table(table_id);
     auto pi_status = pi_table_entries_fetch(session.get(), device_id,
                                             table_id, &res);
     if (pi_status != PI_STATUS_SUCCESS) {
@@ -1116,7 +1112,6 @@ class DeviceMgrImp {
       auto entry_data = table_info_store.get_entry(table_id, mk);
       // this would point to a serious bug in the implementation, and shoudn't
       // occur given that we keep the local state in sync with lower level state
-      // thanks to our per-table lock.
       if (entry_data == nullptr) {
         RETURN_ERROR_STATUS(Code::INTERNAL,
                             "Table state out-of-sync with target");
@@ -1465,7 +1460,6 @@ class DeviceMgrImp {
           Code::UNIMPLEMENTED,
           "Writing DirectCounterEntry not supported for default entry yet");
     }
-    auto table_lock = table_info_store.lock_table(table_entry.table_id());
 
     pi_entry_handle_t entry_handle = 0;
     {
@@ -1585,8 +1579,6 @@ class DeviceMgrImp {
                                  const SessionTemp &session,
                                  p4v1::ReadResponse *response) const {
     if (!table_entry.match().empty()) {
-      auto table_lock = table_info_store.lock_table(table_entry.table_id());
-
       pi_entry_handle_t entry_handle = 0;
       {
         auto status = entry_handle_from_table_entry(table_entry, &entry_handle);
@@ -2383,8 +2375,6 @@ class DeviceMgrImp {
     if (supports_idle_timeout.ValueOrDie())
       set_entry_ttl(table_entry, &action_entry, nullptr);
 
-    auto table_lock = table_info_store.lock_table(table_id);
-
     if (table_info_store.get_entry(table_id, match_key) != nullptr) {
       RETURN_ERROR_STATUS(
           Code::ALREADY_EXISTS,
@@ -2413,6 +2403,9 @@ class DeviceMgrImp {
           TableInfoStore::Data(handle, table_entry.controller_metadata(),
                                table_entry.idle_timeout_ns()));
     }
+
+    if (supports_idle_timeout.ValueOrDie())
+      RETURN_IF_ERROR(idle_timeout_buffer.insert_entry(match_key, table_entry));
 
     RETURN_OK_STATUS();
   }
@@ -2451,13 +2444,10 @@ class DeviceMgrImp {
     RETURN_IF_ERROR(construct_direct_resources(
         table_entry, &action_entry,
         &_meter_spec_storage, &_counter_data_storage));
-    // Perform checks without the lock, then do the actual set in action_entry
-    // while holding the lock (since the operation requires knowing the previous
-    // TTL value).
+
     StatusOr<bool> supports_idle_timeout = validate_entry_ttl(table_entry);
     RETURN_IF_ERROR(supports_idle_timeout.status());
 
-    auto table_lock = table_info_store.lock_table(table_id);
     // we need this pointer to update the controller metadata and the one-shot
     // group handle (if needed) if the modify operation is successful
     auto entry_data = table_info_store.get_entry(table_id, match_key);
@@ -2503,6 +2493,9 @@ class DeviceMgrImp {
       }
     }
 
+    if (supports_idle_timeout.ValueOrDie())
+      RETURN_IF_ERROR(idle_timeout_buffer.modify_entry(match_key, table_entry));
+
     RETURN_OK_STATUS();
   }
 
@@ -2520,7 +2513,6 @@ class DeviceMgrImp {
       if (IS_ERROR(status)) return status;
     }
 
-    auto table_lock = table_info_store.lock_table(table_id);
     // we need this pointer to access the one-shot group handle (if needed for
     // this entry).
     auto entry_data = table_info_store.get_entry(table_id, match_key);
@@ -2546,6 +2538,9 @@ class DeviceMgrImp {
     }
 
     table_info_store.remove_entry(table_id, match_key);
+
+    if (pi_p4info_table_supports_idle_timeout(p4info.get(), table_id))
+      RETURN_IF_ERROR(idle_timeout_buffer.delete_entry(match_key));
 
     RETURN_OK_STATUS();
   }

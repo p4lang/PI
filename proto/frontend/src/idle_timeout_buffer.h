@@ -40,8 +40,6 @@ namespace fe {
 
 namespace proto {
 
-class TableInfoStore;
-
 template <typename Clock> class TaskQueue;
 using IdleTimeoutTaskQueue = TaskQueue<std::chrono::steady_clock>;
 
@@ -53,12 +51,17 @@ class IdleTimeoutBuffer {
   static constexpr int64_t kDefaultMaxBufferingNs = 100 * 1000 * 1000;  // 100ms
 
   IdleTimeoutBuffer(device_id_t device_id,
-                    const TableInfoStore *table_info_store,
                     int64_t max_buffering_ns = kDefaultMaxBufferingNs);
 
   ~IdleTimeoutBuffer();
 
   Status p4_change(const pi_p4info_t *p4info);
+
+  Status insert_entry(const pi::MatchKey &mk,
+                      const ::p4::v1::TableEntry &entry);
+  Status modify_entry(const pi::MatchKey &mk,
+                      const ::p4::v1::TableEntry &entry);
+  Status delete_entry(const pi::MatchKey &mk);
 
   void stream_message_response_register_cb(StreamMessageResponseCb cb,
                                            void *cookie);
@@ -72,10 +75,11 @@ class IdleTimeoutBuffer {
 
  private:
   class TaskSendNotifications;
+  class TableInfoStore;
 
   device_id_t device_id;
   const pi_p4info_t *p4info{nullptr};
-  const TableInfoStore *table_info_store;  // non-owning pointer
+  std::unique_ptr<TableInfoStore> table_info_store;
   int64_t max_buffering_ns;
   std::unique_ptr<IdleTimeoutTaskQueue> task_queue;
   StreamMessageResponseCb cb{};
