@@ -25,7 +25,6 @@
 #include <PI/pi.h>
 
 #include <map>
-#include <mutex>
 #include <unordered_map>
 #include <vector>
 
@@ -268,12 +267,9 @@ class ActionProfMgr {
       pi::ActProf &ap,  // NOLINT(runtime/references)
       ActionProfMemberMap::MemberState *member_state);
 
-  // these 2 methods require the lock to held by the caller
   Status check_selector_usage(SelectorUsage attempted_usage) const;
   void reset_selector_usage();
 
-  using Mutex = std::mutex;
-  using Lock = std::lock_guard<ActionProfMgr::Mutex>;
   pi_dev_tgt_t device_tgt;
   pi_p4_id_t act_prof_id;
   pi_p4info_t *p4info;
@@ -287,7 +283,6 @@ class ActionProfMgr {
   // set at construction time, cannot be changed durting the lifetime of the
   // object
   PiApiChoice pi_api_choice;
-  mutable Mutex mutex{};
 };
 
 }  // namespace proto

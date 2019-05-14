@@ -209,7 +209,6 @@ ActionProfMgr::member_create(const p4v1::ActionProfileMember &member,
                              const SessionTemp &session) {
   RETURN_IF_ERROR(validate_action(member.action()));
   auto action_data = construct_action_data(member.action());
-  Lock lock(mutex);
   RETURN_IF_ERROR(check_selector_usage(SelectorUsage::MANUAL));
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   // we check if the member id already exists
@@ -278,7 +277,6 @@ ActionProfMgr::group_create(const p4v1::ActionProfileGroup &group,
                             const SessionTemp &session) {
   auto max_size = validate_max_group_size(group.max_size());
   RETURN_IF_ERROR(max_size.status());
-  Lock lock(mutex);
   RETURN_IF_ERROR(check_selector_usage(SelectorUsage::MANUAL));
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   // we check if the group id already exists
@@ -302,7 +300,6 @@ ActionProfMgr::member_modify(const p4v1::ActionProfileMember &member,
                              const SessionTemp &session) {
   RETURN_IF_ERROR(validate_action(member.action()));
   auto action_data = construct_action_data(member.action());
-  Lock lock(mutex);
   RETURN_IF_ERROR(check_selector_usage(SelectorUsage::MANUAL));
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   auto member_state = member_map.access_member_state(member.member_id());
@@ -324,7 +321,6 @@ ActionProfMgr::member_modify(const p4v1::ActionProfileMember &member,
 Status
 ActionProfMgr::group_modify(const p4v1::ActionProfileGroup &group,
                             const SessionTemp &session) {
-  Lock lock(mutex);
   RETURN_IF_ERROR(check_selector_usage(SelectorUsage::MANUAL));
   auto group_id = group.group_id();
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
@@ -349,7 +345,6 @@ ActionProfMgr::group_modify(const p4v1::ActionProfileGroup &group,
 Status
 ActionProfMgr::member_delete(const p4v1::ActionProfileMember &member,
                              const SessionTemp &session) {
-  Lock lock(mutex);
   RETURN_IF_ERROR(check_selector_usage(SelectorUsage::MANUAL));
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   auto member_state = member_map.access_member_state(member.member_id());
@@ -381,7 +376,6 @@ ActionProfMgr::member_delete(const p4v1::ActionProfileMember &member,
 Status
 ActionProfMgr::group_delete(const p4v1::ActionProfileGroup &group,
                             const SessionTemp &session) {
-  Lock lock(mutex);
   RETURN_IF_ERROR(check_selector_usage(SelectorUsage::MANUAL));
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   auto group_h = group_bimap.retrieve_handle(group.group_id());
@@ -517,7 +511,6 @@ ActionProfMgr::oneshot_group_create(
         "Sum of weights exceeds static max_group_size (from P4Info)");
   }
 
-  Lock lock(mutex);
   RETURN_IF_ERROR(check_selector_usage(SelectorUsage::ONESHOT));
   session->cleanup_scope_push();
   pi::ActProf ap(session->get(), device_tgt, p4info, act_prof_id);
@@ -575,7 +568,6 @@ ActionProfMgr::oneshot_group_create(
 Status
 ActionProfMgr::oneshot_group_delete(pi_indirect_handle_t group_h,
                                     const SessionTemp &session) {
-  Lock lock(mutex);
   RETURN_IF_ERROR(check_selector_usage(SelectorUsage::ONESHOT));
   auto members_it = oneshot_group_members.find(group_h);
   assert(members_it != oneshot_group_members.end());
@@ -601,7 +593,6 @@ bool
 ActionProfMgr::oneshot_group_get_members(
     pi_indirect_handle_t group_h,
     std::vector<OneShotMember> *members) const {
-  Lock lock(mutex);
   auto it = oneshot_group_members.find(group_h);
   if (it == oneshot_group_members.end()) return false;
   *members = it->second;
@@ -610,7 +601,6 @@ ActionProfMgr::oneshot_group_get_members(
 
 ActionProfMgr::SelectorUsage
 ActionProfMgr::get_selector_usage() const {
-  Lock lock(mutex);
   return selector_usage;
 }
 
@@ -911,7 +901,6 @@ ActionProfMgr::group_update_members(pi::ActProf &ap,
 bool
 ActionProfMgr::retrieve_member_handle(const Id &member_id,
                                       pi_indirect_handle_t *member_h) const {
-  Lock lock(mutex);
   auto *h_ptr = member_map.get_first_handle(member_id);
   if (!h_ptr) return false;
   *member_h = *h_ptr;
@@ -921,7 +910,6 @@ ActionProfMgr::retrieve_member_handle(const Id &member_id,
 bool
 ActionProfMgr::retrieve_group_handle(const Id &group_id,
                                      pi_indirect_handle_t *group_h) const {
-  Lock lock(mutex);
   auto *h_ptr = group_bimap.retrieve_handle(group_id);
   if (!h_ptr) return false;
   *group_h = *h_ptr;
@@ -931,7 +919,6 @@ ActionProfMgr::retrieve_group_handle(const Id &group_id,
 bool
 ActionProfMgr::retrieve_member_id(pi_indirect_handle_t member_h,
                                   Id *member_id) const {
-  Lock lock(mutex);
   auto *id_ptr = member_map.retrieve_id(member_h);
   if (!id_ptr) return false;
   *member_id = *id_ptr;
@@ -941,7 +928,6 @@ ActionProfMgr::retrieve_member_id(pi_indirect_handle_t member_h,
 bool
 ActionProfMgr::retrieve_group_id(pi_indirect_handle_t group_h,
                                  Id *group_id) const {
-  Lock lock(mutex);
   auto *id_ptr = group_bimap.retrieve_id(group_h);
   if (!id_ptr) return false;
   *group_id = *id_ptr;

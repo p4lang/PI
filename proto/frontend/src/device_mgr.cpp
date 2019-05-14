@@ -531,7 +531,7 @@ class DeviceMgrImp {
   }
 
   Status write(const p4v1::WriteRequest &request) {
-    auto write_access = access_arbitration.write_access(request);
+    auto write_access = access_arbitration.write_access(request, p4info.get());
     return write_(request);
   }
 
@@ -2745,7 +2745,6 @@ class DeviceMgrImp {
   // has non-owning pointer to table_info_store
   IdleTimeoutBuffer idle_timeout_buffer;
 
-  // ActionProfMgr is not movable because of mutex
   std::unordered_map<pi_p4_id_t, std::unique_ptr<ActionProfMgr> >
   action_profs{};
 

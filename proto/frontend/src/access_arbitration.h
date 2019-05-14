@@ -21,6 +21,9 @@
 #ifndef SRC_ACCESS_ARBITRATION_H_
 #define SRC_ACCESS_ARBITRATION_H_
 
+#include <PI/p4info.h>
+#include <PI/proto/util.h>
+
 #include <condition_variable>
 #include <mutex>
 #include <set>
@@ -91,7 +94,8 @@ class AccessArbitration {
 
   using UniqueAccess = std::unique_lock<std::mutex>;
 
-  WriteAccess write_access(const ::p4::v1::WriteRequest &request);
+  WriteAccess write_access(const ::p4::v1::WriteRequest &request,
+                           const pi_p4info_t *p4info);
   WriteAccess write_access(common::p4_id_t p4_id);
 
   NoWriteAccess no_write_access(common::p4_id_t p4_id);
