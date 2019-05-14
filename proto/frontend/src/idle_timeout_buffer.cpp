@@ -26,10 +26,11 @@
 #include <future>
 #include <memory>
 #include <thread>
+#include <unordered_map>
+#include <utility>
 
 #include "match_key_helpers.h"
 #include "report_error.h"
-#include "table_info_store.h"
 #include "task_queue.h"
 
 namespace pi {
@@ -85,11 +86,51 @@ class IdleTimeoutBuffer::TaskSendNotifications : public Task {
   }
 };
 
+class IdleTimeoutBuffer::TableInfoStore {
+ public:
+  TableInfoStore() = default;
+  ~TableInfoStore() = default;
+
+  struct Data {
+    uint64_t controller_metadata;
+    int64_t idle_timeout_ns;
+  };
+
+  using TableInfoStoreOne =
+      std::unordered_map<pi::MatchKey, Data, pi::MatchKeyHash, pi::MatchKeyEq>;
+
+  void reset() {
+    tables.clear();
+  }
+
+  TableInfoStoreOne *get(pi_p4_id_t t_id) {
+    auto it = tables.find(t_id);
+    return (it == tables.end()) ? nullptr : &it->second;
+  }
+
+  const TableInfoStoreOne *get(pi_p4_id_t t_id) const {
+    auto it = tables.find(t_id);
+    return (it == tables.end()) ? nullptr : &it->second;
+  }
+
+  void add_table(pi_p4_id_t t_id) {
+    tables.emplace(t_id, TableInfoStoreOne());
+  }
+
+  Data *get_entry(pi_p4_id_t t_id, const pi::MatchKey &mk) {
+    auto &table = tables.at(t_id);
+    auto it = table.find(mk);
+    return (it == table.end()) ? nullptr : &it->second;
+  }
+
+ private:
+  std::unordered_map<pi_p4_id_t, TableInfoStoreOne> tables;
+};
+
 IdleTimeoutBuffer::IdleTimeoutBuffer(device_id_t device_id,
-                                     const TableInfoStore *table_info_store,
                                      int64_t max_buffering_ns)
     : device_id(device_id),
-      table_info_store(table_info_store),
+      table_info_store(new TableInfoStore()),
       max_buffering_ns(max_buffering_ns),
       task_queue(new IdleTimeoutTaskQueue()) {
   task_queue_thread = std::thread(
@@ -120,6 +161,16 @@ IdleTimeoutBuffer::p4_change(const pi_p4info_t *p4info) {
       TaskSendNotifications sender(buffer);
       sender();
       buffer->p4info = p4info;
+
+      auto *table_info_store = buffer->table_info_store.get();
+      table_info_store->reset();
+      for (auto t_id = pi_p4info_table_begin(p4info);
+           t_id != pi_p4info_table_end(p4info);
+           t_id = pi_p4info_table_next(p4info, t_id)) {
+        if (!pi_p4info_table_supports_idle_timeout(p4info, t_id)) continue;
+        table_info_store->add_table(t_id);
+      }
+
       promise.set_value();
     }
 
@@ -132,6 +183,118 @@ IdleTimeoutBuffer::p4_change(const pi_p4info_t *p4info) {
   task_queue->execute_task(std::unique_ptr<TaskIface>(
       new TaskP4Change(this, p4info, promise)));
   promise.get_future().wait();
+  RETURN_OK_STATUS();
+}
+
+Status
+IdleTimeoutBuffer::insert_entry(const pi::MatchKey &mk,
+                                const p4v1::TableEntry &entry) {
+  class TaskInsertEntry : public TaskIface {
+   public:
+    TaskInsertEntry(TableInfoStore *table_info_store,
+                    const pi::MatchKey &mk,
+                    const p4v1::TableEntry &entry)
+        : table_info_store(table_info_store), mk(mk),
+          data{entry.controller_metadata(), entry.idle_timeout_ns()} { }
+
+    void operator()() override {
+      auto t_id = mk.get_table_id();
+      auto store = table_info_store->get(t_id);
+      if (!store) {
+        Logger::get()->error(
+            "IdleTimeoutBuffer: cannot find table {} in store", t_id);
+        return;
+      }
+      auto r = store->insert(std::make_pair(std::move(mk), data));
+      if (!r.second) {
+        Logger::get()->warn(
+            "IdleTimeoutBuffer: trying to insert entry which already exists "
+            "in store for table {}", t_id);
+      }
+    }
+
+   private:
+    TableInfoStore *table_info_store;
+    pi::MatchKey mk;
+    TableInfoStore::Data data;
+  };
+
+  task_queue->execute_task(std::unique_ptr<TaskIface>(
+      new TaskInsertEntry(table_info_store.get(), mk, entry)));
+  RETURN_OK_STATUS();
+}
+
+Status
+IdleTimeoutBuffer::modify_entry(const pi::MatchKey &mk,
+                                const p4v1::TableEntry &entry) {
+  class TaskModifyEntry : public TaskIface {
+   public:
+    TaskModifyEntry(TableInfoStore *table_info_store,
+                    const pi::MatchKey &mk,
+                    const p4v1::TableEntry &entry)
+        : table_info_store(table_info_store), mk(mk),
+          data{entry.controller_metadata(), entry.idle_timeout_ns()} { }
+
+    void operator()() override {
+      auto t_id = mk.get_table_id();
+      auto store = table_info_store->get(t_id);
+      if (!store) {
+        Logger::get()->error(
+            "IdleTimeoutBuffer: cannot find table {} in store", t_id);
+        return;
+      }
+      auto it = store->find(mk);
+      if (it == store->end()) {
+        Logger::get()->warn(
+            "IdleTimeoutBuffer: trying to modify entry which does not exist "
+            "in store for table {}", t_id);
+        return;
+      }
+      it->second = data;
+    }
+
+   private:
+    TableInfoStore *table_info_store;
+    pi::MatchKey mk;
+    TableInfoStore::Data data;
+  };
+
+  task_queue->execute_task(std::unique_ptr<TaskIface>(
+      new TaskModifyEntry(table_info_store.get(), mk, entry)));
+  RETURN_OK_STATUS();
+}
+
+Status
+IdleTimeoutBuffer::delete_entry(const pi::MatchKey &mk) {
+  class TaskDeleteEntry : public TaskIface {
+   public:
+    TaskDeleteEntry(TableInfoStore *table_info_store,
+                    const pi::MatchKey &mk)
+        : table_info_store(table_info_store), mk(mk) { }
+
+    void operator()() override {
+      auto t_id = mk.get_table_id();
+      auto store = table_info_store->get(t_id);
+      if (!store) {
+        Logger::get()->error(
+            "IdleTimeoutBuffer: cannot find table {} in store", t_id);
+        return;
+      }
+      auto c = store->erase(mk);
+      if (c == 0) {
+        Logger::get()->warn(
+            "IdleTimeoutBuffer: trying to delete entry which does not exist "
+            "in store for table {}", t_id);
+      }
+    }
+
+   private:
+    TableInfoStore *table_info_store;
+    pi::MatchKey mk;
+  };
+
+  task_queue->execute_task(std::unique_ptr<TaskIface>(
+      new TaskDeleteEntry(table_info_store.get(), mk)));
   RETURN_OK_STATUS();
 }
 
@@ -180,19 +343,16 @@ IdleTimeoutBuffer::handle_notification(p4_id_t table_id,
       bool first_notification = notifications.table_entry().empty();
       auto *table_entry = notifications.add_table_entry();
       table_entry->set_table_id(table_id);
-      {
-        auto table_lock = buffer->table_info_store->lock_table(table_id);
-        auto *entry_data = buffer->table_info_store->get_entry(
-            table_id, match_key);
-        if (entry_data == nullptr) {
-          Logger::get()->error("Failed to locate match key from idle timeout "
-                               "notification in table info store");
-          notifications.mutable_table_entry()->RemoveLast();
-          return;
-        }
-        table_entry->set_controller_metadata(entry_data->controller_metadata);
-        table_entry->set_idle_timeout_ns(entry_data->idle_timeout_ns);
+      auto *entry_data = buffer->table_info_store->get_entry(
+          table_id, match_key);
+      if (entry_data == nullptr) {
+        Logger::get()->warn("Failed to locate match key from idle timeout "
+                             "notification in table info store");
+        notifications.mutable_table_entry()->RemoveLast();
+        return;
       }
+      table_entry->set_controller_metadata(entry_data->controller_metadata);
+      table_entry->set_idle_timeout_ns(entry_data->idle_timeout_ns);
       // simple sanity check: we should not be generating notifications for
       // entries which don't age.
       if (table_entry->idle_timeout_ns() == 0) {
