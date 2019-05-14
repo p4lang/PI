@@ -18,14 +18,6 @@
  *
  */
 
-// TODO(antonin): define mutex wrapper class in separate file?
-#ifdef USE_ABSL
-#include "absl/synchronization/mutex.h"
-#else
-// shared mutex not available in C++11
-#include <boost/thread/shared_mutex.hpp>
-#endif
-
 #include <PI/frontends/cpp/tables.h>
 #include <PI/frontends/proto/device_mgr.h>
 #include <PI/pi.h>
@@ -42,6 +34,7 @@
 
 #include "google/rpc/code.pb.h"
 
+#include "access_arbitration.h"
 #include "action_helpers.h"
 #include "action_prof_mgr.h"
 #include "common.h"
@@ -82,52 +75,6 @@ using common::make_invalid_p4_id_status;
 // have our own error namespace (in addition to ::google::rpc::Code) anyway.
 
 namespace {
-
-#ifdef USE_ABSL
-
-// The absl versions delete the default move constructor and default move
-// assignment operator, so I define my own versions here.
-class SCOPED_LOCKABLE ReaderMutexLock {
- public:
-  explicit ReaderMutexLock(absl::Mutex *mu) SHARED_LOCK_FUNCTION(mu)
-      :  mu_(mu) {
-    mu->ReaderLock();
-  }
-
-  ReaderMutexLock(const ReaderMutexLock&) = delete;
-  ReaderMutexLock(ReaderMutexLock&&) = default;
-  ReaderMutexLock& operator=(const ReaderMutexLock&) = delete;
-  ReaderMutexLock& operator=(ReaderMutexLock&&) = default;
-
-  ~ReaderMutexLock() UNLOCK_FUNCTION() {
-    this->mu_->ReaderUnlock();
-  }
-
- private:
-  absl::Mutex *const mu_;
-};
-
-class SCOPED_LOCKABLE WriterMutexLock {
- public:
-  explicit WriterMutexLock(absl::Mutex *mu) EXCLUSIVE_LOCK_FUNCTION(mu)
-      : mu_(mu) {
-    mu->WriterLock();
-  }
-
-  WriterMutexLock(const WriterMutexLock&) = delete;
-  WriterMutexLock(WriterMutexLock&&) = default;
-  WriterMutexLock& operator=(const WriterMutexLock&) = delete;
-  WriterMutexLock& operator=(WriterMutexLock&&) = default;
-
-  ~WriterMutexLock() UNLOCK_FUNCTION() {
-    this->mu_->WriterUnlock();
-  }
-
- private:
-  absl::Mutex *const mu_;
-};
-
-#endif
 
 // wraps the p4info pointer provided by the PI library into a unique_ptr
 auto p4info_deleter = [](pi_p4info_t *p4info) {
@@ -435,7 +382,7 @@ class DeviceMgrImp {
       device_data = &config.p4_device_config();
     }
 
-    auto lock = unique_lock();
+    auto unique_access = access_arbitration.unique_access();
 
     // check that p4info => device assigned
     assert(!p4info || pi_is_device_assigned(device_id));
@@ -584,19 +531,19 @@ class DeviceMgrImp {
   }
 
   Status write(const p4v1::WriteRequest &request) {
-    auto lock = shared_lock();
+    auto write_access = access_arbitration.write_access(request);
     return write_(request);
   }
 
   Status read(const p4v1::ReadRequest &request,
               p4v1::ReadResponse *response) const {
-    auto lock = unique_lock();
+    auto read_access = access_arbitration.read_access();
     return read_(request, response);
   }
 
   Status read_one(const p4v1::Entity &entity,
                   p4v1::ReadResponse *response) const {
-    auto lock = unique_lock();
+    auto read_access = access_arbitration.read_access();
     return read_one_(entity, response);
   }
 
@@ -1760,7 +1707,8 @@ class DeviceMgrImp {
   }
 
  private:
-  // internal version of read, which does not acquire an exclusive lock
+  // internal version of read, which does not request read access from
+  // access_arbitration
   Status read_(const p4v1::ReadRequest &request,
                p4v1::ReadResponse *response) const {
     Status status;
@@ -1772,7 +1720,8 @@ class DeviceMgrImp {
     return status;
   }
 
-  // internal version of read_one, which does not acquire an exclusive lock
+  // internal version of read, which does not request read access from
+  // access_arbitration
   Status read_one_(const p4v1::Entity &entity,
                    p4v1::ReadResponse *response) const {
     Status status;
@@ -1825,7 +1774,8 @@ class DeviceMgrImp {
     return status;
   }
 
-  // internal version of write, which does not acquire a shared lock
+  // internal version of write, which does not request write access from
+  // access_arbitration
   Status write_(const p4v1::WriteRequest &request) {
     if (request.atomicity() != p4v1::WriteRequest::CONTINUE_ON_ERROR) {
       RETURN_ERROR_STATUS(
@@ -2743,8 +2693,8 @@ class DeviceMgrImp {
 
   // Saves the existing forwarding state as one ReadResponse message; meant to
   // be used for the RECONCILE_AND_COMMIT mode of SetForwardingPipeline.
-  // We assume that the exclusive lock has been acquired by the caller, which is
-  // why is call the internal version of read.
+  // We assume that the caller has acquired unique access from
+  // access_arbitration, which is why we call the internal version of read.
   // The order of the read is important: to avoid dependency issues, we want to
   // make sure that when the state is replayed we populate action profiles
   // before match-action tables. This relies on our knowledge of the rest of the
@@ -2778,24 +2728,6 @@ class DeviceMgrImp {
     return read_(request, response);
   }
 
-#ifdef USE_ABSL
-  using SharedMutex = absl::Mutex;
-  using SharedLock = ReaderMutexLock;
-  using UniqueLock = WriterMutexLock;
-
-  #define _ACQUIRE_LOCK
-
-  SharedLock shared_lock() const { return SharedLock(&shared_mutex); }
-  UniqueLock unique_lock() const { return UniqueLock(&shared_mutex); }
-#else
-  using SharedMutex = boost::shared_mutex;
-  using SharedLock = boost::shared_lock<SharedMutex>;
-  using UniqueLock = boost::unique_lock<SharedMutex>;
-
-  SharedLock shared_lock() const { return SharedLock(shared_mutex); }
-  UniqueLock unique_lock() const { return UniqueLock(shared_mutex); }
-#endif
-
   device_id_t device_id;
   // for now, we assume all possible pipes of device are programmed in the same
   // way
@@ -2825,7 +2757,7 @@ class DeviceMgrImp {
   std::unique_ptr<PreMcMgr> pre_mc_mgr;
   std::unique_ptr<PreCloneMgr> pre_clone_mgr;
 
-  mutable SharedMutex shared_mutex{};
+  mutable AccessArbitration access_arbitration;
 };
 
 DeviceMgr::DeviceMgr(device_id_t device_id) {

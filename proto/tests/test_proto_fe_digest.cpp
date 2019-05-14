@@ -43,9 +43,7 @@
 
 #include "matchers.h"
 #include "mock_switch.h"
-
-namespace p4v1 = ::p4::v1;
-namespace p4configv1 = ::p4::config::v1;
+#include "test_proto_fe_base.h"
 
 namespace pi {
 namespace proto {
@@ -54,7 +52,6 @@ namespace {
 
 using pi::fe::proto::DigestMgr;
 using Status = DigestMgr::Status;
-using Code = ::google::rpc::Code;
 using Clock = std::chrono::steady_clock;
 using SessionTemp = pi::fe::proto::common::SessionTemp;
 
@@ -88,14 +85,13 @@ class Sample {
   std::vector<std::string> values{};
 };
 
-class DigestMgrTest : public ::testing::Test {
+class DigestMgrTest : public DeviceMgrBaseTest {
  public:
   DigestMgrTest()
-      : mock(wrapper.sw()),
-        device_id(wrapper.device_id()),
-        digest_mgr(device_id) { }
+      : digest_mgr(device_id) { }
 
   static void SetUpTestCase() {
+    DeviceMgrBaseTest::SetUpTestCase();
     std::ifstream istream(input_path);
     google::protobuf::io::IstreamInputStream istream_(&istream);
     google::protobuf::TextFormat::Parse(&istream_, &p4info_proto);
@@ -108,8 +104,6 @@ class DigestMgrTest : public ::testing::Test {
     }
     ASSERT_NE(digest_id, 0u);
   }
-
-  static void TearDownTestCase() { }
 
   void SetUp() override {
     auto status = digest_mgr.p4_change(p4info_proto);
@@ -202,9 +196,6 @@ class DigestMgrTest : public ::testing::Test {
   static pi_p4_id_t digest_id;
   static constexpr std::chrono::milliseconds defaultTimeout{100};
 
-  DummySwitchWrapper wrapper{};
-  DummySwitchMock *mock;
-  device_id_t device_id;
   std::queue<p4v1::DigestList> digests;
   mutable std::mutex mutex;
   mutable std::condition_variable cvar;
