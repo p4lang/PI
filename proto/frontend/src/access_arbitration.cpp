@@ -20,12 +20,17 @@
 
 #include "access_arbitration.h"
 
+#include <PI/p4info.h>
+
 #include <mutex>
 #include <set>
+#include <vector>
 
+#include "p4/config/v1/p4info.pb.h"
 #include "p4/v1/p4runtime.pb.h"
 
 namespace p4v1 = ::p4::v1;
+namespace p4configv1 = ::p4::config::v1;
 
 namespace pi {
 
@@ -79,7 +84,8 @@ AccessArbitration::NoWriteAccess::~NoWriteAccess() {
 }
 
 AccessArbitration::WriteAccess
-AccessArbitration::write_access(const p4v1::WriteRequest &request) {
+AccessArbitration::write_access(const p4v1::WriteRequest &request,
+                                const pi_p4info_t *p4info) {
   WriteAccess access(this);
   auto &p4_ids = access.p4_ids;
 
@@ -123,6 +129,19 @@ AccessArbitration::write_access(const p4v1::WriteRequest &request) {
         break;
     }
   }
+
+  using pi::proto::util::resource_type_from_id;
+  std::vector<pi_p4_id_t> other_p4_ids;
+  for (auto p4_id : p4_ids) {
+    if (resource_type_from_id(p4_id) == p4configv1::P4Ids::TABLE &&
+        pi_p4info_is_valid_id(p4info, p4_id)) {
+      pi_p4_id_t action_prof_id = pi_p4info_table_get_implementation(
+          p4info, p4_id);
+      if (action_prof_id != PI_INVALID_ID)
+        other_p4_ids.push_back(action_prof_id);
+    }
+  }
+  p4_ids.insert(other_p4_ids.begin(), other_p4_ids.end());
 
   std::unique_lock<std::mutex> lock(mutex);
   cv.wait(lock, [this, &p4_ids]() -> bool {

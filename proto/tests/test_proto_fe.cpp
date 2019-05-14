@@ -3198,6 +3198,8 @@ TEST_F(DigestTest, WriteAndRead) {
   EXPECT_OK(mgr.write(request));
 }
 
+// TODO(antonin): remove this test now that we are using AccessArbitration?
+
 // This test verifies that the ReadRequest gets a unique lock (no concurrent
 // writes).
 // We inherit from MatchTableIndirectTest as a convenience (to access all table
