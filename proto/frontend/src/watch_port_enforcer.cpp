@@ -132,7 +132,44 @@ WatchPortEnforcer::p4_change(const pi_p4info_t *p4info) {
 }
 
 void
-WatchPortEnforcer::handle_port_event(pi_port_t port, pi_port_status_t status) {
+WatchPortEnforcer::set_port_status(pi_port_t port, pi_port_status_t status) {
+  const auto current_status = ports_status[port];
+
+  if (current_status == status) {
+    Logger::get()->warn(
+        "WatchPortEnforcer: port status hasn't changed, "
+        "ignoring notification");
+    return;
+  }
+
+  for (auto &p : members_by_action_prof) {
+    // prevent simultaneous writes (by the P4Runtime client) while we update the
+    // status of each member
+    auto access = access_arbitration->no_write_access(p.first);
+    auto &members_for_port = p.second.members_by_port[port];
+
+    common::SessionTemp session(true  /* = batch */);
+    pi::ActProf ap(session.get(), device_tgt, p4info, p.first);
+    if (status == PI_PORT_STATUS_UP) {
+      for (auto member : members_for_port.members) {
+        activate_member(&ap, member.grp_h, member.mbr_h);
+      }
+    } else if (status == PI_PORT_STATUS_DOWN) {
+      for (auto member : members_for_port.members) {
+        deactivate_member(&ap, member.grp_h, member.mbr_h);
+      }
+    } else {
+      Logger::get()->error(
+          "WatchPortEnforcer: unknown port status {} in notification", status);
+    }
+  }
+
+  ports_status[port] = status;
+}
+
+void
+WatchPortEnforcer::handle_port_status_event_async(pi_port_t port,
+                                                  pi_port_status_t status) {
   class TaskPortEvent : public TaskIface {
    public:
     TaskPortEvent(WatchPortEnforcer *enforcer,
@@ -141,40 +178,7 @@ WatchPortEnforcer::handle_port_event(pi_port_t port, pi_port_status_t status) {
         : enforcer(enforcer), port(port), status(status) { }
 
     void operator()() override {
-      const auto current_status = enforcer->ports_status[port];
-
-      if (current_status == status) {
-        Logger::get()->warn(
-            "WatchPortEnforcer: port status hasn't changed, "
-            "ignoring notification");
-        return;
-      }
-
-      for (auto &p : enforcer->members_by_action_prof) {
-        // prevent simultaneous writes (by the P4Runtime client) while we update
-        // the status of each member
-        auto access = enforcer->access_arbitration->no_write_access(p.first);
-        auto &members_for_port = p.second.members_by_port[port];
-
-        common::SessionTemp session(true  /* = batch */);
-        pi::ActProf ap(
-            session.get(), enforcer->device_tgt, enforcer->p4info, p.first);
-        if (status == PI_PORT_STATUS_UP) {
-          for (auto member : members_for_port.members) {
-            enforcer->activate_member(&ap, member.grp_h, member.mbr_h);
-          }
-        } else if (status == PI_PORT_STATUS_DOWN) {
-          for (auto member : members_for_port.members) {
-            enforcer->deactivate_member(&ap, member.grp_h, member.mbr_h);
-          }
-        } else {
-          Logger::get()->error(
-              "WatchPortEnforcer: unknown port status {} in notification",
-              status);
-        }
-      }
-
-      enforcer->ports_status[port] = status;
+      enforcer->set_port_status(port, status);
     }
 
    private:
@@ -185,6 +189,35 @@ WatchPortEnforcer::handle_port_event(pi_port_t port, pi_port_status_t status) {
 
   task_queue->execute_task(std::unique_ptr<TaskIface>(
       new TaskPortEvent(this, port, status)));
+}
+
+void
+WatchPortEnforcer::handle_port_status_event_sync(pi_port_t port,
+                                                 pi_port_status_t status) {
+  class TaskPortEvent : public TaskIface {
+   public:
+    TaskPortEvent(WatchPortEnforcer *enforcer,
+                  pi_port_t port,
+                  pi_port_status_t status,
+                  EmptyPromise &promise)  // NOLINT(runtime/references)
+        : enforcer(enforcer), port(port), status(status), promise(promise) { }
+
+    void operator()() override {
+      enforcer->set_port_status(port, status);
+      promise.set_value();
+    }
+
+   private:
+    WatchPortEnforcer *enforcer;
+    pi_port_t port;
+    pi_port_status_t status;
+    EmptyPromise &promise;
+  };
+
+  EmptyPromise promise;
+  task_queue->execute_task(std::unique_ptr<TaskIface>(
+      new TaskPortEvent(this, port, status, promise)));
+  promise.get_future().wait();
 }
 
 Status
@@ -333,7 +366,7 @@ WatchPortEnforcer::port_status_event_cb(pi_dev_id_t dev_id,
   (void)dev_id;
   auto *enforcer = static_cast<WatchPortEnforcer *>(cookie);
   assert(dev_id == enforcer->device_tgt.dev_id);
-  enforcer->handle_port_event(port, status);
+  enforcer->handle_port_status_event_async(port, status);
 }
 
 }  // namespace proto

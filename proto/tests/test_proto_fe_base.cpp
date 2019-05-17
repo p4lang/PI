@@ -24,10 +24,10 @@ namespace pi {
 namespace proto {
 namespace testing {
 
-constexpr const char *DeviceMgrBaseTest::invalid_p4_id_error_str;
+/* static */constexpr const char *DeviceMgrBaseTest::invalid_p4_id_error_str;
 
-pi_p4info_t *DeviceMgrUnittestBaseTest::p4info = nullptr;
-p4configv1::P4Info DeviceMgrUnittestBaseTest::p4info_proto;
+/* static */ pi_p4info_t *DeviceMgrUnittestBaseTest::p4info = nullptr;
+/* static */ p4configv1::P4Info DeviceMgrUnittestBaseTest::p4info_proto;
 
 }  // namespace testing
 }  // namespace proto

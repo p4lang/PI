@@ -99,7 +99,11 @@ class WatchPortEnforcer {
 
   pi_port_status_t get_port_status(pi_port_t watch);
 
+  // Blocks until task queue has processed the p4info change.
   Status p4_change(const pi_p4info_t *p4info);
+
+  // Add port status to task queue and block until is has been processed.
+  void handle_port_status_event_sync(pi_port_t port, pi_port_status_t status);
 
   WatchPortEnforcer(const WatchPortEnforcer &) = delete;
   WatchPortEnforcer &operator=(const WatchPortEnforcer &) = delete;
@@ -110,7 +114,9 @@ class WatchPortEnforcer {
   static void port_status_event_cb(pi_dev_id_t dev_id, pi_port_t port,
                                    pi_port_status_t status, void *cookie);
 
-  void handle_port_event(pi_port_t port, pi_port_status_t status);
+  void handle_port_status_event_async(pi_port_t port, pi_port_status_t status);
+
+  void set_port_status(pi_port_t port, pi_port_status_t status);
 
   Status activate_member(pi::ActProf *ap,
                          pi_indirect_handle_t grp_h,
