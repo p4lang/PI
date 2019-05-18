@@ -386,7 +386,7 @@ class DeviceMgrImp {
       device_data = &config.p4_device_config();
     }
 
-    auto unique_access = access_arbitration.unique_access();
+    auto update_access = access_arbitration.update_access();
 
     // check that p4info => device assigned
     assert(!p4info || pi_is_device_assigned(device_id));

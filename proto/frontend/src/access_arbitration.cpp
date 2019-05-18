@@ -66,21 +66,28 @@ AccessArbitration::WriteAccess::WriteAccess(AccessArbitration *arbitrator)
     : AccessArbitration::Access(arbitrator) { }
 
 AccessArbitration::WriteAccess::~WriteAccess() {
-  arbitrator->release_write_access(*this);
+  if (arbitrator != nullptr) arbitrator->release_write_access(*this);
 }
 
 AccessArbitration::ReadAccess::ReadAccess(AccessArbitration *arbitrator)
     : AccessArbitration::Access(arbitrator) { }
 
 AccessArbitration::ReadAccess::~ReadAccess() {
-  arbitrator->release_read_access();
+  if (arbitrator != nullptr) arbitrator->release_read_access();
 }
 
 AccessArbitration::NoWriteAccess::NoWriteAccess(AccessArbitration *arbitrator)
     : AccessArbitration::Access(arbitrator) { }
 
 AccessArbitration::NoWriteAccess::~NoWriteAccess() {
-  arbitrator->release_no_write_access(*this);
+  if (arbitrator != nullptr) arbitrator->release_no_write_access(*this);
+}
+
+AccessArbitration::UpdateAccess::UpdateAccess(AccessArbitration *arbitrator)
+    : AccessArbitration::Access(arbitrator) { }
+
+AccessArbitration::UpdateAccess::~UpdateAccess() {
+  if (arbitrator != nullptr) arbitrator->release_update_access();
 }
 
 AccessArbitration::WriteAccess
@@ -162,7 +169,9 @@ AccessArbitration::write_access(common::p4_id_t p4_id) {
 
   std::unique_lock<std::mutex> lock(mutex);
   cv.wait(lock, [this, p4_id]() -> bool {
-      return (read_cnt == 0) && (p4_ids_busy.count(p4_id) == 0);
+      return (read_cnt == 0 &&
+              update_cnt == 0 &&
+              p4_ids_busy.count(p4_id) == 0);
   });
   write_cnt++;
   p4_ids_busy.insert(p4_id);
@@ -177,8 +186,31 @@ AccessArbitration::no_write_access(common::p4_id_t p4_id) {
 
   std::unique_lock<std::mutex> lock(mutex);
   cv.wait(lock, [this, p4_id]() -> bool {
-      return (p4_ids_busy.count(p4_id) == 0);
+      return (update_cnt == 0 &&
+              p4_ids_busy.count(p4_id) == 0);
   });
+  no_write_cnt++;
+  p4_ids_busy.insert(p4_id);
+
+  return access;
+}
+
+AccessArbitration::NoWriteAccess
+AccessArbitration::no_write_access(common::p4_id_t p4_id, skip_if_update_t) {
+  NoWriteAccess access(this);
+  access.p4_id = p4_id;
+
+  std::unique_lock<std::mutex> lock(mutex);
+  cv.wait(lock, [this, p4_id]() -> bool {
+      return (update_cnt != 0 ||
+              p4_ids_busy.count(p4_id) == 0);
+  });
+
+  if (update_cnt != 0) {
+    access.arbitrator = nullptr;
+    return access;
+  }
+
   no_write_cnt++;
   p4_ids_busy.insert(p4_id);
 
@@ -191,16 +223,28 @@ AccessArbitration::read_access() {
 
   std::unique_lock<std::mutex> lock(mutex);
   cv.wait(lock, [this]() -> bool {
-      return (write_cnt == 0);
+      return (write_cnt == 0 &&
+              update_cnt == 0);
   });
   read_cnt++;
 
   return access;
 }
 
-AccessArbitration::UniqueAccess
-AccessArbitration::unique_access() {
-  return UniqueAccess(mutex);
+AccessArbitration::UpdateAccess
+AccessArbitration::update_access() {
+  UpdateAccess access(this);
+
+  std::unique_lock<std::mutex> lock(mutex);
+  cv.wait(lock, [this]() -> bool {
+      return (write_cnt == 0 &&
+              read_cnt == 0 &&
+              no_write_cnt == 0 &&
+              update_cnt == 0);
+  });
+  update_cnt++;
+
+  return access;
 }
 
 void
@@ -223,6 +267,13 @@ AccessArbitration::release_no_write_access(const NoWriteAccess &access) {
   std::unique_lock<std::mutex> lock(mutex);
   no_write_cnt--;
   p4_ids_busy.erase(access.p4_id);
+  cv.notify_all();
+}
+
+void
+AccessArbitration::release_update_access() {
+  std::unique_lock<std::mutex> lock(mutex);
+  update_cnt--;
   cv.notify_all();
 }
 

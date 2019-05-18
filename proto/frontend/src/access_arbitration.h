@@ -55,7 +55,23 @@ namespace proto {
 //     NoWriteAccess instances with an overlapping subset of P4Info objects
 class AccessArbitration {
  public:
+  struct skip_if_update_t { };
+
+  // for access methods that support a skip_if_update_t overload, do not block
+  // if there is an ongoing update, instead returns an Access instance that
+  // evaluates to false (returns false when calling has_access).
+  static constexpr skip_if_update_t skip_if_update{};
+
   class Access {
+   public:
+    bool has_access() const noexcept {
+      return arbitrator != nullptr;
+    }
+
+    explicit operator bool() const noexcept {
+      return has_access();
+    }
+
    protected:
     explicit Access(AccessArbitration *arbitrator);
     ~Access();
@@ -92,7 +108,14 @@ class AccessArbitration {
     common::p4_id_t p4_id;
   };
 
-  using UniqueAccess = std::unique_lock<std::mutex>;
+  class UpdateAccess : public Access {
+   public:
+    ~UpdateAccess();
+
+   private:
+    friend class AccessArbitration;
+    explicit UpdateAccess(AccessArbitration *arbitrator);
+  };
 
   WriteAccess write_access(const ::p4::v1::WriteRequest &request,
                            const pi_p4info_t *p4info);
@@ -100,9 +123,11 @@ class AccessArbitration {
 
   NoWriteAccess no_write_access(common::p4_id_t p4_id);
 
+  NoWriteAccess no_write_access(common::p4_id_t p4_id, skip_if_update_t);
+
   ReadAccess read_access();
 
-  UniqueAccess unique_access();
+  UpdateAccess update_access();
 
  private:
   void release_write_access(const WriteAccess &access);
@@ -111,11 +136,14 @@ class AccessArbitration {
 
   void release_read_access();
 
+  void release_update_access();
+
   mutable std::mutex mutex;
   mutable std::condition_variable cv;
   std::set<common::p4_id_t> p4_ids_busy;
   int read_cnt{0};
   int write_cnt{0};
+  int update_cnt{0};
   int no_write_cnt{0};
 };
 

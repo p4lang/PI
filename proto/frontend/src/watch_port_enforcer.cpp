@@ -145,7 +145,13 @@ WatchPortEnforcer::set_port_status(pi_port_t port, pi_port_status_t status) {
   for (auto &p : members_by_action_prof) {
     // prevent simultaneous writes (by the P4Runtime client) while we update the
     // status of each member
-    auto access = access_arbitration->no_write_access(p.first);
+    // if there is an ongoing pipeline configuration update, we do not perform
+    // any activate / deactivate operation, waiting for the lock would put us in
+    // a potential deadlock situation
+    auto access = access_arbitration->no_write_access(
+        p.first, AccessArbitration::skip_if_update);
+    if (!access) break;
+
     auto &members_for_port = p.second.members_by_port[port];
 
     common::SessionTemp session(true  /* = batch */);

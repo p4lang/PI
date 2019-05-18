@@ -251,6 +251,15 @@ TEST_F(WatchPortEnforcerTest, ExclusiveWrite) {
   thread1.join();
 }
 
+// make sure that there is no deadlock when updating pipeline config
+TEST_F(WatchPortEnforcerTest, UpdateConfig) {
+  EXPECT_OK(watch_port_enforcer.add_member(act_prof_id, grp_h, mbr_h, watch_1));
+  auto access = access_arbitration.update_access();
+  EXPECT_EQ(mock->port_status_event_inject(watch_1, PI_PORT_STATUS_DOWN),
+            PI_STATUS_SUCCESS);
+  EXPECT_OK(watch_port_enforcer.p4_change(p4info));
+}
+
 }  // namespace testing
 }  // namespace proto
 }  // namespace pi
