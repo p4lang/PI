@@ -436,3 +436,8 @@ pi_status_t pi_port_status_event_notify(pi_dev_id_t dev_id, pi_port_t port,
   pthread_mutex_unlock(&port_cb_mutex);
   return PI_STATUS_PORT_STATUS_EVENT_NO_CB;
 }
+
+pi_status_t pi_port_status_get(pi_dev_id_t dev_id, pi_port_t port,
+                               pi_port_status_t *status) {
+  return _pi_port_status_get(dev_id, port, status);
+}

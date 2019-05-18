@@ -653,7 +653,7 @@ ActionProfMgr::oneshot_group_create(
     std::unique_ptr<bool[]> activate(new bool[members_h.size()]);
     for (size_t i = 0; i < members_h.size(); i++) {
       auto port_status = watch_port_enforcer->get_port_status(
-          members_watch_port[i]);
+          act_prof_id, members_watch_port[i]);
       activate[i] = (port_status == PI_PORT_STATUS_UP);
     }
     auto pi_status = ap.group_set_members(
@@ -1017,7 +1017,8 @@ ActionProfMgr::group_update_members(pi::ActProf &ap,
                               member_state->handles.begin(),
                               member_state->handles.begin() + m.new_weight);
 
-        auto port_status = watch_port_enforcer->get_port_status(m.new_watch);
+        auto port_status = watch_port_enforcer->get_port_status(
+            act_prof_id, m.new_watch);
         for (int i = 0; i < m.new_weight; i++) {
           activate[activate_idx++] = (port_status == PI_PORT_STATUS_UP);
         }

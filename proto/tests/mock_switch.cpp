@@ -831,9 +831,16 @@ class DummySwitch {
     return pi_packetin_receive(device_id, packet.data(), packet.size());
   }
 
-  pi_status_t port_status_event_inject(pi_port_t port,
-                                       pi_port_status_t status) const {
+  pi_status_t port_status_set(pi_port_t port, pi_port_status_t status) {
+    ports_status[port] = status;
     return pi_port_status_event_notify(device_id, port, status);
+  }
+
+  pi_status_t port_status_get(pi_port_t port, pi_port_status_t *status) const {
+    auto it = ports_status.find(port);
+    if (it == ports_status.end()) return PI_STATUS_TARGET_ERROR;
+    *status = it->second;
+    return PI_STATUS_SUCCESS;
   }
 
   pi_status_t mc_grp_create(pi_mc_grp_id_t grp_id,
@@ -966,6 +973,7 @@ class DummySwitch {
   std::unordered_map<pi_p4_id_t, DummyActionProf> action_profs{};
   std::unordered_map<pi_p4_id_t, DummyMeter> meters{};
   std::unordered_map<pi_p4_id_t, DummyCounter> counters{};
+  std::unordered_map<pi_port_t, pi_port_status_t> ports_status{};
   DummyPRE pre{};
   device_id_t device_id;
 };
@@ -1157,9 +1165,14 @@ DummySwitchMock::digest_inject(pi_p4_id_t learn_id,
 }
 
 pi_status_t
-DummySwitchMock::port_status_event_inject(pi_port_t port,
-                                          pi_port_status_t status) const {
-  return sw->port_status_event_inject(port, status);
+DummySwitchMock::port_status_set(pi_port_t port, pi_port_status_t status) {
+  return sw->port_status_set(port, status);
+}
+
+pi_status_t
+DummySwitchMock::port_status_get(pi_port_t port,
+                                 pi_port_status_t *status) const {
+  return sw->port_status_get(port, status);
 }
 
 pi_status_t
@@ -1513,6 +1526,11 @@ pi_status_t _pi_counter_hw_sync(pi_session_handle_t,
 pi_status_t _pi_packetout_send(pi_dev_id_t dev_id, const char *pkt,
                                size_t size) {
   return DeviceResolver::get_switch(dev_id)->packetout_send(pkt, size);
+}
+
+pi_status_t _pi_port_status_get(pi_dev_id_t dev_id, pi_port_t port,
+                                pi_port_status_t *status) {
+  return DeviceResolver::get_switch(dev_id)->port_status_get(port, status);
 }
 
 pi_status_t _pi_mc_session_init(pi_mc_session_handle_t *) {

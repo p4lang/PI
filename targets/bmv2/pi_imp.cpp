@@ -164,4 +164,12 @@ pi_status_t _pi_packetout_send(pi_dev_id_t dev_id, const char *pkt,
   return PI_STATUS_SUCCESS;
 }
 
+pi_status_t _pi_port_status_get(pi_dev_id_t dev_id, pi_port_t port,
+                                pi_port_status_t *status) {
+  (void)dev_id;
+  (void)port;
+  *status = PI_PORT_STATUS_UP;
+  return PI_STATUS_SUCCESS;
+}
+
 }

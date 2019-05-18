@@ -71,11 +71,9 @@ class WatchPortEnforcerTest : public ProtoFrontendBaseTest {
   void SetUp() override {
     for (size_t i = 0; i < numPorts; i++) {
       auto port = static_cast<pi_port_t>(i);
-      EXPECT_EQ(mock->port_status_event_inject(port, PI_PORT_STATUS_UP),
+      EXPECT_EQ(mock->port_status_set(port, PI_PORT_STATUS_UP),
                 PI_STATUS_SUCCESS);
     }
-    // p4_change method blocks until task queue has executed it, which means all
-    // previous port events have been processed by the time this method returns.
     ASSERT_OK(watch_port_enforcer.p4_change(p4info));
   };
 
@@ -220,7 +218,7 @@ TEST_F(WatchPortEnforcerTest, ConcurrentRead) {
       action();
   });
   EXPECT_OK(watch_port_enforcer.add_member(act_prof_id, grp_h, mbr_h, watch_1));
-  EXPECT_EQ(mock->port_status_event_inject(watch_1, PI_PORT_STATUS_DOWN),
+  EXPECT_EQ(mock->port_status_set(watch_1, PI_PORT_STATUS_DOWN),
             PI_STATUS_SUCCESS);
   thread1.join();
 }
@@ -246,7 +244,7 @@ TEST_F(WatchPortEnforcerTest, ExclusiveWrite) {
       action();
   });
   EXPECT_OK(watch_port_enforcer.add_member(act_prof_id, grp_h, mbr_h, watch_1));
-  EXPECT_EQ(mock->port_status_event_inject(watch_1, PI_PORT_STATUS_DOWN),
+  EXPECT_EQ(mock->port_status_set(watch_1, PI_PORT_STATUS_DOWN),
             PI_STATUS_SUCCESS);
   thread1.join();
 }
@@ -255,7 +253,7 @@ TEST_F(WatchPortEnforcerTest, ExclusiveWrite) {
 TEST_F(WatchPortEnforcerTest, UpdateConfig) {
   EXPECT_OK(watch_port_enforcer.add_member(act_prof_id, grp_h, mbr_h, watch_1));
   auto access = access_arbitration.update_access();
-  EXPECT_EQ(mock->port_status_event_inject(watch_1, PI_PORT_STATUS_DOWN),
+  EXPECT_EQ(mock->port_status_set(watch_1, PI_PORT_STATUS_DOWN),
             PI_STATUS_SUCCESS);
   EXPECT_OK(watch_port_enforcer.p4_change(p4info));
 }

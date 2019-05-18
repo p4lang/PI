@@ -132,6 +132,9 @@ pi_status_t pi_port_status_deregister_cb(pi_dev_id_t dev_id);
 //! De-register default callback.
 pi_status_t pi_port_status_deregister_default_cb();
 
+pi_status_t pi_port_status_get(pi_dev_id_t dev_id, pi_port_t port,
+                               pi_port_status_t *status);
+
 // TODO(antonin): move this to pi_tables?
 // When adding a table entry, the configuration for direct resources associated
 // with the entry can be provided. The config is then passed as a generic void *

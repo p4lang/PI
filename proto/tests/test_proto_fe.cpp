@@ -228,7 +228,7 @@ class DeviceMgrTest : public DeviceMgrUnittestBaseTest {
  public:
   void SetUp() override {
     for (pi_port_t port = 1; port < numPorts; port++) {
-      EXPECT_EQ(mock->port_status_event_inject(port, PI_PORT_STATUS_UP),
+      EXPECT_EQ(mock->port_status_set(port, PI_PORT_STATUS_UP),
                 PI_STATUS_SUCCESS);
     }
     DeviceMgrUnittestBaseTest::SetUp();
@@ -1263,20 +1263,20 @@ TEST_P(ActionProfTest, MemberWatchPort) {
       .WillRepeatedly(InvokeWithoutArgs(std::ref(tracker_activate)));
 
   // bring port down
-  EXPECT_EQ(mock->port_status_event_inject(watch_port, PI_PORT_STATUS_DOWN),
+  EXPECT_EQ(mock->port_status_set(watch_port, PI_PORT_STATUS_DOWN),
             PI_STATUS_SUCCESS);
   EXPECT_TRUE(tracker_deactivate.wait_for(weight, timeout))
       << "Missing calls to deactivate member";
 
   // bring port back up
-  EXPECT_EQ(mock->port_status_event_inject(watch_port, PI_PORT_STATUS_UP),
+  EXPECT_EQ(mock->port_status_set(watch_port, PI_PORT_STATUS_UP),
             PI_STATUS_SUCCESS);
   EXPECT_TRUE(tracker_activate.wait_for(weight, timeout))
       << "Missing calls to activate member";
 
   // change watch port and bring it down
   watch_port = 4;
-  EXPECT_EQ(mock->port_status_event_inject(watch_port, PI_PORT_STATUS_DOWN),
+  EXPECT_EQ(mock->port_status_set(watch_port, PI_PORT_STATUS_DOWN),
             PI_STATUS_SUCCESS);
   ASSERT_TRUE(tracker_activate.check_none(timeout))
       << "Expected no call to activate member";
@@ -1838,11 +1838,11 @@ TEST_P(MatchTableIndirectTest, OneShotWatchPort) {
   EXPECT_CALL(*mock, action_prof_group_activate_member(act_prof_id, _, _))
       .WillRepeatedly(InvokeWithoutArgs(std::ref(tracker_activate)));
 
-  EXPECT_EQ(mock->port_status_event_inject(watch_port, PI_PORT_STATUS_DOWN),
+  EXPECT_EQ(mock->port_status_set(watch_port, PI_PORT_STATUS_DOWN),
             PI_STATUS_SUCCESS);
   EXPECT_TRUE(tracker_deactivate.wait_for(weight * params.size(), timeout))
       << "Missing calls to deactivate member";
-  EXPECT_EQ(mock->port_status_event_inject(watch_port, PI_PORT_STATUS_UP),
+  EXPECT_EQ(mock->port_status_set(watch_port, PI_PORT_STATUS_UP),
             PI_STATUS_SUCCESS);
   EXPECT_TRUE(tracker_activate.wait_for(weight * params.size(), timeout))
       << "Missing calls to activate member";

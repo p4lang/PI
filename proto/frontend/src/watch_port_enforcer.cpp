@@ -112,7 +112,9 @@ WatchPortEnforcer::p4_change(const pi_p4info_t *p4info) {
       for (auto action_prof_id = pi_p4info_act_prof_begin(p4info);
            action_prof_id != pi_p4info_act_prof_end(p4info);
            action_prof_id = pi_p4info_act_prof_next(p4info, action_prof_id)) {
-        members_by_action_prof.emplace(action_prof_id, MembersForActionProf());
+        MembersForActionProf v;
+        v.ports_status = enforcer->ports_status_cache;
+        members_by_action_prof.emplace(action_prof_id, std::move(v));
       }
 
       promise.set_value();
@@ -133,14 +135,7 @@ WatchPortEnforcer::p4_change(const pi_p4info_t *p4info) {
 
 void
 WatchPortEnforcer::set_port_status(pi_port_t port, pi_port_status_t status) {
-  const auto current_status = ports_status[port];
-
-  if (current_status == status) {
-    Logger::get()->warn(
-        "WatchPortEnforcer: port status hasn't changed, "
-        "ignoring notification");
-    return;
-  }
+  ports_status_cache[port] = status;
 
   for (auto &p : members_by_action_prof) {
     // prevent simultaneous writes (by the P4Runtime client) while we update the
@@ -152,7 +147,18 @@ WatchPortEnforcer::set_port_status(pi_port_t port, pi_port_status_t status) {
         p.first, AccessArbitration::skip_if_update);
     if (!access) break;
 
+    auto &current_status = p.second.ports_status[port];
+
+    if (current_status == status) {
+      Logger::get()->warn(
+          "WatchPortEnforcer {}: port status hasn't changed, "
+          "ignoring notification", p.first);
+      return;
+    }
+
+    current_status = status;
     auto &members_for_port = p.second.members_by_port[port];
+    if (members_for_port.members.empty()) break;
 
     common::SessionTemp session(true  /* = batch */);
     pi::ActProf ap(session.get(), device_tgt, p4info, p.first);
@@ -169,8 +175,6 @@ WatchPortEnforcer::set_port_status(pi_port_t port, pi_port_status_t status) {
           "WatchPortEnforcer: unknown port status {} in notification", status);
     }
   }
-
-  ports_status[port] = status;
 }
 
 void
@@ -254,7 +258,7 @@ WatchPortEnforcer::add_member_and_update_hw(pi::ActProf *ap,
 
   RETURN_IF_ERROR(add_member(ap->get_id(), grp_h, mbr_h, new_watch));
 
-  auto new_status = ports_status[new_watch];
+  auto new_status = get_port_status(ap->get_id(), new_watch);
   if (new_status == PI_PORT_STATUS_DOWN) {
     RETURN_IF_ERROR(deactivate_member(ap, grp_h, mbr_h));
   }
@@ -311,21 +315,20 @@ WatchPortEnforcer::modify_member_and_update_hw(pi::ActProf *ap,
   RETURN_IF_ERROR(
       modify_member(ap->get_id(), grp_h, mbr_h, current_watch, new_watch));
 
+  auto current_status = get_port_status(ap->get_id(), current_watch);
+  auto new_status = get_port_status(ap->get_id(), new_watch);
+
   if (current_watch == INVALID_WATCH) {
-    auto new_status = ports_status[new_watch];
     if (new_status == PI_PORT_STATUS_UP) {
       RETURN_IF_ERROR(activate_member(ap, grp_h, mbr_h));
     } else {
       RETURN_IF_ERROR(deactivate_member(ap, grp_h, mbr_h));
     }
   } else if (new_watch == INVALID_WATCH) {
-    auto current_status = ports_status[current_watch];
     if (current_status == PI_PORT_STATUS_DOWN) {
       RETURN_IF_ERROR(activate_member(ap, grp_h, mbr_h));
     }
   } else {
-    auto new_status = ports_status[new_watch];
-    auto current_status = ports_status[current_watch];
     if (current_status != new_status) {
       if (new_status == PI_PORT_STATUS_UP) {
         RETURN_IF_ERROR(activate_member(ap, grp_h, mbr_h));
@@ -358,9 +361,44 @@ WatchPortEnforcer::delete_member(pi_p4_id_t action_prof_id,
 }
 
 pi_port_status_t
-WatchPortEnforcer::get_port_status(pi_port_t watch) {
+WatchPortEnforcer::get_port_status(pi_p4_id_t action_prof_id, pi_port_t watch) {
   if (watch == INVALID_WATCH) return PI_PORT_STATUS_UP;
-  return ports_status[watch];
+  auto &ports_status = members_by_action_prof.at(action_prof_id).ports_status;
+  auto it = ports_status.find(watch);
+  if (it != ports_status.end()) return it->second;
+  pi_port_status_t status;
+  auto pi_status = pi_port_status_get(device_tgt.dev_id, watch, &status);
+  if (pi_status == PI_STATUS_SUCCESS) {
+    ports_status[watch] = status;
+    update_ports_status_cache(watch);
+    return status;
+  }
+  return PI_PORT_STATUS_DOWN;
+}
+
+void
+WatchPortEnforcer::update_ports_status_cache(pi_port_t port) {
+  class UpdateCache : public TaskIface {
+   public:
+    UpdateCache(WatchPortEnforcer *enforcer, pi_port_t port)
+        : enforcer(enforcer), port(port) { }
+
+    void operator()() override {
+      auto &cache = enforcer->ports_status_cache;
+      pi_port_status_t status;
+      auto pi_status = pi_port_status_get(
+          enforcer->device_tgt.dev_id, port, &status);
+      if (pi_status != PI_STATUS_SUCCESS) return;
+      cache[port] = status;
+    }
+
+   private:
+    WatchPortEnforcer *enforcer;
+    pi_port_t port;
+  };
+
+  task_queue->execute_task(std::unique_ptr<TaskIface>(
+      new UpdateCache(this, port)));
 }
 
 /* static */

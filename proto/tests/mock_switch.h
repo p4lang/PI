@@ -97,8 +97,9 @@ class DummySwitchMock {
                             pi_learn_msg_id_t msg_id,
                             const std::vector<std::string> &samples) const;
 
-  pi_status_t port_status_event_inject(pi_port_t port,
-                                       pi_port_status_t status) const;
+  pi_status_t port_status_set(pi_port_t port, pi_port_status_t status);
+
+  pi_status_t port_status_get(pi_port_t port, pi_port_status_t *status) const;
 
   pi_status_t age_entry(pi_p4_id_t table_id,
                         pi_entry_handle_t entry_handle) const;

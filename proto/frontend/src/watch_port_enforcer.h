@@ -97,7 +97,8 @@ class WatchPortEnforcer {
                                      pi_port_t current_watch,
                                      pi_port_t new_watch);
 
-  pi_port_status_t get_port_status(pi_port_t watch);
+  pi_port_status_t get_port_status(pi_p4_id_t action_prof_id,
+                                   pi_port_t watch);
 
   // Blocks until task queue has processed the p4info change.
   Status p4_change(const pi_p4info_t *p4info);
@@ -126,6 +127,8 @@ class WatchPortEnforcer {
                            pi_indirect_handle_t grp_h,
                            pi_indirect_handle_t mbr_h);
 
+  void update_ports_status_cache(pi_port_t port);
+
   struct Member {
     pi_indirect_handle_t grp_h;
     pi_indirect_handle_t mbr_h;
@@ -143,10 +146,6 @@ class WatchPortEnforcer {
     std::set<Member, MemberCmp> members;
   };
 
-  struct MembersForActionProf {
-    std::unordered_map<pi_port_t, MembersForPort> members_by_port;
-  };
-
   class PortStatus {
    public:
     PortStatus()
@@ -162,12 +161,22 @@ class WatchPortEnforcer {
     pi_port_status_t status;
   };
 
+  struct MembersForActionProf {
+    // each action profile has its own port status map, we guarantee consistency
+    // between a port oper status and a member activation status.
+    std::unordered_map<pi_port_t, PortStatus> ports_status;
+    std::unordered_map<pi_port_t, MembersForPort> members_by_port;
+  };
+
   pi_dev_tgt_t device_tgt;
   const pi_p4info_t *p4info{nullptr};
   std::unique_ptr<WatchPortTaskQueue> task_queue;
   std::unordered_map<common::p4_id_t, MembersForActionProf>
   members_by_action_prof;
-  std::unordered_map<pi_port_t, PortStatus> ports_status;
+  // "lazy cache" of the oper status for each port; in case of P4 change (when
+  // we clear the members_by_action_prof map, we use this cache to avoid
+  // querying the state of every port again.
+  std::unordered_map<pi_port_t, PortStatus> ports_status_cache;
   std::thread task_queue_thread;
   AccessArbitration *access_arbitration;
 };
