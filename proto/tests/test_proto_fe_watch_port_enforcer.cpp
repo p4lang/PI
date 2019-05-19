@@ -25,6 +25,7 @@
 #include <condition_variable>
 #include <mutex>
 #include <thread>
+#include <tuple>
 #include <vector>
 
 #include "PI/frontends/cpp/tables.h"
@@ -50,7 +51,7 @@ using ::testing::InvokeWithoutArgs;
 using ::testing::Return;
 
 class WatchPortEnforcerTest : public ProtoFrontendBaseTest {
- protected:
+ public:
   WatchPortEnforcerTest()
       : watch_port_enforcer(device_tgt, &access_arbitration) {
     act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
@@ -214,7 +215,7 @@ TEST_F(WatchPortEnforcerTest, ConcurrentRead) {
       act_prof_id, grp_h, mbr_h))
       .WillOnce(DoAll(InvokeWithoutArgs(action), Return(PI_STATUS_SUCCESS)));
   std::thread thread1([this, &action] {
-      auto access = access_arbitration.read_access();
+      AccessArbitration::ReadAccess access(&access_arbitration);
       action();
   });
   EXPECT_OK(watch_port_enforcer.add_member(act_prof_id, grp_h, mbr_h, watch_1));
@@ -240,7 +241,7 @@ TEST_F(WatchPortEnforcerTest, ExclusiveWrite) {
       act_prof_id, grp_h, mbr_h))
       .WillOnce(DoAll(InvokeWithoutArgs(action), Return(PI_STATUS_SUCCESS)));
   std::thread thread1([this, &action] {
-      auto access = access_arbitration.write_access(act_prof_id);
+      AccessArbitration::WriteAccess access(&access_arbitration, act_prof_id);
       action();
   });
   EXPECT_OK(watch_port_enforcer.add_member(act_prof_id, grp_h, mbr_h, watch_1));
@@ -252,11 +253,60 @@ TEST_F(WatchPortEnforcerTest, ExclusiveWrite) {
 // make sure that there is no deadlock when updating pipeline config
 TEST_F(WatchPortEnforcerTest, UpdateConfig) {
   EXPECT_OK(watch_port_enforcer.add_member(act_prof_id, grp_h, mbr_h, watch_1));
-  auto access = access_arbitration.update_access();
+  AccessArbitration::UpdateAccess access(&access_arbitration);
   EXPECT_EQ(mock->port_status_set(watch_1, PI_PORT_STATUS_DOWN),
             PI_STATUS_SUCCESS);
   EXPECT_OK(watch_port_enforcer.p4_change(p4info));
 }
+
+using ::testing::WithParamInterface;
+using ::testing::Values;
+
+class WatchPortEnforcerNoWriteAccessOneOfTest
+    : public WatchPortEnforcerTest,
+      public WithParamInterface<std::tuple<const char *, const char *> > { };
+
+// We test that when there is an ongoing WriteRequest for one action profile,
+// port status events can still be processed concurrently for other action
+// profiles.
+TEST_P(WatchPortEnforcerNoWriteAccessOneOfTest, ConcurrentAccess) {
+  pi_p4_id_t act_prof_1_id = pi_p4info_act_prof_id_from_name(
+      p4info, std::get<0>(GetParam()));
+  pi_p4_id_t act_prof_2_id = pi_p4info_act_prof_id_from_name(
+      p4info, std::get<1>(GetParam()));
+
+  int x = 0;
+  auto action = [this, &x] {
+    std::unique_lock<std::mutex> lock(mutex);
+    if (x == 0) {
+      x = 1;
+      cv.notify_one();
+      EXPECT_TRUE(cv.wait_for(lock, timeout, [&x] { return x == 0; }));
+    } else {
+      x = 0;
+      cv.notify_one();
+    }
+  };
+  EXPECT_CALL(*mock, action_prof_group_deactivate_member(_, grp_h, mbr_h))
+      .WillOnce(DoAll(InvokeWithoutArgs(action), Return(PI_STATUS_SUCCESS)))
+      .WillOnce(Return(PI_STATUS_SUCCESS));
+  std::thread thread1([this, act_prof_1_id, &action] {
+      AccessArbitration::WriteAccess access(&access_arbitration, act_prof_1_id);
+      action();
+  });
+  EXPECT_OK(watch_port_enforcer.add_member(
+      act_prof_1_id, grp_h, mbr_h, watch_1));
+  EXPECT_OK(watch_port_enforcer.add_member(
+      act_prof_2_id, grp_h, mbr_h, watch_1));
+  EXPECT_EQ(mock->port_status_set(watch_1, PI_PORT_STATUS_DOWN),
+            PI_STATUS_SUCCESS);
+  thread1.join();
+}
+
+INSTANTIATE_TEST_CASE_P(
+    ConcurrentAccess, WatchPortEnforcerNoWriteAccessOneOfTest,
+    Values(std::make_tuple("ActProfWS", "ActProfWS2"),
+           std::make_tuple("ActProfWS2", "ActProfWS")));
 
 }  // namespace testing
 }  // namespace proto

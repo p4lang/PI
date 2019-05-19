@@ -27,6 +27,7 @@
 #include <condition_variable>
 #include <mutex>
 #include <set>
+#include <utility>
 
 #include "common.h"
 
@@ -62,6 +63,9 @@ class AccessArbitration {
   // evaluates to false (returns false when calling has_access).
   static constexpr skip_if_update_t skip_if_update{};
 
+  struct one_of_t { };
+  static constexpr one_of_t one_of{};
+
   class Access {
    public:
     bool has_access() const noexcept {
@@ -72,6 +76,11 @@ class AccessArbitration {
       return has_access();
     }
 
+    Access(const Access &) = delete;
+    Access &operator=(const Access &) = delete;
+    Access(Access &&) = delete;
+    Access &operator=(Access &&) = delete;
+
    protected:
     explicit Access(AccessArbitration *arbitrator);
     ~Access();
@@ -81,55 +90,96 @@ class AccessArbitration {
 
   class WriteAccess : public Access {
    public:
+    template <typename ...Args>
+    WriteAccess(AccessArbitration *arbitrator, Args &&...args)
+        : Access(arbitrator) {
+      arbitrator->write_access(this, std::forward<Args>(args)...);
+    }
+
     ~WriteAccess();
 
    private:
     friend class AccessArbitration;
-    explicit WriteAccess(AccessArbitration *arbitrator);
     std::set<common::p4_id_t> p4_ids;
   };
 
   class ReadAccess : public Access {
    public:
+    template <typename ...Args>
+    ReadAccess(AccessArbitration *arbitrator, Args &&...args)
+        : Access(arbitrator) {
+      arbitrator->read_access(this, std::forward<Args>(args)...);
+    }
+
     ~ReadAccess();
 
    private:
     friend class AccessArbitration;
-    explicit ReadAccess(AccessArbitration *arbitrator);
   };
 
   class NoWriteAccess : public Access {
    public:
+    template <typename ...Args>
+    NoWriteAccess(AccessArbitration *arbitrator, Args &&...args)
+        : Access(arbitrator) {
+      arbitrator->no_write_access(this, std::forward<Args>(args)...);
+    }
+
     ~NoWriteAccess();
+
+    common::p4_id_t p4_id() const { return p4_id_; }
 
    private:
     friend class AccessArbitration;
-    explicit NoWriteAccess(AccessArbitration *arbitrator);
-    common::p4_id_t p4_id;
+    common::p4_id_t p4_id_{PI_INVALID_ID};
   };
 
   class UpdateAccess : public Access {
    public:
+    template <typename ...Args>
+    UpdateAccess(AccessArbitration *arbitrator, Args &&...args)
+        : Access(arbitrator) {
+      arbitrator->update_access(this, std::forward<Args>(args)...);
+    }
+
     ~UpdateAccess();
 
    private:
     friend class AccessArbitration;
-    explicit UpdateAccess(AccessArbitration *arbitrator);
   };
 
-  WriteAccess write_access(const ::p4::v1::WriteRequest &request,
-                           const pi_p4info_t *p4info);
-  WriteAccess write_access(common::p4_id_t p4_id);
-
-  NoWriteAccess no_write_access(common::p4_id_t p4_id);
-
-  NoWriteAccess no_write_access(common::p4_id_t p4_id, skip_if_update_t);
-
-  ReadAccess read_access();
-
-  UpdateAccess update_access();
+  // TODO(antonin): we need a much more efficient data structure for this
+  // critical code, the set will perform memory allocation for every insert and
+  // we should try to use contiguous memory to perform set intersection
+  // efficiently.
+  using P4IdSet = std::set<common::p4_id_t>;
 
  private:
+  void write_access(WriteAccess *access,
+                    const ::p4::v1::WriteRequest &request,
+                    const pi_p4info_t *p4info);
+  void write_access(WriteAccess *access, common::p4_id_t p4_id);
+
+  void read_access(ReadAccess *access);
+
+  void no_write_access(NoWriteAccess *access, common::p4_id_t p4_id);
+  void no_write_access(NoWriteAccess *access,
+                       common::p4_id_t p4_id,
+                       skip_if_update_t);
+  // The one_of_t overload gains access to a single object in the set, and
+  // updates the set before returning (i.e. removes element to which we gained
+  // access).
+  // TODO(antonin): add "all_of_t" overloads if needed
+  void no_write_access(NoWriteAccess *access,
+                       P4IdSet *p4_ids,
+                       one_of_t);
+  void no_write_access(NoWriteAccess *access,
+                       P4IdSet *p4_ids,
+                       one_of_t,
+                       skip_if_update_t);
+
+  void update_access(UpdateAccess *access);
+
   void release_write_access(const WriteAccess &access);
 
   void release_no_write_access(const NoWriteAccess &access);
@@ -138,9 +188,11 @@ class AccessArbitration {
 
   void release_update_access();
 
+  bool validate_state();
+
   mutable std::mutex mutex;
   mutable std::condition_variable cv;
-  std::set<common::p4_id_t> p4_ids_busy;
+  P4IdSet p4_ids_busy;
   int read_cnt{0};
   int write_cnt{0};
   int update_cnt{0};

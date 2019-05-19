@@ -15,7 +15,7 @@
 
 // To re-generate the P4Info (unittest.p4info.txt) and the static table entries
 // (unittest.entries.txt), run:
-// p4test unittest.p4 --std p4-16 --p4runtime-format text --p4runtime-file unittest.p4info.txt --p4runtime-entries-file unittest.entries.txt
+// p4test unittest.p4 --std p4-16 --p4runtime-files unittest.p4info.txt --p4runtime-entries-files unittest.entries.txt
 
 #include <v1model.p4>
 
@@ -150,6 +150,20 @@ control ingress(inout headers_t hdr, inout metadata_t meta, inout standard_metad
         size = 512;
     }
 
+    @name(".ActProfWS2")
+    action_selector(HashAlgorithm.crc16, 32w128, 32w16) ActProfWS2;
+
+    @name(".IndirectWS2")
+    table IndirectWS2 {
+        key = {
+            hdr.header_test.field32 : exact;
+            hdr.header_test.field64 : selector;
+        }
+        actions = { actionA; actionB; }
+        implementation = ActProfWS2;
+        size = 512;
+    }
+
     @name(".ExactOneNonAligned")
     table ExactOneNonAligned {
         key = {
@@ -215,6 +229,7 @@ control ingress(inout headers_t hdr, inout metadata_t meta, inout standard_metad
         RangeOne.apply();
         MixMany.apply();
         IndirectWS.apply();
+        IndirectWS2.apply();
         ExactOneNonAligned.apply();
         CounterA.count(32w128);
         MeterA.execute_meter(32w128, hdr.header_test.field4);

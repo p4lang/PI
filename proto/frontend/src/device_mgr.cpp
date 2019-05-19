@@ -386,7 +386,7 @@ class DeviceMgrImp {
       device_data = &config.p4_device_config();
     }
 
-    auto update_access = access_arbitration.update_access();
+    AccessArbitration::UpdateAccess update_access(&access_arbitration);
 
     // check that p4info => device assigned
     assert(!p4info || pi_is_device_assigned(device_id));
@@ -535,19 +535,20 @@ class DeviceMgrImp {
   }
 
   Status write(const p4v1::WriteRequest &request) {
-    auto write_access = access_arbitration.write_access(request, p4info.get());
+    AccessArbitration::WriteAccess write_access(
+        &access_arbitration, request, p4info.get());
     return write_(request);
   }
 
   Status read(const p4v1::ReadRequest &request,
               p4v1::ReadResponse *response) const {
-    auto read_access = access_arbitration.read_access();
+    AccessArbitration::ReadAccess read_access(&access_arbitration);
     return read_(request, response);
   }
 
   Status read_one(const p4v1::Entity &entity,
                   p4v1::ReadResponse *response) const {
-    auto read_access = access_arbitration.read_access();
+    AccessArbitration::ReadAccess read_access(&access_arbitration);
     return read_one_(entity, response);
   }
 

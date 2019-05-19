@@ -137,31 +137,41 @@ void
 WatchPortEnforcer::set_port_status(pi_port_t port, pi_port_status_t status) {
   ports_status_cache[port] = status;
 
-  for (auto &p : members_by_action_prof) {
+  AccessArbitration::P4IdSet act_prof_ids;
+  for (auto &p : members_by_action_prof) act_prof_ids.insert(p.first);
+
+  while (!act_prof_ids.empty()) {
     // prevent simultaneous writes (by the P4Runtime client) while we update the
     // status of each member
     // if there is an ongoing pipeline configuration update, we do not perform
     // any activate / deactivate operation, waiting for the lock would put us in
     // a potential deadlock situation
-    auto access = access_arbitration->no_write_access(
-        p.first, AccessArbitration::skip_if_update);
+    // we use "one_of" to get access to an available action profile (which is
+    // not locked for a WriteRequest) instead of getting access to the action
+    // profiles in some arbitrary order; this ensures that we do not get blocked
+    // by an ongoing WriteRequest and we can update member status in a timely
+    // fashion for available action profiles.
+    AccessArbitration::NoWriteAccess access(
+        access_arbitration, &act_prof_ids,
+        AccessArbitration::one_of, AccessArbitration::skip_if_update);
     if (!access) break;
+    auto &action_prof = members_by_action_prof.at(access.p4_id());
 
-    auto &current_status = p.second.ports_status[port];
+    auto &current_status = action_prof.ports_status[port];
 
     if (current_status == status) {
       Logger::get()->warn(
           "WatchPortEnforcer {}: port status hasn't changed, "
-          "ignoring notification", p.first);
+          "ignoring notification", access.p4_id());
       return;
     }
 
     current_status = status;
-    auto &members_for_port = p.second.members_by_port[port];
-    if (members_for_port.members.empty()) break;
+    auto &members_for_port = action_prof.members_by_port[port];
+    if (members_for_port.members.empty()) continue;
 
     common::SessionTemp session(true  /* = batch */);
-    pi::ActProf ap(session.get(), device_tgt, p4info, p.first);
+    pi::ActProf ap(session.get(), device_tgt, p4info, access.p4_id());
     if (status == PI_PORT_STATUS_UP) {
       for (auto member : members_for_port.members) {
         activate_member(&ap, member.grp_h, member.mbr_h);

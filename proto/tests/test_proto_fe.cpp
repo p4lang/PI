@@ -323,7 +323,6 @@ TEST_F(DeviceMgrTest, PipelineConfigGetLarge) {
 
 using ::testing::WithParamInterface;
 using ::testing::Values;
-using ::testing::Combine;
 
 class MatchKeyInput {
  public:
