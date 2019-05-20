@@ -117,6 +117,24 @@ pi_status_t pi_packetin_deregister_default_cb();
 //! Inject a packet in the specified device.
 pi_status_t pi_packetout_send(pi_dev_id_t dev_id, const char *pkt, size_t size);
 
+//! Callback type for port status events.
+typedef void (*PIPortStatusCb)(pi_dev_id_t dev_id, pi_port_t port,
+                               pi_port_status_t status, void *cb_cookie);
+//! Register a callback for port status events, for a given device.
+pi_status_t pi_port_status_register_cb(pi_dev_id_t dev_id, PIPortStatusCb cb,
+                                       void *cb_cookie);
+//! Register a default callback for port status events, which will be used if no
+//! specific callback was specified for the device which issued the event.
+pi_status_t pi_port_status_register_default_cb(PIPortStatusCb cb,
+                                               void *cb_cookie);
+//! De-register a port status event callback for a given device
+pi_status_t pi_port_status_deregister_cb(pi_dev_id_t dev_id);
+//! De-register default callback.
+pi_status_t pi_port_status_deregister_default_cb();
+
+pi_status_t pi_port_status_get(pi_dev_id_t dev_id, pi_port_t port,
+                               pi_port_status_t *status);
+
 // TODO(antonin): move this to pi_tables?
 // When adding a table entry, the configuration for direct resources associated
 // with the entry can be provided. The config is then passed as a generic void *

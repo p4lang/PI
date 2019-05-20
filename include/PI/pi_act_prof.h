@@ -75,7 +75,26 @@ pi_status_t pi_act_prof_grp_set_mbrs(pi_session_handle_t session_handle,
                                      pi_dev_id_t dev_id, pi_p4_id_t act_prof_id,
                                      pi_indirect_handle_t grp_handle,
                                      size_t num_mbrs,
-                                     const pi_indirect_handle_t *mbr_handles);
+                                     const pi_indirect_handle_t *mbr_handles,
+                                     const bool *activate);
+
+//! (Re)activate a group member previously deactivated with
+//! pi_act_prof_grp_deactivate_mbr. Note that members are activated by default
+//! when they are added to a group and there is currently no way to add a
+//! de-activated member with a single API call (except when using set_mbrs).
+pi_status_t pi_act_prof_grp_activate_mbr(pi_session_handle_t session_handle,
+                                         pi_dev_id_t dev_id,
+                                         pi_p4_id_t act_prof_id,
+                                         pi_indirect_handle_t grp_handle,
+                                         pi_indirect_handle_t mbr_handle);
+
+//! Deactivate a group member, without removing it from the group. This member
+//! should no longer be selected for packet processing.
+pi_status_t pi_act_prof_grp_deactivate_mbr(pi_session_handle_t session_handle,
+                                           pi_dev_id_t dev_id,
+                                           pi_p4_id_t act_prof_id,
+                                           pi_indirect_handle_t grp_handle,
+                                           pi_indirect_handle_t mbr_handle);
 
 typedef struct pi_act_prof_fetch_res_s pi_act_prof_fetch_res_t;
 

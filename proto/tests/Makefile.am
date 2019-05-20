@@ -26,6 +26,7 @@ test_proto_fe_digest \
 test_proto_fe_packet_io \
 test_proto_fe_set_pipeline_config \
 test_proto_fe_access_arbitration \
+test_proto_fe_watch_port_enforcer \
 test_server_no_pipeline_config \
 test_server_gnmi \
 test_server_arbitration \
@@ -64,6 +65,8 @@ test_proto_fe_set_pipeline_config_SOURCES =$(proto_fe_common_source) \
 test_proto_fe_set_pipeline_config.cpp
 test_proto_fe_access_arbitration_SOURCES = $(proto_fe_common_source) \
 test_proto_fe_access_arbitration.cpp
+test_proto_fe_watch_port_enforcer_SOURCES = $(proto_fe_common_source) \
+test_proto_fe_watch_port_enforcer.cpp
 
 test_task_queue_SOURCES = $(proto_fe_common_source) test_task_queue.cpp
 
@@ -85,6 +88,7 @@ test_proto_fe_digest_LDADD = $(proto_fe_libs)
 test_proto_fe_packet_io_LDADD = $(proto_fe_libs)
 test_proto_fe_set_pipeline_config_LDADD = $(proto_fe_libs)
 test_proto_fe_access_arbitration_LDADD = $(proto_fe_libs)
+test_proto_fe_watch_port_enforcer_LDADD = $(proto_fe_libs)
 
 test_task_queue_LDADD = $(proto_fe_libs)
 
@@ -122,6 +126,7 @@ test_proto_fe_packet_io \
 test_proto_fe_set_pipeline_config \
 test_server_no_pipeline_config \
 test_proto_fe_access_arbitration \
+test_proto_fe_watch_port_enforcer \
 test_server_gnmi \
 test_server_arbitration \
 test_pi_server \

@@ -49,12 +49,11 @@ namespace testing {
 using pi::fe::proto::DeviceMgr;
 using Code = ::google::rpc::Code;
 
-class DeviceMgrBaseTest : public ::testing::Test {
-  // apparently cannot be "protected" because of the use of WithParamInterface
-  // in one of the subclasses
+class ProtoFrontendBaseTest : public ::testing::Test {
  public:
-  DeviceMgrBaseTest()
-      : mock(wrapper.sw()), device_id(wrapper.device_id()), mgr(device_id) { }
+  ProtoFrontendBaseTest()
+      : mock(wrapper.sw()), device_id(wrapper.device_id()),
+        device_tgt({static_cast<pi_dev_id_t>(device_id), 0xffff}) { }
 
   static void SetUpTestCase() {
     DeviceMgr::init(256);
@@ -63,6 +62,17 @@ class DeviceMgrBaseTest : public ::testing::Test {
   static void TearDownTestCase() {
     DeviceMgr::destroy();
   }
+
+  DummySwitchWrapper wrapper{};
+  DummySwitchMock *mock;
+  device_id_t device_id;
+  pi_dev_tgt_t device_tgt;
+};
+
+class DeviceMgrBaseTest : public ProtoFrontendBaseTest {
+ public:
+  DeviceMgrBaseTest()
+      : mgr(device_id) { }
 
   DeviceMgr::Status set_pipeline_config(
       p4configv1::P4Info *p4info_proto,
@@ -123,9 +133,6 @@ class DeviceMgrBaseTest : public ::testing::Test {
       "This is a dummy device config";
   static constexpr const char *invalid_p4_id_error_str = "Invalid P4 id";
 
-  DummySwitchWrapper wrapper{};
-  DummySwitchMock *mock;
-  device_id_t device_id;
   DeviceMgr mgr;
 };
 

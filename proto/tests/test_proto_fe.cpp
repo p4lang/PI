@@ -32,6 +32,7 @@
 #include <condition_variable>
 #include <cstring>  // std::memcmp
 #include <fstream>  // std::ifstream
+#include <functional>
 #include <iterator>  // std::distance
 #include <memory>
 #include <mutex>
@@ -49,6 +50,8 @@
 #include "PI/p4info.h"
 #include "PI/pi.h"
 #include "PI/proto/util.h"
+
+#include "src/report_error.h"
 
 #include "google/rpc/code.pb.h"
 
@@ -94,6 +97,7 @@ using ::testing::DoDefault;
 using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
 using ::testing::Exactly;
+using ::testing::InvokeWithoutArgs;
 using ::testing::IsNull;
 using ::testing::Return;
 
@@ -182,8 +186,56 @@ std::ostream &operator<<(std::ostream &out, const ExpectedErrors &errors) {
   return out;
 }
 
+// Can be used as a functor with InvokeWithoutArgs to keep track of asynchronous
+// calls. You can then verify the number of calls or verify that no calls are
+// performed.
+struct CallCountTracker {
+  pi_status_t operator()() {
+    std::unique_lock<std::mutex> lock(m);
+    cnt++;
+    cv.notify_one();
+    return PI_STATUS_SUCCESS;
+  }
+
+  template<typename Rep, typename Period>
+  bool wait_for(int v, const std::chrono::duration<Rep, Period> &d) {
+    std::unique_lock<std::mutex> lock(m);
+    auto r = cv.wait_for(lock, d, [this, &v] { return cnt == v; });
+    cnt = 0;
+    return r;
+  }
+
+  template<typename Rep, typename Period>
+  bool check_none(const std::chrono::duration<Rep, Period> &d) {
+    std::unique_lock<std::mutex> lock(m);
+    return !cv.wait_for(lock, d, [this] { return cnt != 0; });
+  }
+
+  int reset() {
+    std::unique_lock<std::mutex> lock(m);
+    int c = cnt;
+    cnt = 0;
+    return c;
+  }
+
+  int cnt{0};
+  mutable std::mutex m;
+  mutable std::condition_variable cv;
+};
+
 // Google Test fixture for Protobuf Frontend tests
-class DeviceMgrTest : public DeviceMgrUnittestBaseTest { };
+class DeviceMgrTest : public DeviceMgrUnittestBaseTest {
+ public:
+  void SetUp() override {
+    for (pi_port_t port = 1; port < numPorts; port++) {
+      EXPECT_EQ(mock->port_status_set(port, PI_PORT_STATUS_UP),
+                PI_STATUS_SUCCESS);
+    }
+    DeviceMgrUnittestBaseTest::SetUp();
+  }
+
+  static constexpr pi_port_t numPorts = 16;
+};
 
 TEST_F(DeviceMgrTest, ResourceTypeFromId) {
   using Type = p4configv1::P4Ids;
@@ -271,7 +323,6 @@ TEST_F(DeviceMgrTest, PipelineConfigGetLarge) {
 
 using ::testing::WithParamInterface;
 using ::testing::Values;
-using ::testing::Combine;
 
 class MatchKeyInput {
  public:
@@ -740,7 +791,7 @@ INSTANTIATE_TEST_CASE_P(
 #define EXPECT_NO_CALL_GROUP_REMOVE_MEMBER(mock) \
   EXPECT_CALL(mock, action_prof_group_remove_member(_, _, _)).Times(0)
 #define EXPECT_NO_CALL_GROUP_SET_MEMBERS(mock) \
-  EXPECT_CALL(mock, action_prof_group_set_members(_, _, _, _)).Times(0)
+  EXPECT_CALL(mock, action_prof_group_set_members(_, _, _, _, _)).Times(0)
 
 class ActionProfTest
     : public DeviceMgrTest, public WithParamInterface<PiActProfApiSupport> {
@@ -796,10 +847,12 @@ class ActionProfTest
 
   void add_member_to_group(p4v1::ActionProfileGroup *group,
                            uint32_t member_id,
-                           int weight = 1) {
+                           int weight = 1,
+                           int watch_port = 0) {
     auto member = group->add_members();
     member->set_member_id(member_id);
     member->set_weight(weight);
+    member->set_watch(watch_port);
   }
 
   template <typename It>
@@ -932,8 +985,10 @@ TEST_P(ActionProfTest, Group) {
   if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
     EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, mbr_h_1);
   } else {
-    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _)
-      .With(Args<3, 2>(ElementsAre(mbr_h_1)));
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _, _)
+      .With(AllOf(
+          Args<3, 2>(ElementsAre(mbr_h_1)),  // handles
+          Args<4, 2>(ElementsAre(true))));  // activate
   }
   ASSERT_OK(create_group(&group));
   auto grp_h = mock->get_action_prof_handle();
@@ -943,8 +998,10 @@ TEST_P(ActionProfTest, Group) {
   //   * expect same call when using set membership
   EXPECT_NO_CALL_GROUP_ADD_MEMBER(*mock);
   if (GetParam() != PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
-    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _)
-        .With(Args<3, 2>(ElementsAre(mbr_h_1)));
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _, _)
+        .With(AllOf(
+            Args<3, 2>(ElementsAre(mbr_h_1)),  // handles
+            Args<4, 2>(ElementsAre(true))));  // activate
   }
   ASSERT_OK(modify_group(&group));
 
@@ -953,8 +1010,10 @@ TEST_P(ActionProfTest, Group) {
   if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
   EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, grp_h, mbr_h_2);
   } else {
-    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _)
-        .With(Args<3, 2>(ElementsAre(mbr_h_1, mbr_h_2)));
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _, _)
+        .With(AllOf(
+            Args<3, 2>(ElementsAre(mbr_h_1, mbr_h_2)),  // handles
+            Args<4, 2>(ElementsAre(true, true))));  // activate
   }
   ASSERT_OK(modify_group(&group));
 
@@ -964,8 +1023,10 @@ TEST_P(ActionProfTest, Group) {
   if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
     EXPECT_CALL_GROUP_REMOVE_MEMBER(*mock, act_prof_id, grp_h, mbr_h_1);
   } else {
-    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _)
-        .With(Args<3, 2>(ElementsAre(mbr_h_2)));
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _, _)
+        .With(AllOf(
+            Args<3, 2>(ElementsAre(mbr_h_2)),  // handles
+            Args<4, 2>(ElementsAre(true))));  // activate
   }
   ASSERT_OK(modify_group(&group));
 
@@ -999,8 +1060,10 @@ TEST_P(ActionProfTest, Read) {
   if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
     EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, mbr_h_1);
   } else {
-    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _)
-        .With(Args<3, 2>(ElementsAre(mbr_h_1)));
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _, _)
+        .With(AllOf(
+            Args<3, 2>(ElementsAre(mbr_h_1)),  // handles
+            Args<4, 2>(ElementsAre(true))));  // activate
   }
   ASSERT_OK(create_group(&group));
 
@@ -1032,7 +1095,7 @@ TEST_P(ActionProfTest, CreateDupGroupId) {
   EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, _, _))
       .Times(AtLeast(1));
   if (GetParam() != PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
-    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, 0, _);
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, 0, _, _);
   }
   EXPECT_OK(create_group(&group));
   EXPECT_EQ(create_group(&group), OneExpectedError(Code::ALREADY_EXISTS));
@@ -1102,7 +1165,7 @@ TEST_P(ActionProfTest, MemberWeights) {
   if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
     EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, _).Times(3);
   } else {
-    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, 3, _);
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, 3, _, _);
   }
   auto group = make_group(group_id);
   add_member_to_group(&group, member_id, 3);
@@ -1129,7 +1192,7 @@ TEST_P(ActionProfTest, MemberWeights) {
   if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
     EXPECT_CALL_GROUP_REMOVE_MEMBER(*mock, act_prof_id, _, _);
   } else {
-    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, 2, _);
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, 2, _, _);
   }
   EXPECT_CALL(*mock, action_prof_member_delete(_, _));
   group.clear_members();
@@ -1144,6 +1207,97 @@ TEST_P(ActionProfTest, MemberWeights) {
   EXPECT_CALL(*mock, action_prof_member_delete(_, _));
   EXPECT_CALL(*mock, action_prof_group_delete(act_prof_id, _));
   EXPECT_OK(delete_group(&group));
+}
+
+TEST_P(ActionProfTest, MemberWatchPort) {
+  DeviceMgr::Status status;
+  uint32_t group_id = 1000;
+  uint32_t member_id = 1;
+
+  // create 1 member
+  std::string adata(6, '\x00');
+  EXPECT_CALL(*mock, action_prof_member_create(_, _, _));
+  auto member = make_member(member_id, adata);
+  EXPECT_OK(create_member(&member));
+
+  int weight = 2;
+  int watch_port = 7;
+  EXPECT_CALL(*mock, action_prof_member_create(_, _, _)).Times(weight - 1);
+  EXPECT_CALL(*mock, action_prof_group_create(_, _, _));
+  if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
+    EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, _)
+        .Times(weight);
+  } else {
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _, _)
+        .With(Args<4, 2>(ElementsAre(true, true)));
+  }
+  auto group = make_group(group_id);
+  add_member_to_group(&group, member_id, weight, watch_port);
+  EXPECT_OK(create_group(&group));
+
+  // read group and check contents
+  EXPECT_CALL(*mock, action_prof_entries_fetch(act_prof_id, _));
+  p4v1::ReadResponse response;
+  p4v1::ReadRequest request;
+  {
+    auto entity = request.add_entities();
+    auto group = entity->mutable_action_profile_group();
+    group->set_action_profile_id(act_prof_id);
+  }
+  ASSERT_OK(mgr.read(request, &response));
+  const auto &entities = response.entities();
+  ASSERT_EQ(1, entities.size());
+  ASSERT_TRUE(MessageDifferencer::Equals(
+      group, entities.Get(0).action_profile_group()));
+
+  std::chrono::milliseconds timeout(200);
+  CallCountTracker tracker_deactivate;
+  CallCountTracker tracker_activate;
+
+  // std::ref is required otherwise gmock tries to make a copy of the object,
+  // which is not possible because of the mutex member.
+  EXPECT_CALL(*mock, action_prof_group_deactivate_member(act_prof_id, _, _))
+      .WillRepeatedly(InvokeWithoutArgs(std::ref(tracker_deactivate)));
+  EXPECT_CALL(*mock, action_prof_group_activate_member(act_prof_id, _, _))
+      .WillRepeatedly(InvokeWithoutArgs(std::ref(tracker_activate)));
+
+  // bring port down
+  EXPECT_EQ(mock->port_status_set(watch_port, PI_PORT_STATUS_DOWN),
+            PI_STATUS_SUCCESS);
+  EXPECT_TRUE(tracker_deactivate.wait_for(weight, timeout))
+      << "Missing calls to deactivate member";
+
+  // bring port back up
+  EXPECT_EQ(mock->port_status_set(watch_port, PI_PORT_STATUS_UP),
+            PI_STATUS_SUCCESS);
+  EXPECT_TRUE(tracker_activate.wait_for(weight, timeout))
+      << "Missing calls to activate member";
+
+  // change watch port and bring it down
+  watch_port = 4;
+  EXPECT_EQ(mock->port_status_set(watch_port, PI_PORT_STATUS_DOWN),
+            PI_STATUS_SUCCESS);
+  ASSERT_TRUE(tracker_activate.check_none(timeout))
+      << "Expected no call to activate member";
+  ASSERT_TRUE(tracker_deactivate.check_none(timeout))
+      << "Expected no call to deactivate member";
+
+  if (GetParam() != PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _, _)
+        .With(Args<4, 2>(ElementsAre(false, false)));
+  }
+  group.clear_members();
+  add_member_to_group(&group, member_id, weight, watch_port);
+  EXPECT_OK(modify_group(&group));
+
+  if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
+    EXPECT_TRUE(tracker_deactivate.wait_for(weight, timeout))
+        << "Missing calls to deactivate member";
+  }
+  ASSERT_TRUE(tracker_activate.check_none(timeout))
+      << "Expected no call to activate member";
+  ASSERT_TRUE(tracker_deactivate.check_none(timeout))
+      << "Expected no call to deactivate member";
 }
 
 TEST_P(ActionProfTest, InvalidActionProfId) {
@@ -1222,7 +1376,7 @@ TEST_P(ActionProfTest, InvalidMaxSize) {
     EXPECT_CALL(*mock, action_prof_group_create(_, _, _));
     if (GetParam() != PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
       // empty member set
-      EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, 0, _);
+      EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, 0, _, _);
     }
     EXPECT_OK(create_group(&group));
   }
@@ -1292,7 +1446,7 @@ TEST_P(ActionProfTest, MaxSizeModify) {
   if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
     EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, _);
   } else {
-    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _);
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _, _);
   }
   EXPECT_OK(create_group(&group));
 
@@ -1379,7 +1533,8 @@ class MatchTableIndirectTest
           .Times(std::distance(members_begin, members_end));
     } else {
       EXPECT_CALL_GROUP_SET_MEMBERS(
-          *mock, act_prof_id, _, std::distance(members_begin, members_end), _);
+          *mock, act_prof_id, _,
+          std::distance(members_begin, members_end), _, _);
     }
     auto group = make_group(group_id, members_begin, members_end);
     p4v1::WriteRequest request;
@@ -1410,7 +1565,7 @@ class MatchTableIndirectTest
   p4v1::TableEntry make_indirect_entry_one_shot(
       const boost::optional<std::string> &mf_v,
       It params_begin, It params_end,
-      int weight = 1) {
+      int weight = 1, int watch_port = 0) {
     p4v1::TableEntry table_entry;
     auto t_id = pi_p4info_table_id_from_name(p4info, "IndirectWS");
     table_entry.set_table_id(t_id);
@@ -1427,13 +1582,26 @@ class MatchTableIndirectTest
       auto ap_action = ap_action_set->add_action_profile_actions();
       set_action(ap_action->mutable_action(), *param_it);
       ap_action->set_weight(weight);
+      ap_action->set_watch(watch_port);
     }
     return table_entry;
   }
 
   template <typename It>
   DeviceMgr::Status add_indirect_entry_one_shot(
-      p4v1::TableEntry *entry, It params_begin, It params_end, int weight = 1) {
+      p4v1::TableEntry *entry, It params_begin, It params_end,
+      int weight = 1, bool activate = true) {
+    std::chrono::milliseconds timeout(200);
+    CallCountTracker tracker_deactivate;
+    CallCountTracker tracker_activate;
+
+    // std::ref is required otherwise gmock tries to make a copy of the object,
+    // which is not possible because of the mutex member.
+    EXPECT_CALL(*mock, action_prof_group_deactivate_member(act_prof_id, _, _))
+        .WillRepeatedly(InvokeWithoutArgs(std::ref(tracker_deactivate)));
+    EXPECT_CALL(*mock, action_prof_group_activate_member(act_prof_id, _, _))
+        .WillRepeatedly(InvokeWithoutArgs(std::ref(tracker_activate)));
+
     for (auto param_it = params_begin; param_it != params_end; param_it++) {
       auto ad_matcher = CorrectActionData(a_id, *param_it);
       EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, ad_matcher, _))
@@ -1446,11 +1614,20 @@ class MatchTableIndirectTest
       EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, _)
           .Times(params_size * weight);
     } else {
+      std::vector<bool> activate_(params_size * weight, activate);
       EXPECT_CALL_GROUP_SET_MEMBERS(
-          *mock, act_prof_id, _, params_size * weight, _);
+          *mock, act_prof_id, _, params_size * weight, _, _)
+          .With(Args<4, 2>(ElementsAreArray(activate_)));
     }
     EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
-    return add_entry(entry);
+    RETURN_IF_ERROR(add_entry(entry));
+
+    if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR && !activate) {
+      EXPECT_TRUE(tracker_deactivate.wait_for(params_size * weight, timeout))
+          << "Missing calls to deactivate member";
+    }
+
+    RETURN_OK_STATUS();
   }
 
   pi_p4_id_t t_id;
@@ -1569,7 +1746,8 @@ TEST_P(MatchTableIndirectTest, OneShotInsertAndModify) {
   if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
     EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, _).Times(params.size());
   } else {
-    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, params.size(), _);
+    EXPECT_CALL_GROUP_SET_MEMBERS(
+        *mock, act_prof_id, _, params.size(), _, _);
   }
   EXPECT_CALL(*mock, table_entry_modify_wkey(t_id, _, _));
 
@@ -1625,6 +1803,53 @@ TEST_P(MatchTableIndirectTest, OneShotWeights) {
   ASSERT_EQ(1, entities.size());
   EXPECT_TRUE(
       MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
+}
+
+TEST_P(MatchTableIndirectTest, OneShotWatchPort) {
+  std::string mf("\xaa\xbb\xcc\xdd", 4);
+  std::vector<std::string> params;
+  params.emplace_back(6, '\x00');
+  params.emplace_back(6, '\x01');
+  int weight = 2;
+  int watch_port = 7;
+
+  auto entry = make_indirect_entry_one_shot(
+      mf, params.begin(), params.end(), weight, watch_port);
+  ASSERT_OK(add_indirect_entry_one_shot(
+      &entry, params.begin(), params.end(), weight, true /* activate */));
+
+  EXPECT_CALL(*mock, table_entries_fetch(t_id, _));
+  EXPECT_CALL(*mock, action_prof_entries_fetch(act_prof_id, _));
+
+  p4v1::ReadResponse response;
+  ASSERT_OK(read_table_entries(t_id, &response));
+  const auto &entities = response.entities();
+  ASSERT_EQ(1, entities.size());
+  EXPECT_TRUE(
+      MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
+
+  std::chrono::milliseconds timeout(200);
+  CallCountTracker tracker_activate;
+  CallCountTracker tracker_deactivate;
+
+  EXPECT_CALL(*mock, action_prof_group_deactivate_member(act_prof_id, _, _))
+      .WillRepeatedly(InvokeWithoutArgs(std::ref(tracker_deactivate)));
+  EXPECT_CALL(*mock, action_prof_group_activate_member(act_prof_id, _, _))
+      .WillRepeatedly(InvokeWithoutArgs(std::ref(tracker_activate)));
+
+  EXPECT_EQ(mock->port_status_set(watch_port, PI_PORT_STATUS_DOWN),
+            PI_STATUS_SUCCESS);
+  EXPECT_TRUE(tracker_deactivate.wait_for(weight * params.size(), timeout))
+      << "Missing calls to deactivate member";
+  EXPECT_EQ(mock->port_status_set(watch_port, PI_PORT_STATUS_UP),
+            PI_STATUS_SUCCESS);
+  EXPECT_TRUE(tracker_activate.wait_for(weight * params.size(), timeout))
+      << "Missing calls to activate member";
+
+  ASSERT_TRUE(tracker_activate.check_none(timeout))
+      << "Expected no call to activate member";
+  ASSERT_TRUE(tracker_deactivate.check_none(timeout))
+      << "Expected no call to deactivate member";
 }
 
 TEST_P(MatchTableIndirectTest, OneShotMaxSizeExceeded) {
@@ -1733,7 +1958,7 @@ TEST_P(OneShotCleanupTest, MemberAddError) {
     EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, _)
         .WillOnce(Return(PI_STATUS_TARGET_ERROR));
   } else {
-    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, num_actions, _)
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, num_actions, _, _)
         .WillOnce(Return(PI_STATUS_TARGET_ERROR));
   }
   // we expect the following calls for cleanup:

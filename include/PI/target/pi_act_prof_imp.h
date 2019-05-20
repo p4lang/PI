@@ -58,12 +58,22 @@ pi_status_t _pi_act_prof_grp_remove_mbr(pi_session_handle_t session_handle,
                                         pi_indirect_handle_t grp_handle,
                                         pi_indirect_handle_t mbr_handle);
 
-pi_status_t _pi_act_prof_grp_set_mbrs(pi_session_handle_t session_handle,
-                                      pi_dev_id_t dev_id,
-                                      pi_p4_id_t act_prof_id,
-                                      pi_indirect_handle_t grp_handle,
-                                      size_t num_mbrs,
-                                      const pi_indirect_handle_t *mbr_handles);
+pi_status_t _pi_act_prof_grp_set_mbrs(
+    pi_session_handle_t session_handle, pi_dev_id_t dev_id,
+    pi_p4_id_t act_prof_id, pi_indirect_handle_t grp_handle, size_t num_mbrs,
+    const pi_indirect_handle_t *mbr_handles, const bool *activate);
+
+pi_status_t _pi_act_prof_grp_activate_mbr(pi_session_handle_t session_handle,
+                                          pi_dev_id_t dev_id,
+                                          pi_p4_id_t act_prof_id,
+                                          pi_indirect_handle_t grp_handle,
+                                          pi_indirect_handle_t mbr_handle);
+
+pi_status_t _pi_act_prof_grp_deactivate_mbr(pi_session_handle_t session_handle,
+                                            pi_dev_id_t dev_id,
+                                            pi_p4_id_t act_prof_id,
+                                            pi_indirect_handle_t grp_handle,
+                                            pi_indirect_handle_t mbr_handle);
 
 pi_status_t _pi_act_prof_entries_fetch(pi_session_handle_t session_handle,
                                        pi_dev_id_t dev_id,

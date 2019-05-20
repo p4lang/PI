@@ -33,6 +33,7 @@
 #include "logger.h"
 #include "report_error.h"
 #include "statusor.h"
+#include "watch_port_enforcer.h"
 
 namespace p4v1 = ::p4::v1;
 namespace p4configv1 = ::p4::config::v1;
@@ -47,6 +48,23 @@ using Id = ActionProfBiMap::Id;
 using common::SessionTemp;
 using common::make_invalid_p4_id_status;
 using Code = ::google::rpc::Code;
+using MembershipInfo = ActionProfGroupMembership::MembershipInfo;
+
+namespace {
+
+// temporary until we have port translation support
+
+pi_port_t watch_port_p4rt_to_pi(int watch) {
+  return (watch == p4v1::SDN_PORT_UNKNOWN) ?
+      WatchPortEnforcer::INVALID_WATCH : static_cast<pi_port_t>(watch);
+}
+
+int watch_port_pi_to_p4rt(pi_port_t watch) {
+  return (watch == WatchPortEnforcer::INVALID_WATCH) ?
+      p4v1::SDN_PORT_UNKNOWN : static_cast<int>(watch);
+}
+
+}  // namespace
 
 void
 ActionProfBiMap::add(const Id &id, pi_indirect_handle_t h) {
@@ -132,15 +150,21 @@ ActionProfMemberMap::empty() const {
 ActionProfGroupMembership::ActionProfGroupMembership(size_t max_size_user)
     : max_size_user(max_size_user) { }
 
+bool operator==(const MembershipInfo &lhs, const MembershipInfo &rhs) {
+  return (lhs.weight == rhs.weight) && (lhs.watch == rhs.watch);
+}
+
 // The result is the union of all members (current and new) with current_weight
 // and new_weight set appropriately. For a new member, current_weight is 0 while
 // new_weight is > 0. For an old member that needs to be removed, new_weight is
 // 0 while current_weight is > 0. For an existing member whose weight we are
 // changing new_weight and current_weight are both > 0. If we are not changing
-// the weight, new_weight == current_weight.
+// the weight, new_weight == current_weight. We also store the desired watch
+// port for the member as new_watch, which is set to -1 if the member needs to
+// be removed, along with the current watch port as current_watch.
 std::vector<ActionProfGroupMembership::MembershipUpdate>
 ActionProfGroupMembership::compute_membership_update(
-    const std::map<Id, int> &desired_membership) const {
+    const std::map<Id, MembershipInfo> &desired_membership) const {
   std::vector<MembershipUpdate> update;
 
   auto new_it = desired_membership.begin();
@@ -148,25 +172,38 @@ ActionProfGroupMembership::compute_membership_update(
   while (new_it != desired_membership.end() || current_it != members.end()) {
     if (new_it == desired_membership.end()) {
       for (; current_it != members.end(); current_it++)
-        update.emplace_back(current_it->first, current_it->second, 0);
+        update.emplace_back(current_it->first,
+                            current_it->second.weight, 0,
+                            current_it->second.watch,
+                            WatchPortEnforcer::INVALID_WATCH);
       break;
     }
     if (current_it == members.end()) {
       for (; new_it != desired_membership.end(); new_it++)
-        update.emplace_back(new_it->first, 0, new_it->second);
+        update.emplace_back(new_it->first,
+                            0, new_it->second.weight,
+                            WatchPortEnforcer::INVALID_WATCH,
+                            new_it->second.watch);
       break;
     }
     if (current_it->first < new_it->first) {
       // member no longer exists
-      update.emplace_back(current_it->first, current_it->second, 0);
+      update.emplace_back(current_it->first,
+                          current_it->second.weight, 0,
+                          current_it->second.watch,
+                          WatchPortEnforcer::INVALID_WATCH);
       current_it++;
     } else if (current_it->first > new_it->first) {
       // new member
-      update.emplace_back(new_it->first, 0, new_it->second);
+      update.emplace_back(new_it->first,
+                          0, new_it->second.weight,
+                          WatchPortEnforcer::INVALID_WATCH,
+                          new_it->second.watch);
       new_it++;
     } else {
-      update.emplace_back(
-          current_it->first, current_it->second, new_it->second);
+      update.emplace_back(current_it->first,
+                          current_it->second.weight, new_it->second.weight,
+                          current_it->second.watch, new_it->second.watch);
       current_it++;
       new_it++;
     }
@@ -176,16 +213,17 @@ ActionProfGroupMembership::compute_membership_update(
 }
 
 void
-ActionProfGroupMembership::set_membership(std::map<Id, int> &&new_members) {
+ActionProfGroupMembership::set_membership(
+    std::map<Id, MembershipInfo> &&new_members) {
   members = std::move(new_members);
 }
 
-const std::map<Id, int> &
+const std::map<Id, MembershipInfo> &
 ActionProfGroupMembership::get_membership() const {
   return members;
 }
 
-std::map<Id, int> &
+std::map<Id, MembershipInfo> &
 ActionProfGroupMembership::get_membership() {
   return members;
 }
@@ -195,12 +233,23 @@ ActionProfGroupMembership::get_max_size_user() const {
   return max_size_user;
 }
 
+bool
+ActionProfGroupMembership::get_member_info(
+    const Id &member_id, int *weight, int *watch) const {
+  auto it = members.find(member_id);
+  if (it == members.end()) return false;
+  *weight = it->second.weight;
+  *watch = watch_port_pi_to_p4rt(it->second.watch);
+  return true;
+}
+
 using Status = ActionProfMgr::Status;
 
 ActionProfMgr::ActionProfMgr(pi_dev_tgt_t device_tgt, pi_p4_id_t act_prof_id,
-                             pi_p4info_t *p4info, PiApiChoice pi_api_choice)
+                             pi_p4info_t *p4info, PiApiChoice pi_api_choice,
+                             WatchPortEnforcer *watch_port_enforcer)
     : device_tgt(device_tgt), act_prof_id(act_prof_id), p4info(p4info),
-      pi_api_choice(pi_api_choice) {
+      pi_api_choice(pi_api_choice), watch_port_enforcer(watch_port_enforcer)  {
   max_group_size = pi_p4info_act_prof_max_grp_size(p4info, act_prof_id);
 }
 
@@ -402,8 +451,14 @@ ActionProfMgr::group_delete(const p4v1::ActionProfileGroup &group,
           Code::INTERNAL, "Cannot access state for member {} in group {}",
           m.first, group.group_id());
     }
-    assert(m.second > 0);
-    member_state->weight_counts[m.second]--;
+    assert(m.second.weight > 0);
+    member_state->weight_counts[m.second.weight]--;
+    for (int i = 0; i < m.second.weight; i++) {
+      // no reason to fail, we are just updating the watch_port_enforcer
+      // internal state
+      RETURN_IF_ERROR(watch_port_enforcer->delete_member(
+          act_prof_id, *group_h, member_state->handles[i], m.second.watch));
+    }
     RETURN_IF_ERROR(purge_unused_weighted_members_wrapper(ap, member_state));
   }
   group_members.erase(it);
@@ -419,6 +474,14 @@ ActionProfMgr::group_get_max_size_user(const Id &group_id,
   if (it == group_members.end()) return false;
   *max_size_user = it->second.get_max_size_user();
   return true;
+}
+
+bool
+ActionProfMgr::get_member_info(const Id &group_id, const Id &member_id,
+                               int *weight, int *watch_port) const {
+  auto it = group_members.find(group_id);
+  if (it == group_members.end()) return false;
+  return it->second.get_member_info(member_id, weight, watch_port);
 }
 
 struct ActionProfMgr::OneShotGroupCleanupTask : common::LocalCleanupIface {
@@ -478,6 +541,42 @@ struct ActionProfMgr::OneShotMemberCleanupTask : common::LocalCleanupIface {
   pi_indirect_handle_t member_h;
 };
 
+struct ActionProfMgr::OneShotWatchPortCleanupTask : common::LocalCleanupIface {
+  OneShotWatchPortCleanupTask(ActionProfMgr *action_prof_mgr,
+                              pi_indirect_handle_t group_h,
+                              pi_indirect_handle_t member_h,
+                              pi_port_t watch)
+      : mgr(action_prof_mgr), group_h(group_h), member_h(member_h),
+        watch(watch) { }
+
+  Status cleanup(const SessionTemp &session) override {
+    (void)session;
+    if (!mgr) RETURN_OK_STATUS();
+    // no reason to fail, we are just updating the watch_port_enforcer internal
+    // state
+    auto status = mgr->watch_port_enforcer->delete_member(
+        mgr->act_prof_id, group_h, member_h, watch);
+    if (IS_ERROR(status)) {
+      RETURN_ERROR_STATUS(
+          Code::INTERNAL,
+          "Error encountered when undoing changes to action profile group "
+          "member watch port status committed during one-shot indirect table "
+          "programming. This is a serious error and you may need to reboot "
+          "the system");
+    }
+    RETURN_OK_STATUS();
+  }
+
+  void cancel() override {
+    mgr = nullptr;
+  }
+
+  ActionProfMgr *mgr;
+  pi_indirect_handle_t group_h;
+  pi_indirect_handle_t member_h;
+  pi_port_t watch;
+};
+
 Status
 ActionProfMgr::oneshot_group_create(
     const p4::v1::ActionProfileActionSet &action_set,
@@ -496,12 +595,6 @@ ActionProfMgr::oneshot_group_create(
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                           "Member weight must be a positive integer value");
     }
-    // TODO(antonin): support watch
-    if (action.watch() != 0) {
-      // do not reject the request outright in case it breaks an existing
-      // controller.
-      Logger::get()->warn("Watch attribute for members not implemented yet");
-    }
     sum_of_weights += action.weight();
   }
 
@@ -516,6 +609,7 @@ ActionProfMgr::oneshot_group_create(
   pi::ActProf ap(session->get(), device_tgt, p4info, act_prof_id);
   std::vector<OneShotMember> members;
   std::vector<pi_indirect_handle_t> members_h;
+  std::vector<pi_port_t> members_watch_port;
   for (const auto &action : action_set.action_profile_actions()) {
     for (int i = 0; i < action.weight(); i++) {
       pi_indirect_handle_t member_h;
@@ -525,8 +619,10 @@ ActionProfMgr::oneshot_group_create(
         RETURN_ERROR_STATUS(
             Code::UNKNOWN, "Error when creating member on target");
       }
-      members.push_back({member_h, (i == 0) ? action.weight() : 0});
+      members.push_back(
+          {member_h, (i == 0) ? action.weight() : 0, action.watch()});
       members_h.push_back(member_h);
+      members_watch_port.push_back(watch_port_p4rt_to_pi(action.watch()));
       session->cleanup_task_push(std::unique_ptr<OneShotMemberCleanupTask>(
           new OneShotMemberCleanupTask(this, member_h)));
     }
@@ -539,24 +635,44 @@ ActionProfMgr::oneshot_group_create(
     session->cleanup_task_push(std::unique_ptr<OneShotGroupCleanupTask>(
         new OneShotGroupCleanupTask(this, *group_h)));
   }
+  assert(members_h.size() == members_watch_port.size());
   if (pi_api_choice == PiApiChoice::INDIVIDUAL_ADDS_AND_REMOVES) {
-    for (const auto &member_h : members_h) {
-      auto pi_status = ap.group_add_member(*group_h, member_h);
+    for (size_t i = 0; i < members_h.size(); i++) {
+      auto pi_status = ap.group_add_member(*group_h, members_h[i]);
       if (pi_status != PI_STATUS_SUCCESS) {
         RETURN_ERROR_STATUS(
             Code::UNKNOWN, "Error when adding member to group on target");
       }
+      RETURN_IF_ERROR(watch_port_enforcer->add_member_and_update_hw(
+          &ap, *group_h, members_h[i], members_watch_port[i]));
+      session->cleanup_task_push(std::unique_ptr<OneShotWatchPortCleanupTask>(
+          new OneShotWatchPortCleanupTask(
+              this, *group_h, members_h[i], members_watch_port[i])));
     }
   } else if (pi_api_choice == PiApiChoice::SET_MEMBERSHIP) {
+    std::unique_ptr<bool[]> activate(new bool[members_h.size()]);
+    for (size_t i = 0; i < members_h.size(); i++) {
+      auto port_status = watch_port_enforcer->get_port_status(
+          act_prof_id, members_watch_port[i]);
+      activate[i] = (port_status == PI_PORT_STATUS_UP);
+    }
     auto pi_status = ap.group_set_members(
-        *group_h, members_h.size(), members_h.data());
+        *group_h, members_h.size(), members_h.data(), activate.get());
     if (pi_status != PI_STATUS_SUCCESS) {
       RETURN_ERROR_STATUS(
           Code::UNKNOWN, "Error when setting group membership on target");
     }
+    for (size_t i = 0; i < members_h.size(); i++) {
+      RETURN_IF_ERROR(watch_port_enforcer->add_member(
+          act_prof_id, *group_h, members_h[i], members_watch_port[i]));
+      session->cleanup_task_push(std::unique_ptr<OneShotWatchPortCleanupTask>(
+          new OneShotWatchPortCleanupTask(
+              this, *group_h, members_h[i], members_watch_port[i])));
+    }
   } else {
     RETURN_ERROR_STATUS(Code::INTERNAL, "Unknown PiApiChoice");
   }
+
   session->cleanup_scope_pop();
   auto p = oneshot_group_members.emplace(*group_h, members);
   assert(p.second);
@@ -578,6 +694,12 @@ ActionProfMgr::oneshot_group_delete(pi_indirect_handle_t group_h,
       RETURN_ERROR_STATUS(
           Code::UNKNOWN, "Error when deleting member on target");
     }
+
+    // no reason to fail, we are just updating the watch_port_enforcer internal
+    // state
+    RETURN_IF_ERROR(watch_port_enforcer->delete_member(
+        act_prof_id, group_h, member.member_h,
+        watch_port_p4rt_to_pi(member.watch)));
   }
   {
     auto pi_status = ap.group_delete(group_h);
@@ -734,12 +856,6 @@ ActionProfMgr::group_update_members(pi::ActProf &ap,
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                           "Member weight must be a positive integer value");
     }
-    // TODO(antonin): support watch
-    if (member.watch() != 0) {
-      // do not reject the request outright in case it breaks an existing
-      // controller.
-      Logger::get()->warn("Watch attribute for members not implemented yet");
-    }
     sum_of_weights += member.weight();
   }
 
@@ -755,7 +871,7 @@ ActionProfMgr::group_update_members(pi::ActProf &ap,
                         "Sum of member weights exceeds maximum group size");
   }
 
-  std::map<Id, int> new_membership;
+  std::map<Id, MembershipInfo> new_membership;
   for (const auto &m : group.members()) {
     // check that member id exists
     if (!member_map.access_member_state(m.member_id())) {
@@ -769,7 +885,9 @@ ActionProfMgr::group_update_members(pi::ActProf &ap,
           "Duplicate member id {} for group {}, use weights instead",
           m.member_id(), group_id);
     }
-    new_membership.emplace(m.member_id(), m.weight());
+    auto watch_port = watch_port_p4rt_to_pi(m.watch());
+    new_membership.emplace(m.member_id(),
+                           MembershipInfo{m.weight(), watch_port});
   }
 
   auto membership_update = membership.compute_membership_update(
@@ -791,15 +909,13 @@ ActionProfMgr::group_update_members(pi::ActProf &ap,
     // TODO(antonin): make this code smarter so that the group is never empty
     // and never too big at any given time.
 
-    for (const auto &m : membership_update) {
+    for (auto &m : membership_update) {
       auto member_state = member_map.access_member_state(m.id);
       assert(member_state);  // checked previously
 
       RETURN_IF_ERROR(create_missing_weighted_members(ap, member_state, m));
 
       if (m.current_weight > 0) member_state->weight_counts[m.current_weight]--;
-
-      int end_weight = m.current_weight;
 
       auto add_member = [&ap, group_h](pi_indirect_handle_t h)
           -> Status {
@@ -811,7 +927,7 @@ ActionProfMgr::group_update_members(pi::ActProf &ap,
         RETURN_OK_STATUS();
       };
 
-      auto remove_member = [&end_weight, &ap, group_h](pi_indirect_handle_t h)
+      auto remove_member = [&ap, group_h](pi_indirect_handle_t h)
           -> Status {
         auto pi_status = ap.group_remove_member(*group_h, h);
         if (pi_status != PI_STATUS_SUCCESS) {
@@ -821,26 +937,53 @@ ActionProfMgr::group_update_members(pi::ActProf &ap,
         RETURN_OK_STATUS();
       };
 
+      int end_weight = m.current_weight;
+
       Status status = OK_STATUS();
-      // only one of these 2 loops will be "executed"
+
       // remove members as needed
       for (int i = m.current_weight - 1; i >= m.new_weight; i--) {
-        status = remove_member(member_state->handles.at(i));
+        auto h = member_state->handles.at(i);
+        // no reason to fail, we are just updating the watch_port_enforcer
+        // internal state
+        status = watch_port_enforcer->delete_member(
+            act_prof_id, *group_h, h, m.current_watch);
+        if (IS_ERROR(status)) break;
+        status = remove_member(h);
         if (IS_ERROR(status)) break;
         end_weight--;
         auto it = current_membership.find(m.id);
         assert(it != current_membership.end());
-        if (it->second == 1)
+        if (it->second.weight == 1)
           current_membership.erase(it);
         else
-          it->second--;
+          it->second.weight--;
       }
+
       // add members as needed
       for (int i = m.current_weight; i < m.new_weight; i++) {
-        status = add_member(member_state->handles.at(i));
+        auto h = member_state->handles.at(i);
+        status = add_member(h);
         if (IS_ERROR(status)) break;
         end_weight++;
-        current_membership[m.id]++;
+        // may construct and value-initialize MembershipInfo instance
+        auto &minfo = current_membership[m.id];
+        minfo.weight++;
+        minfo.watch = m.new_watch;
+        status = watch_port_enforcer->add_member_and_update_hw(
+            &ap, *group_h, h, m.new_watch);
+        if (IS_ERROR(status)) break;
+      }
+
+      // modify watch ports if needed
+      if (m.new_watch != m.current_watch && IS_OK(status)) {
+        for (int i = 0; i < std::min(m.current_weight, m.new_weight); i++) {
+          auto h = member_state->handles.at(i);
+          status = watch_port_enforcer->modify_member_and_update_hw(
+              &ap, *group_h, h, m.current_watch, m.new_watch);
+          if (IS_ERROR(status)) break;
+        }
+        current_membership.at(m.id).watch = m.new_watch;
       }
 
       if (end_weight > 0) member_state->weight_counts[end_weight]++;
@@ -857,7 +1000,9 @@ ActionProfMgr::group_update_members(pi::ActProf &ap,
     assert(current_membership == new_membership);
   } else if (pi_api_choice == PiApiChoice::SET_MEMBERSHIP) {
     std::vector<pi_indirect_handle_t> members_to_set;
+    std::unique_ptr<bool[]> activate(new bool[sum_of_weights]);
 
+    int activate_idx = 0;
     for (const auto &m : membership_update) {
       auto member_state = member_map.access_member_state(m.id);
       if (!member_state) {
@@ -867,27 +1012,68 @@ ActionProfMgr::group_update_members(pi::ActProf &ap,
 
       RETURN_IF_ERROR(create_missing_weighted_members(ap, member_state, m));
 
-      members_to_set.insert(members_to_set.end(),
-                            member_state->handles.begin(),
-                            member_state->handles.begin() + m.new_weight);
+      if (m.new_weight > 0) {
+        members_to_set.insert(members_to_set.end(),
+                              member_state->handles.begin(),
+                              member_state->handles.begin() + m.new_weight);
+
+        auto port_status = watch_port_enforcer->get_port_status(
+            act_prof_id, m.new_watch);
+        for (int i = 0; i < m.new_weight; i++) {
+          activate[activate_idx++] = (port_status == PI_PORT_STATUS_UP);
+        }
+      }
     }
 
     auto pi_status = ap.group_set_members(
-        *group_h, members_to_set.size(), members_to_set.data());
+        *group_h, members_to_set.size(), members_to_set.data(), activate.get());
     if (pi_status != PI_STATUS_SUCCESS) {
       RETURN_IF_ERROR(cleanup_members());
       RETURN_ERROR_STATUS(
           Code::UNKNOWN, "Error when setting group membership on target");
     }
 
+    size_t watch_port_errors = 0;
     for (const auto &m : membership_update) {
       auto member_state = member_map.access_member_state(m.id);
       assert(member_state);
       if (m.current_weight > 0) member_state->weight_counts[m.current_weight]--;
       if (m.new_weight > 0) member_state->weight_counts[m.new_weight]++;
+
+      // no reasons for any of these to fail, we are not touching the HW
+      for (int i = m.current_weight - 1; i >= m.new_weight; i--) {
+        auto h = member_state->handles.at(i);
+        auto status = watch_port_enforcer->delete_member(
+            act_prof_id, *group_h, h, m.current_watch);
+        if (IS_ERROR(status)) watch_port_errors++;
+      }
+
+      for (int i = m.current_weight; i < m.new_weight; i++) {
+        auto h = member_state->handles.at(i);
+        auto status = watch_port_enforcer->add_member(
+            act_prof_id, *group_h, h, m.new_watch);
+        if (IS_ERROR(status)) watch_port_errors++;
+      }
+
+      if (m.new_watch != m.current_watch) {
+        for (int i = 0; i < std::min(m.current_weight, m.new_weight); i++) {
+          auto h = member_state->handles.at(i);
+          auto status = watch_port_enforcer->modify_member(
+              act_prof_id, *group_h, h, m.current_watch, m.new_watch);
+          if (IS_ERROR(status)) watch_port_errors++;
+        }
+      }
     }
 
     membership.set_membership(std::move(new_membership));
+
+    if (watch_port_errors > 0) {
+      RETURN_ERROR_STATUS(
+          Code::INTERNAL,
+          "Error when storing watch port information for group {}, watch ports "
+          "may not be enforced correctly",
+          group_id);
+    }
   } else {
     RETURN_ERROR_STATUS(Code::INTERNAL, "Unknown PiApiChoice");
   }

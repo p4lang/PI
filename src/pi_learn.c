@@ -101,15 +101,9 @@ pi_status_t pi_learn_msg_done(pi_learn_msg_t *msg) {
 pi_status_t pi_learn_new_msg(pi_learn_msg_t *msg) {
   pi_dev_id_t dev_id = msg->dev_tgt.dev_id;
   pthread_mutex_lock(&cb_mutex);
-  const cb_data_t *cb_data = cb_mgr_get(&cb_mgr, dev_id);
+  const cb_data_t *cb_data = cb_mgr_get_or_default(&cb_mgr, dev_id);
   if (cb_data) {
     ((PILearnCb)(cb_data->cb))(msg, cb_data->cookie);
-    pthread_mutex_unlock(&cb_mutex);
-    return PI_STATUS_SUCCESS;
-  }
-  const cb_data_t *default_cb_data = cb_mgr_get_default(&cb_mgr);
-  if (default_cb_data->cb) {
-    ((PILearnCb)(default_cb_data->cb))(msg, default_cb_data->cookie);
     pthread_mutex_unlock(&cb_mutex);
     return PI_STATUS_SUCCESS;
   }

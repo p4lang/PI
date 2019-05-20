@@ -22,8 +22,8 @@
 
 #include <PI/p4info.h>
 
+#include <cassert>
 #include <mutex>
-#include <set>
 #include <vector>
 
 #include "p4/config/v1/p4info.pb.h"
@@ -55,6 +55,24 @@ bool do_sets_intersect(InputIterator1 first1, InputIterator1 last1,
   return false;
 }
 
+// Returns iterator to element of [first1, last1[ which is not in [first2,
+// last2[. Returns last1 if no element is found. Input iterators must be sorted.
+template <typename InputIterator1, typename InputIterator2>
+InputIterator1 find_not_in_set(InputIterator1 first1, InputIterator1 last1,
+                               InputIterator2 first2, InputIterator2 last2) {
+  while (first1 != last1 && first2 != last2) {
+    if (*first1 < *first2) {
+      return first1;
+    } else if (*first2 < *first1) {
+      ++first2;
+    } else {
+      ++first1;
+      ++first2;
+    }
+  }
+  return first1;
+}
+
 }  // namespace
 
 AccessArbitration::Access::Access(AccessArbitration *arbitrator)
@@ -62,32 +80,27 @@ AccessArbitration::Access::Access(AccessArbitration *arbitrator)
 
 AccessArbitration::Access::~Access() = default;
 
-AccessArbitration::WriteAccess::WriteAccess(AccessArbitration *arbitrator)
-    : AccessArbitration::Access(arbitrator) { }
-
 AccessArbitration::WriteAccess::~WriteAccess() {
-  arbitrator->release_write_access(*this);
+  if (arbitrator != nullptr) arbitrator->release_write_access(*this);
 }
-
-AccessArbitration::ReadAccess::ReadAccess(AccessArbitration *arbitrator)
-    : AccessArbitration::Access(arbitrator) { }
 
 AccessArbitration::ReadAccess::~ReadAccess() {
-  arbitrator->release_read_access();
+  if (arbitrator != nullptr) arbitrator->release_read_access();
 }
-
-AccessArbitration::NoWriteAccess::NoWriteAccess(AccessArbitration *arbitrator)
-    : AccessArbitration::Access(arbitrator) { }
 
 AccessArbitration::NoWriteAccess::~NoWriteAccess() {
-  arbitrator->release_no_write_access(*this);
+  if (arbitrator != nullptr) arbitrator->release_no_write_access(*this);
 }
 
-AccessArbitration::WriteAccess
-AccessArbitration::write_access(const p4v1::WriteRequest &request,
+AccessArbitration::UpdateAccess::~UpdateAccess() {
+  if (arbitrator != nullptr) arbitrator->release_update_access();
+}
+
+void
+AccessArbitration::write_access(WriteAccess *access,
+                                const p4v1::WriteRequest &request,
                                 const pi_p4info_t *p4info) {
-  WriteAccess access(this);
-  auto &p4_ids = access.p4_ids;
+  auto &p4_ids = access->p4_ids;
 
   for (const auto &update : request.updates()) {
     const auto &entity = update.entity();
@@ -151,56 +164,144 @@ AccessArbitration::write_access(const p4v1::WriteRequest &request,
   });
   write_cnt++;
   p4_ids_busy.insert(p4_ids.begin(), p4_ids.end());
-
-  return access;
 }
 
-AccessArbitration::WriteAccess
-AccessArbitration::write_access(common::p4_id_t p4_id) {
-  WriteAccess access(this);
-  access.p4_ids.insert(p4_id);
+void
+AccessArbitration::write_access(WriteAccess *access, common::p4_id_t p4_id) {
+  access->p4_ids.insert(p4_id);
 
   std::unique_lock<std::mutex> lock(mutex);
   cv.wait(lock, [this, p4_id]() -> bool {
-      return (read_cnt == 0) && (p4_ids_busy.count(p4_id) == 0);
+      return (read_cnt == 0 &&
+              update_cnt == 0 &&
+              p4_ids_busy.count(p4_id) == 0);
   });
   write_cnt++;
   p4_ids_busy.insert(p4_id);
-
-  return access;
+  assert(validate_state());
 }
 
-AccessArbitration::NoWriteAccess
-AccessArbitration::no_write_access(common::p4_id_t p4_id) {
-  NoWriteAccess access(this);
-  access.p4_id = p4_id;
+void
+AccessArbitration::no_write_access(NoWriteAccess *access,
+                                   common::p4_id_t p4_id) {
+  access->p4_id_ = p4_id;
 
   std::unique_lock<std::mutex> lock(mutex);
   cv.wait(lock, [this, p4_id]() -> bool {
-      return (p4_ids_busy.count(p4_id) == 0);
+      return (update_cnt == 0 &&
+              p4_ids_busy.count(p4_id) == 0);
   });
   no_write_cnt++;
   p4_ids_busy.insert(p4_id);
-
-  return access;
+  assert(validate_state());
 }
 
-AccessArbitration::ReadAccess
-AccessArbitration::read_access() {
-  ReadAccess access(this);
+void
+AccessArbitration::no_write_access(NoWriteAccess *access,
+                                   common::p4_id_t p4_id,
+                                   skip_if_update_t) {
+  access->p4_id_ = p4_id;
 
   std::unique_lock<std::mutex> lock(mutex);
-  cv.wait(lock, [this]() -> bool {
-      return (write_cnt == 0);
+  cv.wait(lock, [this, p4_id]() -> bool {
+      return (update_cnt != 0 ||
+              p4_ids_busy.count(p4_id) == 0);
   });
-  read_cnt++;
 
-  return access;
+  if (update_cnt != 0) {
+    access->arbitrator = nullptr;
+    return;
+  }
+
+  no_write_cnt++;
+  p4_ids_busy.insert(p4_id);
+  assert(validate_state());
 }
 
-AccessArbitration::UniqueAccess
-AccessArbitration::unique_access() {
-  return UniqueAccess(mutex);
+void
+AccessArbitration::no_write_access(NoWriteAccess *access,
+                                   P4IdSet *p4_ids,
+                                   one_of_t) {
+  if (p4_ids->empty()) {
+    access->arbitrator = nullptr;
+    return;
+  }
+
+  P4IdSet::iterator not_busy_it;
+
+  std::unique_lock<std::mutex> lock(mutex);
+  cv.wait(lock, [this, p4_ids, &not_busy_it]() -> bool {
+      return (update_cnt == 0 &&
+              (not_busy_it = find_not_in_set(
+                  p4_ids->begin(), p4_ids->end(),
+                  p4_ids_busy.begin(), p4_ids_busy.end())) != p4_ids->end());
+  });
+
+  no_write_cnt++;
+  auto p4_id = *not_busy_it;
+  p4_ids_busy.insert(p4_id);
+  access->p4_id_ = p4_id;
+  p4_ids->erase(not_busy_it);
+  assert(validate_state());
+}
+
+void
+AccessArbitration::no_write_access(NoWriteAccess *access,
+                                   P4IdSet *p4_ids,
+                                   one_of_t,
+                                   skip_if_update_t) {
+  if (p4_ids->empty()) {
+    access->arbitrator = nullptr;
+    return;
+  }
+
+  P4IdSet::iterator not_busy_it;
+
+  std::unique_lock<std::mutex> lock(mutex);
+  cv.wait(lock, [this, p4_ids, &not_busy_it]() -> bool {
+      return (update_cnt != 0 ||
+              (not_busy_it = find_not_in_set(
+                  p4_ids->begin(), p4_ids->end(),
+                  p4_ids_busy.begin(), p4_ids_busy.end())) != p4_ids->end());
+  });
+
+  if (update_cnt != 0) {
+    access->arbitrator = nullptr;
+    return;
+  }
+
+  no_write_cnt++;
+  auto p4_id = *not_busy_it;
+  p4_ids_busy.insert(p4_id);
+  access->p4_id_ = p4_id;
+  p4_ids->erase(not_busy_it);
+  assert(validate_state());
+}
+
+void
+AccessArbitration::read_access(ReadAccess *access) {
+  (void) access;
+  std::unique_lock<std::mutex> lock(mutex);
+  cv.wait(lock, [this]() -> bool {
+      return (write_cnt == 0 &&
+              update_cnt == 0);
+  });
+  read_cnt++;
+  assert(validate_state());
+}
+
+void
+AccessArbitration::update_access(UpdateAccess *access) {
+  (void) access;
+  std::unique_lock<std::mutex> lock(mutex);
+  cv.wait(lock, [this]() -> bool {
+      return (write_cnt == 0 &&
+              read_cnt == 0 &&
+              no_write_cnt == 0 &&
+              update_cnt == 0);
+  });
+  update_cnt++;
+  assert(validate_state());
 }
 
 void
@@ -208,6 +309,7 @@ AccessArbitration::release_write_access(const WriteAccess &access) {
   std::unique_lock<std::mutex> lock(mutex);
   write_cnt--;
   for (auto p4_id : access.p4_ids) p4_ids_busy.erase(p4_id);
+  assert(validate_state());
   cv.notify_all();
 }
 
@@ -215,6 +317,7 @@ void
 AccessArbitration::release_read_access() {
   std::unique_lock<std::mutex> lock(mutex);
   read_cnt--;
+  assert(validate_state());
   cv.notify_all();
 }
 
@@ -222,8 +325,25 @@ void
 AccessArbitration::release_no_write_access(const NoWriteAccess &access) {
   std::unique_lock<std::mutex> lock(mutex);
   no_write_cnt--;
-  p4_ids_busy.erase(access.p4_id);
+  p4_ids_busy.erase(access.p4_id_);
+  assert(validate_state());
   cv.notify_all();
+}
+
+void
+AccessArbitration::release_update_access() {
+  std::unique_lock<std::mutex> lock(mutex);
+  update_cnt--;
+  assert(validate_state());
+  cv.notify_all();
+}
+
+bool
+AccessArbitration::validate_state() {
+  return (read_cnt >= 0 &&
+          write_cnt >= 0 &&
+          update_cnt >= 0 &&
+          no_write_cnt >= 0);
 }
 
 }  // namespace proto

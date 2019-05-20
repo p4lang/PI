@@ -71,3 +71,11 @@ void cb_mgr_reset_default(cb_mgr_t *cb_mgr) {
   cb_mgr->default_cb.cb = NULL;
   cb_mgr->default_cb.cookie = NULL;
 }
+
+const cb_data_t *cb_mgr_get_or_default(cb_mgr_t *cb_mgr, pi_dev_id_t dev_id) {
+  const cb_data_t *cb_data = NULL;
+  cb_data = cb_mgr_get(cb_mgr, dev_id);
+  if (cb_data != NULL) return cb_data;
+  cb_data = cb_mgr_get_default(cb_mgr);
+  return (cb_data->cb == NULL) ? NULL : cb_data;
+}

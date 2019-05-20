@@ -52,4 +52,6 @@ void cb_mgr_set_default(cb_mgr_t *cb_mgr, GenericFnPtr cb, void *cb_cookie);
 
 void cb_mgr_reset_default(cb_mgr_t *cb_mgr);
 
+const cb_data_t *cb_mgr_get_or_default(cb_mgr_t *cb_mgr, pi_dev_id_t dev_id);
+
 #endif  // PI_SRC_CB_MGR_H_

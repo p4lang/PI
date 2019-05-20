@@ -47,6 +47,7 @@
 #include "report_error.h"
 #include "statusor.h"
 #include "table_info_store.h"
+#include "watch_port_enforcer.h"
 
 #include "p4/tmp/p4config.pb.h"
 #include "PI/proto/p4info_to_and_from_proto.h"  // for p4info_proto_reader
@@ -241,7 +242,8 @@ class DeviceMgrImp {
         device_tgt({static_cast<pi_dev_id_t>(device_id), 0xffff}),
         packet_io(device_id),
         digest_mgr(device_id),
-        idle_timeout_buffer(device_id) { }
+        idle_timeout_buffer(device_id),
+        watch_port_enforcer(device_tgt, &access_arbitration) { }
 
   ~DeviceMgrImp() {
     pi_remove_device(device_id);
@@ -256,7 +258,6 @@ class DeviceMgrImp {
                    pi_p4info_t *p4info_new) {
     const auto &p4info_proto_new = config_proto_new.p4info();
 
-    // needs to happen before we start modifying the table store
     // the p4_change call will block until all pending notifications have been
     // processed; at this stage we assume no more notifications are received
     // from the target (since the pi_update_device_start call has returned)
@@ -313,6 +314,8 @@ class DeviceMgrImp {
       }
     }
 
+    watch_port_enforcer.p4_change(p4info_new);
+
     action_profs.clear();
     // TODO(antonin): use something like Google's ASSIGN_OR_RETURN
     auto pi_api_choice = ActionProfMgr::choose_pi_api(device_id);
@@ -321,7 +324,8 @@ class DeviceMgrImp {
          act_prof_id != pi_p4info_act_prof_end(p4info_new);
          act_prof_id = pi_p4info_act_prof_next(p4info_new, act_prof_id)) {
       std::unique_ptr<ActionProfMgr> mgr(new ActionProfMgr(
-          device_tgt, act_prof_id, p4info_new, pi_api_choice.ValueOrDie()));
+          device_tgt, act_prof_id, p4info_new, pi_api_choice.ValueOrDie(),
+          &watch_port_enforcer));
       action_profs.emplace(act_prof_id, std::move(mgr));
     }
 
@@ -382,7 +386,7 @@ class DeviceMgrImp {
       device_data = &config.p4_device_config();
     }
 
-    auto unique_access = access_arbitration.unique_access();
+    AccessArbitration::UpdateAccess update_access(&access_arbitration);
 
     // check that p4info => device assigned
     assert(!p4info || pi_is_device_assigned(device_id));
@@ -531,19 +535,20 @@ class DeviceMgrImp {
   }
 
   Status write(const p4v1::WriteRequest &request) {
-    auto write_access = access_arbitration.write_access(request, p4info.get());
+    AccessArbitration::WriteAccess write_access(
+        &access_arbitration, request, p4info.get());
     return write_(request);
   }
 
   Status read(const p4v1::ReadRequest &request,
               p4v1::ReadResponse *response) const {
-    auto read_access = access_arbitration.read_access();
+    AccessArbitration::ReadAccess read_access(&access_arbitration);
     return read_(request, response);
   }
 
   Status read_one(const p4v1::Entity &entity,
                   p4v1::ReadResponse *response) const {
-    auto read_access = access_arbitration.read_access();
+    AccessArbitration::ReadAccess read_access(&access_arbitration);
     return read_one_(entity, response);
   }
 
@@ -968,7 +973,7 @@ class DeviceMgrImp {
           RETURN_ERROR_STATUS(Code::INTERNAL, "Invalid member handle in group");
         ap_action->mutable_action()->CopyFrom(action_spec_it->second);
         ap_action->set_weight(member.weight);
-        // TODO(antonin): support watch
+        ap_action->set_watch(member.watch);
       }
     }
 
@@ -1252,8 +1257,8 @@ class DeviceMgrImp {
 
     auto num_groups = pi_act_prof_grps_num(res);
     for (size_t i = 0; i < num_groups; i++) {
-      pi_indirect_handle_t *members_h;
       size_t num;
+      pi_indirect_handle_t *members_h;
       pi_indirect_handle_t group_h;
       auto group = GAn(entries);
       if (group == nullptr) break;
@@ -1276,11 +1281,17 @@ class DeviceMgrImp {
       // stored in ActionProfMgr. Maybe we should consider doing that (or maybe
       // have a flag to choose one or the other).
       std::map<ActionProfMgr::Id, int> member_weights;
+      int weight;
+      int watch_port;
       for (size_t j = 0; j < num; j++) {
         ActionProfMgr::Id member_id;
         if (!action_prof_mgr->retrieve_member_id(members_h[j], &member_id)) {
           RETURN_ERROR_STATUS(Code::INTERNAL,
                               "Cannot map member handle to member id");
+        }
+        if (!action_prof_mgr->get_member_info(group_id, member_id,
+                                              &weight, &watch_port)) {
+          RETURN_ERROR_STATUS(Code::INTERNAL, "Cannot retrieve member info");
         }
         member_weights[member_id]++;
       }
@@ -1288,7 +1299,7 @@ class DeviceMgrImp {
         auto member = group->add_members();
         member->set_member_id(m.first);
         member->set_weight(m.second);
-        // TODO(antonin): support watch
+        member->set_watch(watch_port);
       }
     }
 
@@ -2742,7 +2753,6 @@ class DeviceMgrImp {
 
   DigestMgr digest_mgr;
 
-  // has non-owning pointer to table_info_store
   IdleTimeoutBuffer idle_timeout_buffer;
 
   std::unordered_map<pi_p4_id_t, std::unique_ptr<ActionProfMgr> >
@@ -2752,6 +2762,8 @@ class DeviceMgrImp {
   std::unique_ptr<PreCloneMgr> pre_clone_mgr;
 
   mutable AccessArbitration access_arbitration;
+
+  WatchPortEnforcer watch_port_enforcer;
 };
 
 DeviceMgr::DeviceMgr(device_id_t device_id) {
