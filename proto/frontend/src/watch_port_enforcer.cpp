@@ -52,6 +52,9 @@ Status
 WatchPortEnforcer::activate_member(pi::ActProf *ap,
                                    pi_indirect_handle_t grp_h,
                                    pi_indirect_handle_t mbr_h) {
+  Logger::get()->debug(
+      "Activating member {} in group {} in action profile {}",
+      mbr_h, grp_h, ap->get_id());
   auto pi_status = ap->group_activate_member(grp_h, mbr_h);
   if (pi_status != PI_STATUS_SUCCESS) {
     RETURN_ERROR_STATUS(
@@ -67,6 +70,9 @@ Status
 WatchPortEnforcer::deactivate_member(pi::ActProf *ap,
                                      pi_indirect_handle_t grp_h,
                                      pi_indirect_handle_t mbr_h) {
+  Logger::get()->debug(
+      "Deactivating member {} in group {} in action profile {}",
+      mbr_h, grp_h, ap->get_id());
   auto pi_status = ap->group_deactivate_member(grp_h, mbr_h);
   if (pi_status != PI_STATUS_SUCCESS) {
     RETURN_ERROR_STATUS(
