@@ -166,7 +166,7 @@ WatchPortEnforcer::set_port_status(pi_port_t port, pi_port_status_t status) {
     auto &current_status = action_prof.ports_status[port];
 
     if (current_status == status) {
-      Logger::get()->warn(
+      Logger::get()->info(
           "WatchPortEnforcer {}: port status hasn't changed, "
           "ignoring notification", access.p4_id());
       return;
@@ -176,7 +176,11 @@ WatchPortEnforcer::set_port_status(pi_port_t port, pi_port_status_t status) {
     auto &members_for_port = action_prof.members_by_port[port];
     if (members_for_port.members.empty()) continue;
 
-    common::SessionTemp session(true  /* = batch */);
+    // Maybe the decision to enable / disable batching for members activate /
+    // deactivate should be made on a per-target basis. Something for which we
+    // can consider having a configuration parameter exposed in a configuration
+    // file.
+    common::SessionTemp session(false  /* = batch */);
     pi::ActProf ap(session.get(), device_tgt, p4info, access.p4_id());
     if (status == PI_PORT_STATUS_UP) {
       for (auto member : members_for_port.members) {
