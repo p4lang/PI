@@ -649,7 +649,7 @@ TEST_F(TestGNMISysrepo, CreateUpdateAndDelete) {
   const std::string mtu_path(
       "/openconfig-interfaces:interfaces/interface[name='eth0']/config/mtu");
 
-  auto set_mtu = [&mtu_path, &iface_name, this](unsigned int mtu) {
+  auto set_mtu = [&iface_name, this](unsigned int mtu) {
     gnmi::SetRequest req;
     auto *update = req.add_update();
     GNMIPathBuilder pb(update->mutable_path());

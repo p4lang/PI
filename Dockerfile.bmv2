@@ -15,9 +15,9 @@ ARG MAKEFLAGS=-j2
 # removed from the image.
 ARG IMAGE_TYPE=build
 
-# Select the compiler to use. GCC 5 is available as 'gcc'/'g++'. GCC 6 is
-# available as 'gcc-6'/'g++-6'. Clang 3.8 is available as
-# 'clang-3.8'/'clang++-3.8'.
+# Select the compiler to use.
+# We install the default version of GCC (GCC 5), as well as GCC 7, clang 3.8 and
+# clang 6.0.
 ARG CC=gcc
 ARG CXX=g++
 
@@ -25,8 +25,9 @@ ENV PI_DEPS automake \
             build-essential \
             clang-3.8 \
             clang-format-3.8 \
+            clang-6.0 \
             g++ \
-            g++-6 \
+            g++-7 \
             libboost-dev \
             libboost-system-dev \
             libboost-thread-dev \
