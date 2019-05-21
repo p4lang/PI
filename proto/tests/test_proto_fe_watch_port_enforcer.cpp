@@ -294,10 +294,18 @@ TEST_P(WatchPortEnforcerNoWriteAccessOneOfTest, ConcurrentAccess) {
       AccessArbitration::WriteAccess access(&access_arbitration, act_prof_1_id);
       action();
   });
+  {
+    std::unique_lock<std::mutex> lock(mutex);
+    cv.wait(lock, [&x] { return x == 1; });
+  }
   EXPECT_OK(watch_port_enforcer.add_member(
       act_prof_1_id, grp_h, mbr_h, watch_1));
   EXPECT_OK(watch_port_enforcer.add_member(
       act_prof_2_id, grp_h, mbr_h, watch_1));
+  // Make sure that thread1 has grabbed WriteAccess before we bring the port
+  // down. Otherwise the WatchPortEnforcer may grab access to act_prof_1 first
+  // and block thread1. The wait_for would then timeout in thread1 and the test
+  // would fail.
   EXPECT_EQ(mock->port_status_set(watch_1, PI_PORT_STATUS_DOWN),
             PI_STATUS_SUCCESS);
   thread1.join();
