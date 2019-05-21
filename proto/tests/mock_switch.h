@@ -85,8 +85,7 @@ class DummySwitchMock {
 
   // used to capture handle for MC nodes
   pi_status_t _mc_node_create(pi_mc_rid_t rid,
-                              size_t eg_ports_count,
-                              const pi_mc_port_t *eg_ports,
+                              const std::vector<pi_mc_port_t> &eg_ports,
                               pi_mc_node_handle_t *node_handle);
 
   pi_mc_node_handle_t get_mc_node_handle() const;
@@ -146,9 +145,10 @@ class DummySwitchMock {
   MOCK_METHOD3(action_prof_group_remove_member,
                pi_status_t(pi_p4_id_t, pi_indirect_handle_t,
                            pi_indirect_handle_t));
-  MOCK_METHOD5(action_prof_group_set_members,
+  MOCK_METHOD4(action_prof_group_set_members,
                pi_status_t(pi_p4_id_t, pi_indirect_handle_t,
-                           size_t, const pi_indirect_handle_t *, const bool *));
+                           const std::vector<pi_indirect_handle_t> &,
+                           const std::vector<bool> &));
   MOCK_METHOD3(action_prof_group_activate_member,
                pi_status_t(pi_p4_id_t, pi_indirect_handle_t,
                            pi_indirect_handle_t));
@@ -185,11 +185,13 @@ class DummySwitchMock {
   MOCK_METHOD2(mc_grp_create,
                pi_status_t(pi_mc_grp_id_t, pi_mc_grp_handle_t *));
   MOCK_METHOD1(mc_grp_delete, pi_status_t(pi_mc_grp_handle_t));
-  MOCK_METHOD4(mc_node_create,
-               pi_status_t(pi_mc_rid_t, size_t, const pi_mc_port_t *,
+  MOCK_METHOD3(mc_node_create,
+               pi_status_t(pi_mc_rid_t,
+                           const std::vector<pi_mc_port_t> &,
                            pi_mc_node_handle_t *));
-  MOCK_METHOD3(mc_node_modify,
-               pi_status_t(pi_mc_node_handle_t, size_t, const pi_mc_port_t *));
+  MOCK_METHOD2(mc_node_modify,
+               pi_status_t(pi_mc_node_handle_t,
+                           const std::vector<pi_mc_port_t> &));
   MOCK_METHOD1(mc_node_delete, pi_status_t(pi_mc_node_handle_t));
   MOCK_METHOD2(mc_grp_attach_node,
                pi_status_t(pi_mc_grp_handle_t, pi_mc_node_handle_t));

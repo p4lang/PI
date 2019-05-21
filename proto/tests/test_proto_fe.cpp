@@ -88,18 +88,18 @@ namespace {
 using google::protobuf::util::MessageDifferencer;
 
 using ::testing::_;
-using ::testing::AllOf;
 using ::testing::AnyNumber;
 using ::testing::Args;
 using ::testing::AtLeast;
 using ::testing::AtMost;
 using ::testing::DoDefault;
 using ::testing::ElementsAre;
-using ::testing::ElementsAreArray;
 using ::testing::Exactly;
 using ::testing::InvokeWithoutArgs;
+using ::testing::IsEmpty;
 using ::testing::IsNull;
 using ::testing::Return;
+using ::testing::SizeIs;
 
 // Used to make sure that a google::rpc::Status object has the correct format
 // and contains a single p4v1::Error message with a matching canonical error
@@ -791,7 +791,7 @@ INSTANTIATE_TEST_CASE_P(
 #define EXPECT_NO_CALL_GROUP_REMOVE_MEMBER(mock) \
   EXPECT_CALL(mock, action_prof_group_remove_member(_, _, _)).Times(0)
 #define EXPECT_NO_CALL_GROUP_SET_MEMBERS(mock) \
-  EXPECT_CALL(mock, action_prof_group_set_members(_, _, _, _, _)).Times(0)
+  EXPECT_CALL(mock, action_prof_group_set_members(_, _, _, _)).Times(0)
 
 class ActionProfTest
     : public DeviceMgrTest, public WithParamInterface<PiActProfApiSupport> {
@@ -985,10 +985,8 @@ TEST_P(ActionProfTest, Group) {
   if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
     EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, mbr_h_1);
   } else {
-    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _, _)
-      .With(AllOf(
-          Args<3, 2>(ElementsAre(mbr_h_1)),  // handles
-          Args<4, 2>(ElementsAre(true))));  // activate
+    EXPECT_CALL_GROUP_SET_MEMBERS(
+        *mock, act_prof_id, _, ElementsAre(mbr_h_1), ElementsAre(true));
   }
   ASSERT_OK(create_group(&group));
   auto grp_h = mock->get_action_prof_handle();
@@ -998,10 +996,8 @@ TEST_P(ActionProfTest, Group) {
   //   * expect same call when using set membership
   EXPECT_NO_CALL_GROUP_ADD_MEMBER(*mock);
   if (GetParam() != PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
-    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _, _)
-        .With(AllOf(
-            Args<3, 2>(ElementsAre(mbr_h_1)),  // handles
-            Args<4, 2>(ElementsAre(true))));  // activate
+    EXPECT_CALL_GROUP_SET_MEMBERS(
+        *mock, act_prof_id, _, ElementsAre(mbr_h_1), ElementsAre(true));
   }
   ASSERT_OK(modify_group(&group));
 
@@ -1010,10 +1006,9 @@ TEST_P(ActionProfTest, Group) {
   if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
   EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, grp_h, mbr_h_2);
   } else {
-    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _, _)
-        .With(AllOf(
-            Args<3, 2>(ElementsAre(mbr_h_1, mbr_h_2)),  // handles
-            Args<4, 2>(ElementsAre(true, true))));  // activate
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _,
+                                  ElementsAre(mbr_h_1, mbr_h_2),
+                                  ElementsAre(true, true));
   }
   ASSERT_OK(modify_group(&group));
 
@@ -1023,10 +1018,8 @@ TEST_P(ActionProfTest, Group) {
   if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
     EXPECT_CALL_GROUP_REMOVE_MEMBER(*mock, act_prof_id, grp_h, mbr_h_1);
   } else {
-    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _, _)
-        .With(AllOf(
-            Args<3, 2>(ElementsAre(mbr_h_2)),  // handles
-            Args<4, 2>(ElementsAre(true))));  // activate
+    EXPECT_CALL_GROUP_SET_MEMBERS(
+        *mock, act_prof_id, _, ElementsAre(mbr_h_2), ElementsAre(true));
   }
   ASSERT_OK(modify_group(&group));
 
@@ -1060,10 +1053,8 @@ TEST_P(ActionProfTest, Read) {
   if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
     EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, mbr_h_1);
   } else {
-    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _, _)
-        .With(AllOf(
-            Args<3, 2>(ElementsAre(mbr_h_1)),  // handles
-            Args<4, 2>(ElementsAre(true))));  // activate
+    EXPECT_CALL_GROUP_SET_MEMBERS(
+        *mock, act_prof_id, _, ElementsAre(mbr_h_1), ElementsAre(true));
   }
   ASSERT_OK(create_group(&group));
 
@@ -1095,7 +1086,7 @@ TEST_P(ActionProfTest, CreateDupGroupId) {
   EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, _, _))
       .Times(AtLeast(1));
   if (GetParam() != PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
-    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, 0, _, _);
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, IsEmpty(), IsEmpty());
   }
   EXPECT_OK(create_group(&group));
   EXPECT_EQ(create_group(&group), OneExpectedError(Code::ALREADY_EXISTS));
@@ -1165,7 +1156,7 @@ TEST_P(ActionProfTest, MemberWeights) {
   if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
     EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, _).Times(3);
   } else {
-    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, 3, _, _);
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, SizeIs(3), SizeIs(3));
   }
   auto group = make_group(group_id);
   add_member_to_group(&group, member_id, 3);
@@ -1192,7 +1183,7 @@ TEST_P(ActionProfTest, MemberWeights) {
   if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
     EXPECT_CALL_GROUP_REMOVE_MEMBER(*mock, act_prof_id, _, _);
   } else {
-    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, 2, _, _);
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, SizeIs(2), SizeIs(2));
   }
   EXPECT_CALL(*mock, action_prof_member_delete(_, _));
   group.clear_members();
@@ -1228,8 +1219,8 @@ TEST_P(ActionProfTest, MemberWatchPort) {
     EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, _)
         .Times(weight);
   } else {
-    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _, _)
-        .With(Args<4, 2>(ElementsAre(true, true)));
+    EXPECT_CALL_GROUP_SET_MEMBERS(
+        *mock, act_prof_id, _, _, ElementsAre(true, true));
   }
   auto group = make_group(group_id);
   add_member_to_group(&group, member_id, weight, watch_port);
@@ -1283,8 +1274,8 @@ TEST_P(ActionProfTest, MemberWatchPort) {
       << "Expected no call to deactivate member";
 
   if (GetParam() != PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
-    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _, _)
-        .With(Args<4, 2>(ElementsAre(false, false)));
+    EXPECT_CALL_GROUP_SET_MEMBERS(
+        *mock, act_prof_id, _, _, ElementsAre(false, false));
   }
   group.clear_members();
   add_member_to_group(&group, member_id, weight, watch_port);
@@ -1376,7 +1367,8 @@ TEST_P(ActionProfTest, InvalidMaxSize) {
     EXPECT_CALL(*mock, action_prof_group_create(_, _, _));
     if (GetParam() != PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
       // empty member set
-      EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, 0, _, _);
+      EXPECT_CALL_GROUP_SET_MEMBERS(
+          *mock, act_prof_id, _, IsEmpty(), IsEmpty());
     }
     EXPECT_OK(create_group(&group));
   }
@@ -1446,7 +1438,7 @@ TEST_P(ActionProfTest, MaxSizeModify) {
   if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
     EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, _);
   } else {
-    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _, _);
+    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, _);
   }
   EXPECT_OK(create_group(&group));
 
@@ -1527,14 +1519,13 @@ class MatchTableIndirectTest
   // create a group which includes the provided members
   template <typename It>
   void create_group(uint32_t group_id, It members_begin, It members_end) {
+    auto num_members = std::distance(members_begin, members_end);
     EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, _, _));
     if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
-      EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, _)
-          .Times(std::distance(members_begin, members_end));
+      EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, _).Times(num_members);
     } else {
       EXPECT_CALL_GROUP_SET_MEMBERS(
-          *mock, act_prof_id, _,
-          std::distance(members_begin, members_end), _, _);
+          *mock, act_prof_id, _, SizeIs(num_members), SizeIs(num_members));
     }
     auto group = make_group(group_id, members_begin, members_end);
     p4v1::WriteRequest request;
@@ -1615,9 +1606,7 @@ class MatchTableIndirectTest
           .Times(params_size * weight);
     } else {
       std::vector<bool> activate_(params_size * weight, activate);
-      EXPECT_CALL_GROUP_SET_MEMBERS(
-          *mock, act_prof_id, _, params_size * weight, _, _)
-          .With(Args<4, 2>(ElementsAreArray(activate_)));
+      EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, _, activate_);
     }
     EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
     RETURN_IF_ERROR(add_entry(entry));
@@ -1747,7 +1736,7 @@ TEST_P(MatchTableIndirectTest, OneShotInsertAndModify) {
     EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, _).Times(params.size());
   } else {
     EXPECT_CALL_GROUP_SET_MEMBERS(
-        *mock, act_prof_id, _, params.size(), _, _);
+        *mock, act_prof_id, _, SizeIs(params.size()), SizeIs(params.size()));
   }
   EXPECT_CALL(*mock, table_entry_modify_wkey(t_id, _, _));
 
@@ -1958,7 +1947,8 @@ TEST_P(OneShotCleanupTest, MemberAddError) {
     EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, _)
         .WillOnce(Return(PI_STATUS_TARGET_ERROR));
   } else {
-    EXPECT_CALL_GROUP_SET_MEMBERS(*mock, act_prof_id, _, num_actions, _, _)
+    EXPECT_CALL_GROUP_SET_MEMBERS(
+        *mock, act_prof_id, _, SizeIs(num_actions), SizeIs(num_actions))
         .WillOnce(Return(PI_STATUS_TARGET_ERROR));
   }
   // we expect the following calls for cleanup:
@@ -3135,13 +3125,8 @@ TEST_F(PREMulticastTest, Write) {
   ReplicaMgr replicas(&group);
   replicas.push_back(port1, rid1).push_back(port2, rid2);
   EXPECT_CALL(*mock, mc_grp_create(group_id, _));
-  // need a more complicated matcher because of the C array. The ElementsAre
-  // matcher can be used but required 2 arguments (the pointer + count, in this
-  // order)
-  EXPECT_CALL(*mock, mc_node_create(rid1, _, _, _))
-      .With(Args<2, 1>(ElementsAre(port1)));
-  EXPECT_CALL(*mock, mc_node_create(rid2, _, _, _))
-      .With(Args<2, 1>(ElementsAre(port2)));
+  EXPECT_CALL(*mock, mc_node_create(rid1, ElementsAre(port1), _));
+  EXPECT_CALL(*mock, mc_node_create(rid2, ElementsAre(port2), _));
   EXPECT_CALL(*mock, mc_grp_attach_node(_, _)).Times(2);
   {
     auto status = create_group(group);
@@ -3151,10 +3136,8 @@ TEST_F(PREMulticastTest, Write) {
 
   int32_t port3 = 3, rid3 = rid1, port4 = 4, rid4 = 4;
   replicas.push_back(port3, rid3).push_back(port4, rid4);
-  EXPECT_CALL(*mock, mc_node_modify(_, _, _))
-      .With(Args<2, 1>(ElementsAre(port1, port3)));
-  EXPECT_CALL(*mock, mc_node_create(rid4, _, _, _))
-      .With(Args<2, 1>(ElementsAre(port4)));
+  EXPECT_CALL(*mock, mc_node_modify(_, ElementsAre(port1, port3)));
+  EXPECT_CALL(*mock, mc_node_create(rid4, ElementsAre(port4), _));
   EXPECT_CALL(*mock, mc_grp_attach_node(grp_h, _));
   {
     auto status = modify_group(group);
@@ -3228,8 +3211,7 @@ TEST_F(PRECloningTest, Write) {
   ReplicaMgr replicas(&session);
   replicas.push_back(port1, rid).push_back(port2, rid);
   EXPECT_CALL(*mock, mc_grp_create(_, _));
-  EXPECT_CALL(*mock, mc_node_create(rid, _, _, _))
-      .With(Args<2, 1>(ElementsAre(port1, port2)));
+  EXPECT_CALL(*mock, mc_node_create(rid, ElementsAre(port1, port2), _));
   EXPECT_CALL(*mock, mc_grp_attach_node(_, _));
   EXPECT_CALL(
       *mock, clone_session_set(session_id, CorrectCloneSessionConfig(session)));
@@ -3240,8 +3222,7 @@ TEST_F(PRECloningTest, Write) {
   auto grp_h = mock->get_mc_grp_handle();
 
   replicas.pop_back();
-  EXPECT_CALL(*mock, mc_node_modify(_, _, _))
-      .With(Args<2, 1>(ElementsAre(port1)));
+  EXPECT_CALL(*mock, mc_node_modify(_, ElementsAre(port1)));
   {
     auto status = modify_session(session);
     ASSERT_EQ(status.code(), Code::OK);

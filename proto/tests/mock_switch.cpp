@@ -479,15 +479,15 @@ class DummyActionProf {
     return (count == 0) ? PI_STATUS_TARGET_ERROR : PI_STATUS_SUCCESS;
   }
 
-  pi_status_t group_set_members(pi_indirect_handle_t grp_handle,
-                                size_t num_mbrs,
-                                const pi_indirect_handle_t *mbr_handles,
-                                const bool *activate) {
+  pi_status_t group_set_members(
+      pi_indirect_handle_t grp_handle,
+      const std::vector<pi_indirect_handle_t> &mbr_handles,
+      const std::vector<bool> &activate) {
     (void)activate;
     auto it = groups.find(grp_handle);
     if (it == groups.end()) return PI_STATUS_TARGET_ERROR;
     it->second.clear();
-    it->second.insert(mbr_handles, mbr_handles + num_mbrs);
+    it->second.insert(mbr_handles.begin(), mbr_handles.end());
     return PI_STATUS_SUCCESS;
   }
 
@@ -566,21 +566,18 @@ class DummyPRE {
   }
 
   pi_status_t mc_node_create(pi_mc_rid_t rid,
-                             size_t eg_ports_count,
-                             const pi_mc_port_t *eg_ports,
+                             const std::vector<pi_mc_port_t> &eg_ports,
                              pi_mc_node_handle_t *node_handle) {
-    mc_nodes.emplace(node_counter,
-                     McNode(node_counter, rid, eg_ports_count, eg_ports));
+    mc_nodes.emplace(node_counter, McNode(node_counter, rid, eg_ports));
     *node_handle = node_counter++;
     return PI_STATUS_SUCCESS;
   }
 
   pi_status_t mc_node_modify(pi_mc_node_handle_t node_handle,
-                             size_t eg_ports_count,
-                             const pi_mc_port_t *eg_ports) {
+                             const std::vector<pi_mc_port_t> &eg_ports) {
     auto it = mc_nodes.find(node_handle);
     if (it == mc_nodes.end()) return PI_STATUS_TARGET_ERROR;
-    it->second.set_ports(eg_ports_count, eg_ports);
+    it->second.eg_ports = eg_ports;
     return PI_STATUS_SUCCESS;
   }
 
@@ -630,18 +627,8 @@ class DummyPRE {
 
     McNode(pi_mc_node_handle_t node_handle,
            pi_mc_rid_t rid,
-           size_t eg_ports_count,
-           const pi_mc_port_t *eg_ports)
-        : node_handle(node_handle), rid(rid) {
-      set_ports(eg_ports_count, eg_ports);
-    }
-
-    void set_ports(size_t eg_ports_count, const pi_mc_port_t *eg_ports) {
-      if (eg_ports_count == 0)
-        this->eg_ports.clear();
-      else
-        this->eg_ports.assign(eg_ports, eg_ports + eg_ports_count);
-    }
+           const std::vector<pi_mc_port_t> &eg_ports)
+        : node_handle(node_handle), rid(rid), eg_ports(eg_ports) { }
   };
 
   std::unordered_map<pi_mc_node_handle_t, McNode> mc_nodes;
@@ -749,11 +736,10 @@ class DummySwitch {
   pi_status_t action_prof_group_set_members(
       pi_p4_id_t act_prof_id,
       pi_indirect_handle_t grp_handle,
-      size_t num_mbrs,
-      const pi_indirect_handle_t *mbr_handles,
-      const bool *activate) {
+      const std::vector<pi_indirect_handle_t> &mbr_handles,
+      const std::vector<bool> &activate) {
     return action_profs[act_prof_id].group_set_members(
-        grp_handle, num_mbrs, mbr_handles, activate);
+        grp_handle, mbr_handles, activate);
   }
 
   pi_status_t action_prof_group_activate_member(
@@ -853,16 +839,14 @@ class DummySwitch {
   }
 
   pi_status_t mc_node_create(pi_mc_rid_t rid,
-                             size_t eg_ports_count,
-                             const pi_mc_port_t *eg_ports,
+                             const std::vector<pi_mc_port_t> &eg_ports,
                              pi_mc_node_handle_t *node_handle) {
-    return pre.mc_node_create(rid, eg_ports_count, eg_ports, node_handle);
+    return pre.mc_node_create(rid, eg_ports, node_handle);
   }
 
   pi_status_t mc_node_modify(pi_mc_node_handle_t node_handle,
-                             size_t eg_ports_count,
-                             const pi_mc_port_t *eg_ports) {
-    return pre.mc_node_modify(node_handle, eg_ports_count, eg_ports);
+                             const std::vector<pi_mc_port_t> &eg_ports) {
+    return pre.mc_node_modify(node_handle, eg_ports);
   }
 
   pi_status_t mc_node_delete(pi_mc_node_handle_t node_handle) {
@@ -1026,7 +1010,7 @@ DummySwitchMock::DummySwitchMock(device_id_t device_id)
   ON_CALL(*this, action_prof_group_remove_member(_, _, _))
       .WillByDefault(
           Invoke(sw_, &DummySwitch::action_prof_group_remove_member));
-  ON_CALL(*this, action_prof_group_set_members(_, _, _, _, _))
+  ON_CALL(*this, action_prof_group_set_members(_, _, _, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::action_prof_group_set_members));
   ON_CALL(*this, action_prof_entries_fetch(_, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::action_prof_entries_fetch));
@@ -1058,11 +1042,9 @@ DummySwitchMock::DummySwitchMock(device_id_t device_id)
       .WillByDefault(Invoke(this, &DummySwitchMock::_mc_grp_create));
   ON_CALL(*this, mc_grp_delete(_))
       .WillByDefault(Invoke(sw_, &DummySwitch::mc_grp_delete));
-  ON_CALL(*this, mc_node_create(_, _, _, _))
+  ON_CALL(*this, mc_node_create(_, _, _))
       .WillByDefault(Invoke(this, &DummySwitchMock::_mc_node_create));
-  ON_CALL(*this, mc_node_modify(_, _, _))
-      .WillByDefault(Invoke(sw_, &DummySwitch::mc_node_modify));
-  ON_CALL(*this, mc_node_modify(_, _, _))
+  ON_CALL(*this, mc_node_modify(_, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::mc_node_modify));
   ON_CALL(*this, mc_node_delete(_))
       .WillByDefault(Invoke(sw_, &DummySwitch::mc_node_delete));
@@ -1139,10 +1121,9 @@ DummySwitchMock::get_mc_grp_handle() const {
 
 pi_status_t
 DummySwitchMock::_mc_node_create(pi_mc_rid_t rid,
-                                 size_t eg_ports_count,
-                                 const pi_mc_port_t *eg_ports,
+                                 const std::vector<pi_mc_port_t> &eg_ports,
                                  pi_mc_node_handle_t *node_handle) {
-  auto r = sw->mc_node_create(rid, eg_ports_count, eg_ports, node_handle);
+  auto r = sw->mc_node_create(rid, eg_ports, node_handle);
   if (r == PI_STATUS_SUCCESS) mc_node_h = *node_handle;
   return r;
 }
@@ -1401,8 +1382,11 @@ pi_status_t _pi_act_prof_grp_set_mbrs(pi_session_handle_t,
                                       size_t num_mbrs,
                                       const pi_indirect_handle_t *mbr_handles,
                                       const bool *activate) {
+  std::vector<pi_indirect_handle_t> mbr_handles_(
+      mbr_handles, mbr_handles + num_mbrs);
+  std::vector<bool> activate_(activate, activate + num_mbrs);
   return DeviceResolver::get_switch(dev_id)->action_prof_group_set_members(
-      act_prof_id, grp_handle, num_mbrs, mbr_handles, activate);
+      act_prof_id, grp_handle, mbr_handles_, activate_);
 }
 
 pi_status_t _pi_act_prof_grp_activate_mbr(pi_session_handle_t,
@@ -1560,8 +1544,9 @@ pi_status_t _pi_mc_node_create(pi_mc_session_handle_t,
                                size_t eg_ports_count,
                                const pi_mc_port_t *eg_ports,
                                pi_mc_node_handle_t *node_handle) {
+  std::vector<pi_mc_port_t> eg_ports_(eg_ports, eg_ports + eg_ports_count);
   return DeviceResolver::get_switch(dev_id)->mc_node_create(
-      rid, eg_ports_count, eg_ports, node_handle);
+      rid, eg_ports_, node_handle);
 }
 
 pi_status_t _pi_mc_node_modify(pi_mc_session_handle_t,
@@ -1569,8 +1554,9 @@ pi_status_t _pi_mc_node_modify(pi_mc_session_handle_t,
                                pi_mc_node_handle_t node_handle,
                                size_t eg_ports_count,
                                const pi_mc_port_t *eg_ports) {
+  std::vector<pi_mc_port_t> eg_ports_(eg_ports, eg_ports + eg_ports_count);
   return DeviceResolver::get_switch(dev_id)->mc_node_modify(
-      node_handle, eg_ports_count, eg_ports);
+      node_handle, eg_ports_);
 }
 
 pi_status_t _pi_mc_node_delete(pi_mc_session_handle_t,
