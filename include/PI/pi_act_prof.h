@@ -100,12 +100,24 @@ typedef struct pi_act_prof_fetch_res_s pi_act_prof_fetch_res_t;
 
 //! Retrieve all entries in an action profile as one big blob
 pi_status_t pi_act_prof_entries_fetch(pi_session_handle_t session_handle,
-                                      pi_dev_id_t dev_id,
+                                      pi_dev_tgt_t dev_tgt,
                                       pi_p4_id_t act_prof_id,
                                       pi_act_prof_fetch_res_t **res);
 
-//! Need to be called after a pi_act_prof_entries_fetch, once you wish the
-//! memory to be released.
+//! Retrieve single member, use pi_act_prof_mbrs_next to access it.
+pi_status_t pi_act_prof_mbr_fetch(pi_session_handle_t session_handle,
+                                  pi_dev_id_t dev_id, pi_p4_id_t act_prof_id,
+                                  pi_indirect_handle_t mbr_handle,
+                                  pi_act_prof_fetch_res_t **res);
+
+//! Retrieve single group, use pi_act_prof_grps_next to access it.
+pi_status_t pi_act_prof_grp_fetch(pi_session_handle_t session_handle,
+                                  pi_dev_id_t dev_id, pi_p4_id_t act_prof_id,
+                                  pi_indirect_handle_t grp_handle,
+                                  pi_act_prof_fetch_res_t **res);
+
+//! Need to be called after a pi_act_prof_entries_fetch, pi_act_prof_mbr_fetch
+//! or pi_act_prof_grp_fetch, once you wish the memory to be released.
 pi_status_t pi_act_prof_entries_fetch_done(pi_session_handle_t session_handle,
                                            pi_act_prof_fetch_res_t *res);
 

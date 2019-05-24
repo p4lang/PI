@@ -32,7 +32,7 @@ pi_status_t _pi_learn_config_set(pi_session_handle_t session_handle,
   (void)dev_id;
   (void)learn_id;
   (void)config;
-  return PI_STATUS_NOT_IMPLEMENTED_BY_TARGET;
+  return PI_STATUS_RPC_NOT_IMPLEMENTED;
 }
 
 pi_status_t _pi_learn_msg_ack(pi_session_handle_t session_handle,

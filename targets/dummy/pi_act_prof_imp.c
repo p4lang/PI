@@ -19,6 +19,7 @@
  */
 
 #include "PI/pi.h"
+#include "PI/target/pi_act_prof_imp.h"
 
 #include <stdio.h>
 
@@ -157,12 +158,38 @@ pi_status_t _pi_act_prof_grp_deactivate_mbr(pi_session_handle_t session_handle,
 }
 
 pi_status_t _pi_act_prof_entries_fetch(pi_session_handle_t session_handle,
-                                       pi_dev_id_t dev_id,
+                                       pi_dev_tgt_t dev_tgt,
                                        pi_p4_id_t act_prof_id,
                                        pi_act_prof_fetch_res_t *res) {
   (void)session_handle;
+  (void)dev_tgt;
+  (void)act_prof_id;
+  (void)res;
+  func_counter_increment(__func__);
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_act_prof_mbr_fetch(pi_session_handle_t session_handle,
+                                   pi_dev_id_t dev_id, pi_p4_id_t act_prof_id,
+                                   pi_indirect_handle_t mbr_handle,
+                                   pi_act_prof_fetch_res_t *res) {
+  (void)session_handle;
   (void)dev_id;
   (void)act_prof_id;
+  (void)mbr_handle;
+  (void)res;
+  func_counter_increment(__func__);
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_act_prof_grp_fetch(pi_session_handle_t session_handle,
+                                   pi_dev_id_t dev_id, pi_p4_id_t act_prof_id,
+                                   pi_indirect_handle_t grp_handle,
+                                   pi_act_prof_fetch_res_t *res) {
+  (void)session_handle;
+  (void)dev_id;
+  (void)act_prof_id;
+  (void)grp_handle;
   (void)res;
   func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;

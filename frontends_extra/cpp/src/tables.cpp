@@ -666,8 +666,7 @@ MatchTable::entry_delete(pi_entry_handle_t entry_handle) {
 
 pi_status_t
 MatchTable::entry_delete_wkey(const MatchKey &match_key) {
-  return pi_table_entry_delete_wkey(sess, dev_tgt.dev_id, table_id,
-                                    match_key.get());
+  return pi_table_entry_delete_wkey(sess, dev_tgt, table_id, match_key.get());
 }
 
 pi_status_t
@@ -682,8 +681,8 @@ pi_status_t
 MatchTable::entry_modify_wkey(const MatchKey &match_key,
                               const ActionEntry &action_entry) {
   auto entry = build_table_entry(action_entry);
-  return pi_table_entry_modify_wkey(sess, dev_tgt.dev_id, table_id,
-                                    match_key.get(), &entry);
+  return pi_table_entry_modify_wkey(
+      sess, dev_tgt, table_id, match_key.get(), &entry);
 }
 
 pi_status_t

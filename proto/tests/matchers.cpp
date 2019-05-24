@@ -19,6 +19,7 @@
  */
 
 #include <gmock/gmock.h>
+#include <google/protobuf/util/message_differencer.h>
 
 #include <cstring>
 #include <ostream>
@@ -56,6 +57,27 @@ IsOkMatcher::DescribeTo(std::ostream *os) const {
 void
 IsOkMatcher::DescribeNegationTo(std::ostream *os) const {
   *os << "is not OK";
+}
+
+ProtoEqMatcher::ProtoEqMatcher(const ::google::protobuf::Message &expected)
+    : expected(expected) { }
+
+bool
+ProtoEqMatcher::MatchAndExplain(const ::google::protobuf::Message &actual,
+                                MatchResultListener *listener) const {
+  using ::google::protobuf::util::MessageDifferencer;
+  *listener << actual.DebugString();
+  return MessageDifferencer::Equals(actual, expected);
+}
+
+void
+ProtoEqMatcher::DescribeTo(std::ostream *os) const {
+  *os << "is equal to:\n" << expected.DebugString();
+}
+
+void
+ProtoEqMatcher::DescribeNegationTo(std::ostream *os) const {
+  *os << "is not equal to:\n" << expected.DebugString();
 }
 
 MatchKeyMatcher::MatchKeyMatcher(pi_p4_id_t t_id, const std::string &v)

@@ -233,6 +233,70 @@ struct ConfigFile {
   size_t size{0};
 };
 
+// RAII wrapper around pi_act_prof_fetch_res_tt to enable proper cleanup in case
+// of failure.
+struct PIActProfEntries {
+  explicit PIActProfEntries(const SessionTemp &session)
+      : session(session) { }
+
+  ~PIActProfEntries() {
+    if (_init) pi_act_prof_entries_fetch_done(session.get(), res);
+  }
+
+  Status fetch(pi_dev_tgt_t device_tgt, pi_p4_id_t act_prof_id) {
+    assert(!_init);
+    auto pi_status = pi_act_prof_entries_fetch(
+        session.get(), device_tgt, act_prof_id, &res);
+    if (pi_status != PI_STATUS_SUCCESS) {
+      RETURN_ERROR_STATUS(
+          Code::UNKNOWN,
+          "Error when reading action profile entries from target");
+    }
+    _init = true;
+    RETURN_OK_STATUS();
+  }
+
+  Status fetch_mbr(pi_dev_id_t dev_id, pi_p4_id_t act_prof_id,
+                   pi_indirect_handle_t mbr_handle) {
+    assert(!_init);
+    auto pi_status = pi_act_prof_mbr_fetch(
+        session.get(), dev_id, act_prof_id, mbr_handle, &res);
+    if (pi_status != PI_STATUS_SUCCESS) {
+      RETURN_ERROR_STATUS(
+          Code::UNKNOWN,
+          "Error when reading action profile member from target");
+    }
+    _init = true;
+    RETURN_OK_STATUS();
+  }
+
+  Status fetch_grp(pi_dev_id_t dev_id, pi_p4_id_t act_prof_id,
+                   pi_indirect_handle_t grp_handle) {
+    assert(!_init);
+    auto pi_status = pi_act_prof_grp_fetch(
+        session.get(), dev_id, act_prof_id, grp_handle, &res);
+    if (pi_status != PI_STATUS_SUCCESS) {
+      RETURN_ERROR_STATUS(
+          Code::UNKNOWN,
+          "Error when reading action profile group from target");
+    }
+    _init = true;
+    RETURN_OK_STATUS();
+  }
+
+  operator pi_act_prof_fetch_res_t *() const {
+    return res;
+  }
+
+  pi_act_prof_fetch_res_t *operator->() const {
+    return res;
+  }
+
+  bool _init{false};
+  const SessionTemp &session;
+  pi_act_prof_fetch_res_t *res{nullptr};
+};
+
 }  // namespace
 
 class DeviceMgrImp {
@@ -281,20 +345,19 @@ class DeviceMgrImp {
       // _pi_update_device_start.
       pi::MatchKey match_key(p4info_new, t_id);
       match_key.set_is_default(true);
-      // TODO(antonin): using handle 0 unconditionally for the default entry is
-      // not correct and would not work for things like reading / writing direct
-      // resources unless the target actually used an internal handle of 0 for
-      // default entries. There are some serious PI limitations regarding
-      // default entries, in particular for direct resources management, and we
-      // need to fix that first before we can properly handle direct resources
-      // for default entries in this P4Runtime implementation... For now we
-      // return an UNIMPLEMENTED error if the client tries to read / write
-      // direct resources for a default entry outside of the context of the
-      // TableEntry message. We also do not support reading the default entry
-      // yet.
+      pi_entry_handle_t default_entry_handle;
+      auto pi_status = pi_table_default_action_get_handle(
+          session.get(), device_tgt, t_id, &default_entry_handle);
+      if (pi_status != PI_STATUS_SUCCESS) {
+        RETURN_ERROR_STATUS(
+            Code::UNKNOWN,
+            "Failed to query default entry handle from target for table {}",
+            t_id);
+      }
+      // Note that idle timeout is not supported for default entries.
       table_info_store.add_entry(
           t_id, match_key,
-          TableInfoStore::Data(0  /* handle */,
+          TableInfoStore::Data(default_entry_handle,
                                0  /* controller_metadata */,
                                0  /* idle_timeout_ns */));
 
@@ -603,8 +666,7 @@ class DeviceMgrImp {
                             "INSERT update type not supported for meters");
       case p4v1::Update::MODIFY:
         {
-          auto status = validate_meter_spec(meter_entry.config());
-          if (IS_ERROR(status)) return status;
+          RETURN_IF_ERROR(validate_meter_spec(meter_entry.config()));
           auto pi_meter_spec = meter_spec_proto_to_pi(
               meter_entry.config(), meter_entry.meter_id());
           auto pi_status = pi_meter_set(session.get(), device_tgt,
@@ -636,10 +698,7 @@ class DeviceMgrImp {
   Status entry_handle_from_table_entry(const p4v1::TableEntry &table_entry,
                                        pi_entry_handle_t *handle) const {
     pi::MatchKey match_key(p4info.get(), table_entry.table_id());
-    {
-      auto status = construct_match_key(table_entry, &match_key);
-      if (IS_ERROR(status)) return status;
-    }
+    RETURN_IF_ERROR(construct_match_key(table_entry, &match_key));
     auto entry_data = table_info_store.get_entry(
         table_entry.table_id(), match_key);
     if (entry_data == nullptr) {
@@ -660,17 +719,11 @@ class DeviceMgrImp {
     const auto &table_entry = meter_entry.table_entry();
     if (!check_p4_id(table_entry.table_id(), P4Ids::TABLE))
       return make_invalid_p4_id_status();
-    if (table_entry.is_default_action()) {
-      RETURN_ERROR_STATUS(
-          Code::UNIMPLEMENTED,
-          "Writing DirectMeterEntry not supported for default entry yet");
-    }
 
+    // also works for default entry, since the default entry is added to the
+    // table info store (with the corect target-generated handle) in p4_change
     pi_entry_handle_t entry_handle = 0;
-    {
-      auto status = entry_handle_from_table_entry(table_entry, &entry_handle);
-      if (IS_ERROR(status)) return status;
-    }
+    RETURN_IF_ERROR(entry_handle_from_table_entry(table_entry, &entry_handle));
 
     p4_id_t table_direct_meter_id = pi_get_table_direct_resource_p4_id(
         table_entry.table_id(), P4Ids::DIRECT_METER);
@@ -686,8 +739,7 @@ class DeviceMgrImp {
                             "INSERT update type not supported for meters");
       case p4v1::Update::MODIFY:
         {
-          auto status = validate_meter_spec(meter_entry.config());
-          if (IS_ERROR(status)) return status;
+          RETURN_IF_ERROR(validate_meter_spec(meter_entry.config()));
           auto pi_meter_spec = meter_spec_proto_to_pi(
               meter_entry.config(), table_direct_meter_id);
           auto pi_status = pi_meter_set_direct(session.get(), device_tgt,
@@ -742,8 +794,7 @@ class DeviceMgrImp {
       entry->set_meter_id(meter_id);
       auto index_msg = entry->mutable_index();
       index_msg->set_index(index);
-      auto status = meter_read_one_index(session, meter_id, entry);
-      if (IS_ERROR(status)) return status;
+      RETURN_IF_ERROR(meter_read_one_index(session, meter_id, entry));
     }
     RETURN_OK_STATUS();
   }
@@ -758,8 +809,7 @@ class DeviceMgrImp {
            m_id = pi_p4info_meter_next(p4info.get(), m_id)) {
         if (pi_p4info_meter_get_direct(p4info.get(), m_id) != PI_INVALID_ID)
           continue;
-        auto status = meter_read_one(m_id, meter_entry, session, response);
-        if (IS_ERROR(status)) return status;
+        RETURN_IF_ERROR(meter_read_one(m_id, meter_entry, session, response));
       }
     } else {  // read for a single meter
       if (!check_p4_id(meter_id, P4Ids::METER))
@@ -768,8 +818,7 @@ class DeviceMgrImp {
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                             "Cannot use MeterEntry with a direct meter");
       }
-      auto status = meter_read_one(meter_id, meter_entry, session, response);
-      if (IS_ERROR(status)) return status;
+      RETURN_IF_ERROR(meter_read_one(meter_id, meter_entry, session, response));
     }
     RETURN_OK_STATUS();
   }
@@ -777,12 +826,12 @@ class DeviceMgrImp {
   Status direct_meter_read_one(const p4v1::TableEntry &table_entry,
                                const SessionTemp &session,
                                p4v1::ReadResponse *response) const {
-    if (!table_entry.match().empty()) {
+    if (!table_entry.match().empty() || table_entry.is_default_action()) {
+      // also works for default entry, since the default entry is added to the
+      // table info store (with the corect target-generated handle) in p4_change
       pi_entry_handle_t entry_handle = 0;
-      {
-        auto status = entry_handle_from_table_entry(table_entry, &entry_handle);
-        if (IS_ERROR(status)) return status;
-      }
+      RETURN_IF_ERROR(entry_handle_from_table_entry(
+          table_entry, &entry_handle));
       p4_id_t table_direct_meter_id = pi_get_table_direct_resource_p4_id(
         table_entry.table_id(), P4Ids::DIRECT_METER);
       if (table_direct_meter_id == PI_INVALID_ID) {
@@ -822,11 +871,6 @@ class DeviceMgrImp {
     }
     if (!check_p4_id(table_entry.table_id(), P4Ids::TABLE))
       return make_invalid_p4_id_status();
-    if (table_entry.is_default_action()) {
-      RETURN_ERROR_STATUS(
-          Code::UNIMPLEMENTED,
-          "Reading DirectMeterEntry not supported for default entry yet");
-    }
     return direct_meter_read_one(table_entry, session, response);
   }
 
@@ -852,7 +896,7 @@ class DeviceMgrImp {
       p4v1::TableEntry *entry,
       const std::unordered_map<
         pi_indirect_handle_t,
-        p4v1::ActionProfileActionSet> &oneshot_map) const {
+        p4v1::ActionProfileActionSet> &oneshot_map = {}) const {
     if (pi_entry->entry_type == PI_ACTION_ENTRY_TYPE_NONE) RETURN_OK_STATUS();
 
     auto table_action = entry->mutable_action();
@@ -919,22 +963,16 @@ class DeviceMgrImp {
       RETURN_OK_STATUS();
     }
 
-    pi_act_prof_fetch_res_t *res;
-    auto pi_status = pi_act_prof_entries_fetch(session.get(), device_id,
-                                               action_prof_id, &res);
-    if (pi_status != PI_STATUS_SUCCESS) {
-      RETURN_ERROR_STATUS(
-          Code::UNKNOWN,
-          "Error when fetching action profile entries from target");
-    }
+    PIActProfEntries entries(session);
+    RETURN_IF_ERROR(entries.fetch(device_tgt, action_prof_id));
 
     // first, build a map from member handle to action specification
     std::unordered_map<pi_indirect_handle_t, p4v1::Action> mbr_h_to_action;
-    auto num_members = pi_act_prof_mbrs_num(res);
+    auto num_members = pi_act_prof_mbrs_num(entries);
     for (size_t i = 0; i < num_members; i++) {
       pi_action_data_t *action_data;
       pi_indirect_handle_t member_h;
-      pi_act_prof_mbrs_next(res, &action_data, &member_h);
+      pi_act_prof_mbrs_next(entries, &action_data, &member_h);
       auto p = mbr_h_to_action.emplace(member_h, p4v1::Action());
       if (!p.second)
         RETURN_ERROR_STATUS(Code::INTERNAL, "Duplicate member handle");
@@ -944,12 +982,12 @@ class DeviceMgrImp {
     // then, iterate over groups and build the corresponding
     // ActionProfileActionSet using the action specifications included in
     // mbr_h_to_action,
-    auto num_groups = pi_act_prof_grps_num(res);
+    auto num_groups = pi_act_prof_grps_num(entries);
     for (size_t i = 0; i < num_groups; i++) {
       pi_indirect_handle_t *members_h;
       size_t num;
       pi_indirect_handle_t group_h;
-      pi_act_prof_grps_next(res, &members_h, &num, &group_h);
+      pi_act_prof_grps_next(entries, &members_h, &num, &group_h);
       auto p = map->emplace(group_h, p4v1::ActionProfileActionSet());
       if (!p.second)
         RETURN_ERROR_STATUS(Code::INTERNAL, "Duplicate group handle");
@@ -976,8 +1014,6 @@ class DeviceMgrImp {
         ap_action->set_watch(member.watch);
       }
     }
-
-    pi_act_prof_entries_fetch_done(session.get(), res);
 
     RETURN_OK_STATUS();
   }
@@ -1014,26 +1050,165 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
+  Status parse_direct_resources(const p4v1::TableEntry &requested_entry,
+                                const pi_direct_res_config_t *direct_configs,
+                                p4v1::TableEntry *entry) const {
+    if (direct_configs != nullptr) {
+      for (size_t j = 0; j < direct_configs->num_configs; j++) {
+        const auto &config = direct_configs->configs[j];
+        if (pi_is_direct_counter_id(config.res_id)) {
+          if (requested_entry.has_counter_data()) {
+            counter_data_pi_to_proto(
+                *static_cast<pi_counter_data_t *>(config.config),
+                entry->mutable_counter_data());
+          }
+        } else if (pi_is_direct_meter_id(config.res_id)) {
+          // TODO(antonin): according to the P4Runtime spec, we are not supposed
+          // to to set meter_config if the meter is in its default configuration
+          // (all packets green).
+          if (requested_entry.has_meter_config()) {
+            meter_spec_pi_to_proto(
+                *static_cast<pi_meter_spec_t *>(config.config),
+                entry->mutable_meter_config());
+          }
+        } else {
+          RETURN_ERROR_STATUS(Code::INTERNAL, "Unknown direct resource type");
+        }
+      }
+    }
+    RETURN_OK_STATUS();
+  }
+
+  // useful to have requested_entry to perform checks
+  Status table_read_default(p4_id_t table_id,
+                            const p4v1::TableEntry &requested_entry,
+                            const SessionTemp &session,
+                            p4v1::ReadResponse *response) const {
+    // RAII wrapper around pi_table_entry_t to enable proper cleanup in case of
+    // failure.
+    struct PIDefaultEntry {
+      explicit PIDefaultEntry(const SessionTemp &session)
+          : session(session) { }
+
+      ~PIDefaultEntry() {
+        if (_init) pi_table_default_action_done(session.get(), &entry);
+      }
+
+      Status get(pi_dev_tgt_t device_tgt, pi_p4_id_t table_id) {
+        assert(!_init);
+        auto pi_status = pi_table_default_action_get(
+            session.get(), device_tgt, table_id, &entry);
+        if (pi_status != PI_STATUS_SUCCESS) {
+          RETURN_ERROR_STATUS(
+              Code::UNKNOWN, "Error when reading default entry from target");
+        }
+        _init = true;
+        RETURN_OK_STATUS();
+      }
+
+      operator const pi_table_entry_t *() const {
+        return &entry;
+      }
+
+      const pi_table_entry_t *operator->() const {
+        return &entry;
+      }
+
+      bool _init{false};
+      const SessionTemp &session;
+      pi_table_entry_t entry;
+    };
+
+    if (requested_entry.has_time_since_last_hit()) {
+      RETURN_ERROR_STATUS(
+          Code::INVALID_ARGUMENT,
+          "Default table entries do not support entry ageing, do not set "
+          "'time_since_last_hit' in your ReadRequest");
+    }
+
+    PIDefaultEntry entry(session);
+    RETURN_IF_ERROR(entry.get(device_tgt, table_id));
+
+    auto *table_entry = response->add_entities()->mutable_table_entry();
+    table_entry->set_table_id(table_id);
+    table_entry->set_is_default_action(true);
+    RETURN_IF_ERROR(parse_action_entry(table_id, entry, table_entry));
+    auto *direct_configs = entry->direct_res_config;
+    RETURN_IF_ERROR(
+        parse_direct_resources(requested_entry, direct_configs, table_entry));
+
+    // TODO(antonin): it's a bit silly that we have to construct a MatchKey
+    // object (which may imply a heap memory allocation) just to lookup the
+    // controller metadata.
+    pi::MatchKey mk(p4info.get(), table_id);
+    mk.set_is_default(true);
+    auto entry_data = table_info_store.get_entry(table_id, mk);
+    // this would point to a serious bug since we add all the default entries to
+    // the table info store ourselves in p4_change.
+    if (entry_data == nullptr) {
+      RETURN_ERROR_STATUS(
+          Code::INTERNAL, "Cannot find default entry in table info store");
+    }
+    table_entry->set_controller_metadata(entry_data->controller_metadata);
+
+    RETURN_OK_STATUS();
+  }
+
   Status table_read_one(p4_id_t table_id,
                         const p4v1::TableEntry &requested_entry,
                         const SessionTemp &session,
                         p4v1::ReadResponse *response) const {
-    pi::MatchKey expected_match_key(p4info.get(), table_id);
     if (requested_entry.is_default_action()) {
-      RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
-                          "Reading default entry not supported yet");
-    }
-    if (!requested_entry.match().empty()) {
-      RETURN_IF_ERROR(
-          construct_match_key(requested_entry, &expected_match_key));
+      return table_read_default(table_id, requested_entry, session, response);
     }
 
-    std::unordered_map<pi_indirect_handle_t,
-                       p4v1::ActionProfileActionSet> oneshot_map;
-    // the map is needed if the table is indirect and was programmed using the
-    // oneshot programming method, to guarantee read-write symmetry
-    RETURN_IF_ERROR(build_action_profile_action_set_map(
-        table_id, &oneshot_map, session));
+    // RAII wrapper around pi_table_fetch_res_t to enable proper cleanup in case
+    // of failure.
+    struct PIEntries {
+      explicit PIEntries(const SessionTemp &session)
+          : session(session) { }
+
+      ~PIEntries() {
+        if (_init) pi_table_entries_fetch_done(session.get(), res);
+      }
+
+      Status fetch(pi_dev_tgt_t device_tgt, pi_p4_id_t table_id) {
+        assert(!_init);
+        auto pi_status = pi_table_entries_fetch(
+            session.get(), device_tgt, table_id, &res);
+        if (pi_status != PI_STATUS_SUCCESS) {
+          RETURN_ERROR_STATUS(
+              Code::UNKNOWN, "Error when reading table entries from target");
+        }
+        _init = true;
+        RETURN_OK_STATUS();
+      }
+
+      Status fetch_one(pi_dev_tgt_t device_tgt, pi_p4_id_t table_id,
+                       const pi::MatchKey &mk) {
+        assert(!_init);
+        auto pi_status = pi_table_entries_fetch_wkey(
+            session.get(), device_tgt, table_id, mk.get(), &res);
+        if (pi_status != PI_STATUS_SUCCESS) {
+          RETURN_ERROR_STATUS(
+              Code::UNKNOWN, "Error when reading table entry from target");
+        }
+        _init = true;
+        RETURN_OK_STATUS();
+      }
+
+      operator pi_table_fetch_res_t *() const {
+        return res;
+      }
+
+      pi_table_fetch_res_t *operator->() const {
+        return res;
+      }
+
+      bool _init{false};
+      const SessionTemp &session;
+      pi_table_fetch_res_t *res{nullptr};
+    };
 
     bool table_supports_idle_timeout = pi_p4info_table_supports_idle_timeout(
         p4info.get(), table_id);
@@ -1045,35 +1220,41 @@ class DeviceMgrImp {
           "does not support idle timeout; yes, that includes wildcard reads");
     }
 
-    pi_table_fetch_res_t *res;
-    auto pi_status = pi_table_entries_fetch(session.get(), device_id,
-                                            table_id, &res);
-    if (pi_status != PI_STATUS_SUCCESS) {
-      RETURN_ERROR_STATUS(Code::UNKNOWN,
-                          "Error when fetching entries from target");
+    // the map is needed if the table is indirect and was programmed using the
+    // oneshot programming method, to guarantee read-write symmetry
+    // TODO(antonin): optimize when single entry is read
+    std::unordered_map<pi_indirect_handle_t,
+                       p4v1::ActionProfileActionSet> oneshot_map;
+    RETURN_IF_ERROR(build_action_profile_action_set_map(
+        table_id, &oneshot_map, session));
+
+    pi::MatchKey expected_match_key(p4info.get(), table_id);
+    PIEntries entries(session);
+    if (requested_entry.match().empty()) {
+      // we read all entries, PI doesn't provide any filtering capabilities
+      // (you either read all entries or a single one)
+      // TODO(antonin): implement filtering (action-based, priority-based) as
+      // per the P4Runtime specification when iterating over entries below.
+      RETURN_IF_ERROR(entries.fetch(device_tgt, table_id));
+    } else {
+      RETURN_IF_ERROR(
+          construct_match_key(requested_entry, &expected_match_key));
+      RETURN_IF_ERROR(
+          entries.fetch_one(device_tgt, table_id, expected_match_key));
     }
-    auto num_entries = pi_table_entries_num(res);
+
+    auto num_entries = pi_table_entries_num(entries);
     pi_table_ma_entry_t entry;
     pi_entry_handle_t entry_handle;
     pi::MatchKey mk(p4info.get(), table_id);
     for (size_t i = 0; i < num_entries; i++) {
-      pi_table_entries_next(res, &entry, &entry_handle);
-
-      // Very Very naive solution to filter on a specific match key: we iterate
-      // over ALL entries and compare the match key for each one.
-      // We require equality for every field, even priority, so this is reqlly
-      // just meant to be used as a very inefficient way to retrieve a single
-      // table entry...
+      pi_table_entries_next(entries, &entry, &entry_handle);
 
       // TODO(antonin): what I really want to do here is a heterogeneous lookup
       // / comparison; instead I make a copy of the match key in the right
       // format and I use this for the lookup. If this is a performance issue,
       // we can find a better solution.
       mk.from(entry.match_key);
-      if (!requested_entry.match().empty() &&
-          !pi::MatchKeyEq()(mk, expected_match_key)) {
-        continue;
-      }
 
       auto *table_entry = response->add_entities()->mutable_table_entry();
       table_entry->set_table_id(table_id);
@@ -1083,29 +1264,8 @@ class DeviceMgrImp {
 
       // direct resources
       auto *direct_configs = entry.entry.direct_res_config;
-      if (direct_configs != nullptr) {
-        for (size_t j = 0; j < direct_configs->num_configs; j++) {
-          const auto &config = direct_configs->configs[j];
-          if (pi_is_direct_counter_id(config.res_id)) {
-            if (requested_entry.has_counter_data()) {
-              counter_data_pi_to_proto(
-                  *static_cast<pi_counter_data_t *>(config.config),
-                  table_entry->mutable_counter_data());
-            }
-          } else if (pi_is_direct_meter_id(config.res_id)) {
-            // TODO(antonin): according to the P4Runtime spec, we are not
-            // supposed to to set meter_config if the meter is in its default
-            // configuration (all packets green).
-            if (requested_entry.has_meter_config()) {
-              meter_spec_pi_to_proto(
-                  *static_cast<pi_meter_spec_t *>(config.config),
-                  table_entry->mutable_meter_config());
-            }
-          } else {
-            RETURN_ERROR_STATUS(Code::INTERNAL, "Unknown direct resource type");
-          }
-        }
-      }
+      RETURN_IF_ERROR(
+          parse_direct_resources(requested_entry, direct_configs, table_entry));
 
       // If table is const (immutable P4 table), it is possible that the entries
       // were added out-of-band, i.e. without the P4Runtime service. In this
@@ -1137,8 +1297,6 @@ class DeviceMgrImp {
            p4v1::TableAction::kActionProfileActionSet));
     }
 
-    pi_table_entries_fetch_done(session.get(), res);
-
     RETURN_OK_STATUS();
   }
 
@@ -1150,15 +1308,13 @@ class DeviceMgrImp {
       for (auto t_id = pi_p4info_table_begin(p4info.get());
            t_id != pi_p4info_table_end(p4info.get());
            t_id = pi_p4info_table_next(p4info.get(), t_id)) {
-        auto status = table_read_one(t_id, table_entry, session, response);
-        if (IS_ERROR(status)) return status;
+        RETURN_IF_ERROR(table_read_one(t_id, table_entry, session, response));
       }
     } else {  // read for a single table
       if (!check_p4_id(table_entry.table_id(), P4Ids::TABLE))
         return make_invalid_p4_id_status();
-      auto status = table_read_one(
-          table_entry.table_id(), table_entry, session, response);
-      if (IS_ERROR(status)) return status;
+      RETURN_IF_ERROR(table_read_one(
+          table_entry.table_id(), table_entry, session, response));
     }
     RETURN_OK_STATUS();
   }
@@ -1217,10 +1373,10 @@ class DeviceMgrImp {
     RETURN_ERROR_STATUS(Code::INTERNAL);  // UNREACHABLE
   }
 
-  template <typename T, typename MemberAccessor, typename GroupAccessor>
-  Status action_profile_read_common(
-      p4_id_t action_profile_id, const SessionTemp &session,
-      T *entries, MemberAccessor MAn, GroupAccessor GAn) const {
+  Status action_profile_member_read_one(p4_id_t action_profile_id,
+                                        const p4v1::ActionProfileMember &member,
+                                        const SessionTemp &session,
+                                        p4v1::ReadResponse *response) const {
     auto action_prof_mgr = get_action_prof_mgr(action_profile_id);
     if (action_prof_mgr == nullptr) {
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
@@ -1228,24 +1384,29 @@ class DeviceMgrImp {
                           action_profile_id);
     }
 
-    pi_act_prof_fetch_res_t *res;
-    auto pi_status = pi_act_prof_entries_fetch(session.get(), device_id,
-                                               action_profile_id, &res);
-    if (pi_status != PI_STATUS_SUCCESS) {
-      RETURN_ERROR_STATUS(
-          Code::UNKNOWN,
-          "Error when fetching action profile entries from target");
+    PIActProfEntries entries(session);
+    if (member.member_id() == 0) {
+      RETURN_IF_ERROR(entries.fetch(device_tgt, action_profile_id));
+    } else {
+      pi_indirect_handle_t member_h;
+      if (!action_prof_mgr->retrieve_member_handle(member.member_id(),
+                                                   &member_h)) {
+        Logger::get()->warn(
+            "Member id {} does not match any known member in action profile {}",
+            member.member_id(), action_profile_id);
+        RETURN_OK_STATUS();
+      }
+      RETURN_IF_ERROR(entries.fetch_mbr(
+          device_tgt.dev_id, action_profile_id, member_h));
     }
 
-    Code code = Code::OK;
-    auto num_members = pi_act_prof_mbrs_num(res);
+    auto num_members = pi_act_prof_mbrs_num(entries);
     for (size_t i = 0; i < num_members; i++) {
       pi_action_data_t *action_data;
       pi_indirect_handle_t member_h;
-      auto member = MAn(entries);
-      if (member == nullptr) break;
+      auto *member = response->add_entities()->mutable_action_profile_member();
       member->set_action_profile_id(action_profile_id);
-      pi_act_prof_mbrs_next(res, &action_data, &member_h);
+      pi_act_prof_mbrs_next(entries, &action_data, &member_h);
       RETURN_IF_ERROR(parse_action_data(action_data, member->mutable_action()));
       ActionProfMgr::Id member_id;
       if (!action_prof_mgr->retrieve_member_id(member_h, &member_id)) {
@@ -1255,15 +1416,62 @@ class DeviceMgrImp {
       member->set_member_id(member_id);
     }
 
-    auto num_groups = pi_act_prof_grps_num(res);
+    RETURN_OK_STATUS();
+  }
+
+  Status action_profile_member_read(const p4v1::ActionProfileMember &member,
+                                    const SessionTemp &session,
+                                    p4v1::ReadResponse *response) const {
+    if (member.action_profile_id() == 0) {
+      for (auto act_prof_id = pi_p4info_act_prof_begin(p4info.get());
+           act_prof_id != pi_p4info_act_prof_end(p4info.get());
+           act_prof_id = pi_p4info_act_prof_next(p4info.get(), act_prof_id)) {
+        RETURN_IF_ERROR(action_profile_member_read_one(
+            act_prof_id, member, session, response));
+      }
+    } else {
+      if (!check_p4_id(member.action_profile_id(), P4Ids::ACTION_PROFILE))
+        return make_invalid_p4_id_status();
+      RETURN_IF_ERROR(action_profile_member_read_one(
+          member.action_profile_id(), member, session, response));
+    }
+    RETURN_OK_STATUS();
+  }
+
+  Status action_profile_group_read_one(p4_id_t action_profile_id,
+                                       const p4v1::ActionProfileGroup &group,
+                                       const SessionTemp &session,
+                                       p4v1::ReadResponse *response) const {
+    auto action_prof_mgr = get_action_prof_mgr(action_profile_id);
+    if (action_prof_mgr == nullptr) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "Not a valid action profile id: {}",
+                          action_profile_id);
+    }
+
+    PIActProfEntries entries(session);
+    if (group.group_id() == 0) {
+      RETURN_IF_ERROR(entries.fetch(device_tgt, action_profile_id));
+    } else {
+      pi_indirect_handle_t group_h;
+      if (!action_prof_mgr->retrieve_group_handle(group.group_id(), &group_h)) {
+        Logger::get()->warn(
+            "Group id {} does not match any known group in action profile {}",
+            group.group_id(), action_profile_id);
+        RETURN_OK_STATUS();
+      }
+      RETURN_IF_ERROR(entries.fetch_grp(
+          device_tgt.dev_id, action_profile_id, group_h));
+    }
+
+    auto num_groups = pi_act_prof_grps_num(entries);
     for (size_t i = 0; i < num_groups; i++) {
       size_t num;
       pi_indirect_handle_t *members_h;
       pi_indirect_handle_t group_h;
-      auto group = GAn(entries);
-      if (group == nullptr) break;
+      auto *group = response->add_entities()->mutable_action_profile_group();
       group->set_action_profile_id(action_profile_id);
-      pi_act_prof_grps_next(res, &members_h, &num, &group_h);
+      pi_act_prof_grps_next(entries, &members_h, &num, &group_h);
       ActionProfMgr::Id group_id;
       if (!action_prof_mgr->retrieve_group_id(group_h, &group_id)) {
         RETURN_ERROR_STATUS(Code::INTERNAL,
@@ -1303,56 +1511,9 @@ class DeviceMgrImp {
       }
     }
 
-    pi_act_prof_entries_fetch_done(session.get(), res);
-
-    RETURN_STATUS(code);
-  }
-
-  Status action_profile_member_read_one(p4_id_t action_profile_id,
-                                        const SessionTemp &session,
-                                        p4v1::ReadResponse *response) const {
-    return action_profile_read_common(
-        action_profile_id, session, response,
-        [] (decltype(response) r) {
-          return r->add_entities()->mutable_action_profile_member(); },
-        [] (decltype(response)) -> p4v1::ActionProfileGroup * {
-          return nullptr; });
-  }
-
-  // TODO(antonin): full filtering
-  Status action_profile_member_read(const p4v1::ActionProfileMember &member,
-                                    const SessionTemp &session,
-                                    p4v1::ReadResponse *response) const {
-    if (member.action_profile_id() == 0) {
-      for (auto act_prof_id = pi_p4info_act_prof_begin(p4info.get());
-           act_prof_id != pi_p4info_act_prof_end(p4info.get());
-           act_prof_id = pi_p4info_act_prof_next(p4info.get(), act_prof_id)) {
-        auto status = action_profile_member_read_one(
-            act_prof_id, session, response);
-        if (IS_ERROR(status)) return status;
-      }
-    } else {
-      if (!check_p4_id(member.action_profile_id(), P4Ids::ACTION_PROFILE))
-        return make_invalid_p4_id_status();
-      auto status = action_profile_member_read_one(
-          member.action_profile_id(), session, response);
-      if (IS_ERROR(status)) return status;
-    }
     RETURN_OK_STATUS();
   }
 
-  Status action_profile_group_read_one(p4_id_t action_profile_id,
-                                       const SessionTemp &session,
-                                       p4v1::ReadResponse *response) const {
-    return action_profile_read_common(
-        action_profile_id, session, response,
-        [] (decltype(response)) -> p4v1::ActionProfileMember * {
-          return nullptr; },
-        [] (decltype(response) r) {
-          return r->add_entities()->mutable_action_profile_group(); });
-  }
-
-  // TODO(antonin): full filtering
   Status action_profile_group_read(const p4v1::ActionProfileGroup &group,
                                    const SessionTemp &session,
                                    p4v1::ReadResponse *response) const {
@@ -1360,16 +1521,14 @@ class DeviceMgrImp {
       for (auto act_prof_id = pi_p4info_act_prof_begin(p4info.get());
            act_prof_id != pi_p4info_act_prof_end(p4info.get());
            act_prof_id = pi_p4info_act_prof_next(p4info.get(), act_prof_id)) {
-        auto status = action_profile_group_read_one(
-            act_prof_id, session, response);
-        if (IS_ERROR(status)) return status;
+        RETURN_IF_ERROR(action_profile_group_read_one(
+            act_prof_id, group, session, response));
       }
     } else {
       if (!check_p4_id(group.action_profile_id(), P4Ids::ACTION_PROFILE))
         return make_invalid_p4_id_status();
-      auto status = action_profile_group_read_one(
-          group.action_profile_id(), session, response);
-      if (IS_ERROR(status)) return status;
+      RETURN_IF_ERROR(action_profile_group_read_one(
+          group.action_profile_id(), group, session, response));
     }
     RETURN_OK_STATUS();
   }
@@ -1466,17 +1625,11 @@ class DeviceMgrImp {
     const auto &table_entry = counter_entry.table_entry();
     if (!check_p4_id(table_entry.table_id(), P4Ids::TABLE))
       return make_invalid_p4_id_status();
-    if (table_entry.is_default_action()) {
-      RETURN_ERROR_STATUS(
-          Code::UNIMPLEMENTED,
-          "Writing DirectCounterEntry not supported for default entry yet");
-    }
 
+    // also works for default entry, since the default entry is added to the
+    // table info store (with the corect target-generated handle) in p4_change
     pi_entry_handle_t entry_handle = 0;
-    {
-      auto status = entry_handle_from_table_entry(table_entry, &entry_handle);
-      if (IS_ERROR(status)) return status;
-    }
+    RETURN_IF_ERROR(entry_handle_from_table_entry(table_entry, &entry_handle));
 
     p4_id_t table_direct_counter_id = pi_get_table_direct_resource_p4_id(
         table_entry.table_id(), P4Ids::DIRECT_COUNTER);
@@ -1552,8 +1705,7 @@ class DeviceMgrImp {
       entry->set_counter_id(counter_id);
       auto index_msg = entry->mutable_index();
       index_msg->set_index(index);
-      auto status = counter_read_one_index(session, counter_id, entry);
-      if (IS_ERROR(status)) return status;
+      RETURN_IF_ERROR(counter_read_one_index(session, counter_id, entry));
     }
     RETURN_OK_STATUS();
   }
@@ -1568,8 +1720,8 @@ class DeviceMgrImp {
            c_id = pi_p4info_counter_next(p4info.get(), c_id)) {
         if (pi_p4info_counter_get_direct(p4info.get(), c_id) != PI_INVALID_ID)
           continue;
-        auto status = counter_read_one(c_id, counter_entry, session, response);
-        if (IS_ERROR(status)) return status;
+        RETURN_IF_ERROR(counter_read_one(
+            c_id, counter_entry, session, response));
       }
     } else {  // read for a single counter
       if (!check_p4_id(counter_id, P4Ids::COUNTER))
@@ -1579,9 +1731,8 @@ class DeviceMgrImp {
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                             "Cannot use CounterEntry with a direct counter");
       }
-      auto status = counter_read_one(
-          counter_id, counter_entry, session, response);
-      if (IS_ERROR(status)) return status;
+      RETURN_IF_ERROR(counter_read_one(
+          counter_id, counter_entry, session, response));
     }
     RETURN_OK_STATUS();
   }
@@ -1589,12 +1740,12 @@ class DeviceMgrImp {
   Status direct_counter_read_one(const p4v1::TableEntry &table_entry,
                                  const SessionTemp &session,
                                  p4v1::ReadResponse *response) const {
-    if (!table_entry.match().empty()) {
+    if (!table_entry.match().empty() || table_entry.is_default_action()) {
+      // also works for default entry, since the default entry is added to the
+      // table info store (with the corect target-generated handle) in p4_change
       pi_entry_handle_t entry_handle = 0;
-      {
-        auto status = entry_handle_from_table_entry(table_entry, &entry_handle);
-        if (IS_ERROR(status)) return status;
-      }
+      RETURN_IF_ERROR(entry_handle_from_table_entry(
+          table_entry, &entry_handle));
       p4_id_t table_direct_counter_id = pi_get_table_direct_resource_p4_id(
         table_entry.table_id(), P4Ids::DIRECT_COUNTER);
       if (table_direct_counter_id == PI_INVALID_ID) {
@@ -1635,11 +1786,6 @@ class DeviceMgrImp {
     }
     if (!check_p4_id(table_entry.table_id(), P4Ids::TABLE))
       return make_invalid_p4_id_status();
-    if (table_entry.is_default_action()) {
-      RETURN_ERROR_STATUS(
-          Code::UNIMPLEMENTED,
-          "Reading DirectCounterEntry not supported for default entry yet");
-    }
     return direct_counter_read_one(table_entry, session, response);
   }
 
@@ -1974,7 +2120,6 @@ class DeviceMgrImp {
                           "Too many fields in match key");
     }
 
-    Status status;
     int num_mf_matched = 0;  // check if some extra fields in the match key
     // the double loop is potentially too slow; refactor this code if it proves
     // to be a bottleneck
@@ -2001,26 +2146,22 @@ class DeviceMgrImp {
         case PI_P4INFO_MATCH_TYPE_EXACT:
           if (!mf->has_exact())
             RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
-          status = validate_exact_match(mf->exact(), bitwidth);
-          if (IS_ERROR(status)) return status;
+          RETURN_IF_ERROR(validate_exact_match(mf->exact(), bitwidth));
           break;
         case PI_P4INFO_MATCH_TYPE_LPM:
           if (!mf->has_lpm())
             RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
-          status = validate_lpm_match(mf->lpm(), bitwidth);
-          if (IS_ERROR(status)) return status;
+          RETURN_IF_ERROR(validate_lpm_match(mf->lpm(), bitwidth));
           break;
         case PI_P4INFO_MATCH_TYPE_TERNARY:
           if (!mf->has_ternary())
             RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
-          status = validate_ternary_match(mf->ternary(), bitwidth);
-          if (IS_ERROR(status)) return status;
+          RETURN_IF_ERROR(validate_ternary_match(mf->ternary(), bitwidth));
           break;
         case PI_P4INFO_MATCH_TYPE_RANGE:
           if (!mf->has_range())
             RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
-          status = validate_range_match(mf->range(), bitwidth);
-          if (IS_ERROR(status)) return status;
+          RETURN_IF_ERROR(validate_range_match(mf->range(), bitwidth));
           break;
         default:
           assert(0);
@@ -2046,8 +2187,7 @@ class DeviceMgrImp {
       match_key->set_is_default(true);
       RETURN_OK_STATUS();
     }
-    auto status = validate_match_key(entry);
-    if (IS_ERROR(status)) return status;
+    RETURN_IF_ERROR(validate_match_key(entry));
     auto t_id = entry.table_id();
     bool need_priority = false;
     size_t num_match_fields;
@@ -2191,8 +2331,7 @@ class DeviceMgrImp {
   Status construct_action_data(uint32_t table_id, const p4v1::Action &action,
                                pi::ActionEntry *action_entry) const {
     (void) table_id;
-    auto status = validate_action_data(p4info.get(), action);
-    if (IS_ERROR(status)) return status;
+    RETURN_IF_ERROR(validate_action_data(p4info.get(), action));
     action_entry->init_action_data(p4info.get(), action.action_id());
     auto action_data = action_entry->mutable_action_data();
     for (const auto &p : action.params()) {
@@ -2290,8 +2429,7 @@ class DeviceMgrImp {
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                             "Table has no direct meters");
       }
-      auto status = validate_meter_spec(table_entry.meter_config());
-      if (IS_ERROR(status)) return status;
+      RETURN_IF_ERROR(validate_meter_spec(table_entry.meter_config()));
       *meter_spec = meter_spec_proto_to_pi(
           table_entry.meter_config(), meter_id);
       action_entry->add_direct_res_config(meter_id, meter_spec);
@@ -2355,10 +2493,7 @@ class DeviceMgrImp {
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "'action' field must be set");
 
     pi::MatchKey match_key(p4info.get(), table_id);
-    {
-      auto status = construct_match_key(table_entry, &match_key);
-      if (IS_ERROR(status)) return status;
-    }
+    RETURN_IF_ERROR(construct_match_key(table_entry, &match_key));
 
     RETURN_IF_ERROR(validate_action(table_entry));
 
@@ -2425,10 +2560,7 @@ class DeviceMgrImp {
                       SessionTemp *session) {
     const auto table_id = table_entry.table_id();
     pi::MatchKey match_key(p4info.get(), table_id);
-    {
-      auto status = construct_match_key(table_entry, &match_key);
-      if (IS_ERROR(status)) return status;
-    }
+    RETURN_IF_ERROR(construct_match_key(table_entry, &match_key));
 
     RETURN_IF_ERROR(validate_action(table_entry));
 
@@ -2519,10 +2651,7 @@ class DeviceMgrImp {
     }
 
     pi::MatchKey match_key(p4info.get(), table_id);
-    {
-      auto status = construct_match_key(table_entry, &match_key);
-      if (IS_ERROR(status)) return status;
-    }
+    RETURN_IF_ERROR(construct_match_key(table_entry, &match_key));
 
     // we need this pointer to access the one-shot group handle (if needed for
     // this entry).

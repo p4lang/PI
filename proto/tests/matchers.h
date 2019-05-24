@@ -59,6 +59,34 @@ inline Matcher<::google::rpc::Status> IsOk() {
 #define ASSERT_OK(status) ASSERT_THAT(status, IsOk())
 #define EXPECT_OK(status) EXPECT_THAT(status, IsOk())
 
+// Very poor man's version of EqualsProto, which is not available in gmock yet
+// See https://github.com/google/googletest/issues/1761
+
+class ProtoEqMatcher
+    : public MatcherInterface<const ::google::protobuf::Message &> {
+ public:
+  explicit ProtoEqMatcher(const ::google::protobuf::Message &expected);
+
+ private:
+  bool MatchAndExplain(const ::google::protobuf::Message &actual,
+                       MatchResultListener *listener) const override;
+
+  void DescribeTo(std::ostream *os) const override;
+
+  void DescribeNegationTo(std::ostream *os) const override;
+
+  const ::google::protobuf::Message &expected;
+};
+
+inline Matcher<const ::google::protobuf::Message &> ProtoEq(
+    const ::google::protobuf::Message &expected) {
+  return MakeMatcher(new ProtoEqMatcher(expected));
+}
+
+#define EXPECT_PROTO_EQ(actual, expected) \
+  EXPECT_THAT(actual, ProtoEq(expected));
+
+
 // This is a very verbose matcher but it has the advantage to print convenient
 // error messages. Not sure I could achieve such a nice result by only using
 // googlemock base matchers (e.g. Field...)

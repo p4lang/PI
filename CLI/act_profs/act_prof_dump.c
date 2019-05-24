@@ -88,7 +88,7 @@ pi_cli_status_t do_act_prof_dump(char *subcmd) {
 
   pi_act_prof_fetch_res_t *res;
   pi_status_t rc;
-  rc = pi_act_prof_entries_fetch(sess, dev_tgt.dev_id, act_prof_id, &res);
+  rc = pi_act_prof_entries_fetch(sess, dev_tgt, act_prof_id, &res);
   if (rc == PI_STATUS_SUCCESS) {
     printf("Successfully retrieved %zu member(s) and %zu group(s).\n",
            pi_act_prof_mbrs_num(res), pi_act_prof_grps_num(res));

@@ -134,17 +134,18 @@ pi_status_t pi_table_default_action_reset(pi_session_handle_t session_handle,
 }
 
 pi_status_t pi_table_default_action_get(pi_session_handle_t session_handle,
-                                        pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                        pi_dev_tgt_t dev_tgt,
+                                        pi_p4_id_t table_id,
                                         pi_table_entry_t *table_entry) {
   pi_status_t status;
-  status = _pi_table_default_action_get(session_handle, dev_id, table_id,
+  status = _pi_table_default_action_get(session_handle, dev_tgt, table_id,
                                         table_entry);
   if (status != PI_STATUS_SUCCESS) return status;
 
   // TODO(antonin): improve
   if (table_entry->entry_type == PI_ACTION_ENTRY_TYPE_DATA) {
     pi_action_data_t *action_data = table_entry->entry.action_data;
-    action_data->p4info = pi_get_device_p4info(dev_id);
+    action_data->p4info = pi_get_device_p4info(dev_tgt.dev_id);
   }
 
   return PI_STATUS_SUCCESS;
@@ -155,6 +156,13 @@ pi_status_t pi_table_default_action_done(pi_session_handle_t session_handle,
   return _pi_table_default_action_done(session_handle, table_entry);
 }
 
+pi_status_t pi_table_default_action_get_handle(
+    pi_session_handle_t session_handle, pi_dev_tgt_t dev_tgt,
+    pi_p4_id_t table_id, pi_entry_handle_t *entry_handle) {
+  return _pi_table_default_action_get_handle(session_handle, dev_tgt, table_id,
+                                             entry_handle);
+}
+
 pi_status_t pi_table_entry_delete(pi_session_handle_t session_handle,
                                   pi_dev_id_t dev_id, pi_p4_id_t table_id,
                                   pi_entry_handle_t entry_handle) {
@@ -162,9 +170,10 @@ pi_status_t pi_table_entry_delete(pi_session_handle_t session_handle,
 }
 
 pi_status_t pi_table_entry_delete_wkey(pi_session_handle_t session_handle,
-                                       pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                       pi_dev_tgt_t dev_tgt,
+                                       pi_p4_id_t table_id,
                                        const pi_match_key_t *match_key) {
-  return _pi_table_entry_delete_wkey(session_handle, dev_id, table_id,
+  return _pi_table_entry_delete_wkey(session_handle, dev_tgt, table_id,
                                      match_key);
 }
 
@@ -182,29 +191,26 @@ pi_status_t pi_table_entry_modify(pi_session_handle_t session_handle,
 }
 
 pi_status_t pi_table_entry_modify_wkey(pi_session_handle_t session_handle,
-                                       pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                       pi_dev_tgt_t dev_tgt,
+                                       pi_p4_id_t table_id,
                                        const pi_match_key_t *match_key,
                                        const pi_table_entry_t *table_entry) {
-  return _pi_table_entry_modify_wkey(session_handle, dev_id, table_id,
+  return _pi_table_entry_modify_wkey(session_handle, dev_tgt, table_id,
                                      match_key, table_entry);
 }
 
 #define ALIGN 16
 #define ALIGN_SIZE(s) (((s) + (ALIGN - 1)) & (~(ALIGN - 1)))
 
-pi_status_t pi_table_entries_fetch(pi_session_handle_t session_handle,
-                                   pi_dev_id_t dev_id, pi_p4_id_t table_id,
-                                   pi_table_fetch_res_t **res) {
-  pi_table_fetch_res_t *res_ = malloc(sizeof(pi_table_fetch_res_t));
-  pi_status_t status =
-      _pi_table_entries_fetch(session_handle, dev_id, table_id, res_);
-  res_->p4info = pi_get_device_p4info(dev_id);
-  res_->table_id = table_id;
-  res_->idx = 0;
-  res_->curr = 0;
+static void prepare_fetch_res(pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                              pi_table_fetch_res_t *res) {
+  res->p4info = pi_get_device_p4info(dev_id);
+  res->table_id = table_id;
+  res->idx = 0;
+  res->curr = 0;
 
   // we allocate one big memory block for all the structures owned by
-  // pi_table_fetch_res_t; we use contiguous memory for all the data relative to
+  // pi_table_fetch_rest; we use contiguous memory for all the data relative to
   // a specific table entry.
 
   size_t size_per_entry = 0;
@@ -216,29 +222,81 @@ pi_status_t pi_table_entries_fetch(pi_session_handle_t session_handle,
   size_per_entry = ALIGN_SIZE(size_per_entry);
 
   // direct resources
-  const pi_p4_id_t *res_ids = pi_p4info_table_get_direct_resources(
-      res_->p4info, table_id, &res_->num_direct_resources);
-  res_->max_size_of_direct_resources = 0;
-  for (size_t i = 0; i < res_->num_direct_resources; i++) {
+  const pi_p4_id_t *resids = pi_p4info_table_get_direct_resources(
+      res->p4info, table_id, &res->num_direct_resources);
+  res->max_size_of_direct_resources = 0;
+  for (size_t i = 0; i < res->num_direct_resources; i++) {
     size_t size_of;
-    pi_direct_res_get_fns(PI_GET_TYPE_ID(res_ids[i]), NULL, NULL, &size_of,
+    pi_direct_res_get_fns(PI_GET_TYPE_ID(resids[i]), NULL, NULL, &size_of,
                           NULL);
     size_of = ALIGN_SIZE(size_of);
-    if (size_of > res_->max_size_of_direct_resources)
-      res_->max_size_of_direct_resources = size_of;
+    if (size_of > res->max_size_of_direct_resources)
+      res->max_size_of_direct_resources = size_of;
   }
-  if (res_->num_direct_resources > 0) {
+  if (res->num_direct_resources > 0) {
     size_per_entry += sizeof(pi_direct_res_config_t);
     size_per_entry = ALIGN_SIZE(size_per_entry);
     size_per_entry +=
-        res_->num_direct_resources * sizeof(pi_direct_res_config_one_t);
+        res->num_direct_resources * sizeof(pi_direct_res_config_one_t);
     size_per_entry = ALIGN_SIZE(size_per_entry);
     size_per_entry +=
-        res_->num_direct_resources * res_->max_size_of_direct_resources;
+        res->num_direct_resources * res->max_size_of_direct_resources;
   }
 
-  res_->data_size_per_entry = size_per_entry;
-  res_->data = malloc(res_->num_entries * size_per_entry);
+  res->data_size_per_entry = size_per_entry;
+  res->data = malloc(res->num_entries * size_per_entry);
+}
+
+pi_status_t pi_table_entries_fetch(pi_session_handle_t session_handle,
+                                   pi_dev_tgt_t dev_tgt, pi_p4_id_t table_id,
+                                   pi_table_fetch_res_t **res) {
+  pi_table_fetch_res_t *res_ = malloc(sizeof(pi_table_fetch_res_t));
+  pi_status_t status =
+      _pi_table_entries_fetch(session_handle, dev_tgt, table_id, res_);
+  if (status != PI_STATUS_SUCCESS) {
+    free(res_);
+    return status;
+  }
+
+  prepare_fetch_res(dev_tgt.dev_id, table_id, res_);
+
+  *res = res_;
+  return status;
+}
+
+pi_status_t pi_table_entries_fetch_one(pi_session_handle_t session_handle,
+                                       pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                       pi_entry_handle_t entry_handle,
+                                       pi_table_fetch_res_t **res) {
+  pi_table_fetch_res_t *res_ = malloc(sizeof(pi_table_fetch_res_t));
+  pi_status_t status = _pi_table_entries_fetch_one(
+      session_handle, dev_id, table_id, entry_handle, res_);
+  if (status != PI_STATUS_SUCCESS) {
+    free(res_);
+    return status;
+  }
+  assert(res_->num_entries == 1);
+
+  prepare_fetch_res(dev_id, table_id, res_);
+
+  *res = res_;
+  return status;
+}
+
+pi_status_t pi_table_entries_fetch_wkey(pi_session_handle_t session_handle,
+                                        pi_dev_tgt_t dev_tgt,
+                                        pi_p4_id_t table_id,
+                                        const pi_match_key_t *match_key,
+                                        pi_table_fetch_res_t **res) {
+  pi_table_fetch_res_t *res_ = malloc(sizeof(pi_table_fetch_res_t));
+  pi_status_t status = _pi_table_entries_fetch_wkey(session_handle, dev_tgt,
+                                                    table_id, match_key, res_);
+  if (status != PI_STATUS_SUCCESS) {
+    free(res_);
+    return status;
+  }
+
+  prepare_fetch_res(dev_tgt.dev_id, table_id, res_);
 
   *res = res_;
   return status;

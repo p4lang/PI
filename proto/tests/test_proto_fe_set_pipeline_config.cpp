@@ -66,6 +66,11 @@ class DeviceMgrSetPipelineConfigTest : public DeviceMgrBaseTest {
   DeviceMgr::Status set_pipeline_config(
       p4configv1::P4Info *p4info_proto,
       p4v1::SetForwardingPipelineConfigRequest_Action action) {
+    EXPECT_CALL(*mock, action_prof_api_support())
+        .Times(AnyNumber());
+    EXPECT_CALL(*mock, table_default_action_get_handle(_, _))
+        .Times(AnyNumber());
+
     p4v1::ForwardingPipelineConfig config;
     config.set_allocated_p4info(p4info_proto);
     auto status = mgr.pipeline_config_set(action, config);

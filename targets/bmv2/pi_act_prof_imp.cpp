@@ -273,7 +273,7 @@ pi_status_t _pi_act_prof_grp_activate_mbr(pi_session_handle_t session_handle,
   (void)act_prof_id;
   (void)grp_handle;
   (void)mbr_handle;
-  return PI_STATUS_RPC_NOT_IMPLEMENTED;
+  return PI_STATUS_NOT_IMPLEMENTED_BY_TARGET;
 }
 
 pi_status_t _pi_act_prof_grp_deactivate_mbr(pi_session_handle_t session_handle,
@@ -286,21 +286,21 @@ pi_status_t _pi_act_prof_grp_deactivate_mbr(pi_session_handle_t session_handle,
   (void)act_prof_id;
   (void)grp_handle;
   (void)mbr_handle;
-  return PI_STATUS_RPC_NOT_IMPLEMENTED;
+  return PI_STATUS_NOT_IMPLEMENTED_BY_TARGET;
 }
 
 pi_status_t _pi_act_prof_entries_fetch(pi_session_handle_t session_handle,
-                                       pi_dev_id_t dev_id,
+                                       pi_dev_tgt_t dev_tgt,
                                        pi_p4_id_t act_prof_id,
                                        pi_act_prof_fetch_res_t *res) {
   (void) session_handle;
 
-  pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_id);
+  pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_tgt.dev_id);
   assert(d_info->assigned);
   const pi_p4info_t *p4info = d_info->p4info;
   std::string ap_name(pi_p4info_act_prof_name_from_id(p4info, act_prof_id));
 
-  auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_id);
+  auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_tgt.dev_id);
 
   std::vector<BmMtActProfMember> members;
   std::vector<BmMtActProfGroup> groups;
@@ -375,6 +375,32 @@ pi_status_t _pi_act_prof_entries_fetch(pi_session_handle_t session_handle,
   }
 
   return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_act_prof_mbr_fetch(pi_session_handle_t session_handle,
+                                   pi_dev_id_t dev_id,
+                                   pi_p4_id_t act_prof_id,
+                                   pi_indirect_handle_t mbr_handle,
+                                   pi_act_prof_fetch_res_t *res) {
+  (void)session_handle;
+  (void)dev_id;
+  (void)act_prof_id;
+  (void)mbr_handle;
+  (void)res;
+  return PI_STATUS_NOT_IMPLEMENTED_BY_TARGET;
+}
+
+pi_status_t _pi_act_prof_grp_fetch(pi_session_handle_t session_handle,
+                                   pi_dev_id_t dev_id,
+                                   pi_p4_id_t act_prof_id,
+                                   pi_indirect_handle_t grp_handle,
+                                   pi_act_prof_fetch_res_t *res) {
+  (void)session_handle;
+  (void)dev_id;
+  (void)act_prof_id;
+  (void)grp_handle;
+  (void)res;
+  return PI_STATUS_NOT_IMPLEMENTED_BY_TARGET;
 }
 
 pi_status_t _pi_act_prof_entries_fetch_done(pi_session_handle_t session_handle,

@@ -467,8 +467,8 @@ static void __pi_table_default_action_get(char *req) {
 
   pi_session_handle_t sess;
   req += retrieve_session_handle(req, &sess);
-  pi_dev_id_t dev_id;
-  req += retrieve_dev_id(req, &dev_id);
+  pi_dev_tgt_t dev_tgt;
+  req += retrieve_dev_tgt(req, &dev_tgt);
   pi_p4_id_t table_id;
   req += retrieve_p4_id(req, &table_id);
 
@@ -476,7 +476,7 @@ static void __pi_table_default_action_get(char *req) {
   // not supported yet for entry retrieval
   default_entry.direct_res_config = NULL;
   pi_status_t status =
-      _pi_table_default_action_get(sess, dev_id, table_id, &default_entry);
+      _pi_table_default_action_get(sess, dev_tgt, table_id, &default_entry);
 
   size_t s = 0;
   s += sizeof(rep_hdr_t);
@@ -518,8 +518,8 @@ static void __pi_table_entry_delete_wkey(char *req) {
 
   pi_session_handle_t sess;
   req += retrieve_session_handle(req, &sess);
-  pi_dev_id_t dev_id;
-  req += retrieve_dev_id(req, &dev_id);
+  pi_dev_tgt_t dev_tgt;
+  req += retrieve_dev_tgt(req, &dev_tgt);
   pi_p4_id_t table_id;
   req += retrieve_p4_id(req, &table_id);
   pi_match_key_t match_key;
@@ -527,7 +527,7 @@ static void __pi_table_entry_delete_wkey(char *req) {
   match_key.table_id = table_id;
   req += retrieve_match_key(req, &match_key);
 
-  send_status(_pi_table_entry_delete_wkey(sess, dev_id, table_id, &match_key));
+  send_status(_pi_table_entry_delete_wkey(sess, dev_tgt, table_id, &match_key));
 }
 
 static void __pi_table_entry_modify_common(char *req, bool wkey) {
@@ -535,7 +535,12 @@ static void __pi_table_entry_modify_common(char *req, bool wkey) {
   pi_session_handle_t sess;
   req += retrieve_session_handle(req, &sess);
   pi_dev_id_t dev_id;
-  req += retrieve_dev_id(req, &dev_id);
+  pi_dev_tgt_t dev_tgt;
+  if (wkey) {
+    req += retrieve_dev_tgt(req, &dev_tgt);
+  } else {
+    req += retrieve_dev_id(req, &dev_id);
+  }
   pi_p4_id_t table_id;
   req += retrieve_p4_id(req, &table_id);
 
@@ -560,7 +565,7 @@ static void __pi_table_entry_modify_common(char *req, bool wkey) {
   pi_status_t status;
 
   if (wkey) {
-    status = _pi_table_entry_modify_wkey(sess, dev_id, table_id, &match_key,
+    status = _pi_table_entry_modify_wkey(sess, dev_tgt, table_id, &match_key,
                                          &table_entry);
   } else {
     status = _pi_table_entry_modify(sess, dev_id, table_id, h, &table_entry);
@@ -586,13 +591,13 @@ static void __pi_table_entries_fetch(char *req) {
 
   pi_session_handle_t sess;
   req += retrieve_session_handle(req, &sess);
-  pi_dev_id_t dev_id;
-  req += retrieve_dev_id(req, &dev_id);
+  pi_dev_tgt_t dev_tgt;
+  req += retrieve_dev_tgt(req, &dev_tgt);
   pi_p4_id_t table_id;
   req += retrieve_p4_id(req, &table_id);
 
   pi_table_fetch_res_t res;
-  pi_status_t status = _pi_table_entries_fetch(sess, dev_id, table_id, &res);
+  pi_status_t status = _pi_table_entries_fetch(sess, dev_tgt, table_id, &res);
 
   if (status != PI_STATUS_SUCCESS) {
     send_status(status);
@@ -780,14 +785,14 @@ static void __pi_act_prof_entries_fetch(char *req) {
 
   pi_session_handle_t sess;
   req += retrieve_session_handle(req, &sess);
-  pi_dev_id_t dev_id;
-  req += retrieve_dev_id(req, &dev_id);
+  pi_dev_tgt_t dev_tgt;
+  req += retrieve_dev_tgt(req, &dev_tgt);
   pi_p4_id_t act_prof_id;
   req += retrieve_p4_id(req, &act_prof_id);
 
   pi_act_prof_fetch_res_t res;
   pi_status_t status =
-      _pi_act_prof_entries_fetch(sess, dev_id, act_prof_id, &res);
+      _pi_act_prof_entries_fetch(sess, dev_tgt, act_prof_id, &res);
 
   if (status != PI_STATUS_SUCCESS) {
     send_status(status);

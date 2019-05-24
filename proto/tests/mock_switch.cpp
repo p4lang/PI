@@ -25,13 +25,14 @@
 #include <boost/functional/hash.hpp>
 #include <boost/optional.hpp>
 
-#include <algorithm>  // std::copy, std::for_each
+#include <algorithm>  // std::copy, std::for_each, std::count
 #include <map>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
+#include "PI/frontends/cpp/tables.h"
 #include "PI/frontends/proto/device_mgr.h"
 #include "PI/int/pi_int.h"
 #include "PI/int/serialize.h"
@@ -113,6 +114,11 @@ class ActionData {
         data(&action_data->data[0],
              &action_data->data[action_data->data_size]) { }
 
+  size_t emit_data(char *dst) const {
+    std::copy(data.begin(), data.end(), dst);
+    return data.size();
+  }
+
   size_t emit(char *dst) const {
     size_t s = 0;
     s += emit_p4_id(dst, action_id);
@@ -121,6 +127,8 @@ class ActionData {
     s += data.size();
     return s;
   }
+
+  pi_p4_id_t get_action_id() const { return action_id; }
 
  private:
   pi_p4_id_t action_id;
@@ -148,6 +156,11 @@ class DummyResource {
   pi_status_t write(I index, const ConfigType *config) {
     resources[static_cast<typename Resources::key_type>(index)] = *config;
     return PI_STATUS_SUCCESS;
+  }
+
+  template <typename I>
+  void reset(I index) {
+    resources.erase(static_cast<typename Resources::key_type>(index));
   }
 
  private:
@@ -181,6 +194,9 @@ class DummyCounter : public DummyResource<DummyCounter, pi_counter_data_t> {
 
 class DummyTableEntry {
  public:
+  DummyTableEntry()
+      : type(PI_ACTION_ENTRY_TYPE_NONE) { }
+
   explicit DummyTableEntry(const pi_table_entry_t *table_entry)
       : type(table_entry->entry_type) {
     switch (table_entry->entry_type) {
@@ -200,6 +216,9 @@ class DummyTableEntry {
     }
   }
 
+  explicit DummyTableEntry(const pi_action_data_t *action_data)
+      : type(PI_ACTION_ENTRY_TYPE_DATA), ad(action_data) { }
+
   size_t emit(char *dst) const {
     size_t s = 0;
     s += emit_action_entry_type(dst, type);
@@ -217,15 +236,21 @@ class DummyTableEntry {
     return s;
   }
 
+  const ActionData &action_data() const {
+    assert(type == PI_ACTION_ENTRY_TYPE_DATA);
+    return ad;
+  }
+
   uint64_t get_ttl() const { return ttl_ns; }
 
  private:
   pi_action_entry_type_t type;
   // not bothering with a union here
   ActionData ad;
-  pi_indirect_handle_t indirect_h;
+  pi_indirect_handle_t indirect_h{0};
   uint64_t ttl_ns{0};
 };
+
 
 class DummyTable {
  public:
@@ -239,7 +264,30 @@ class DummyTable {
   };
 
   DummyTable(pi_p4_id_t table_id, const pi_p4info_t *p4info)
-      : table_id(table_id), p4info(p4info) { }
+      : table_id(table_id), p4info(p4info) {
+    // in P4_16, every table always has a default action, so we need to
+    // initialize the default action to "something" that makes sense.
+    // Of course, we cannot do a proper initialization with just the P4Info, so
+    // we do the following:
+    //   1. if the table has a const default action, use it;
+    //   2. otherwise if the table has "NoAction" in its action list, use it;
+    //   3. otherwise, pick any action from the table's action list
+    // In all cases, action parameters are set to 0
+    auto default_action_id = generate_default_action_id();
+    size_t num_params;
+    auto params = pi_p4info_action_get_params(
+        p4info, default_action_id, &num_params);
+    pi::ActionData action_data(p4info, default_action_id);
+    for (size_t i = 0; i < num_params; i++) {
+      size_t bw = pi_p4info_action_param_bitwidth(
+          p4info, default_action_id, params[i]);
+      auto nbytes = static_cast<size_t>((bw + 7) / 8);
+      std::string zeros(nbytes, '\x00');
+      action_data.set_arg(params[i], zeros.data(), nbytes);
+    }
+    default_entry_saved = DummyTableEntry(action_data.get());
+    default_entry = default_entry_saved;
+  }
 
   void add_counter(pi_p4_id_t c_id, DummyCounter *counter) {
     counters[c_id] = counter;
@@ -264,26 +312,7 @@ class DummyTable {
         Entry(std::move(dmk), DummyTableEntry(table_entry)));
 
     // direct resources
-    // my original plan was to support them in DummyTableEntry, but because I
-    // need to access the Dummy instances for the resources, it seems easier to
-    // do it here.
-    if (table_entry->direct_res_config) {
-      auto *configs = table_entry->direct_res_config->configs;
-      for (size_t i = 0; i < table_entry->direct_res_config->num_configs; i++) {
-        pi_p4_id_t res_id = configs[i].res_id;
-        if (pi_is_direct_counter_id(res_id)) {
-          counters[res_id]->write(
-              entry_counter,
-              static_cast<const pi_counter_data_t *>(configs[i].config));
-        } else if (pi_is_direct_meter_id(res_id)) {
-          meters[res_id]->write(
-              entry_counter,
-              static_cast<const pi_meter_spec_t *>(configs[i].config));
-        } else {
-          assert(0 && "Unsupported direct resource id");
-        }
-      }
-    }
+    set_direct_configs(table_entry, entry_counter);
 
     *entry_handle = entry_counter++;
 
@@ -291,22 +320,63 @@ class DummyTable {
   }
 
   pi_status_t default_action_set(const pi_table_entry_t *table_entry) {
-    // boost::optional::emplace is only available in "recent" versions of boost
-    // (>= 1.56.0); to avoid issues we use copy assignment
-    // default_entry.emplace(table_entry);
     default_entry = DummyTableEntry(table_entry);
+    set_direct_configs(table_entry, defaultEntryHandle);
     return PI_STATUS_SUCCESS;
   }
 
   pi_status_t default_action_reset() {
-    default_entry.reset();
+    default_entry = default_entry_saved;
+    reset_direct_configs(defaultEntryHandle);
     return PI_STATUS_SUCCESS;
   }
 
-  // TOFO(antonin): implement
-  // TODO(antonin): support const default actions, how?
   pi_status_t default_action_get(pi_table_entry_t *table_entry) {
-    (void) table_entry;
+    {
+      char *buf = new char[1024];  // should be large enough for testing
+      pi_action_data_t *adata = reinterpret_cast<pi_action_data_t *>(buf);
+      char *buf_ptr = buf + sizeof(pi_action_data_t);
+
+      const auto &action_data = default_entry.action_data();
+      table_entry->entry_type = PI_ACTION_ENTRY_TYPE_DATA;
+      adata->p4info = p4info;
+      adata->action_id = action_data.get_action_id();
+      adata->data = buf_ptr;
+      adata->data_size = action_data.emit_data(buf_ptr);
+      table_entry->entry.action_data = adata;
+      table_entry->entry_properties = nullptr;
+    }
+
+    // direct resources
+    if (counters.size() + meters.size() > 0) {
+      pi_direct_res_config_t *config = new pi_direct_res_config_t;
+      table_entry->direct_res_config = config;
+      config->num_configs = counters.size() + meters.size();
+      config->configs = new pi_direct_res_config_one_t[config->num_configs];
+      size_t idx = 0;
+      for (const auto &counter_p : counters) {
+        auto &c = config->configs[idx++];
+        c.res_id = counter_p.first;
+        auto *config = new DummyCounter::config_type;
+        counter_p.second->read(defaultEntryHandle, config);
+        c.config = config;
+      }
+      for (const auto &meter_p : meters) {
+        auto &c = config->configs[idx++];
+        c.res_id = meter_p.first;
+        auto *config = new DummyMeter::config_type;
+        meter_p.second->read(defaultEntryHandle, config);
+        c.config = config;
+      }
+    } else {
+      table_entry->direct_res_config = nullptr;
+    }
+
+    return PI_STATUS_SUCCESS;
+  }
+
+  pi_status_t default_action_get_handle(pi_entry_handle_t *entry_handle) const {
+    *entry_handle = defaultEntryHandle;
     return PI_STATUS_SUCCESS;
   }
 
@@ -318,6 +388,7 @@ class DummyTable {
     (void) cnt;
     assert(cnt == 1);
     key_to_handle.erase(it);
+    reset_direct_configs(entry_handle);
     return PI_STATUS_SUCCESS;
   }
 
@@ -345,6 +416,31 @@ class DummyTable {
       buf_ptr += p.second.entry.emit(buf_ptr);
       buf_ptr += emit_direct_configs(buf_ptr, p.first);
     }
+    res->entries = buf;
+    res->entries_size = std::distance(buf, buf_ptr);
+    return PI_STATUS_SUCCESS;
+  }
+
+  pi_status_t entries_fetch_wkey(const pi_match_key_t *match_key,
+                                 pi_table_fetch_res_t *res) {
+    res->mkey_nbytes = 0;
+    char *buf = new char[1024];  // should be large enough for testing
+    char *buf_ptr = buf;
+
+    auto it = key_to_handle.find(DummyMatchKey(match_key));
+    if (it == key_to_handle.end()) {
+      res->num_entries = 0;
+    } else {
+      res->num_entries = 1;
+      auto entry_handle = it->second;
+      auto &entry = entries.at(entry_handle);
+      buf_ptr += emit_entry_handle(buf_ptr, entry_handle);
+      res->mkey_nbytes = entry.mk.nbytes();
+      buf_ptr += entry.mk.emit(buf_ptr);
+      buf_ptr += entry.entry.emit(buf_ptr);
+      buf_ptr += emit_direct_configs(buf_ptr, entry_handle);
+    }
+
     res->entries = buf;
     res->entries_size = std::distance(buf, buf_ptr);
     return PI_STATUS_SUCCESS;
@@ -378,6 +474,9 @@ class DummyTable {
   }
 
  private:
+  static constexpr pi_entry_handle_t defaultEntryHandle =
+      DummySwitchMock::defaultEntryHandle;
+
   bool has_ternary_match() const {
     size_t num_mfs = pi_p4info_table_num_match_fields(p4info, table_id);
     for (size_t idx = 0; idx < num_mfs; idx++) {
@@ -387,6 +486,36 @@ class DummyTable {
         return true;
     }
     return false;
+  }
+
+  void set_direct_configs(const pi_table_entry_t *table_entry,
+                          pi_entry_handle_t entry_handle) {
+    if (!table_entry->direct_res_config) return;
+    // my original plan was to support them in DummyTableEntry, but because I
+    // need to access the Dummy instances for the resources, it seems easier to
+    // do it here.
+    auto *configs = table_entry->direct_res_config->configs;
+    for (size_t i = 0; i < table_entry->direct_res_config->num_configs; i++) {
+      pi_p4_id_t res_id = configs[i].res_id;
+      if (pi_is_direct_counter_id(res_id)) {
+        counters[res_id]->write(
+            entry_handle,
+            static_cast<const pi_counter_data_t *>(configs[i].config));
+      } else if (pi_is_direct_meter_id(res_id)) {
+        meters[res_id]->write(
+            entry_handle,
+            static_cast<const pi_meter_spec_t *>(configs[i].config));
+      } else {
+        assert(0 && "Unsupported direct resource id");
+      }
+    }
+  }
+
+  void reset_direct_configs(pi_entry_handle_t entry_handle) {
+    for (auto &counter_p : counters)
+      counter_p.second->reset(entry_handle);
+    for (auto &meter_p : meters)
+      meter_p.second->reset(entry_handle);
   }
 
   template <typename T, typename It>
@@ -417,12 +546,29 @@ class DummyTable {
     return s;
   }
 
+  pi_p4_id_t generate_default_action_id() const {
+    bool has_mutable_action_params;
+    auto const_action_id = pi_p4info_table_get_const_default_action(
+        p4info, table_id, &has_mutable_action_params /* deprecated */);
+    if (const_action_id != PI_INVALID_ID) return const_action_id;
+    size_t num_actions;
+    auto actions = pi_p4info_table_get_actions(p4info, table_id, &num_actions);
+    assert(num_actions > 0);
+    auto noaction_id = pi_p4info_action_id_from_name(p4info, "NoAction");
+    if (noaction_id != PI_INVALID_ID &&
+        std::count(actions, actions + num_actions, noaction_id) > 1) {
+      return noaction_id;
+    }
+    return actions[0];
+  }
+
   const pi_p4_id_t table_id;
   const pi_p4info_t *p4info;
   std::unordered_map<pi_entry_handle_t, Entry> entries{};
   std::unordered_map<DummyMatchKey, pi_entry_handle_t, DummyMatchKeyHash>
   key_to_handle{};
-  boost::optional<DummyTableEntry> default_entry;
+  DummyTableEntry default_entry;
+  DummyTableEntry default_entry_saved;
   size_t entry_counter{0};
   std::map<pi_p4_id_t, DummyCounter *> counters{};
   std::map<pi_p4_id_t, DummyMeter *> meters{};
@@ -509,35 +655,38 @@ class DummyActionProf {
     res->num_members = members.size();
     res->num_groups = groups.size();
     constexpr size_t kBufSize = 16384;  // should be large enough for testing
-    // members
-    {
-      char *buf = new char[kBufSize];
-      char *buf_ptr = buf;
-      for (const auto &p : members) {
-        buf_ptr += emit_indirect_handle(buf_ptr, p.first);
-        buf_ptr += p.second.emit(buf_ptr);
-      }
-      res->entries_members = buf;
-      res->entries_members_size = std::distance(buf, buf_ptr);
+    if (res->num_members > 0) {
+      members_fetch(kBufSize, res, members.begin(), members.end());
     }
-    // groups
-    {
-      char *buf = new char[kBufSize];
-      char *buf_ptr = buf;
-      res->mbr_handles = new pi_indirect_handle_t[kBufSize];
-      res->num_cumulated_mbr_handles = 0;
-      size_t offset = 0;
-      for (const auto &p : groups) {
-        buf_ptr += emit_indirect_handle(buf_ptr, p.first);
-        auto &mbrs = p.second;
-        buf_ptr += emit_uint32(buf_ptr, mbrs.size());
-        buf_ptr += emit_uint32(buf_ptr, res->num_cumulated_mbr_handles);
-        res->num_cumulated_mbr_handles += mbrs.size();
-        for (const auto &m : mbrs) res->mbr_handles[offset++] = m;
-      }
-      res->entries_groups = buf;
-      res->entries_groups_size = std::distance(buf, buf_ptr);
+    if (res->num_groups > 0) {
+      groups_fetch(kBufSize, res, groups.begin(), groups.end());
     }
+    return PI_STATUS_SUCCESS;
+  }
+
+  pi_status_t member_fetch(pi_indirect_handle_t mbr_handle,
+                           pi_act_prof_fetch_res_t *res) {
+    res->num_groups = 0;
+    res->num_members = 0;
+    auto it = members.find(mbr_handle);
+    if (it == members.end()) return PI_STATUS_TARGET_ERROR;
+
+    res->num_members = 1;
+    members_fetch(1024, res, it, std::next(it));
+
+    return PI_STATUS_SUCCESS;
+  }
+
+  pi_status_t group_fetch(pi_indirect_handle_t grp_handle,
+                          pi_act_prof_fetch_res_t *res) {
+    res->num_groups = 0;
+    res->num_members = 0;
+    auto it = groups.find(grp_handle);
+    if (it == groups.end()) return PI_STATUS_TARGET_ERROR;
+
+    res->num_groups = 1;
+    groups_fetch(1024, res, it, std::next(it));
+
     return PI_STATUS_SUCCESS;
   }
 
@@ -545,6 +694,44 @@ class DummyActionProf {
   using GroupMembers = std::unordered_set<pi_indirect_handle_t>;
   std::unordered_map<pi_indirect_handle_t, ActionData> members{};
   std::unordered_map<pi_indirect_handle_t, GroupMembers> groups{};
+
+  char *members_fetch(size_t buf_size,
+                      pi_act_prof_fetch_res_t *res,
+                      const decltype(members)::iterator first,
+                      const decltype(members)::iterator last) const {
+    char *buf = new char[buf_size];
+    char *buf_ptr = buf;
+    for (auto it = first; it != last; it++) {
+      buf_ptr += emit_indirect_handle(buf_ptr, it->first);
+      buf_ptr += it->second.emit(buf_ptr);
+    }
+    res->entries_members = buf;
+    res->entries_members_size = std::distance(buf, buf_ptr);
+    return buf_ptr;
+  }
+
+  char *groups_fetch(size_t buf_size,
+                     pi_act_prof_fetch_res_t *res,
+                     const decltype(groups)::iterator first,
+                     const decltype(groups)::iterator last) const {
+    char *buf = new char[buf_size];
+    char *buf_ptr = buf;
+    res->mbr_handles = new pi_indirect_handle_t[buf_size];
+    res->num_cumulated_mbr_handles = 0;
+    size_t offset = 0;
+    for (auto it = first; it != last; it++) {
+      buf_ptr += emit_indirect_handle(buf_ptr, it->first);
+      auto &mbrs = it->second;
+      buf_ptr += emit_uint32(buf_ptr, mbrs.size());
+      buf_ptr += emit_uint32(buf_ptr, res->num_cumulated_mbr_handles);
+      res->num_cumulated_mbr_handles += mbrs.size();
+      for (const auto &m : mbrs) res->mbr_handles[offset++] = m;
+    }
+    res->entries_groups = buf;
+    res->entries_groups_size = std::distance(buf, buf_ptr);
+    return buf_ptr;
+  }
+
   size_t member_counter{0};
   size_t group_counter{1 << 24};
 };
@@ -664,6 +851,11 @@ class DummySwitch {
     return get_table(table_id).default_action_get(table_entry);
   }
 
+  pi_status_t table_default_action_get_handle(pi_p4_id_t table_id,
+                                              pi_entry_handle_t *entry_handle) {
+    return get_table(table_id).default_action_get_handle(entry_handle);
+  }
+
   pi_status_t table_entry_delete_wkey(pi_p4_id_t table_id,
                                       const pi_match_key_t *match_key) {
     return get_table(table_id).entry_delete_wkey(match_key);
@@ -678,6 +870,12 @@ class DummySwitch {
   pi_status_t table_entries_fetch(pi_p4_id_t table_id,
                                   pi_table_fetch_res_t *res) {
     return get_table(table_id).entries_fetch(res);
+  }
+
+  pi_status_t table_entries_fetch_wkey(pi_p4_id_t table_id,
+                                       const pi_match_key_t *match_key,
+                                       pi_table_fetch_res_t *res) {
+    return get_table(table_id).entries_fetch_wkey(match_key, res);
   }
 
   pi_status_t table_idle_timeout_config_set(
@@ -761,6 +959,18 @@ class DummySwitch {
   pi_status_t action_prof_entries_fetch(pi_p4_id_t act_prof_id,
                                         pi_act_prof_fetch_res_t *res) {
     return action_profs[act_prof_id].entries_fetch(res);
+  }
+
+  pi_status_t action_prof_member_fetch(pi_p4_id_t act_prof_id,
+                                       pi_indirect_handle_t mbr_handle,
+                                       pi_act_prof_fetch_res_t *res) {
+    return action_profs[act_prof_id].member_fetch(mbr_handle, res);
+  }
+
+  pi_status_t action_prof_group_fetch(pi_p4_id_t act_prof_id,
+                                      pi_indirect_handle_t grp_handle,
+                                      pi_act_prof_fetch_res_t *res) {
+    return action_profs[act_prof_id].group_fetch(grp_handle, res);
   }
 
   pi_status_t meter_read(pi_p4_id_t meter_id, size_t index,
@@ -962,6 +1172,9 @@ class DummySwitch {
   device_id_t device_id;
 };
 
+/* static */
+constexpr pi_entry_handle_t DummySwitchMock::defaultEntryHandle;
+
 DummySwitchMock::DummySwitchMock(device_id_t device_id)
     : sw(new DummySwitch(device_id)) {
   // delegate calls to real object
@@ -979,12 +1192,17 @@ DummySwitchMock::DummySwitchMock(device_id_t device_id)
       .WillByDefault(Invoke(sw_, &DummySwitch::table_default_action_reset));
   ON_CALL(*this, table_default_action_get(_, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::table_default_action_get));
+  ON_CALL(*this, table_default_action_get_handle(_, _))
+      .WillByDefault(
+          Invoke(sw_, &DummySwitch::table_default_action_get_handle));
   ON_CALL(*this, table_entry_delete_wkey(_, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::table_entry_delete_wkey));
   ON_CALL(*this, table_entry_modify_wkey(_, _, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::table_entry_modify_wkey));
   ON_CALL(*this, table_entries_fetch(_, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::table_entries_fetch));
+  ON_CALL(*this, table_entries_fetch_wkey(_, _, _))
+      .WillByDefault(Invoke(sw_, &DummySwitch::table_entries_fetch_wkey));
   ON_CALL(*this, table_idle_timeout_config_set(_, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::table_idle_timeout_config_set));
   ON_CALL(*this, table_entry_get_remaining_ttl(_, _, _))
@@ -1014,6 +1232,10 @@ DummySwitchMock::DummySwitchMock(device_id_t device_id)
       .WillByDefault(Invoke(sw_, &DummySwitch::action_prof_group_set_members));
   ON_CALL(*this, action_prof_entries_fetch(_, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::action_prof_entries_fetch));
+  ON_CALL(*this, action_prof_member_fetch(_, _, _))
+      .WillByDefault(Invoke(sw_, &DummySwitch::action_prof_member_fetch));
+  ON_CALL(*this, action_prof_group_fetch(_, _, _))
+      .WillByDefault(Invoke(sw_, &DummySwitch::action_prof_group_fetch));
   ON_CALL(*this, action_prof_api_support()).WillByDefault(Return(
       static_cast<int>(PiActProfApiSupport_BOTH)));
 
@@ -1245,18 +1467,40 @@ pi_status_t _pi_table_default_action_reset(pi_session_handle_t,
 }
 
 pi_status_t _pi_table_default_action_get(pi_session_handle_t,
-                                         pi_dev_id_t dev_id,
+                                         pi_dev_tgt_t dev_tgt,
                                          pi_p4_id_t table_id,
                                          pi_table_entry_t *table_entry) {
-  return DeviceResolver::get_switch(dev_id)->table_default_action_get(
+  return DeviceResolver::get_switch(dev_tgt.dev_id)->table_default_action_get(
       table_id, table_entry);
 }
 
-// TODO(antonin): implement when default_action_get is supported
 pi_status_t _pi_table_default_action_done(pi_session_handle_t,
                                           pi_table_entry_t *table_entry) {
-  (void) table_entry;
+  assert(table_entry->entry_type == PI_ACTION_ENTRY_TYPE_DATA);
+  delete[] table_entry->entry.action_data;
+  if (table_entry->direct_res_config != nullptr) {
+    auto *configs = table_entry->direct_res_config->configs;
+    for (size_t i = 0; i <  table_entry->direct_res_config->num_configs; i++) {
+      if (pi_is_direct_counter_id(configs[i].res_id))
+        delete static_cast<DummyCounter::config_type *>(configs[i].config);
+      else if (pi_is_direct_meter_id(configs[i].res_id))
+        delete static_cast<DummyMeter::config_type *>(configs[i].config);
+      else
+        assert(0 && "Unsupported direct resource id");
+    }
+    delete[] configs;
+    delete table_entry->direct_res_config;
+  }
   return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_table_default_action_get_handle(
+    pi_session_handle_t,
+    pi_dev_tgt_t dev_tgt,
+    pi_p4_id_t table_id,
+    pi_entry_handle_t *entry_handle) {
+  return DeviceResolver::get_switch(dev_tgt.dev_id)
+      ->table_default_action_get_handle(table_id, entry_handle);
 }
 
 pi_status_t _pi_table_entry_delete(pi_session_handle_t,
@@ -1267,17 +1511,19 @@ pi_status_t _pi_table_entry_delete(pi_session_handle_t,
 }
 
 pi_status_t _pi_table_entry_delete_wkey(pi_session_handle_t,
-                                        pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                        pi_dev_tgt_t dev_tgt,
+                                        pi_p4_id_t table_id,
                                         const pi_match_key_t *match_key) {
-  return DeviceResolver::get_switch(dev_id)->table_entry_delete_wkey(
+  return DeviceResolver::get_switch(dev_tgt.dev_id)->table_entry_delete_wkey(
       table_id, match_key);
 }
 
 pi_status_t _pi_table_entry_modify_wkey(pi_session_handle_t,
-                                        pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                        pi_dev_tgt_t dev_tgt,
+                                        pi_p4_id_t table_id,
                                         const pi_match_key_t *match_key,
                                         const pi_table_entry_t *table_entry) {
-  return DeviceResolver::get_switch(dev_id)->table_entry_modify_wkey(
+  return DeviceResolver::get_switch(dev_tgt.dev_id)->table_entry_modify_wkey(
       table_id, match_key, table_entry);
 }
 
@@ -1289,10 +1535,30 @@ pi_status_t _pi_table_entry_modify(pi_session_handle_t,
 }
 
 pi_status_t _pi_table_entries_fetch(pi_session_handle_t,
-                                    pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                    pi_dev_tgt_t dev_tgt, pi_p4_id_t table_id,
                                     pi_table_fetch_res_t *res) {
-  return DeviceResolver::get_switch(dev_id)->table_entries_fetch(
+  return DeviceResolver::get_switch(dev_tgt.dev_id)->table_entries_fetch(
       table_id, res);
+}
+
+pi_status_t _pi_table_entries_fetch_one(pi_session_handle_t,
+                                        pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                        pi_entry_handle_t entry_handle,
+                                        pi_table_fetch_res_t *res) {
+  (void) dev_id;
+  (void) table_id;
+  (void) entry_handle;
+  (void) res;
+  return PI_STATUS_NOT_IMPLEMENTED_BY_TARGET;
+}
+
+pi_status_t _pi_table_entries_fetch_wkey(pi_session_handle_t,
+                                         pi_dev_tgt_t dev_tgt,
+                                         pi_p4_id_t table_id,
+                                         const pi_match_key_t *match_key,
+                                         pi_table_fetch_res_t *res) {
+  return DeviceResolver::get_switch(dev_tgt.dev_id)->table_entries_fetch_wkey(
+      table_id, match_key, res);
 }
 
 pi_status_t _pi_table_entries_fetch_done(pi_session_handle_t,
@@ -1408,25 +1674,39 @@ pi_status_t _pi_act_prof_grp_deactivate_mbr(pi_session_handle_t,
           act_prof_id, grp_handle, mbr_handle);
 }
 
-pi_status_t _pi_act_prof_grp_deactivate_mbr(pi_session_handle_t session_handle,
-                                            pi_dev_id_t dev_id,
-                                            pi_p4_id_t act_prof_id,
-                                            pi_indirect_handle_t grp_handle,
-                                            pi_indirect_handle_t mbr_handle);
-
 pi_status_t _pi_act_prof_entries_fetch(pi_session_handle_t,
-                                       pi_dev_id_t dev_id,
+                                       pi_dev_tgt_t dev_tgt,
                                        pi_p4_id_t act_prof_id,
                                        pi_act_prof_fetch_res_t *res) {
-  return DeviceResolver::get_switch(dev_id)->action_prof_entries_fetch(
+  return DeviceResolver::get_switch(dev_tgt.dev_id)->action_prof_entries_fetch(
       act_prof_id, res);
+}
+
+pi_status_t _pi_act_prof_mbr_fetch(pi_session_handle_t,
+                                   pi_dev_id_t dev_id,
+                                   pi_p4_id_t act_prof_id,
+                                   pi_indirect_handle_t mbr_handle,
+                                   pi_act_prof_fetch_res_t *res) {
+  return DeviceResolver::get_switch(dev_id)->action_prof_member_fetch(
+      act_prof_id, mbr_handle, res);
+}
+
+pi_status_t _pi_act_prof_grp_fetch(pi_session_handle_t,
+                                   pi_dev_id_t dev_id,
+                                   pi_p4_id_t act_prof_id,
+                                   pi_indirect_handle_t grp_handle,
+                                   pi_act_prof_fetch_res_t *res) {
+  return DeviceResolver::get_switch(dev_id)->action_prof_group_fetch(
+      act_prof_id, grp_handle, res);
 }
 
 pi_status_t _pi_act_prof_entries_fetch_done(pi_session_handle_t,
                                             pi_act_prof_fetch_res_t *res) {
-  delete[] res->entries_members;
-  delete[] res->entries_groups;
-  delete[] res->mbr_handles;
+  if (res->num_members > 0) delete[] res->entries_members;
+  if (res->num_groups > 0) {
+    delete[] res->entries_groups;
+    delete[] res->mbr_handles;
+  }
   return PI_STATUS_SUCCESS;
 }
 

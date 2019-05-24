@@ -108,28 +108,71 @@ pi_status_t pi_act_prof_grp_deactivate_mbr(pi_session_handle_t session_handle,
                                          grp_handle, mbr_handle);
 }
 
-//! Deactivate a group member, without removing it from the group. This member
-//! should no longer be selected for packet processing.
-pi_status_t pi_act_prof_grp_deactivate_mbr(pi_session_handle_t session_handle,
-                                           pi_dev_id_t dev_id,
-                                           pi_p4_id_t act_prof_id,
-                                           pi_indirect_handle_t grp_handle,
-                                           pi_indirect_handle_t mbr_handle);
+static void prepare_fetch_res(pi_dev_id_t dev_id, pi_p4_id_t act_prof_id,
+                              pi_act_prof_fetch_res_t *res) {
+  res->p4info = pi_get_device_p4info(dev_id);
+  res->act_prof_id = act_prof_id;
+  res->idx_members = 0;
+  res->idx_groups = 0;
+  res->curr_members = 0;
+  res->curr_groups = 0;
+  res->action_datas = malloc(res->num_members * sizeof(pi_action_data_t));
+}
 
 pi_status_t pi_act_prof_entries_fetch(pi_session_handle_t session_handle,
-                                      pi_dev_id_t dev_id,
+                                      pi_dev_tgt_t dev_tgt,
                                       pi_p4_id_t act_prof_id,
                                       pi_act_prof_fetch_res_t **res) {
   pi_act_prof_fetch_res_t *res_ = malloc(sizeof(pi_act_prof_fetch_res_t));
   pi_status_t status =
-      _pi_act_prof_entries_fetch(session_handle, dev_id, act_prof_id, res_);
-  res_->p4info = pi_get_device_p4info(dev_id);
-  res_->act_prof_id = act_prof_id;
-  res_->idx_members = 0;
-  res_->idx_groups = 0;
-  res_->curr_members = 0;
-  res_->curr_groups = 0;
-  res_->action_datas = malloc(res_->num_members * sizeof(pi_action_data_t));
+      _pi_act_prof_entries_fetch(session_handle, dev_tgt, act_prof_id, res_);
+  if (status != PI_STATUS_SUCCESS) {
+    free(res_);
+    return status;
+  }
+
+  prepare_fetch_res(dev_tgt.dev_id, act_prof_id, res_);
+
+  *res = res_;
+  return status;
+}
+
+pi_status_t pi_act_prof_mbr_fetch(pi_session_handle_t session_handle,
+                                  pi_dev_id_t dev_id, pi_p4_id_t act_prof_id,
+                                  pi_indirect_handle_t mbr_handle,
+                                  pi_act_prof_fetch_res_t **res) {
+  pi_act_prof_fetch_res_t *res_ = malloc(sizeof(pi_act_prof_fetch_res_t));
+  pi_status_t status = _pi_act_prof_mbr_fetch(session_handle, dev_id,
+                                              act_prof_id, mbr_handle, res_);
+  if (status != PI_STATUS_SUCCESS) {
+    free(res_);
+    return status;
+  }
+  assert(res_->num_members == 1);
+  assert(res_->num_groups == 0);
+
+  prepare_fetch_res(dev_id, act_prof_id, res_);
+
+  *res = res_;
+  return status;
+}
+
+pi_status_t pi_act_prof_grp_fetch(pi_session_handle_t session_handle,
+                                  pi_dev_id_t dev_id, pi_p4_id_t act_prof_id,
+                                  pi_indirect_handle_t grp_handle,
+                                  pi_act_prof_fetch_res_t **res) {
+  pi_act_prof_fetch_res_t *res_ = malloc(sizeof(pi_act_prof_fetch_res_t));
+  pi_status_t status = _pi_act_prof_grp_fetch(session_handle, dev_id,
+                                              act_prof_id, grp_handle, res_);
+  if (status != PI_STATUS_SUCCESS) {
+    free(res_);
+    return status;
+  }
+  assert(res_->num_members == 0);
+  assert(res_->num_groups == 1);
+
+  prepare_fetch_res(dev_id, act_prof_id, res_);
+
   *res = res_;
   return status;
 }

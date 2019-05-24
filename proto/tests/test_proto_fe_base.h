@@ -78,6 +78,12 @@ class DeviceMgrBaseTest : public ProtoFrontendBaseTest {
       p4configv1::P4Info *p4info_proto,
       uint64_t cookie = 0,
       const std::string &device_config = defaultDeviceConfig) {
+    using ::testing::_;
+    EXPECT_CALL(*mock, action_prof_api_support())
+        .WillRepeatedly(::testing::Return(action_prof_api_choice));
+    EXPECT_CALL(*mock, table_default_action_get_handle(_, _))
+        .Times(::testing::AnyNumber());
+
     p4v1::ForwardingPipelineConfig config;
     config.set_allocated_p4info(p4info_proto);
     config.mutable_cookie()->set_cookie(cookie);
@@ -134,6 +140,7 @@ class DeviceMgrBaseTest : public ProtoFrontendBaseTest {
   static constexpr const char *invalid_p4_id_error_str = "Invalid P4 id";
 
   DeviceMgr mgr;
+  PiActProfApiSupport action_prof_api_choice{PiActProfApiSupport_BOTH};
 };
 
 class DeviceMgrUnittestBaseTest : public DeviceMgrBaseTest {
@@ -153,8 +160,6 @@ class DeviceMgrUnittestBaseTest : public DeviceMgrBaseTest {
 
   void SetUp() override {
     dummy_device_config = defaultDeviceConfig;
-    EXPECT_CALL(*mock, action_prof_api_support())
-        .WillRepeatedly(::testing::Return(action_prof_api_choice));
     EXPECT_CALL(*mock, table_idle_timeout_config_set(
         pi_p4info_table_id_from_name(p4info, "IdleTimeoutTable"),
         ::testing::_));
@@ -171,7 +176,6 @@ class DeviceMgrUnittestBaseTest : public DeviceMgrBaseTest {
   static p4configv1::P4Info p4info_proto;
 
   uint64_t cookie{666};
-  PiActProfApiSupport action_prof_api_choice{PiActProfApiSupport_BOTH};
   std::string dummy_device_config;
 };
 
