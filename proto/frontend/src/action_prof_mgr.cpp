@@ -435,7 +435,6 @@ ActionProfMgr::group_delete(const p4v1::ActionProfileGroup &group,
   auto pi_status = ap.group_delete(*group_h);
   if (pi_status != PI_STATUS_SUCCESS)
     RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when deleting group on target");
-  group_bimap.remove(group.group_id());
 
   auto it = group_members.find(group.group_id());
   if (it == group_members.end()) {
@@ -462,6 +461,10 @@ ActionProfMgr::group_delete(const p4v1::ActionProfileGroup &group,
     RETURN_IF_ERROR(purge_unused_weighted_members_wrapper(ap, member_state));
   }
   group_members.erase(it);
+
+  // we do this last, after every use of group_h since it will invalidate the
+  // pointer (of course we could also copy *group_h to a stack variable...)
+  group_bimap.remove(group.group_id());
 
   reset_selector_usage();
   RETURN_OK_STATUS();
