@@ -88,6 +88,10 @@ class MatchKey {
 
   bool get_is_default() const;
 
+  pi_match_key_t *get() const {
+    return match_key;
+  }
+
   template <typename T>
   typename std::enable_if<std::is_integral<T>::value, error_code_t>::type
   set_exact(pi_p4_id_t f_id, T key);
@@ -136,10 +140,6 @@ class MatchKey {
   error_code_t format(pi_p4_id_t f_id, const char *ptr, size_t s,
                       size_t offset, size_t *written);
 
-  pi_match_key_t *get() const {
-    return match_key;
-  }
-
   const pi_p4info_t *p4info;
   pi_p4_id_t table_id;
   bool is_default{false};
@@ -184,6 +184,10 @@ class ActionData {
 
   pi_p4_id_t get_action_id() const;
 
+  pi_action_data_t *get() const {
+    return action_data;
+  }
+
   template <typename T>
   typename std::enable_if<std::is_integral<T>::value, error_code_t>::type
   set_arg(pi_p4_id_t ap_id, T arg);
@@ -201,10 +205,6 @@ class ActionData {
   template <typename T>
   error_code_t format(pi_p4_id_t ap_id, T v);
   error_code_t format(pi_p4_id_t ap_id, const char *ptr, size_t s);
-
-  pi_action_data_t *get() const {
-    return action_data;
-  }
 
   const pi_p4info_t *p4info;
 #ifdef __clang__

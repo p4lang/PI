@@ -7,8 +7,8 @@ describes these formats at the byte level.
 
 ## Match key
 
-The `pi_match_key_t` struct is defined in [include/PI/int/pi_int.h]
-(../include/PI/int/pi_int.h) as follows:
+The `pi_match_key_t` struct is defined in
+[include/PI/int/pi_int.h](../include/PI/int/pi_int.h) as follows:
 ```
 struct pi_match_key_s {
   const pi_p4info_t *p4info;
@@ -41,7 +41,7 @@ most-significant bits of the first byte are set to 0).
 
 ### LPM match
 
-Same as for [exact match] (#exact-match), but an additional 4 bytes are used to
+Same as for [exact match](#exact-match), but an additional 4 bytes are used to
 serialize the prefix length. Unlike for the field value, the prefix length is
 serialized in little-endian order.
 
@@ -49,11 +49,11 @@ serialized in little-endian order.
 
 The number of bytes used is equal to twice the width, in bytes, of the P4
 field. The field value is serialized first, then the mask, as per the
-description [above] (#exact-match).
+description [above](#exact-match).
 
 ### Range match
 
-As for [ternary match] (#ternary-match). the number of bytes used is twice the
+As for [ternary match](#ternary-match). the number of bytes used is twice the
 width of the match field. The 'start' of the range is serialized first, followed
 by the 'end' of the range.
 
@@ -98,7 +98,7 @@ ff | ff | 00 | 00 | 00 | 00
 
 ### Some remarks
 
- * As you can see from the previous [example] (#match-key-example), the size of
+ * As you can see from the previous [example](#match-key-example), the size of
    the key could be further reduced. It is not necessary to dedicate 4 bytes to
    the prefix length. It is also not necessary to explicitly represent
    information which is masked off (in the case of a lpm or ternary match). We
@@ -112,8 +112,8 @@ ff | ff | 00 | 00 | 00 | 00
 
 ## Action data
 
-The `pi_action_data_t` struct is defined in [include/PI/int/pi_int.h]
-(../include/PI/int/pi_int.h) as follows:
+The `pi_action_data_t` struct is defined in
+[include/PI/int/pi_int.h](../include/PI/int/pi_int.h) as follows:
 ```
 struct pi_action_data_s {
   const pi_p4info_t *p4info;
@@ -159,7 +159,7 @@ will contain the following bytes (represented here in hexadecimal):
 
 The PI provides a method to retrieve all the match entries in a table. The
 result is stored in an instance of the `pi_table_fetch_res_t` struct, which is
-defined in [include/PI/int/pi_int.h] (../include/PI/int/pi_int.h) as follows:
+defined in [include/PI/int/pi_int.h](../include/PI/int/pi_int.h) as follows:
 ```
 struct pi_table_fetch_res_s {
   const pi_p4info_t *p4info;
@@ -193,7 +193,7 @@ each match entry:
 For each match entry handle, we serialize the above information as follows:
 
  * the entry handle, as 8 bytes in little-endian order
- * the serialized match key, as described [above] (#match-key)
+ * the serialized match key, as described [above](#match-key)
  * the action entry type: 0 (`PI_ACTION_ENTRY_TYPE_NONE`), 1
    (`PI_ACTION_ENTRY_TYPE_DATA`) or 2 (`PI_ACTION_ENTRY_TYPE_INDIRECT)
  * the action entry:
@@ -202,10 +202,10 @@ For each match entry handle, we serialize the above information as follows:
      * the action id, as 4 bytes in little-endian order
      * the size of the serialized action data in bytes, as 4 bytes in
        little-endian order
-     * the serialized action data, as described [above] (#action-data)
+     * the serialized action data, as described [above](#action-data)
    * for `PI_ACTION_ENTRY_TYPE_INDIRECT`: the indirect handle, as 8 bytes in
      little-endian order
- * the entry properties; see description [below] (#entry-properties)
+ * the entry properties; see description [below](#entry-properties)
  * TODO: direct resources
 
 The target backend code does not need to worry about the other members of the

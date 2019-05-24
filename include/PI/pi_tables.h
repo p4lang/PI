@@ -143,13 +143,20 @@ pi_status_t pi_table_default_action_reset(pi_session_handle_t session_handle,
 
 //! Retrieve the default entry for a table.
 pi_status_t pi_table_default_action_get(pi_session_handle_t session_handle,
-                                        pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                        pi_dev_tgt_t dev_tgt,
+                                        pi_p4_id_t table_id,
                                         pi_table_entry_t *table_entry);
 
 //! Need to be called after pi_table_default_action_get, once you wish the
 //! memory to be released.
 pi_status_t pi_table_default_action_done(pi_session_handle_t session_handle,
                                          pi_table_entry_t *table_entry);
+
+//! Retrieve the handle for the default action, guaranteed not to change during
+//! the lofetime of the program.
+pi_status_t pi_table_default_action_get_handle(
+    pi_session_handle_t session_handle, pi_dev_tgt_t dev_tgt,
+    pi_p4_id_t table_id, pi_entry_handle_t *entry_handle);
 
 //! Delete an entry from a table using the entry handle. Should return an error
 //! if entry does not exist.
@@ -160,7 +167,8 @@ pi_status_t pi_table_entry_delete(pi_session_handle_t session_handle,
 //! Delete an entry from a table using the match key. Should return an error
 //! if entry does not exist.
 pi_status_t pi_table_entry_delete_wkey(pi_session_handle_t session_handle,
-                                       pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                       pi_dev_tgt_t dev_tgt,
+                                       pi_p4_id_t table_id,
                                        const pi_match_key_t *match_key);
 
 //! Modify an existing entry using the entry handle. Should return an error if
@@ -173,7 +181,8 @@ pi_status_t pi_table_entry_modify(pi_session_handle_t session_handle,
 //! Modify an existing entry using the match key. Should return an error if
 //! entry does not exist.
 pi_status_t pi_table_entry_modify_wkey(pi_session_handle_t session_handle,
-                                       pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                       pi_dev_tgt_t dev_tgt,
+                                       pi_p4_id_t table_id,
                                        const pi_match_key_t *match_key,
                                        const pi_table_entry_t *table_entry);
 
@@ -181,11 +190,27 @@ typedef struct pi_table_fetch_res_s pi_table_fetch_res_t;
 
 //! Retrieve all entries in table as one big blob.
 pi_status_t pi_table_entries_fetch(pi_session_handle_t session_handle,
-                                   pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                   pi_dev_tgt_t dev_tgt, pi_p4_id_t table_id,
                                    pi_table_fetch_res_t **res);
 
-//! Need to be called after a pi_table_entries_fetch, once you wish the memory
-//! to be released.
+//! Retrieve a single entry from the handle.
+//! Return error if entry_handle is invalid.
+pi_status_t pi_table_entries_fetch_one(pi_session_handle_t session_handle,
+                                       pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                       pi_entry_handle_t entry_handle,
+                                       pi_table_fetch_res_t **res);
+
+//! Retrieve a single entry from the match key.
+//! Return empty pi_table_fetch_res_t (pi_table_entries_num returns 0) if no
+//! entry matches the provided match key.
+pi_status_t pi_table_entries_fetch_wkey(pi_session_handle_t session_handle,
+                                        pi_dev_tgt_t dev_tgt,
+                                        pi_p4_id_t table_id,
+                                        const pi_match_key_t *match_key,
+                                        pi_table_fetch_res_t **res);
+
+//! Need to be called after a fetch (any fetch), once you wish the memory to be
+//! released.
 pi_status_t pi_table_entries_fetch_done(pi_session_handle_t session_handle,
                                         pi_table_fetch_res_t *res);
 

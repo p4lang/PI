@@ -87,7 +87,7 @@ pi_cli_status_t do_table_delete_wkey(char *subcmd) {
   }
 
   pi_status_t rc;
-  rc = pi_table_entry_delete_wkey(sess, dev_tgt.dev_id, t_id, mk);
+  rc = pi_table_entry_delete_wkey(sess, dev_tgt, t_id, mk);
   if (rc == PI_STATUS_SUCCESS)
     printf("Entry was successfully removed.\n");
   else

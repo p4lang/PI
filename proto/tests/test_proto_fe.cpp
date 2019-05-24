@@ -52,6 +52,7 @@
 #include "PI/proto/util.h"
 
 #include "src/report_error.h"
+#include "src/statusor.h"
 
 #include "google/rpc/code.pb.h"
 
@@ -100,6 +101,8 @@ using ::testing::IsEmpty;
 using ::testing::IsNull;
 using ::testing::Return;
 using ::testing::SizeIs;
+
+using pi::fe::proto::StatusOr;
 
 // Used to make sure that a google::rpc::Status object has the correct format
 // and contains a single p4v1::Error message with a matching canonical error
@@ -515,26 +518,25 @@ TEST_P(MatchTableTest, AddAndRead) {
     EXPECT_EQ(status, OneExpectedError(Code::ALREADY_EXISTS));
   }
 
-  EXPECT_CALL(*mock, table_entries_fetch(t_id, _)).Times(2);
   // 2 different reads: first one is wildcard read on the table, other filters
   // on the match key.
+  EXPECT_CALL(*mock, table_entries_fetch(t_id, _));
   {
     p4v1::ReadResponse response;
     auto status = read_table_entries(t_id, &response);
     ASSERT_EQ(status.code(), Code::OK);
     const auto &entities = response.entities();
     ASSERT_EQ(1, entities.size());
-    EXPECT_TRUE(
-        MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
+    EXPECT_PROTO_EQ(entities.Get(0).table_entry(), entry);
   }
+  EXPECT_CALL(*mock, table_entries_fetch_wkey(t_id, mk_matcher, _));
   {
     p4v1::ReadResponse response;
     auto status = read_table_entry(&entry, &response);
     ASSERT_EQ(status.code(), Code::OK);
     const auto &entities = response.entities();
     ASSERT_EQ(1, entities.size());
-    EXPECT_TRUE(
-        MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
+    EXPECT_PROTO_EQ(entities.Get(0).table_entry(), entry);
   }
 }
 
@@ -603,6 +605,44 @@ TEST_P(MatchTableTest, SetDefault) {
   }
 }
 
+TEST_P(MatchTableTest, GetDefault) {
+  auto read_entry  = [this]() -> StatusOr<p4v1::TableEntry> {
+    p4v1::TableEntry entry;
+    entry.set_table_id(t_id);
+    entry.set_is_default_action(true);
+    p4v1::ReadResponse response;
+    RETURN_IF_ERROR(read_table_entry(&entry, &response));
+    const auto &entities = response.entities();
+    return entities.Get(0).table_entry();
+  };
+
+  EXPECT_CALL(*mock, table_default_action_get(t_id, _)).Times(3);
+
+  // we should be able to read the "P4" default entry without doing any set
+  // operation
+  auto entry_r1 = read_entry();
+  ASSERT_OK(entry_r1.status());
+
+  std::string adata(6, '\x00');
+  auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
+  auto entry = generic_make(t_id, boost::none, adata);
+  entry.set_is_default_action(true);
+  EXPECT_CALL(*mock, table_default_action_set(t_id, entry_matcher));
+  EXPECT_OK(modify_entry(&entry));
+
+  auto entry_r2 = read_entry();
+  ASSERT_OK(entry_r2.status());
+  EXPECT_PROTO_EQ(entry_r2.ValueOrDie(), entry);
+
+  EXPECT_CALL(*mock, table_default_action_reset(t_id));
+  entry.clear_action();
+  EXPECT_OK(modify_entry(&entry));
+
+  auto entry_r3 = read_entry();
+  ASSERT_OK(entry_r3.status());
+  EXPECT_PROTO_EQ(entry_r3.ValueOrDie(), entry_r1.ValueOrDie());
+}
+
 TEST_P(MatchTableTest, InvalidSetDefault) {
   // Invalid to set is_default_action flag to true with a non-empty match key
   std::string adata(6, '\x00');
@@ -613,7 +653,7 @@ TEST_P(MatchTableTest, InvalidSetDefault) {
   EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
 }
 
-TEST_P(MatchTableTest, ResetDefaultBeforeSet) {
+TEST_P(MatchTableTest, ResetDefault) {
   p4v1::TableEntry entry;
   entry.set_table_id(t_id);
   entry.set_is_default_action(true);
@@ -903,7 +943,6 @@ class ActionProfTest
 };
 
 TEST_P(ActionProfTest, Member) {
-  auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
   auto a_id = pi_p4info_action_id_from_name(p4info, "actionA");
   uint32_t member_id_1 = 123, member_id_2 = 234;  // can be arbitrary
   std::string adata_1(6, '\x00');
@@ -939,7 +978,6 @@ TEST_P(ActionProfTest, Member) {
 
 TEST_P(ActionProfTest, CreateDupMemberId) {
   DeviceMgr::Status status;
-  auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
   uint32_t member_id = 123;
   std::string adata(6, '\x00');
   EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _))
@@ -963,7 +1001,6 @@ TEST_P(ActionProfTest, BadMemberId) {
 
 TEST_P(ActionProfTest, Group) {
   DeviceMgr::Status status;
-  auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
   uint32_t group_id = 1000;
   uint32_t member_id_1 = 1, member_id_2 = 2;
 
@@ -1034,7 +1071,6 @@ TEST_P(ActionProfTest, Group) {
 }
 
 TEST_P(ActionProfTest, Read) {
-  auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
   uint32_t group_id = 1000;
   uint32_t member_id_1 = 1;
 
@@ -1074,13 +1110,58 @@ TEST_P(ActionProfTest, Read) {
   ASSERT_OK(mgr.read(request, &response));
   const auto &entities = response.entities();
   ASSERT_EQ(2, entities.size());
-  ASSERT_TRUE(MessageDifferencer::Equals(
-      member_1, entities.Get(0).action_profile_member()));
+  EXPECT_PROTO_EQ(entities.Get(0).action_profile_member(), member_1);
+}
+
+TEST_P(ActionProfTest, ReadOne) {
+  uint32_t group_id = 1000;
+  uint32_t member_id_1 = 1;
+
+  // create 1 member
+  std::string adata(6, '\x00');
+  EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _));
+  auto member_1 = make_member(member_id_1, adata);
+  EXPECT_OK(create_member(&member_1));
+  auto mbr_h_1 = mock->get_action_prof_handle();
+
+  // create group with one member
+  auto group = make_group(group_id);
+  add_member_to_group(&group, member_id_1);
+  EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, _, _));
+  if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
+    EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, mbr_h_1);
+  } else {
+    EXPECT_CALL_GROUP_SET_MEMBERS(
+        *mock, act_prof_id, _, ElementsAre(mbr_h_1), ElementsAre(true));
+  }
+  EXPECT_OK(create_group(&group));
+  auto grp_h = mock->get_action_prof_handle();
+
+  EXPECT_CALL(*mock, action_prof_member_fetch(act_prof_id, mbr_h_1, _));
+  EXPECT_CALL(*mock, action_prof_group_fetch(act_prof_id, grp_h, _));
+  p4v1::ReadResponse response;
+  p4v1::ReadRequest request;
+  {
+    auto entity = request.add_entities();
+    auto member = entity->mutable_action_profile_member();
+    member->set_action_profile_id(act_prof_id);
+    member->set_member_id(member_id_1);
+  }
+  {
+    auto entity = request.add_entities();
+    auto group = entity->mutable_action_profile_group();
+    group->set_action_profile_id(act_prof_id);
+    group->set_group_id(group_id);
+  }
+  ASSERT_OK(mgr.read(request, &response));
+  const auto &entities = response.entities();
+  ASSERT_EQ(2, entities.size());
+  EXPECT_PROTO_EQ(entities.Get(0).action_profile_member(), member_1);
+  EXPECT_PROTO_EQ(entities.Get(1).action_profile_group(), group);
 }
 
 TEST_P(ActionProfTest, CreateDupGroupId) {
   DeviceMgr::Status status;
-  auto act_prof_id = pi_p4info_act_prof_id_from_name(p4info, "ActProfWS");
   uint32_t group_id = 1000;
   auto group = make_group(group_id);
   EXPECT_CALL(*mock, action_prof_group_create(act_prof_id, _, _))
@@ -1174,8 +1255,7 @@ TEST_P(ActionProfTest, MemberWeights) {
   ASSERT_OK(mgr.read(request, &response));
   const auto &entities = response.entities();
   ASSERT_EQ(1, entities.size());
-  ASSERT_TRUE(MessageDifferencer::Equals(
-      group, entities.Get(0).action_profile_group()));
+  EXPECT_PROTO_EQ(entities.Get(0).action_profile_group(), group);
 
   // change the weight to 2, this should cause one of the member copies to be
   // removed from the group and the member copy should also be deleted, since it
@@ -1238,8 +1318,7 @@ TEST_P(ActionProfTest, MemberWatchPort) {
   ASSERT_OK(mgr.read(request, &response));
   const auto &entities = response.entities();
   ASSERT_EQ(1, entities.size());
-  ASSERT_TRUE(MessageDifferencer::Equals(
-      group, entities.Get(0).action_profile_group()));
+  EXPECT_PROTO_EQ(entities.Get(0).action_profile_group(), group);
 
   std::chrono::milliseconds timeout(200);
   CallCountTracker tracker_deactivate;
@@ -1666,7 +1745,7 @@ TEST_P(MatchTableIndirectTest, Member) {
   ASSERT_EQ(status.code(), Code::OK);
   const auto &entities = response.entities();
   ASSERT_EQ(1, entities.size());
-  ASSERT_TRUE(MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
+  EXPECT_PROTO_EQ(entities.Get(0).table_entry(), entry);
 }
 
 TEST_P(MatchTableIndirectTest, Group) {
@@ -1693,7 +1772,7 @@ TEST_P(MatchTableIndirectTest, Group) {
   ASSERT_EQ(status.code(), Code::OK);
   const auto &entities = response.entities();
   ASSERT_EQ(1, entities.size());
-  ASSERT_TRUE(MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
+  EXPECT_PROTO_EQ(entities.Get(0).table_entry(), entry);
 }
 
 TEST_P(MatchTableIndirectTest, OneShotInsertAndRead) {
@@ -1711,8 +1790,7 @@ TEST_P(MatchTableIndirectTest, OneShotInsertAndRead) {
   ASSERT_OK(read_table_entries(t_id, &response));
   const auto &entities = response.entities();
   ASSERT_EQ(1, entities.size());
-  EXPECT_TRUE(
-      MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
+  EXPECT_PROTO_EQ(entities.Get(0).table_entry(), entry);
 }
 
 TEST_P(MatchTableIndirectTest, OneShotInsertAndModify) {
@@ -1790,8 +1868,7 @@ TEST_P(MatchTableIndirectTest, OneShotWeights) {
   ASSERT_OK(read_table_entries(t_id, &response));
   const auto &entities = response.entities();
   ASSERT_EQ(1, entities.size());
-  EXPECT_TRUE(
-      MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
+  EXPECT_PROTO_EQ(entities.Get(0).table_entry(), entry);
 }
 
 TEST_P(MatchTableIndirectTest, OneShotWatchPort) {
@@ -1814,8 +1891,7 @@ TEST_P(MatchTableIndirectTest, OneShotWatchPort) {
   ASSERT_OK(read_table_entries(t_id, &response));
   const auto &entities = response.entities();
   ASSERT_EQ(1, entities.size());
-  EXPECT_TRUE(
-      MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
+  EXPECT_PROTO_EQ(entities.Get(0).table_entry(), entry);
 
   std::chrono::milliseconds timeout(200);
   CallCountTracker tracker_activate;
@@ -2153,10 +2229,7 @@ TEST_F(DirectMeterTest, WriteAndRead) {
   auto mk_matcher = CorrectMatchKey(t_id, mf);
   auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
-  {
-    auto status = add_entry(&entry);
-    ASSERT_EQ(status.code(), Code::OK);
-  }
+  ASSERT_OK(add_entry(&entry));
   auto entry_h = mock->get_table_entry_handle();
 
   auto config = make_meter_config();
@@ -2165,10 +2238,7 @@ TEST_F(DirectMeterTest, WriteAndRead) {
   auto meter_spec_matcher = CorrectMeterSpec(
       config, PI_METER_UNIT_BYTES, PI_METER_TYPE_COLOR_UNAWARE);
   EXPECT_CALL(*mock, meter_set_direct(m_id, entry_h, meter_spec_matcher));
-  {
-    auto status = set_meter(&meter_entry);
-    ASSERT_EQ(status.code(), Code::OK);
-  }
+  ASSERT_OK(set_meter(&meter_entry));
 
   // read with DirectMeterEntry
   EXPECT_CALL(*mock, meter_read_direct(m_id, entry_h, _));
@@ -2179,7 +2249,7 @@ TEST_F(DirectMeterTest, WriteAndRead) {
     const auto &entities = response.entities();
     ASSERT_EQ(1, entities.size());
     const auto &read_entry = entities.Get(0).direct_meter_entry();
-    EXPECT_TRUE(MessageDifferencer::Equals(meter_entry, read_entry));
+    EXPECT_PROTO_EQ(read_entry, meter_entry);
   }
 
   // read with TableEntry
@@ -2196,7 +2266,7 @@ TEST_F(DirectMeterTest, WriteAndRead) {
     const auto &entities = response.entities();
     ASSERT_EQ(1, entities.size());
     const auto &read_entry = entities.Get(0).table_entry();
-    EXPECT_TRUE(MessageDifferencer::Equals(config, read_entry.meter_config()));
+    EXPECT_PROTO_EQ(read_entry.meter_config(), config);
   }
 }
 
@@ -2224,10 +2294,7 @@ TEST_F(DirectMeterTest, InvalidTableEntry) {
   std::string mf_1("\xaa\xbb\xcc\xdd", 4);
   auto entry_1 = make_entry(mf_1, adata);
   EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
-  {
-    auto status = add_entry(&entry_1);
-    ASSERT_EQ(status.code(), Code::OK);
-  }
+  ASSERT_OK(add_entry(&entry_1));
 
   std::string mf_2("\xaa\xbb\xcc\xee", 4);
   auto entry_2 = make_entry(mf_2, adata);
@@ -2244,6 +2311,55 @@ TEST_F(DirectMeterTest, MissingTableEntry) {
   auto status = set_meter(&meter_entry);
   EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
 }
+
+// default entry direct meter access with DirectMeterEntry message
+TEST_F(DirectMeterTest, DefaultEntry) {
+  std::string adata(6, '\x00');
+  auto entry = make_entry(boost::none, adata);
+  entry.set_is_default_action(true);
+  auto config = make_meter_config();
+  auto meter_entry = make_meter_entry(entry, config);
+
+  auto meter_spec_matcher = CorrectMeterSpec(
+      config, PI_METER_UNIT_BYTES, PI_METER_TYPE_COLOR_UNAWARE);
+  EXPECT_CALL(*mock, meter_set_direct(
+      m_id, DummySwitchMock::defaultEntryHandle, meter_spec_matcher));
+  ASSERT_OK(set_meter(&meter_entry));
+
+  EXPECT_CALL(*mock, meter_read_direct(
+      m_id, DummySwitchMock::defaultEntryHandle, _));
+  p4v1::ReadResponse response;
+  ASSERT_OK(read_meter(&meter_entry, &response));
+  const auto &entities = response.entities();
+  const auto &read_entry = entities.Get(0).direct_meter_entry();
+  EXPECT_PROTO_EQ(read_entry, meter_entry);
+}
+
+// default entry direct meter access with TableEntry message
+TEST_F(DirectMeterTest, WriteInTableEntryDefault) {
+  std::string adata(6, '\x00');
+  auto entry = make_entry(boost::none, adata);
+  entry.set_is_default_action(true);
+  auto *meter_config = entry.mutable_meter_config();
+  *meter_config = make_meter_config();
+
+  auto *entry_matcher_ = new TableEntryMatcher_Direct(a_id, adata);
+  entry_matcher_->add_direct_meter(
+      m_id, *meter_config, PI_METER_UNIT_BYTES, PI_METER_TYPE_COLOR_UNAWARE);
+  auto entry_matcher = ::testing::MakeMatcher(entry_matcher_);
+
+  EXPECT_CALL(*mock, table_default_action_set(t_id, entry_matcher));
+  auto status = modify_entry(&entry);
+  EXPECT_EQ(status.code(), Code::OK);
+
+  EXPECT_CALL(*mock, table_default_action_get(t_id, _));
+  p4v1::ReadResponse response;
+  ASSERT_OK(read_table_entry(&entry, &response));
+  const auto &entities = response.entities();
+  const auto &read_entry =  entities.Get(0).table_entry();
+  EXPECT_PROTO_EQ(read_entry, entry);
+}
+
 
 class IndirectMeterTest : public DeviceMgrTest  {
  protected:
@@ -2316,7 +2432,7 @@ TEST_F(IndirectMeterTest, WriteAndRead) {
   const auto &entities = response.entities();
   ASSERT_EQ(1, entities.size());
   const auto &read_meter_entry = entities.Get(0).meter_entry();
-  EXPECT_TRUE(MessageDifferencer::Equals(meter_entry, read_meter_entry));
+  EXPECT_PROTO_EQ(read_meter_entry, meter_entry);
 }
 
 class DirectCounterTest : public ExactOneTest {
@@ -2365,10 +2481,7 @@ TEST_F(DirectCounterTest, WriteAndRead) {
   auto mk_matcher = CorrectMatchKey(t_id, mf);
   auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
-  {
-    auto status = add_entry(&entry);
-    ASSERT_EQ(status.code(), Code::OK);
-  }
+  ASSERT_OK(add_entry(&entry));
   auto entry_h = mock->get_table_entry_handle();
 
   auto counter_entry = make_counter_entry(&entry);
@@ -2377,10 +2490,7 @@ TEST_F(DirectCounterTest, WriteAndRead) {
   // check packets, but not bytes, as per P4 program (packet-only counter)
   auto counter_matcher = CorrectCounterData(*counter_data, false, true);
   EXPECT_CALL(*mock, counter_write_direct(c_id, entry_h, counter_matcher));
-  {
-    auto status = write_counter(&counter_entry);
-    ASSERT_EQ(status.code(), Code::OK);
-  }
+  ASSERT_OK(write_counter(&counter_entry));
 
   // read with DirectCounterEntry
   EXPECT_CALL(*mock, counter_read_direct(c_id, entry_h, _, _));
@@ -2391,7 +2501,7 @@ TEST_F(DirectCounterTest, WriteAndRead) {
     const auto &entities = response.entities();
     ASSERT_EQ(1, entities.size());
     const auto &read_entry = entities.Get(0).direct_counter_entry();
-    EXPECT_TRUE(MessageDifferencer::Equals(entry, read_entry.table_entry()));
+    EXPECT_PROTO_EQ(read_entry.table_entry(), entry);
     EXPECT_EQ(read_entry.data().byte_count(), 0);
     EXPECT_EQ(read_entry.data().packet_count(), 3);
   }
@@ -2422,10 +2532,7 @@ TEST_F(DirectCounterTest, InvalidTableEntry) {
   auto mk_matcher = CorrectMatchKey(t_id, mf);
   auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
-  {
-    auto status = add_entry(&entry);
-    ASSERT_EQ(status.code(), Code::OK);
-  }
+  ASSERT_OK(add_entry(&entry));
 
   std::string mf_1("\xaa\xbb\xcc\xee", 4);
   auto entry_1 = make_entry(mf_1, adata);
@@ -2433,7 +2540,7 @@ TEST_F(DirectCounterTest, InvalidTableEntry) {
   {
     p4v1::ReadResponse response;
     auto status = read_counter(&counter_entry, &response);
-    ASSERT_EQ(status.code(), Code::INVALID_ARGUMENT);
+    EXPECT_EQ(status.code(), Code::INVALID_ARGUMENT);
   }
 }
 
@@ -2445,16 +2552,13 @@ TEST_F(DirectCounterTest, ReadAllFromTable) {
   auto mk_matcher = CorrectMatchKey(t_id, mf);
   auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
-  {
-    auto status = add_entry(&entry);
-    ASSERT_EQ(status.code(), Code::OK);
-  }
+  ASSERT_OK(add_entry(&entry));
 
   p4v1::ReadResponse response;
   p4v1::DirectCounterEntry counter_entry;
   counter_entry.mutable_table_entry()->set_table_id(entry.table_id());
   auto status = read_counter(&counter_entry, &response);
-  ASSERT_EQ(status.code(), Code::UNIMPLEMENTED);
+  EXPECT_EQ(status.code(), Code::UNIMPLEMENTED);
 }
 
 TEST_F(DirectCounterTest, MissingTableEntry) {
@@ -2470,7 +2574,7 @@ TEST_F(DirectCounterTest, ReadAll) {
   p4v1::DirectCounterEntry counter_entry;
   counter_entry.mutable_table_entry();
   auto status = read_counter(&counter_entry, &response);
-  ASSERT_EQ(status.code(), Code::UNIMPLEMENTED);
+  EXPECT_EQ(status.code(), Code::UNIMPLEMENTED);
 }
 
 TEST_F(DirectCounterTest, WriteInTableEntry) {
@@ -2489,6 +2593,53 @@ TEST_F(DirectCounterTest, WriteInTableEntry) {
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
   auto status = add_entry(&entry);
   EXPECT_EQ(status.code(), Code::OK);
+}
+
+// default entry direct counter access with DirectCounterEntry message
+TEST_F(DirectCounterTest, DefaultEntry) {
+  std::string adata(6, '\x00');
+  auto entry = make_entry(boost::none, adata);
+  entry.set_is_default_action(true);
+  auto counter_entry = make_counter_entry(&entry);
+  auto *counter_data = counter_entry.mutable_data();
+  counter_data->set_packet_count(3);
+
+  auto counter_matcher = CorrectCounterData(*counter_data, false, true);
+  EXPECT_CALL(*mock, counter_write_direct(
+      c_id, DummySwitchMock::defaultEntryHandle, counter_matcher));
+  ASSERT_OK(write_counter(&counter_entry));
+
+  EXPECT_CALL(*mock, counter_read_direct(
+      c_id, DummySwitchMock::defaultEntryHandle, _, _));
+  p4v1::ReadResponse response;
+  ASSERT_OK(read_counter(&counter_entry, &response));
+  const auto &entities = response.entities();
+  const auto &read_entry = entities.Get(0).direct_counter_entry();
+  EXPECT_PROTO_EQ(read_entry, counter_entry);
+}
+
+// default entry direct counter access with TableEntry message
+TEST_F(DirectCounterTest, WriteInTableEntryDefault) {
+  std::string adata(6, '\x00');
+  auto entry = make_entry(boost::none, adata);
+  entry.set_is_default_action(true);
+  auto counter_data = entry.mutable_counter_data();
+  counter_data->set_packet_count(3);
+
+  auto *entry_matcher_ = new TableEntryMatcher_Direct(a_id, adata);
+  entry_matcher_->add_direct_counter(c_id, *counter_data, false, true);
+  auto entry_matcher = ::testing::MakeMatcher(entry_matcher_);
+
+  EXPECT_CALL(*mock, table_default_action_set(t_id, entry_matcher));
+  auto status = modify_entry(&entry);
+  EXPECT_EQ(status.code(), Code::OK);
+
+  EXPECT_CALL(*mock, table_default_action_get(t_id, _));
+  p4v1::ReadResponse response;
+  ASSERT_OK(read_table_entry(&entry, &response));
+  const auto &entities = response.entities();
+  const auto &read_entry =  entities.Get(0).table_entry();
+  EXPECT_PROTO_EQ(read_entry, entry);
 }
 
 class IndirectCounterTest : public DeviceMgrTest  {
@@ -2575,7 +2726,7 @@ TEST_F(IndirectCounterTest, ReadAll) {
   for (size_t i = 0; i < c_size; i++) {
     const auto &entry = entities.Get(i).counter_entry();
     set_index(&counter_entry, i);
-    ASSERT_TRUE(MessageDifferencer::Equals(counter_entry, entry));
+    EXPECT_PROTO_EQ(entry, counter_entry);
   }
 }
 
@@ -2671,12 +2822,11 @@ TEST_F(MatchKeyFormatTest, BadLeadingZeros) {
 }
 
 
-#define EXPECT_ONE_TABLE_ENTRY(response, expected_entry) \
-  do {                                                   \
-    const auto &entities = response.entities();          \
-    ASSERT_EQ(1, entities.size());                       \
-    EXPECT_TRUE(MessageDifferencer::Equals(              \
-        expected_entry, entities.Get(0).table_entry())); \
+#define EXPECT_ONE_TABLE_ENTRY(response, expected_entry)                \
+  do {                                                                  \
+    const auto &entities = response.entities();                         \
+    ASSERT_EQ(1, entities.size());                                      \
+    EXPECT_PROTO_EQ(entities.Get(0).table_entry(), expected_entry);    \
   } while (false)
 
 class TernaryOneTest : public DeviceMgrTest {
@@ -3397,8 +3547,7 @@ TEST_F(DigestTest, WriteAndRead) {
   EXPECT_OK(mgr.read_one(*entity, &response));
   const auto &read_entities = response.entities();
   ASSERT_EQ(read_entities.size(), 1);
-  EXPECT_TRUE(MessageDifferencer::Equals(
-      *digest_entry, read_entities.Get(0).digest_entry()));
+  EXPECT_PROTO_EQ(read_entities.Get(0).digest_entry(), *digest_entry);
   update->set_type(p4v1::Update::DELETE);
   EXPECT_CALL(*mock, learn_config_set(digest_id, IsNull()));
   EXPECT_OK(mgr.write(request));
@@ -3531,8 +3680,8 @@ class MatchTableConstDefaultActionTest : public DeviceMgrTest {
     aC_id = pi_p4info_action_id_from_name(p4info, "actionC");
   }
 
-  DeviceMgr::Status set_default(pi_p4_id_t a_id,
-                                const boost::optional<std::string> &param_v) {
+  p4v1::TableEntry make_entry(pi_p4_id_t a_id,
+                              const boost::optional<std::string> &param_v) {
     p4v1::TableEntry table_entry;
     table_entry.set_table_id(t_id);
     table_entry.set_is_default_action(true);
@@ -3545,6 +3694,12 @@ class MatchTableConstDefaultActionTest : public DeviceMgrTest {
           pi_p4info_action_param_id_from_name(p4info, a_id, "param"));
       param->set_value(*param_v);
     }
+    return table_entry;
+  }
+
+  DeviceMgr::Status set_default(pi_p4_id_t a_id,
+                                const boost::optional<std::string> &param_v) {
+    auto table_entry = make_entry(a_id, param_v);
     return modify_entry(&table_entry);
   }
 
@@ -3561,6 +3716,24 @@ TEST_F(MatchTableConstDefaultActionTest, MutateParam) {
 TEST_F(MatchTableConstDefaultActionTest, MutateAction) {
   EXPECT_EQ(set_default(aC_id, boost::none),
             OneExpectedError(Code::PERMISSION_DENIED, "const default action"));
+}
+
+TEST_F(MatchTableConstDefaultActionTest, GetBeforeSet) {
+  p4v1::TableEntry entry;
+  entry.set_table_id(t_id);
+  entry.set_is_default_action(true);
+  EXPECT_CALL(*mock, table_default_action_get(t_id, _));
+  p4v1::ReadResponse response;
+  auto status = read_table_entry(&entry, &response);
+  ASSERT_OK(status);
+  const auto &entities = response.entities();
+  const auto &read_entry = entities.Get(0).table_entry();
+  // It should be "\x01" as per the P4 program, but the P4Info does not include
+  // that kind of information so the mock switch will set all the action
+  // parameters to 0.
+  // auto expected_entry = make_entry(aB_id, std::string("\x01"));
+  auto expected_entry = make_entry(aB_id, std::string("\x00", 1));
+  EXPECT_PROTO_EQ(read_entry, expected_entry);
 }
 
 
@@ -3735,7 +3908,7 @@ TEST_F(IdleTimeoutTest, EntryAgeing) {
   ASSERT_EQ(notification->table_entry_size(), 1);
   const auto &table_entry = notification->table_entry(0);
   entry.clear_action();
-  EXPECT_TRUE(MessageDifferencer::Equals(table_entry, entry));
+  EXPECT_PROTO_EQ(table_entry, entry);
   EXPECT_EQ(notification_receive(negativeTimeout), boost::none);
 }
 
@@ -3813,7 +3986,7 @@ TEST_F(IdleTimeoutTest, ReadEntry) {
   EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
   EXPECT_OK(add_entry(&entry));
 
-  EXPECT_CALL(*mock, table_entries_fetch(t_id, _)).Times(2);
+  EXPECT_CALL(*mock, table_entries_fetch_wkey(t_id, _, _)).Times(2);
 
   {
     p4v1::ReadResponse response;
@@ -3821,8 +3994,7 @@ TEST_F(IdleTimeoutTest, ReadEntry) {
     ASSERT_EQ(status.code(), Code::OK);
     const auto &entities = response.entities();
     ASSERT_EQ(1, entities.size());
-    EXPECT_TRUE(
-        MessageDifferencer::Equals(entry, entities.Get(0).table_entry()));
+    EXPECT_PROTO_EQ(entities.Get(0).table_entry(), entry);
   }
 
   entry.mutable_time_since_last_hit();

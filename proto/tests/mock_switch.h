@@ -23,6 +23,7 @@
 
 #include <gmock/gmock.h>
 
+#include <limits>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -54,6 +55,9 @@ class DummySwitch;
 
 class DummySwitchMock {
  public:
+  static constexpr pi_entry_handle_t defaultEntryHandle =
+      std::numeric_limits<pi_entry_handle_t>::max();
+
   explicit DummySwitchMock(device_id_t device_id);
 
   ~DummySwitchMock();
@@ -115,6 +119,8 @@ class DummySwitchMock {
   MOCK_METHOD1(table_default_action_reset, pi_status_t(pi_p4_id_t));
   MOCK_METHOD2(table_default_action_get,
                pi_status_t(pi_p4_id_t, pi_table_entry_t *));
+  MOCK_METHOD2(table_default_action_get_handle,
+               pi_status_t(pi_p4_id_t, pi_entry_handle_t *));
   MOCK_METHOD2(table_entry_delete_wkey,
                pi_status_t(pi_p4_id_t, const pi_match_key_t *));
   MOCK_METHOD3(table_entry_modify_wkey,
@@ -122,6 +128,9 @@ class DummySwitchMock {
                            const pi_table_entry_t *));
   MOCK_METHOD2(table_entries_fetch,
                pi_status_t(pi_p4_id_t, pi_table_fetch_res_t *));
+  MOCK_METHOD3(table_entries_fetch_wkey,
+               pi_status_t(pi_p4_id_t, const pi_match_key_t *,
+                           pi_table_fetch_res_t *));
   MOCK_METHOD2(table_idle_timeout_config_set,
                pi_status_t(pi_p4_id_t, const pi_idle_timeout_config_t *));
   MOCK_METHOD3(table_entry_get_remaining_ttl,
@@ -157,6 +166,12 @@ class DummySwitchMock {
                            pi_indirect_handle_t));
   MOCK_METHOD2(action_prof_entries_fetch,
                pi_status_t(pi_p4_id_t, pi_act_prof_fetch_res_t *));
+  MOCK_METHOD3(action_prof_member_fetch,
+               pi_status_t(pi_p4_id_t, pi_indirect_handle_t,
+                           pi_act_prof_fetch_res_t *));
+  MOCK_METHOD3(action_prof_group_fetch,
+               pi_status_t(pi_p4_id_t, pi_indirect_handle_t,
+                           pi_act_prof_fetch_res_t *));
   MOCK_METHOD0(action_prof_api_support, int());
 
   MOCK_METHOD3(meter_read,

@@ -140,7 +140,7 @@ pi_cli_status_t do_table_modify_wkey(char *subcmd) {
   if (status != PI_CLI_STATUS_SUCCESS) return status;
 
   pi_status_t rc;
-  rc = pi_table_entry_modify_wkey(sess, dev_tgt.dev_id, t_id, mk, &t_entry);
+  rc = pi_table_entry_modify_wkey(sess, dev_tgt, t_id, mk, &t_entry);
   if (rc == PI_STATUS_SUCCESS)
     printf("Entry was successfully modified.\n");
   else

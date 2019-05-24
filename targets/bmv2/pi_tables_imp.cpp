@@ -22,6 +22,7 @@
 #include <PI/int/serialize.h>
 #include <PI/p4info.h>
 #include <PI/pi.h>
+#include <PI/target/pi_tables_imp.h>
 
 #include <algorithm>
 #include <iostream>
@@ -490,12 +491,12 @@ pi_status_t _pi_table_default_action_reset(pi_session_handle_t session_handle,
 }
 
 pi_status_t _pi_table_default_action_get(pi_session_handle_t session_handle,
-                                         pi_dev_id_t dev_id,
+                                         pi_dev_tgt_t dev_tgt,
                                          pi_p4_id_t table_id,
                                          pi_table_entry_t *table_entry) {
   (void) session_handle;
 
-  pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_id);
+  pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_tgt.dev_id);
   assert(d_info->assigned);
   const pi_p4info_t *p4info = d_info->p4info;
 
@@ -503,8 +504,8 @@ pi_status_t _pi_table_default_action_get(pi_session_handle_t session_handle,
 
   BmActionEntry entry;
   try {
-    conn_mgr_client(pibmv2::conn_mgr_state, dev_id).c->bm_mt_get_default_entry(
-        entry, 0, t_name);
+    conn_mgr_client(pibmv2::conn_mgr_state, dev_tgt.dev_id).c
+        ->bm_mt_get_default_entry(entry, 0, t_name);
   } catch (InvalidTableOperation &ito) {
     const char *what =
         _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
@@ -543,6 +544,18 @@ pi_status_t _pi_table_default_action_done(pi_session_handle_t session_handle,
   return PI_STATUS_SUCCESS;
 }
 
+pi_status_t _pi_table_default_action_get_handle(
+    pi_session_handle_t session_handle,
+    pi_dev_tgt_t dev_tgt,
+    pi_p4_id_t table_id,
+    pi_entry_handle_t *entry_handle) {
+  (void)session_handle;
+  (void)dev_tgt;
+  (void)table_id;
+  (void)entry_handle;
+  return PI_STATUS_NOT_IMPLEMENTED_BY_TARGET;
+}
+
 pi_status_t _pi_table_entry_delete(pi_session_handle_t session_handle,
                                    pi_dev_id_t dev_id,
                                    pi_p4_id_t table_id,
@@ -579,12 +592,14 @@ pi_status_t _pi_table_entry_delete(pi_session_handle_t session_handle,
 // the 2, which may not be ideal. This can be improved later if needed.
 
 pi_status_t _pi_table_entry_delete_wkey(pi_session_handle_t session_handle,
-                                        pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                        pi_dev_tgt_t dev_tgt,
+                                        pi_p4_id_t table_id,
                                         const pi_match_key_t *match_key) {
   BmMtEntry entry;
-  pi_status_t status = retrieve_entry_wkey(dev_id, table_id, match_key, &entry);
+  pi_status_t status = retrieve_entry_wkey(
+      dev_tgt.dev_id, table_id, match_key, &entry);
   if (status != PI_STATUS_SUCCESS) return status;
-  return _pi_table_entry_delete(session_handle, dev_id, table_id,
+  return _pi_table_entry_delete(session_handle, dev_tgt.dev_id, table_id,
                                 entry.entry_handle);
 }
 
@@ -625,23 +640,25 @@ pi_status_t _pi_table_entry_modify(pi_session_handle_t session_handle,
 }
 
 pi_status_t _pi_table_entry_modify_wkey(pi_session_handle_t session_handle,
-                                        pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                        pi_dev_tgt_t dev_tgt,
+                                        pi_p4_id_t table_id,
                                         const pi_match_key_t *match_key,
                                         const pi_table_entry_t *table_entry) {
   BmMtEntry entry;
-  pi_status_t status = retrieve_entry_wkey(dev_id, table_id, match_key, &entry);
+  pi_status_t status = retrieve_entry_wkey(
+      dev_tgt.dev_id, table_id, match_key, &entry);
   if (status != PI_STATUS_SUCCESS) return status;
-  return _pi_table_entry_modify(session_handle, dev_id, table_id,
+  return _pi_table_entry_modify(session_handle, dev_tgt.dev_id, table_id,
                                 entry.entry_handle, table_entry);
 }
 
 pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
-                                    pi_dev_id_t dev_id,
+                                    pi_dev_tgt_t dev_tgt,
                                     pi_p4_id_t table_id,
                                     pi_table_fetch_res_t *res) {
   (void) session_handle;
 
-  pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_id);
+  pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_tgt.dev_id);
   assert(d_info->assigned);
   const pi_p4info_t *p4info = d_info->p4info;
 
@@ -649,8 +666,8 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
 
   std::vector<BmMtEntry> entries;
   try {
-    conn_mgr_client(pibmv2::conn_mgr_state, dev_id).c->bm_mt_get_entries(
-        entries, 0, t_name);
+    conn_mgr_client(pibmv2::conn_mgr_state, dev_tgt.dev_id).c
+        ->bm_mt_get_entries(entries, 0, t_name);
   } catch (InvalidTableOperation &ito) {
     const char *what =
         _TableOperationErrorCode_VALUES_TO_NAMES.find(ito.code)->second;
@@ -783,6 +800,32 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
   }
 
   return PI_STATUS_SUCCESS;
+}
+
+pi_status_t _pi_table_entries_fetch_one(pi_session_handle_t session_handle,
+                                        pi_dev_id_t dev_id,
+                                        pi_p4_id_t table_id,
+                                        pi_entry_handle_t entry_handle,
+                                        pi_table_fetch_res_t *res) {
+  (void)session_handle;
+  (void)dev_id;
+  (void)table_id;
+  (void)entry_handle;
+  (void)res;
+  return PI_STATUS_NOT_IMPLEMENTED_BY_TARGET;
+}
+
+pi_status_t _pi_table_entries_fetch_wkey(pi_session_handle_t session_handle,
+                                         pi_dev_tgt_t dev_tgt,
+                                         pi_p4_id_t table_id,
+                                         const pi_match_key_t *match_key,
+                                         pi_table_fetch_res_t *res) {
+  (void)session_handle;
+  (void)dev_tgt;
+  (void)table_id;
+  (void)match_key;
+  (void)res;
+  return PI_STATUS_NOT_IMPLEMENTED_BY_TARGET;
 }
 
 pi_status_t _pi_table_entries_fetch_done(pi_session_handle_t session_handle,

@@ -18,6 +18,8 @@
  *
  */
 
+#include <PI/target/pi_tables_imp.h>
+
 #include "pi_rpc.h"
 
 #include <stdlib.h>
@@ -148,7 +150,7 @@ pi_status_t _pi_table_default_action_reset(pi_session_handle_t session_handle,
 }
 
 pi_status_t _pi_table_default_action_get(pi_session_handle_t session_handle,
-                                         pi_dev_id_t dev_id,
+                                         pi_dev_tgt_t dev_tgt,
                                          pi_p4_id_t table_id,
                                          pi_table_entry_t *table_entry) {
   if (!state.init) return PI_STATUS_RPC_NOT_INIT;
@@ -156,7 +158,7 @@ pi_status_t _pi_table_default_action_get(pi_session_handle_t session_handle,
   typedef struct __attribute__((packed)) {
     req_hdr_t hdr;
     s_pi_session_handle_t sess;
-    s_pi_dev_id_t dev_id;
+    s_pi_dev_tgt_t dev_tgt;
     s_pi_p4_id_t table_id;
   } req_t;
   req_t req;
@@ -164,7 +166,7 @@ pi_status_t _pi_table_default_action_get(pi_session_handle_t session_handle,
   pi_rpc_id_t req_id = state.req_id++;
   req_ += emit_req_hdr(req_, req_id, PI_RPC_TABLE_DEFAULT_ACTION_GET);
   req_ += emit_session_handle(req_, session_handle);
-  req_ += emit_dev_id(req_, dev_id);
+  req_ += emit_dev_tgt(req_, dev_tgt);
   req_ += emit_p4_id(req_, table_id);
 
   int rc = nn_send(state.s, &req, sizeof(req), 0);
@@ -199,6 +201,16 @@ pi_status_t _pi_table_default_action_done(pi_session_handle_t session_handle,
   return PI_STATUS_SUCCESS;
 }
 
+pi_status_t _pi_table_default_action_get_handle(
+    pi_session_handle_t session_handle, pi_dev_tgt_t dev_tgt,
+    pi_p4_id_t table_id, pi_entry_handle_t *entry_handle) {
+  (void)session_handle;
+  (void)dev_tgt;
+  (void)table_id;
+  (void)entry_handle;
+  return PI_STATUS_RPC_NOT_IMPLEMENTED;
+}
+
 pi_status_t _pi_table_entry_delete(pi_session_handle_t session_handle,
                                    pi_dev_id_t dev_id, pi_p4_id_t table_id,
                                    pi_entry_handle_t entry_handle) {
@@ -227,14 +239,15 @@ pi_status_t _pi_table_entry_delete(pi_session_handle_t session_handle,
 }
 
 pi_status_t _pi_table_entry_delete_wkey(pi_session_handle_t session_handle,
-                                        pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                        pi_dev_tgt_t dev_tgt,
+                                        pi_p4_id_t table_id,
                                         const pi_match_key_t *match_key) {
   if (!state.init) return PI_STATUS_RPC_NOT_INIT;
 
   size_t s = 0;
   s += sizeof(req_hdr_t);
   s += sizeof(s_pi_session_handle_t);
-  s += sizeof(s_pi_dev_id_t);
+  s += sizeof(s_pi_dev_tgt_t);
   s += sizeof(s_pi_p4_id_t);  // table_id
   s += match_key_size(match_key);
 
@@ -243,7 +256,7 @@ pi_status_t _pi_table_entry_delete_wkey(pi_session_handle_t session_handle,
   pi_rpc_id_t req_id = state.req_id++;
   req_ += emit_req_hdr(req_, req_id, PI_RPC_TABLE_ENTRY_DELETE_WKEY);
   req_ += emit_session_handle(req_, session_handle);
-  req_ += emit_dev_id(req_, dev_id);
+  req_ += emit_dev_tgt(req_, dev_tgt);
   req_ += emit_p4_id(req_, table_id);
   req_ += emit_match_key(req_, match_key);
 
@@ -290,7 +303,8 @@ pi_status_t _pi_table_entry_modify(pi_session_handle_t session_handle,
 }
 
 pi_status_t _pi_table_entry_modify_wkey(pi_session_handle_t session_handle,
-                                        pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                        pi_dev_tgt_t dev_tgt,
+                                        pi_p4_id_t table_id,
                                         const pi_match_key_t *match_key,
                                         const pi_table_entry_t *table_entry) {
   if (!state.init) return PI_STATUS_RPC_NOT_INIT;
@@ -298,8 +312,8 @@ pi_status_t _pi_table_entry_modify_wkey(pi_session_handle_t session_handle,
   size_t s = 0;
   s += sizeof(req_hdr_t);
   s += sizeof(s_pi_session_handle_t);
-  s += sizeof(s_pi_dev_id_t);  // dev_id
-  s += sizeof(s_pi_p4_id_t);   // table_id
+  s += sizeof(s_pi_dev_tgt_t);
+  s += sizeof(s_pi_p4_id_t);  // table_id
   s += match_key_size(match_key);
   s += table_entry_size(table_entry);
 
@@ -308,7 +322,7 @@ pi_status_t _pi_table_entry_modify_wkey(pi_session_handle_t session_handle,
   pi_rpc_id_t req_id = state.req_id++;
   req_ += emit_req_hdr(req_, req_id, PI_RPC_TABLE_ENTRY_MODIFY_WKEY);
   req_ += emit_session_handle(req_, session_handle);
-  req_ += emit_dev_id(req_, dev_id);
+  req_ += emit_dev_tgt(req_, dev_tgt);
   req_ += emit_p4_id(req_, table_id);
   req_ += emit_match_key(req_, match_key);
   req_ += emit_table_entry(req_, table_entry);
@@ -323,14 +337,14 @@ pi_status_t _pi_table_entry_modify_wkey(pi_session_handle_t session_handle,
 }
 
 pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
-                                    pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                    pi_dev_tgt_t dev_tgt, pi_p4_id_t table_id,
                                     pi_table_fetch_res_t *res) {
   if (!state.init) return PI_STATUS_RPC_NOT_INIT;
 
   typedef struct __attribute__((packed)) {
     req_hdr_t hdr;
     s_pi_session_handle_t sess;
-    s_pi_dev_id_t dev_id;
+    s_pi_dev_tgt_t dev_tgt;
     s_pi_p4_id_t table_id;
   } req_t;
   req_t req;
@@ -338,7 +352,7 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
   pi_rpc_id_t req_id = state.req_id++;
   req_ += emit_req_hdr(req_, req_id, PI_RPC_TABLE_ENTRIES_FETCH);
   req_ += emit_session_handle(req_, session_handle);
-  req_ += emit_dev_id(req_, dev_id);
+  req_ += emit_dev_tgt(req_, dev_tgt);
   req_ += emit_p4_id(req_, table_id);
 
   int rc = nn_send(state.s, &req, sizeof(req), 0);
@@ -371,6 +385,31 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
   return status;
 }
 
+pi_status_t _pi_table_entries_fetch_one(pi_session_handle_t session_handle,
+                                        pi_dev_id_t dev_id, pi_p4_id_t table_id,
+                                        pi_entry_handle_t entry_handle,
+                                        pi_table_fetch_res_t *res) {
+  (void)session_handle;
+  (void)dev_id;
+  (void)table_id;
+  (void)entry_handle;
+  (void)res;
+  return PI_STATUS_RPC_NOT_IMPLEMENTED;
+}
+
+pi_status_t _pi_table_entries_fetch_wkey(pi_session_handle_t session_handle,
+                                         pi_dev_tgt_t dev_tgt,
+                                         pi_p4_id_t table_id,
+                                         const pi_match_key_t *match_key,
+                                         pi_table_fetch_res_t *res) {
+  (void)session_handle;
+  (void)dev_tgt;
+  (void)table_id;
+  (void)match_key;
+  (void)res;
+  return PI_STATUS_RPC_NOT_IMPLEMENTED;
+}
+
 pi_status_t _pi_table_entries_fetch_done(pi_session_handle_t session_handle,
                                          pi_table_fetch_res_t *res) {
   (void)session_handle;
@@ -385,7 +424,7 @@ pi_status_t _pi_table_idle_timeout_config_set(
   (void)dev_id;
   (void)table_id;
   (void)config;
-  return PI_STATUS_NOT_IMPLEMENTED_BY_TARGET;
+  return PI_STATUS_RPC_NOT_IMPLEMENTED;
 }
 
 pi_status_t _pi_table_entry_get_remaining_ttl(
@@ -396,5 +435,5 @@ pi_status_t _pi_table_entry_get_remaining_ttl(
   (void)table_id;
   (void)entry_handle;
   (void)ttl_ns;
-  return PI_STATUS_NOT_IMPLEMENTED_BY_TARGET;
+  return PI_STATUS_RPC_NOT_IMPLEMENTED;
 }

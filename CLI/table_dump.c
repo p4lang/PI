@@ -152,7 +152,7 @@ static pi_cli_status_t dump_entries(pi_p4_id_t t_id,
 static pi_cli_status_t dump_default_entry(pi_p4_id_t t_id) {
   pi_status_t rc;
   pi_table_entry_t entry;
-  rc = pi_table_default_action_get(sess, dev_tgt.dev_id, t_id, &entry);
+  rc = pi_table_default_action_get(sess, dev_tgt, t_id, &entry);
   if (rc == PI_STATUS_SUCCESS) {
     printf("Dumping default entry\n");
     print_action_entry(&entry);
@@ -177,7 +177,7 @@ pi_cli_status_t do_table_dump(char *subcmd) {
 
   pi_table_fetch_res_t *res;
   pi_status_t rc;
-  rc = pi_table_entries_fetch(sess, dev_tgt.dev_id, t_id, &res);
+  rc = pi_table_entries_fetch(sess, dev_tgt, t_id, &res);
   if (rc == PI_STATUS_SUCCESS) {
     printf("Successfully retrieved %zu entrie(s).\n",
            pi_table_entries_num(res));
