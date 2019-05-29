@@ -16,11 +16,9 @@ cc_library(
 cc_test(
     name = "pi_proto_tests",
     srcs = ["test_p4info_convert.cpp",
-            "test_proto_fe.cpp",
-            "test_proto_fe_digest.cpp",
-            "test_proto_fe_packet_io.cpp",
-            "test_proto_fe_set_pipeline_config.cpp",
-            "test_task_queue.cpp"],
+            "test_task_queue.cpp",
+            "test_proto_fe_base.h"]
+        + glob(["test_proto_fe*.cpp"]),
     deps = ["@com_google_googletest//:gtest",
             "//proto/frontend:pifeproto",
             ":testutils"],
@@ -30,12 +28,7 @@ cc_test(
 
 cc_test(
     name = "pi_proto_server_tests",
-    srcs = ["server/test_arbitration.cpp",
-            "server/test_gnmi.cpp",
-            "server/test_no_pipeline_config.cpp",
-            "server/test_pi_server.cpp",
-            "server/utils.h",
-            "server/utils.cpp"],
+    srcs = glob(["server/*.cpp", "server/*.h"]),
     deps = ["@com_google_googletest//:gtest",
             "//proto/server:piserver",
             ":testutils"],

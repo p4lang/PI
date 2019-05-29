@@ -11,6 +11,7 @@ AM_CPPFLAGS = \
 -I$(top_srcdir)/third_party
 
 libpifeproto_la_SOURCES = \
+src/bimap.h \
 src/device_mgr.cpp \
 src/access_arbitration.h \
 src/access_arbitration.cpp \

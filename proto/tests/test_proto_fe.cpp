@@ -761,7 +761,7 @@ TEST_P(MatchTableTest, WriteBatchWithError) {
 // trailing zeros
 #define LPM_MK std::string("\xaa\xf0\x00\x00", 4)
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     MatchTableTypes, MatchTableTest,
     Values(std::make_tuple("ExactOne", MatchKeyInput::make_exact(MK)),
            std::make_tuple("LpmOne", MatchKeyInput::make_lpm(LPM_MK, PREF_LEN)),
@@ -1450,7 +1450,7 @@ TEST_P(ActionProfTest, MaxSizeModify) {
       OneExpectedError(Code::INVALID_ARGUMENT, "Cannot change group max_size"));
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     ActionProfPiApis, ActionProfTest,
     Values(PiActProfApiSupport_SET_MBRS,
            PiActProfApiSupport_ADD_AND_REMOVE_MBR,
@@ -2007,13 +2007,13 @@ TEST_P(MatchTableIndirectTest, SetDefault) {
                        "Cannot set / reset default action for indirect table"));
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     ActionProfPiApis, MatchTableIndirectTest,
     Values(PiActProfApiSupport_SET_MBRS,
            PiActProfApiSupport_ADD_AND_REMOVE_MBR,
            PiActProfApiSupport_BOTH));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     ActionProfPiApis, OneShotCleanupTest,
     Values(PiActProfApiSupport_SET_MBRS,
            PiActProfApiSupport_ADD_AND_REMOVE_MBR,

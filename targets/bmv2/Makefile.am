@@ -32,3 +32,7 @@ $(top_builddir)/../../src/libpip4info.la \
 -lbmp4apps
 
 lib_LTLIBRARIES = libpi_bmv2.la
+
+distclean-local: distclean-ax-prefix-config-h
+distclean-ax-prefix-config-h:
+	rm -f pi-bmv2-config.h

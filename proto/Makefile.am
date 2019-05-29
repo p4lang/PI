@@ -117,9 +117,15 @@ p4pydir = $(pythondir)/p4
 nodist_p4py_PYTHON = \
 py_out/p4/__init__.py
 
+# protoc generates a few useless _pb2_grpc.py files for .proto files which do
+# not include any gRPC service definitions; we include them anyway in the
+# appropriate _PYTHON variable to ensure they are included in BUILT_SOURCES, and
+# therefore in CLEANFILES.
+
 p4v1pydir = $(pythondir)/p4/v1
 nodist_p4v1py_PYTHON = \
 py_out/p4/v1/p4data_pb2.py \
+py_out/p4/v1/p4data_pb2_grpc.py \
 py_out/p4/v1/p4runtime_pb2.py \
 py_out/p4/v1/p4runtime_pb2_grpc.py \
 py_out/p4/v1/__init__.py
@@ -131,13 +137,16 @@ py_out/p4/config/__init__.py
 p4configv1pydir = $(pythondir)/p4/config/v1
 nodist_p4configv1py_PYTHON = \
 py_out/p4/config/v1/p4info_pb2.py \
+py_out/p4/config/v1/p4info_pb2_grpc.py \
 py_out/p4/config/v1/p4types_pb2.py \
+py_out/p4/config/v1/p4types_pb2_grpc.py \
 py_out/p4/config/v1/__init__.py
 
 # this one is temporary
 p4tmppydir = $(pythondir)/p4/tmp
 nodist_p4tmppy_PYTHON = \
 py_out/p4/tmp/p4config_pb2.py \
+py_out/p4/tmp/p4config_pb2_grpc.py \
 py_out/p4/tmp/__init__.py
 
 googlepydir = $(pythondir)/google
@@ -147,7 +156,9 @@ py_out/google/__init__.py
 googlerpcpydir = $(pythondir)/google/rpc
 nodist_googlerpcpy_PYTHON = \
 py_out/google/rpc/code_pb2.py \
+py_out/google/rpc/code_pb2_grpc.py \
 py_out/google/rpc/status_pb2.py \
+py_out/google/rpc/status_pb2_grpc.py \
 py_out/google/rpc/__init__.py
 
 gnmipydir = $(pythondir)/gnmi

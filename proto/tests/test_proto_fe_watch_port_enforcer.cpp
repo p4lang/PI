@@ -311,7 +311,7 @@ TEST_P(WatchPortEnforcerNoWriteAccessOneOfTest, ConcurrentAccess) {
   thread1.join();
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     ConcurrentAccess, WatchPortEnforcerNoWriteAccessOneOfTest,
     Values(std::make_tuple("ActProfWS", "ActProfWS2"),
            std::make_tuple("ActProfWS2", "ActProfWS")));

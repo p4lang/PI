@@ -17,6 +17,12 @@ AC_PROG_CC_C99
 # long as --with-bmv2 / --with-fe-cpp / --with-proto is not specified of course)
 AC_PROG_CXX
 
+# we need C++11 support to build googlemock / googletest (note that it is only
+# built if --with-proto=yes)
+# if there is no C++ compiler available or if the C++ compiler doesn't support
+# std=c++11, configure will not fail
+AX_CXX_COMPILE_STDCXX_11([noext],[optional])
+
 # TODO: this can be removed when the Python scripts are updated to work with
 # python3 or when the PD generator code is removed altogether.
 m4_define_default([_AM_PYTHON_INTERPRETER_LIST], [python2 python2.7])

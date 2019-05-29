@@ -80,9 +80,9 @@ const char *input_jsons[] = {
   "valid.json",
   "act_prof.json"
 };
-INSTANTIATE_TEST_CASE_P(P4Iterate,
-                        P4InfoProtoConvertTest,
-                        ::testing::ValuesIn(input_jsons));
+INSTANTIATE_TEST_SUITE_P(P4Iterate,
+                         P4InfoProtoConvertTest,
+                         ::testing::ValuesIn(input_jsons));
 
 }  // namespace
 }  // namespace testing
