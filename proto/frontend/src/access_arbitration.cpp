@@ -75,6 +75,12 @@ InputIterator1 find_not_in_set(InputIterator1 first1, InputIterator1 last1,
 
 }  // namespace
 
+/* static */
+constexpr AccessArbitration::skip_if_update_t AccessArbitration::skip_if_update;
+
+/* static */
+constexpr AccessArbitration::one_of_t AccessArbitration::one_of;
+
 AccessArbitration::Access::Access(AccessArbitration *arbitrator)
     : arbitrator(arbitrator) { }
 

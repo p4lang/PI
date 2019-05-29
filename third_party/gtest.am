@@ -7,6 +7,7 @@ libgtest_la_CPPFLAGS = \
 EXTRA_DIST = \
 googletest/googletest/include/gtest/gtest-printers.h \
 googletest/googletest/include/gtest/gtest-test-part.h \
+googletest/googletest/include/gtest/gtest-matchers.h \
 googletest/googletest/include/gtest/internal/custom/gtest-printers.h \
 googletest/googletest/include/gtest/internal/custom/gtest.h \
 googletest/googletest/include/gtest/internal/custom/gtest-port.h \
@@ -14,13 +15,10 @@ googletest/googletest/include/gtest/internal/gtest-internal.h \
 googletest/googletest/include/gtest/internal/gtest-port-arch.h \
 googletest/googletest/include/gtest/internal/gtest-port.h \
 googletest/googletest/include/gtest/internal/gtest-type-util.h \
-googletest/googletest/include/gtest/internal/gtest-tuple.h \
-googletest/googletest/include/gtest/internal/gtest-linked_ptr.h \
 googletest/googletest/include/gtest/internal/gtest-string.h \
 googletest/googletest/include/gtest/internal/gtest-filepath.h \
 googletest/googletest/include/gtest/internal/gtest-param-util.h \
 googletest/googletest/include/gtest/internal/gtest-death-test-internal.h \
-googletest/googletest/include/gtest/internal/gtest-param-util-generated.h \
 googletest/googletest/include/gtest/gtest-param-test.h \
 googletest/googletest/include/gtest/gtest-typed-test.h \
 googletest/googletest/include/gtest/gtest-message.h \
@@ -33,6 +31,7 @@ EXTRA_DIST += \
 googletest/googletest/src/gtest-test-part.cc \
 googletest/googletest/src/gtest-filepath.cc \
 googletest/googletest/src/gtest-typed-test.cc \
+googletest/googletest/src/gtest-matchers.cc \
 googletest/googletest/src/gtest-port.cc \
 googletest/googletest/src/gtest_main.cc \
 googletest/googletest/src/gtest-death-test.cc \
@@ -52,16 +51,17 @@ $(libgtest_la_CPPFLAGS) \
 
 EXTRA_DIST += \
 googletest/googlemock/include/gmock/gmock-cardinalities.h \
+googletest/googlemock/include/gmock/gmock-function-mocker.h \
 googletest/googlemock/include/gmock/gmock-generated-function-mockers.h \
 googletest/googlemock/include/gmock/gmock-matchers.h \
 googletest/googlemock/include/gmock/gmock-more-matchers.h \
-googletest/googlemock/include/gmock/gmock-generated-nice-strict.h \
+googletest/googlemock/include/gmock/gmock-nice-strict.h \
 googletest/googlemock/include/gmock/internal/custom/gmock-matchers.h \
 googletest/googlemock/include/gmock/internal/custom/gmock-generated-actions.h \
 googletest/googlemock/include/gmock/internal/custom/gmock-port.h \
 googletest/googlemock/include/gmock/internal/gmock-port.h \
-googletest/googlemock/include/gmock/internal/gmock-generated-internal-utils.h \
 googletest/googlemock/include/gmock/internal/gmock-internal-utils.h \
+googletest/googlemock/include/gmock/internal/gmock-pp.h \
 googletest/googlemock/include/gmock/gmock-generated-actions.h \
 googletest/googlemock/include/gmock/gmock-more-actions.h \
 googletest/googlemock/include/gmock/gmock-actions.h \
