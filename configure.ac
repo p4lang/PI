@@ -24,10 +24,10 @@ AC_PROG_CXX
 AX_CXX_COMPILE_STDCXX_11([noext],[optional])
 
 # TODO: this can be removed when the Python scripts are updated to work with
-# python3 or when the PD generator code is removed altogether.
+# python3.
 m4_define_default([_AM_PYTHON_INTERPRETER_LIST], [python2 python2.7])
 AM_PATH_PYTHON([2.7],, [
-    AC_MSG_WARN([Cannot detect python2.7, is it installed? As a result we will skip installation of the PD generator (deprecated).])])
+    AC_MSG_WARN([Cannot detect python2.7, is it installed? As a result, you may not be able to run the CLI tests and various scripts included in this project.])])
 AM_CONDITIONAL([HAVE_PYTHON2], [test "$PYTHON" != :])
 
 DX_DOT_FEATURE([ON])
@@ -200,7 +200,6 @@ AC_CONFIG_FILES([Makefile
                  examples/Makefile
                  frontends_extra/Makefile
                  generators/Makefile
-                 generators/pd/Makefile
                  include/Makefile
                  lib/Makefile
                  src/Makefile
