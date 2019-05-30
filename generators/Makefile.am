@@ -1,7 +1,5 @@
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 
-SUBDIRS = . pd
-
 AM_CPPFLAGS = \
 -I$(top_srcdir)/include \
 -I$(top_srcdir)/lib
