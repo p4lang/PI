@@ -30,7 +30,7 @@ def _build_http_archive(
 
   # Generate http_archive rule
   if build_file:
-    native.new_http_archive(
+    native.http_archive(
       name = name,
       urls = urls,
       strip_prefix = prefix,
