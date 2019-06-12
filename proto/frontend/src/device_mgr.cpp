@@ -890,13 +890,16 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
+  typedef
+  std::unordered_map<pi_indirect_handle_t, p4v1::ActionProfileActionSet>
+  action_profile_set_map;
+
   Status parse_action_entry(
       p4_id_t table_id,
       const pi_table_entry_t *pi_entry,
       p4v1::TableEntry *entry,
-      const std::unordered_map<
-        pi_indirect_handle_t,
-        p4v1::ActionProfileActionSet> &oneshot_map = {}) const {
+      const action_profile_set_map &oneshot_map = action_profile_set_map({})
+      ) const {
     if (pi_entry->entry_type == PI_ACTION_ENTRY_TYPE_NONE) RETURN_OK_STATUS();
 
     auto table_action = entry->mutable_action();

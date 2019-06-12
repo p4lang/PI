@@ -1,3 +1,5 @@
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 _strict = False
 
 def _build_http_archive(
@@ -30,14 +32,14 @@ def _build_http_archive(
 
   # Generate http_archive rule
   if build_file:
-    native.http_archive(
+    http_archive(
       name = name,
       urls = urls,
       strip_prefix = prefix,
       build_file = build_file,
     )
   else:
-    native.http_archive(
+    http_archive(
       name = name,
       urls = urls,
       strip_prefix = prefix,
@@ -59,7 +61,7 @@ def _build_git_repository(
 
   # Generate the git_repository rule
   if build_file:
-    native.new_git_repository(
+    git_repository(
       name = name,
       remote = remote,
       branch = branch,
@@ -68,7 +70,7 @@ def _build_git_repository(
       build_file = build_file,
     )
   else:
-    native.git_repository(
+    git_repository(
       name = name,
       remote = remote,
       branch = branch,

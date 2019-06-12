@@ -3,18 +3,26 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("//bazel:workspace_rule.bzl", "remote_workspace")
 
+GNMI_COMMIT = "39cb2fffed5c9a84970bde47b3d39c8c716dc17a";
+GNMI_SHA = "3701005f28044065608322c179625c8898beadb80c89096b3d8aae1fbac15108"
+
 def PI_deps():
     """Loads dependencies needed to compile PI."""
 
     if "com_github_p4lang_p4runtime" not in native.existing_rules():
-        remote_workspace(
+        # FIXME: modify the commit when P4Runtime is ready.
+        native.local_repository(
             name = "com_github_p4lang_p4runtime",
-            remote = "https://github.com/p4lang/p4runtime",
-            # Cannot use 1.0.0 tag, we need a more recent version which includes
-            # a Bazel build fix.
-            # tag = "1.0.0",
-            commit = "98acb3c4ac8337a921b4517fd1979cf23ef52393",
+            path = "/p4runtime"
         )
+        # remote_workspace(
+        #     name = "com_github_p4lang_p4runtime",
+        #     remote = "https://github.com/p4lang/p4runtime",
+        #     # Cannot use 1.0.0 tag, we need a more recent version which includes
+        #     # a Bazel build fix.
+        #     # tag = "1.0.0",
+        #     commit = "98acb3c4ac8337a921b4517fd1979cf23ef52393",
+        # )
 
     if "judy" not in native.existing_rules():
         http_archive(
@@ -32,11 +40,12 @@ def PI_deps():
         )
 
     if "com_github_openconfig_gnmi" not in native.existing_rules():
-        remote_workspace(
+        http_archive(
             name = "com_github_openconfig_gnmi",
-            remote = "https://github.com/openconfig/gnmi",
-            commit = "9c8d9e965b3e854107ea02c12ab11b70717456f2",
-            build_file = "bazel/external/gnmi.BUILD",
+            urls = ["https://github.com/bocon13/gnmi/archive/%s.zip" % GNMI_COMMIT],
+            sha256 = GNMI_SHA,
+            strip_prefix = "gnmi-%s/proto" % GNMI_COMMIT,
+            build_file = "@//bazel:external/gnmi.BUILD",
         )
 
     if "com_google_googletest" not in native.existing_rules():
@@ -44,4 +53,18 @@ def PI_deps():
             name = "com_google_googletest",
             remote = "https://github.com/google/googletest",
             commit = "f5edb4f542e155c75bc4b516f227911d99ec167c",
+        )
+
+    if "com_google_googleapis" not in native.existing_rules():
+        remote_workspace(
+            name = "com_google_googleapis",
+            remote = "https://github.com/googleapis/googleapis",
+            commit = "1079c999f0683196d857795ae6951ced9e15ce72",
+        )
+
+    if "build_stack_rules_proto" not in native.existing_rules():
+        remote_workspace(
+            name = "build_stack_rules_proto",
+            remote = "https://github.com/stackb/rules_proto",
+            commit = "2f4e4f62a3d7a43654d69533faa0652e1c4f5082",
         )
