@@ -1,20 +1,35 @@
+load("@build_stack_rules_proto//cpp:cpp_grpc_library.bzl", "cpp_grpc_library")
+
 package(
     default_visibility = [ "//visibility:public" ],
 )
 
-load("@org_pubref_rules_protobuf//cpp:rules.bzl", "cpp_proto_library")
-
-genrule(
-    name = "_copy_gnmi_proto",
-    srcs = ["proto/gnmi/gnmi.proto"],
-    outs = ["gnmi/gnmi.proto"],
-    cmd = "cp $< $@",
+proto_library(
+    name = "gnmi_ext_proto",
+    srcs = ["gnmi_ext/gnmi_ext.proto"],
 )
 
-cpp_proto_library(
+proto_library(
+    name = "gnmi_proto",
+    srcs = ["gnmi/gnmi.proto"],
+    deps = [
+        ":gnmi_ext_proto",
+        "@com_google_protobuf//:descriptor_proto",
+        "@com_google_protobuf//:any_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "gnmi_ext_cc_proto",
+    deps = [":gnmi_ext_proto"]
+)
+
+cc_proto_library(
+    name = "gnmi_cc_proto",
+    deps = ["@com_github_openconfig_gnmi//:gnmi_proto"],
+)
+
+cpp_grpc_library(
     name = "gnmi_cc_grpc",
-    protos = ["gnmi/gnmi.proto"],
-    imports = ["external/com_google_protobuf/src/"],
-    inputs = ["@com_google_protobuf//:well_known_protos"],
-    with_grpc = True,
+    deps = [":gnmi_proto"],
 )

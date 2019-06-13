@@ -99,6 +99,8 @@ system. This should enable other Bazel projects to easily import this
 repository. For the great majority of users who wish to build and install PI, we
 recommend using the autotools-based build system.
 
+The Bazel version we have tested is 0.23.2.
+
 To build the P4Runtime PI frontend and run the tests:
 ```
 bazel build //proto/frontend:pifeproto
