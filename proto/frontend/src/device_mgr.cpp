@@ -70,6 +70,8 @@ using Code = ::google::rpc::Code;
 using common::SessionTemp;
 using common::check_proto_bytestring;
 using common::make_invalid_p4_id_status;
+using action_profile_set_map =
+  std::unordered_map<pi_indirect_handle_t, p4v1::ActionProfileActionSet>;
 
 // We don't yet have a mapping from PI error codes to ::google::rpc::Code
 // values, so for now we almost always return UNKNOWN. It is likely that we will
@@ -894,9 +896,8 @@ class DeviceMgrImp {
       p4_id_t table_id,
       const pi_table_entry_t *pi_entry,
       p4v1::TableEntry *entry,
-      const std::unordered_map<
-        pi_indirect_handle_t,
-        p4v1::ActionProfileActionSet> &oneshot_map = {}) const {
+      const action_profile_set_map &oneshot_map =
+        action_profile_set_map({})) const {
     if (pi_entry->entry_type == PI_ACTION_ENTRY_TYPE_NONE) RETURN_OK_STATUS();
 
     auto table_action = entry->mutable_action();
@@ -948,8 +949,7 @@ class DeviceMgrImp {
   // selector does not use one-shot, nothing is added to the map.
   Status build_action_profile_action_set_map(
       p4_id_t table_id,
-      std::unordered_map<pi_indirect_handle_t,
-                         p4v1::ActionProfileActionSet> *map,
+      action_profile_set_map *map,
       const SessionTemp &session) const {
     auto action_prof_id = pi_p4info_table_get_implementation(p4info.get(),
                                                              table_id);
@@ -1223,8 +1223,7 @@ class DeviceMgrImp {
     // the map is needed if the table is indirect and was programmed using the
     // oneshot programming method, to guarantee read-write symmetry
     // TODO(antonin): optimize when single entry is read
-    std::unordered_map<pi_indirect_handle_t,
-                       p4v1::ActionProfileActionSet> oneshot_map;
+    action_profile_set_map oneshot_map;
     RETURN_IF_ERROR(build_action_profile_action_set_map(
         table_id, &oneshot_map, session));
 
