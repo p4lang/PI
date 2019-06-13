@@ -4,25 +4,21 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("//bazel:workspace_rule.bzl", "remote_workspace")
 
 GNMI_COMMIT = "39cb2fffed5c9a84970bde47b3d39c8c716dc17a";
-GNMI_SHA = "3701005f28044065608322c179625c8898beadb80c89096b3d8aae1fbac15108"
+GNMI_SHA = "3701005f28044065608322c179625c8898beadb80c89096b3d8aae1fbac15108";
+P4RUNTIME_COMMIT = "20c22c45387794935b549cc49948c4c07dc0b99c";
 
 def PI_deps():
     """Loads dependencies needed to compile PI."""
 
     if "com_github_p4lang_p4runtime" not in native.existing_rules():
-        # FIXME: modify the commit when P4Runtime is ready.
-        native.local_repository(
+        remote_workspace(
             name = "com_github_p4lang_p4runtime",
-            path = "/p4runtime"
+            remote = "https://github.com/p4lang/p4runtime",
+            # Cannot use 1.0.0 tag, we need a more recent version which includes
+            # a Bazel build fix.
+            # tag = "1.0.0",
+            commit = P4RUNTIME_COMMIT,
         )
-        # remote_workspace(
-        #     name = "com_github_p4lang_p4runtime",
-        #     remote = "https://github.com/p4lang/p4runtime",
-        #     # Cannot use 1.0.0 tag, we need a more recent version which includes
-        #     # a Bazel build fix.
-        #     # tag = "1.0.0",
-        #     commit = "98acb3c4ac8337a921b4517fd1979cf23ef52393",
-        # )
 
     if "judy" not in native.existing_rules():
         http_archive(
@@ -42,10 +38,14 @@ def PI_deps():
     if "com_github_openconfig_gnmi" not in native.existing_rules():
         http_archive(
             name = "com_github_openconfig_gnmi",
-            urls = ["https://github.com/bocon13/gnmi/archive/%s.zip" % GNMI_COMMIT],
+            url = "https://github.com/openconfig/gnmi/archive/%s.zip" % GNMI_COMMIT,
             sha256 = GNMI_SHA,
             strip_prefix = "gnmi-%s/proto" % GNMI_COMMIT,
             build_file = "@//bazel:external/gnmi.BUILD",
+            patch_cmds = [
+                "sed -i.bak 's#github.com/openconfig/gnmi/proto/##g' gnmi/gnmi.proto",
+                "rm gnmi/gnmi.proto.bak"
+            ],
         )
 
     if "com_google_googletest" not in native.existing_rules():

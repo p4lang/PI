@@ -9,6 +9,7 @@ def _build_http_archive(
     commit = None,
     tag = None,
     build_file = None,
+    patch_cmds = [],
     ):
   if not remote.startswith("https://github.com"):
     # This is only currently support for github repos
@@ -37,12 +38,14 @@ def _build_http_archive(
       urls = urls,
       strip_prefix = prefix,
       build_file = build_file,
+      patch_cmds = patch_cmds,
     )
   else:
     http_archive(
       name = name,
       urls = urls,
       strip_prefix = prefix,
+      patch_cmds = patch_cmds,
     )
   return True
 
@@ -53,6 +56,7 @@ def _build_git_repository(
     commit = None,
     tag = None,
     build_file = None,
+    patch_cmds = [],
     ):
 
   # Strip trailing / from remote
@@ -68,6 +72,7 @@ def _build_git_repository(
       commit = commit,
       tag = tag,
       build_file = build_file,
+      patch_cmds = patch_cmds,
     )
   else:
     git_repository(
@@ -76,6 +81,7 @@ def _build_git_repository(
       branch = branch,
       commit = commit,
       tag = tag,
+      patch_cmds = patch_cmds,
     )
   return True
 
@@ -87,6 +93,7 @@ def remote_workspace(
     tag = None,
     build_file = None,
     use_git = False,
+    patch_cmds = []
     ):
   ref_count = 0
   if branch:
@@ -112,12 +119,12 @@ def remote_workspace(
 
   # Prefer http_archive
   if not use_git and _build_http_archive(
-      name, remote, branch, commit, tag,build_file):
+      name, remote, branch, commit, tag, build_file, patch_cmds):
     return
 
   # Fall back to git_repository
   if _build_git_repository(
-      name, remote, branch, commit, tag,build_file):
+      name, remote, branch, commit, tag, build_file, patch_cmds):
     return
 
   fail("could not generate remote workspace for " + name)
