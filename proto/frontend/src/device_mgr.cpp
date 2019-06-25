@@ -45,6 +45,7 @@
 #include "pre_clone_mgr.h"
 #include "pre_mc_mgr.h"
 #include "report_error.h"
+#include "status_macros.h"
 #include "statusor.h"
 #include "table_info_store.h"
 #include "watch_port_enforcer.h"
@@ -382,14 +383,13 @@ class DeviceMgrImp {
     watch_port_enforcer.p4_change(p4info_new);
 
     action_profs.clear();
-    // TODO(antonin): use something like Google's ASSIGN_OR_RETURN
-    auto pi_api_choice = ActionProfMgr::choose_pi_api(device_id);
-    RETURN_IF_ERROR(pi_api_choice.status());
+    ASSIGN_OR_RETURN(
+        auto pi_api_choice, ActionProfMgr::choose_pi_api(device_id));
     for (auto act_prof_id = pi_p4info_act_prof_begin(p4info_new);
          act_prof_id != pi_p4info_act_prof_end(p4info_new);
          act_prof_id = pi_p4info_act_prof_next(p4info_new, act_prof_id)) {
       std::unique_ptr<ActionProfMgr> mgr(new ActionProfMgr(
-          device_tgt, act_prof_id, p4info_new, pi_api_choice.ValueOrDie(),
+          device_tgt, act_prof_id, p4info_new, pi_api_choice,
           &watch_port_enforcer));
       action_profs.emplace(act_prof_id, std::move(mgr));
     }
@@ -2515,9 +2515,9 @@ class DeviceMgrImp {
         table_entry, &action_entry,
         &_meter_spec_storage, &_counter_data_storage));
 
-    StatusOr<bool> supports_idle_timeout = validate_entry_ttl(table_entry);
-    RETURN_IF_ERROR(supports_idle_timeout.status());
-    if (supports_idle_timeout.ValueOrDie())
+    ASSIGN_OR_RETURN(
+        bool supports_idle_timeout, validate_entry_ttl(table_entry));
+    if (supports_idle_timeout)
       set_entry_ttl(table_entry, &action_entry, nullptr);
 
     if (table_info_store.get_entry(table_id, match_key) != nullptr) {
@@ -2549,7 +2549,7 @@ class DeviceMgrImp {
                                table_entry.idle_timeout_ns()));
     }
 
-    if (supports_idle_timeout.ValueOrDie())
+    if (supports_idle_timeout)
       RETURN_IF_ERROR(idle_timeout_buffer.insert_entry(match_key, table_entry));
 
     RETURN_OK_STATUS();
@@ -2587,8 +2587,8 @@ class DeviceMgrImp {
         table_entry, &action_entry,
         &_meter_spec_storage, &_counter_data_storage));
 
-    StatusOr<bool> supports_idle_timeout = validate_entry_ttl(table_entry);
-    RETURN_IF_ERROR(supports_idle_timeout.status());
+    ASSIGN_OR_RETURN(
+        bool supports_idle_timeout, validate_entry_ttl(table_entry));
 
     // we need this pointer to update the controller metadata and the one-shot
     // group handle (if needed) if the modify operation is successful
@@ -2597,7 +2597,7 @@ class DeviceMgrImp {
     if (entry_data == nullptr)
       RETURN_ERROR_STATUS(Code::NOT_FOUND, "Cannot find match entry");
 
-    if (supports_idle_timeout.ValueOrDie())
+    if (supports_idle_timeout)
       set_entry_ttl(table_entry, &action_entry, nullptr);
 
     pi::MatchTable mt(session->get(), device_tgt, p4info.get(), table_id);
@@ -2635,7 +2635,7 @@ class DeviceMgrImp {
       }
     }
 
-    if (supports_idle_timeout.ValueOrDie())
+    if (supports_idle_timeout)
       RETURN_IF_ERROR(idle_timeout_buffer.modify_entry(match_key, table_entry));
 
     RETURN_OK_STATUS();

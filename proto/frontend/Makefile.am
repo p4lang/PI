@@ -37,6 +37,7 @@ src/pre_clone_mgr.cpp \
 src/task_queue.h \
 src/digest_mgr.h \
 src/digest_mgr.cpp \
+src/status_macros.h \
 src/statusor.h \
 src/idle_timeout_buffer.h \
 src/idle_timeout_buffer.cpp \
