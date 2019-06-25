@@ -139,14 +139,15 @@ class P4ErrorReporter {
 };
 
 struct OneShotCleanup : public common::LocalCleanupIface {
-  OneShotCleanup(ActionProfMgr *action_prof_mgr,
+  OneShotCleanup(ActionProfAccessOneshot *action_prof_access_oneshot,
                  pi_indirect_handle_t group_h)
-      : action_prof_mgr(action_prof_mgr), group_h_to_delete(group_h) { }
+      : action_prof_access_oneshot(action_prof_access_oneshot),
+        group_h_to_delete(group_h) { }
 
   Status cleanup(const SessionTemp &session) override {
-    if (!action_prof_mgr) RETURN_OK_STATUS();
+    if (!action_prof_access_oneshot) RETURN_OK_STATUS();
     auto status =
-        action_prof_mgr->oneshot_group_delete(group_h_to_delete, session);
+        action_prof_access_oneshot->group_delete(group_h_to_delete, session);
     if (IS_ERROR(status)) {
       RETURN_ERROR_STATUS(
           Code::INTERNAL,
@@ -159,14 +160,14 @@ struct OneShotCleanup : public common::LocalCleanupIface {
   }
 
   void cancel() override {
-    action_prof_mgr = nullptr;
+    action_prof_access_oneshot = nullptr;
   }
 
   void update_group_h(pi_indirect_handle_t group_h) {
     group_h_to_delete = group_h;
   }
 
-  ActionProfMgr *action_prof_mgr;
+  ActionProfAccessOneshot *action_prof_access_oneshot;
   pi_indirect_handle_t group_h_to_delete;
 };
 
@@ -925,13 +926,14 @@ class DeviceMgrImp {
           }
         case ActionProfMgr::SelectorUsage::MANUAL:
           {
-            ActionProfMgr::Id member_id;
-            if (action_prof_mgr->retrieve_member_id(indirect_h, &member_id)) {
+            auto access_manual = action_prof_mgr->manual().ValueOrDie();
+            ActionProfMemberId member_id;
+            if (access_manual->retrieve_member_id(indirect_h, &member_id)) {
               table_action->set_action_profile_member_id(member_id);
               RETURN_OK_STATUS();
             }
-            ActionProfMgr::Id group_id;
-            if (!action_prof_mgr->retrieve_group_id(indirect_h, &group_id))
+            ActionProfGroupId group_id;
+            if (!access_manual->retrieve_group_id(indirect_h, &group_id))
               RETURN_ERROR_STATUS(Code::INTERNAL, "Invalid indirect handle");
             table_action->set_action_profile_group_id(group_id);
             RETURN_OK_STATUS();
@@ -962,6 +964,8 @@ class DeviceMgrImp {
         ActionProfMgr::SelectorUsage::ONESHOT) {
       RETURN_OK_STATUS();
     }
+
+    auto access_oneshot = action_prof_mgr->oneshot().ValueOrDie();
 
     PIActProfEntries entries(session);
     RETURN_IF_ERROR(entries.fetch(device_tgt, action_prof_id));
@@ -994,9 +998,8 @@ class DeviceMgrImp {
       // we cannot rely on the target returning the members in the correct order
       // (read-write symmetry), so we use the member list stored in
       // ActionProfMgr.
-      std::vector<ActionProfMgr::OneShotMember> members_in_order;
-      if (!action_prof_mgr->oneshot_group_get_members(
-              group_h, &members_in_order)) {
+      std::vector<ActionProfAccessOneshot::OneShotMember> members_in_order;
+      if (!access_oneshot->group_get_members(group_h, &members_in_order)) {
         RETURN_ERROR_STATUS(Code::INTERNAL, "Unknown group handle");
       }
       if (num != members_in_order.size())
@@ -1329,15 +1332,16 @@ class DeviceMgrImp {
                           "Not a valid action profile id: {}",
                           member.action_profile_id());
     }
+    ASSIGN_OR_RETURN(auto access_manual, action_prof_mgr->manual());
     switch (update) {
       case p4v1::Update::UNSPECIFIED:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Update type is not set");
       case p4v1::Update::INSERT:
-        return action_prof_mgr->member_create(member, session);
+        return access_manual->member_create(member, session);
       case p4v1::Update::MODIFY:
-        return action_prof_mgr->member_modify(member, session);
+        return access_manual->member_modify(member, session);
       case p4v1::Update::DELETE:
-        return action_prof_mgr->member_delete(member, session);
+        return access_manual->member_delete(member, session);
       default:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid update type");
     }
@@ -1356,15 +1360,16 @@ class DeviceMgrImp {
                           "Not a valid action profile id: {}",
                           group.action_profile_id());
     }
+    ASSIGN_OR_RETURN(auto access_manual, action_prof_mgr->manual());
     switch (update) {
       case p4v1::Update::UNSPECIFIED:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Update type is not set");
       case p4v1::Update::INSERT:
-        return action_prof_mgr->group_create(group, session);
+        return access_manual->group_create(group, session);
       case p4v1::Update::MODIFY:
-        return action_prof_mgr->group_modify(group, session);
+        return access_manual->group_modify(group, session);
       case p4v1::Update::DELETE:
-        return action_prof_mgr->group_delete(group, session);
+        return access_manual->group_delete(group, session);
       default:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid update type");
     }
@@ -1382,14 +1387,15 @@ class DeviceMgrImp {
                           "Not a valid action profile id: {}",
                           action_profile_id);
     }
+    ASSIGN_OR_RETURN(auto access_manual, action_prof_mgr->manual());
 
     PIActProfEntries entries(session);
     if (member.member_id() == 0) {
       RETURN_IF_ERROR(entries.fetch(device_tgt, action_profile_id));
     } else {
       pi_indirect_handle_t member_h;
-      if (!action_prof_mgr->retrieve_member_handle(member.member_id(),
-                                                   &member_h)) {
+      if (!access_manual->retrieve_member_handle(member.member_id(),
+                                                 &member_h)) {
         Logger::get()->warn(
             "Member id {} does not match any known member in action profile {}",
             member.member_id(), action_profile_id);
@@ -1407,8 +1413,8 @@ class DeviceMgrImp {
       member->set_action_profile_id(action_profile_id);
       pi_act_prof_mbrs_next(entries, &action_data, &member_h);
       RETURN_IF_ERROR(parse_action_data(action_data, member->mutable_action()));
-      ActionProfMgr::Id member_id;
-      if (!action_prof_mgr->retrieve_member_id(member_h, &member_id)) {
+      ActionProfMemberId member_id;
+      if (!access_manual->retrieve_member_id(member_h, &member_id)) {
         RETURN_ERROR_STATUS(Code::INTERNAL,
                             "Cannot map member handle to member id");
       }
@@ -1447,13 +1453,14 @@ class DeviceMgrImp {
                           "Not a valid action profile id: {}",
                           action_profile_id);
     }
+    ASSIGN_OR_RETURN(auto access_manual, action_prof_mgr->manual());
 
     PIActProfEntries entries(session);
     if (group.group_id() == 0) {
       RETURN_IF_ERROR(entries.fetch(device_tgt, action_profile_id));
     } else {
       pi_indirect_handle_t group_h;
-      if (!action_prof_mgr->retrieve_group_handle(group.group_id(), &group_h)) {
+      if (!access_manual->retrieve_group_handle(group.group_id(), &group_h)) {
         Logger::get()->warn(
             "Group id {} does not match any known group in action profile {}",
             group.group_id(), action_profile_id);
@@ -1471,14 +1478,14 @@ class DeviceMgrImp {
       auto *group = response->add_entities()->mutable_action_profile_group();
       group->set_action_profile_id(action_profile_id);
       pi_act_prof_grps_next(entries, &members_h, &num, &group_h);
-      ActionProfMgr::Id group_id;
-      if (!action_prof_mgr->retrieve_group_id(group_h, &group_id)) {
+      ActionProfGroupId group_id;
+      if (!access_manual->retrieve_group_id(group_h, &group_id)) {
         RETURN_ERROR_STATUS(Code::INTERNAL,
                             "Cannot map group handle to group id");
       }
       group->set_group_id(group_id);
       size_t max_size;
-      if (!action_prof_mgr->group_get_max_size_user(group_id, &max_size)) {
+      if (!access_manual->group_get_max_size_user(group_id, &max_size)) {
         RETURN_ERROR_STATUS(Code::INTERNAL,
                             "Cannot retrieve max_size for group {}", group_id);
       }
@@ -1487,17 +1494,17 @@ class DeviceMgrImp {
       // consistency, it is quite expensive compared to just using the state
       // stored in ActionProfMgr. Maybe we should consider doing that (or maybe
       // have a flag to choose one or the other).
-      std::map<ActionProfMgr::Id, int> member_weights;
+      std::map<ActionProfMemberId, int> member_weights;
       int weight;
       int watch_port;
       for (size_t j = 0; j < num; j++) {
-        ActionProfMgr::Id member_id;
-        if (!action_prof_mgr->retrieve_member_id(members_h[j], &member_id)) {
+        ActionProfMemberId member_id;
+        if (!access_manual->retrieve_member_id(members_h[j], &member_id)) {
           RETURN_ERROR_STATUS(Code::INTERNAL,
                               "Cannot map member handle to member id");
         }
-        if (!action_prof_mgr->get_member_info(group_id, member_id,
-                                              &weight, &watch_port)) {
+        if (!access_manual->get_member_info(group_id, member_id,
+                                            &weight, &watch_port)) {
           RETURN_ERROR_STATUS(Code::INTERNAL, "Cannot retrieve member info");
         }
         member_weights[member_id]++;
@@ -2349,15 +2356,16 @@ class DeviceMgrImp {
     auto action_prof_mgr = get_action_prof_mgr(action_prof_id);
     // cannot assert because the action prof id is provided by the PI
     assert(action_prof_mgr);
+    ASSIGN_OR_RETURN(auto access_manual, action_prof_mgr->manual());
     pi_indirect_handle_t indirect_h;
     bool found_h;
     switch (table_action.type_case()) {
       case p4v1::TableAction::kActionProfileMemberId:
-        found_h = action_prof_mgr->retrieve_member_handle(
+        found_h = access_manual->retrieve_member_handle(
             table_action.action_profile_member_id(), &indirect_h);
         break;
       case p4v1::TableAction::kActionProfileGroupId:
-        found_h = action_prof_mgr->retrieve_group_handle(
+        found_h = access_manual->retrieve_group_handle(
             table_action.action_profile_group_id(), &indirect_h);
         break;
       default:
@@ -2406,13 +2414,14 @@ class DeviceMgrImp {
     auto action_prof_mgr = get_action_prof_mgr(action_prof_id);
     // cannot assert because the action prof id is provided by the PI
     assert(action_prof_mgr);
+    ASSIGN_OR_RETURN(auto access_oneshot, action_prof_mgr->oneshot());
 
     pi_indirect_handle_t group_h;
-    RETURN_IF_ERROR(action_prof_mgr->oneshot_group_create(
+    RETURN_IF_ERROR(access_oneshot->group_create(
         action_set, &group_h, session));
     action_entry->init_indirect_handle(group_h);
     session->cleanup_task_push(std::unique_ptr<OneShotCleanup>(
-        new OneShotCleanup(action_prof_mgr, group_h)));
+        new OneShotCleanup(access_oneshot, group_h)));
     RETURN_OK_STATUS();
   }
 
@@ -2670,10 +2679,11 @@ class DeviceMgrImp {
                                                                table_id);
       auto action_prof_mgr = get_action_prof_mgr(action_prof_id);
       assert(action_prof_mgr);
+      auto access_oneshot = action_prof_mgr->oneshot().ValueOrDie();
       session->cleanup_scope_push();
       session->cleanup_task_push(std::unique_ptr<OneShotCleanup>(
           new OneShotCleanup(
-              action_prof_mgr, entry_data->oneshot_group_handle)));
+              access_oneshot, entry_data->oneshot_group_handle)));
     }
 
     table_info_store.remove_entry(table_id, match_key);

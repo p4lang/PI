@@ -243,22 +243,53 @@ ActionProfGroupMembership::get_member_info(
   return true;
 }
 
-using Status = ActionProfMgr::Status;
-
-ActionProfMgr::ActionProfMgr(pi_dev_tgt_t device_tgt, pi_p4_id_t act_prof_id,
-                             pi_p4info_t *p4info, PiApiChoice pi_api_choice,
-                             WatchPortEnforcer *watch_port_enforcer)
+ActionProfAccessBase::ActionProfAccessBase(
+    pi_dev_tgt_t device_tgt, pi_p4_id_t act_prof_id,
+    pi_p4info_t *p4info, PiApiChoice pi_api_choice,
+    WatchPortEnforcer *watch_port_enforcer)
     : device_tgt(device_tgt), act_prof_id(act_prof_id), p4info(p4info),
-      pi_api_choice(pi_api_choice), watch_port_enforcer(watch_port_enforcer)  {
+      pi_api_choice(pi_api_choice), watch_port_enforcer(watch_port_enforcer) {
   max_group_size = pi_p4info_act_prof_max_grp_size(p4info, act_prof_id);
 }
 
+bool
+ActionProfAccessBase::check_p4_action_id(pi_p4_id_t p4_id) const {
+  using pi::proto::util::resource_type_from_id;
+  return (resource_type_from_id(p4_id) == p4configv1::P4Ids::ACTION)
+      && pi_p4info_is_valid_id(p4info, p4_id);
+}
+
+pi::ActionData
+ActionProfAccessBase::construct_action_data(const p4v1::Action &action) {
+  pi::ActionData action_data(p4info, action.action_id());
+  for (const auto &p : action.params()) {
+    action_data.set_arg(p.param_id(), p.value().data(), p.value().size());
+  }
+  return action_data;
+}
+
 Status
-ActionProfMgr::member_create(const p4v1::ActionProfileMember &member,
-                             const SessionTemp &session) {
+ActionProfAccessBase::validate_action(const p4v1::Action &action) {
+  auto action_id = action.action_id();
+  if (!check_p4_action_id(action_id))
+    return make_invalid_p4_id_status();
+  if (!pi_p4info_act_prof_is_action_of(p4info, act_prof_id, action_id)) {
+    RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                        "Invalid action for action profile");
+  }
+  return validate_action_data(p4info, action);
+}
+
+bool
+ActionProfAccessManual::empty() const {
+  return member_map.empty() && group_bimap.empty();
+}
+
+Status
+ActionProfAccessManual::member_create(const p4v1::ActionProfileMember &member,
+                                      const SessionTemp &session) {
   RETURN_IF_ERROR(validate_action(member.action()));
   auto action_data = construct_action_data(member.action());
-  RETURN_IF_ERROR(check_selector_usage(SelectorUsage::MANUAL));
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   // we check if the member id already exists
   if (member_map.access_member_state(member.member_id()) != nullptr) {
@@ -277,12 +308,11 @@ ActionProfMgr::member_create(const p4v1::ActionProfileMember &member,
     RETURN_ERROR_STATUS(
         Code::INTERNAL, "Error when updating handle to member id map");
   }
-  selector_usage = SelectorUsage::MANUAL;
   RETURN_OK_STATUS();
 }
 
 StatusOr<size_t>
-ActionProfMgr::validate_max_group_size(int max_size) {
+ActionProfAccessManual::validate_max_group_size(int max_size) {
 /*
  - If max_group_size is greater than 0, then max_size must be greater than 0,
    and less than or equal to max_group_size. We assume that the target can
@@ -322,11 +352,10 @@ ActionProfMgr::validate_max_group_size(int max_size) {
 // ensure that the ActionProfMgr state is consistent with HW.
 
 Status
-ActionProfMgr::group_create(const p4v1::ActionProfileGroup &group,
-                            const SessionTemp &session) {
+ActionProfAccessManual::group_create(const p4v1::ActionProfileGroup &group,
+                                     const SessionTemp &session) {
   auto max_size = validate_max_group_size(group.max_size());
   RETURN_IF_ERROR(max_size.status());
-  RETURN_IF_ERROR(check_selector_usage(SelectorUsage::MANUAL));
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   // we check if the group id already exists
   if (group_bimap.retrieve_handle(group.group_id()) != nullptr) {
@@ -340,16 +369,14 @@ ActionProfMgr::group_create(const p4v1::ActionProfileGroup &group,
   group_bimap.add(group.group_id(), group_h);
   group_members.emplace(group.group_id(),
                         ActionProfGroupMembership(group.max_size()));
-  selector_usage = SelectorUsage::MANUAL;
   return group_update_members(ap, group);
 }
 
 Status
-ActionProfMgr::member_modify(const p4v1::ActionProfileMember &member,
-                             const SessionTemp &session) {
+ActionProfAccessManual::member_modify(const p4v1::ActionProfileMember &member,
+                                      const SessionTemp &session) {
   RETURN_IF_ERROR(validate_action(member.action()));
   auto action_data = construct_action_data(member.action());
-  RETURN_IF_ERROR(check_selector_usage(SelectorUsage::MANUAL));
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   auto member_state = member_map.access_member_state(member.member_id());
   if (member_state == nullptr) {
@@ -368,9 +395,8 @@ ActionProfMgr::member_modify(const p4v1::ActionProfileMember &member,
 }
 
 Status
-ActionProfMgr::group_modify(const p4v1::ActionProfileGroup &group,
-                            const SessionTemp &session) {
-  RETURN_IF_ERROR(check_selector_usage(SelectorUsage::MANUAL));
+ActionProfAccessManual::group_modify(const p4v1::ActionProfileGroup &group,
+                                     const SessionTemp &session) {
   auto group_id = group.group_id();
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   auto group_h = group_bimap.retrieve_handle(group_id);
@@ -392,9 +418,8 @@ ActionProfMgr::group_modify(const p4v1::ActionProfileGroup &group,
 }
 
 Status
-ActionProfMgr::member_delete(const p4v1::ActionProfileMember &member,
-                             const SessionTemp &session) {
-  RETURN_IF_ERROR(check_selector_usage(SelectorUsage::MANUAL));
+ActionProfAccessManual::member_delete(const p4v1::ActionProfileMember &member,
+                                      const SessionTemp &session) {
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   auto member_state = member_map.access_member_state(member.member_id());
   if (member_state == nullptr) {
@@ -418,14 +443,12 @@ ActionProfMgr::member_delete(const p4v1::ActionProfileMember &member,
     RETURN_ERROR_STATUS(
         Code::INTERNAL, "Error when removing member from member map");
   }
-  reset_selector_usage();
   RETURN_OK_STATUS();
 }
 
 Status
-ActionProfMgr::group_delete(const p4v1::ActionProfileGroup &group,
-                            const SessionTemp &session) {
-  RETURN_IF_ERROR(check_selector_usage(SelectorUsage::MANUAL));
+ActionProfAccessManual::group_delete(const p4v1::ActionProfileGroup &group,
+                                     const SessionTemp &session) {
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   auto group_h = group_bimap.retrieve_handle(group.group_id());
   if (group_h == nullptr) {
@@ -466,13 +489,12 @@ ActionProfMgr::group_delete(const p4v1::ActionProfileGroup &group,
   // pointer (of course we could also copy *group_h to a stack variable...)
   group_bimap.remove(group.group_id());
 
-  reset_selector_usage();
   RETURN_OK_STATUS();
 }
 
 bool
-ActionProfMgr::group_get_max_size_user(const Id &group_id,
-                                       size_t *max_size_user) const {
+ActionProfAccessManual::group_get_max_size_user(const Id &group_id,
+                                                size_t *max_size_user) const {
   auto it = group_members.find(group_id);
   if (it == group_members.end()) return false;
   *max_size_user = it->second.get_max_size_user();
@@ -480,303 +502,15 @@ ActionProfMgr::group_get_max_size_user(const Id &group_id,
 }
 
 bool
-ActionProfMgr::get_member_info(const Id &group_id, const Id &member_id,
-                               int *weight, int *watch_port) const {
+ActionProfAccessManual::get_member_info(const Id &group_id, const Id &member_id,
+                                        int *weight, int *watch_port) const {
   auto it = group_members.find(group_id);
   if (it == group_members.end()) return false;
   return it->second.get_member_info(member_id, weight, watch_port);
 }
 
-struct ActionProfMgr::OneShotGroupCleanupTask : common::LocalCleanupIface {
-  OneShotGroupCleanupTask(ActionProfMgr *action_prof_mgr,
-                          pi_indirect_handle_t group_h)
-      : mgr(action_prof_mgr), group_h(group_h) { }
-
-  Status cleanup(const SessionTemp &session) override {
-    if (!mgr) RETURN_OK_STATUS();
-    pi::ActProf ap(
-        session.get(), mgr->device_tgt, mgr->p4info, mgr->act_prof_id);
-    auto pi_status = ap.group_delete(group_h);
-    if (pi_status != PI_STATUS_SUCCESS) {
-      RETURN_ERROR_STATUS(
-          Code::INTERNAL,
-          "Error encountered when cleaning up action profile group created "
-          "by one-shot indirect table programming. This is a serious error and "
-          "there is now a dangling action profile group. You may need to "
-          "reboot the system");
-    }
-    RETURN_OK_STATUS();
-  }
-
-  void cancel() override {
-    mgr = nullptr;
-  }
-
-  ActionProfMgr *mgr;
-  pi_indirect_handle_t group_h;
-};
-
-struct ActionProfMgr::OneShotMemberCleanupTask : common::LocalCleanupIface {
-  OneShotMemberCleanupTask(ActionProfMgr *action_prof_mgr,
-                           pi_indirect_handle_t member_h)
-      : mgr(action_prof_mgr), member_h(member_h) { }
-
-  Status cleanup(const SessionTemp &session) override {
-    if (!mgr) RETURN_OK_STATUS();
-    pi::ActProf ap(
-        session.get(), mgr->device_tgt, mgr->p4info, mgr->act_prof_id);
-    auto pi_status = ap.member_delete(member_h);
-    if (pi_status != PI_STATUS_SUCCESS) {
-      RETURN_ERROR_STATUS(
-          Code::INTERNAL,
-          "Error encountered when cleaning up action profile member created "
-          "by one-shot indirect table programming. This is a serious error and "
-          "you may need to reboot the system");
-    }
-    RETURN_OK_STATUS();
-  }
-
-  void cancel() override {
-    mgr = nullptr;
-  }
-
-  ActionProfMgr *mgr;
-  pi_indirect_handle_t member_h;
-};
-
-struct ActionProfMgr::OneShotWatchPortCleanupTask : common::LocalCleanupIface {
-  OneShotWatchPortCleanupTask(ActionProfMgr *action_prof_mgr,
-                              pi_indirect_handle_t group_h,
-                              pi_indirect_handle_t member_h,
-                              pi_port_t watch)
-      : mgr(action_prof_mgr), group_h(group_h), member_h(member_h),
-        watch(watch) { }
-
-  Status cleanup(const SessionTemp &session) override {
-    (void)session;
-    if (!mgr) RETURN_OK_STATUS();
-    // no reason to fail, we are just updating the watch_port_enforcer internal
-    // state
-    auto status = mgr->watch_port_enforcer->delete_member(
-        mgr->act_prof_id, group_h, member_h, watch);
-    if (IS_ERROR(status)) {
-      RETURN_ERROR_STATUS(
-          Code::INTERNAL,
-          "Error encountered when undoing changes to action profile group "
-          "member watch port status committed during one-shot indirect table "
-          "programming. This is a serious error and you may need to reboot "
-          "the system");
-    }
-    RETURN_OK_STATUS();
-  }
-
-  void cancel() override {
-    mgr = nullptr;
-  }
-
-  ActionProfMgr *mgr;
-  pi_indirect_handle_t group_h;
-  pi_indirect_handle_t member_h;
-  pi_port_t watch;
-};
-
 Status
-ActionProfMgr::oneshot_group_create(
-    const p4::v1::ActionProfileActionSet &action_set,
-    pi_indirect_handle_t *group_h,
-    SessionTemp *session) {
-  if (action_set.action_profile_actions().empty()) {
-    RETURN_ERROR_STATUS(
-        Code::UNIMPLEMENTED, "No support for empty action profile groups");
-  }
-  for (const auto &action : action_set.action_profile_actions())
-    RETURN_IF_ERROR(validate_action(action.action()));
-
-  size_t sum_of_weights = 0;
-  for (const auto &action : action_set.action_profile_actions()) {
-    if (action.weight() <= 0) {
-      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
-                          "Member weight must be a positive integer value");
-    }
-    sum_of_weights += action.weight();
-  }
-
-  if (max_group_size > 0 && sum_of_weights > max_group_size) {
-    RETURN_ERROR_STATUS(
-        Code::RESOURCE_EXHAUSTED,
-        "Sum of weights exceeds static max_group_size (from P4Info)");
-  }
-
-  RETURN_IF_ERROR(check_selector_usage(SelectorUsage::ONESHOT));
-  session->cleanup_scope_push();
-  pi::ActProf ap(session->get(), device_tgt, p4info, act_prof_id);
-  std::vector<OneShotMember> members;
-  std::vector<pi_indirect_handle_t> members_h;
-  std::vector<pi_port_t> members_watch_port;
-  for (const auto &action : action_set.action_profile_actions()) {
-    for (int i = 0; i < action.weight(); i++) {
-      pi_indirect_handle_t member_h;
-      auto action_data = construct_action_data(action.action());
-      auto pi_status = ap.member_create(action_data, &member_h);
-      if (pi_status != PI_STATUS_SUCCESS) {
-        RETURN_ERROR_STATUS(
-            Code::UNKNOWN, "Error when creating member on target");
-      }
-      members.push_back(
-          {member_h, (i == 0) ? action.weight() : 0, action.watch()});
-      members_h.push_back(member_h);
-      members_watch_port.push_back(watch_port_p4rt_to_pi(action.watch()));
-      session->cleanup_task_push(std::unique_ptr<OneShotMemberCleanupTask>(
-          new OneShotMemberCleanupTask(this, member_h)));
-    }
-  }
-  {
-    auto pi_status = ap.group_create(
-        action_set.action_profile_actions_size(), group_h);
-    if (pi_status != PI_STATUS_SUCCESS)
-      RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when creating group on target");
-    session->cleanup_task_push(std::unique_ptr<OneShotGroupCleanupTask>(
-        new OneShotGroupCleanupTask(this, *group_h)));
-  }
-  assert(members_h.size() == members_watch_port.size());
-  if (pi_api_choice == PiApiChoice::INDIVIDUAL_ADDS_AND_REMOVES) {
-    for (size_t i = 0; i < members_h.size(); i++) {
-      auto pi_status = ap.group_add_member(*group_h, members_h[i]);
-      if (pi_status != PI_STATUS_SUCCESS) {
-        RETURN_ERROR_STATUS(
-            Code::UNKNOWN, "Error when adding member to group on target");
-      }
-      RETURN_IF_ERROR(watch_port_enforcer->add_member_and_update_hw(
-          &ap, *group_h, members_h[i], members_watch_port[i]));
-      session->cleanup_task_push(std::unique_ptr<OneShotWatchPortCleanupTask>(
-          new OneShotWatchPortCleanupTask(
-              this, *group_h, members_h[i], members_watch_port[i])));
-    }
-  } else if (pi_api_choice == PiApiChoice::SET_MEMBERSHIP) {
-    std::unique_ptr<bool[]> activate(new bool[members_h.size()]);
-    for (size_t i = 0; i < members_h.size(); i++) {
-      auto port_status = watch_port_enforcer->get_port_status(
-          act_prof_id, members_watch_port[i]);
-      activate[i] = (port_status == PI_PORT_STATUS_UP);
-    }
-    auto pi_status = ap.group_set_members(
-        *group_h, members_h.size(), members_h.data(), activate.get());
-    if (pi_status != PI_STATUS_SUCCESS) {
-      RETURN_ERROR_STATUS(
-          Code::UNKNOWN, "Error when setting group membership on target");
-    }
-    for (size_t i = 0; i < members_h.size(); i++) {
-      RETURN_IF_ERROR(watch_port_enforcer->add_member(
-          act_prof_id, *group_h, members_h[i], members_watch_port[i]));
-      session->cleanup_task_push(std::unique_ptr<OneShotWatchPortCleanupTask>(
-          new OneShotWatchPortCleanupTask(
-              this, *group_h, members_h[i], members_watch_port[i])));
-    }
-  } else {
-    RETURN_ERROR_STATUS(Code::INTERNAL, "Unknown PiApiChoice");
-  }
-
-  session->cleanup_scope_pop();
-  auto p = oneshot_group_members.emplace(*group_h, members);
-  assert(p.second);
-  (void)p;
-  selector_usage = SelectorUsage::ONESHOT;
-  RETURN_OK_STATUS();
-}
-
-Status
-ActionProfMgr::oneshot_group_delete(pi_indirect_handle_t group_h,
-                                    const SessionTemp &session) {
-  RETURN_IF_ERROR(check_selector_usage(SelectorUsage::ONESHOT));
-  auto members_it = oneshot_group_members.find(group_h);
-  assert(members_it != oneshot_group_members.end());
-  pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
-  for (const auto &member : members_it->second) {
-    auto pi_status = ap.member_delete(member.member_h);
-    if (pi_status != PI_STATUS_SUCCESS) {
-      RETURN_ERROR_STATUS(
-          Code::UNKNOWN, "Error when deleting member on target");
-    }
-
-    // no reason to fail, we are just updating the watch_port_enforcer internal
-    // state
-    RETURN_IF_ERROR(watch_port_enforcer->delete_member(
-        act_prof_id, group_h, member.member_h,
-        watch_port_p4rt_to_pi(member.watch)));
-  }
-  {
-    auto pi_status = ap.group_delete(group_h);
-    if (pi_status != PI_STATUS_SUCCESS)
-      RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when deleting group on target");
-  }
-  oneshot_group_members.erase(members_it);
-  reset_selector_usage();
-  RETURN_OK_STATUS();
-}
-
-bool
-ActionProfMgr::oneshot_group_get_members(
-    pi_indirect_handle_t group_h,
-    std::vector<OneShotMember> *members) const {
-  auto it = oneshot_group_members.find(group_h);
-  if (it == oneshot_group_members.end()) return false;
-  *members = it->second;
-  return true;
-}
-
-ActionProfMgr::SelectorUsage
-ActionProfMgr::get_selector_usage() const {
-  return selector_usage;
-}
-
-bool
-ActionProfMgr::check_p4_action_id(pi_p4_id_t p4_id) const {
-  using pi::proto::util::resource_type_from_id;
-  return (resource_type_from_id(p4_id) == p4configv1::P4Ids::ACTION)
-      && pi_p4info_is_valid_id(p4info, p4_id);
-}
-
-pi::ActionData
-ActionProfMgr::construct_action_data(const p4v1::Action &action) {
-  pi::ActionData action_data(p4info, action.action_id());
-  for (const auto &p : action.params()) {
-    action_data.set_arg(p.param_id(), p.value().data(), p.value().size());
-  }
-  return action_data;
-}
-
-Status
-ActionProfMgr::validate_action(const p4v1::Action &action) {
-  auto action_id = action.action_id();
-  if (!check_p4_action_id(action_id))
-    return make_invalid_p4_id_status();
-  if (!pi_p4info_act_prof_is_action_of(p4info, act_prof_id, action_id)) {
-    RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
-                        "Invalid action for action profile");
-  }
-  return validate_action_data(p4info, action);
-}
-
-Status
-ActionProfMgr::check_selector_usage(SelectorUsage attempted_usage) const {
-  if (selector_usage == SelectorUsage::UNSPECIFIED ||
-      selector_usage == attempted_usage)
-    RETURN_OK_STATUS();
-  RETURN_ERROR_STATUS(
-      Code::INVALID_ARGUMENT,
-      "Invalid attempt to mix action selector programming modes");
-}
-
-void
-ActionProfMgr::reset_selector_usage() {
-  if (member_map.empty() &&
-      group_bimap.empty() &&
-      oneshot_group_members.empty())
-    selector_usage = SelectorUsage::UNSPECIFIED;
-}
-
-Status
-ActionProfMgr::create_missing_weighted_members(
+ActionProfAccessManual::create_missing_weighted_members(
     pi::ActProf &ap,
     ActionProfMemberMap::MemberState *member_state,
     const ActionProfGroupMembership::MembershipUpdate &update) {
@@ -799,7 +533,7 @@ ActionProfMgr::create_missing_weighted_members(
 }
 
 Status
-ActionProfMgr::purge_unused_weighted_members(
+ActionProfAccessManual::purge_unused_weighted_members(
     pi::ActProf &ap,
     ActionProfMemberMap::MemberState *member_state) {
   int new_max_weight = -1;
@@ -836,7 +570,7 @@ ActionProfMgr::purge_unused_weighted_members(
 }
 
 Status
-ActionProfMgr::purge_unused_weighted_members_wrapper(
+ActionProfAccessManual::purge_unused_weighted_members_wrapper(
     pi::ActProf &ap,
     ActionProfMemberMap::MemberState *member_state) {
   if (IS_ERROR(purge_unused_weighted_members(ap, member_state))) {
@@ -851,8 +585,8 @@ ActionProfMgr::purge_unused_weighted_members_wrapper(
 }
 
 Status
-ActionProfMgr::group_update_members(pi::ActProf &ap,
-                                    const p4v1::ActionProfileGroup &group) {
+ActionProfAccessManual::group_update_members(
+    pi::ActProf &ap, const p4v1::ActionProfileGroup &group) {
   size_t sum_of_weights = 0;
   for (const auto& member : group.members()) {
     if (member.weight() <= 0) {
@@ -1088,8 +822,8 @@ ActionProfMgr::group_update_members(pi::ActProf &ap,
 }
 
 bool
-ActionProfMgr::retrieve_member_handle(const Id &member_id,
-                                      pi_indirect_handle_t *member_h) const {
+ActionProfAccessManual::retrieve_member_handle(
+    const Id &member_id, pi_indirect_handle_t *member_h) const {
   auto *h_ptr = member_map.get_first_handle(member_id);
   if (!h_ptr) return false;
   *member_h = *h_ptr;
@@ -1097,8 +831,8 @@ ActionProfMgr::retrieve_member_handle(const Id &member_id,
 }
 
 bool
-ActionProfMgr::retrieve_group_handle(const Id &group_id,
-                                     pi_indirect_handle_t *group_h) const {
+ActionProfAccessManual::retrieve_group_handle(
+    const Id &group_id, pi_indirect_handle_t *group_h) const {
   auto *h_ptr = group_bimap.retrieve_handle(group_id);
   if (!h_ptr) return false;
   *group_h = *h_ptr;
@@ -1106,8 +840,8 @@ ActionProfMgr::retrieve_group_handle(const Id &group_id,
 }
 
 bool
-ActionProfMgr::retrieve_member_id(pi_indirect_handle_t member_h,
-                                  Id *member_id) const {
+ActionProfAccessManual::retrieve_member_id(
+    pi_indirect_handle_t member_h, Id *member_id) const {
   auto *id_ptr = member_map.retrieve_id(member_h);
   if (!id_ptr) return false;
   *member_id = *id_ptr;
@@ -1115,12 +849,316 @@ ActionProfMgr::retrieve_member_id(pi_indirect_handle_t member_h,
 }
 
 bool
-ActionProfMgr::retrieve_group_id(pi_indirect_handle_t group_h,
-                                 Id *group_id) const {
+ActionProfAccessManual::retrieve_group_id(
+    pi_indirect_handle_t group_h, Id *group_id) const {
   auto *id_ptr = group_bimap.retrieve_id(group_h);
   if (!id_ptr) return false;
   *group_id = *id_ptr;
   return true;
+}
+
+struct ActionProfAccessOneshot::OneShotGroupCleanupTask
+    : common::LocalCleanupIface {
+  OneShotGroupCleanupTask(ActionProfAccessOneshot *action_prof_access_oneshot,
+                          pi_indirect_handle_t group_h)
+      : access(action_prof_access_oneshot), group_h(group_h) { }
+
+  Status cleanup(const SessionTemp &session) override {
+    if (!access) RETURN_OK_STATUS();
+    pi::ActProf ap(
+        session.get(), access->device_tgt, access->p4info, access->act_prof_id);
+    auto pi_status = ap.group_delete(group_h);
+    if (pi_status != PI_STATUS_SUCCESS) {
+      RETURN_ERROR_STATUS(
+          Code::INTERNAL,
+          "Error encountered when cleaning up action profile group created "
+          "by one-shot indirect table programming. This is a serious error and "
+          "there is now a dangling action profile group. You may need to "
+          "reboot the system");
+    }
+    RETURN_OK_STATUS();
+  }
+
+  void cancel() override {
+    access = nullptr;
+  }
+
+  ActionProfAccessOneshot *access;
+  pi_indirect_handle_t group_h;
+};
+
+struct ActionProfAccessOneshot::OneShotMemberCleanupTask
+    : common::LocalCleanupIface {
+  OneShotMemberCleanupTask(ActionProfAccessOneshot *action_prof_access_oneshot,
+                           pi_indirect_handle_t member_h)
+      : access(action_prof_access_oneshot), member_h(member_h) { }
+
+  Status cleanup(const SessionTemp &session) override {
+    if (!access) RETURN_OK_STATUS();
+    pi::ActProf ap(
+        session.get(), access->device_tgt, access->p4info, access->act_prof_id);
+    auto pi_status = ap.member_delete(member_h);
+    if (pi_status != PI_STATUS_SUCCESS) {
+      RETURN_ERROR_STATUS(
+          Code::INTERNAL,
+          "Error encountered when cleaning up action profile member created "
+          "by one-shot indirect table programming. This is a serious error and "
+          "you may need to reboot the system");
+    }
+    RETURN_OK_STATUS();
+  }
+
+  void cancel() override {
+    access = nullptr;
+  }
+
+  ActionProfAccessOneshot *access;
+  pi_indirect_handle_t member_h;
+};
+
+struct ActionProfAccessOneshot::OneShotWatchPortCleanupTask
+    : common::LocalCleanupIface {
+  OneShotWatchPortCleanupTask(
+      ActionProfAccessOneshot *action_prof_access_oneshot,
+      pi_indirect_handle_t group_h,
+      pi_indirect_handle_t member_h,
+      pi_port_t watch)
+      : access(action_prof_access_oneshot),
+        group_h(group_h),
+        member_h(member_h),
+        watch(watch) { }
+
+  Status cleanup(const SessionTemp &session) override {
+    (void)session;
+    if (!access) RETURN_OK_STATUS();
+    // no reason to fail, we are just updating the watch_port_enforcer internal
+    // state
+    auto status = access->watch_port_enforcer->delete_member(
+        access->act_prof_id, group_h, member_h, watch);
+    if (IS_ERROR(status)) {
+      RETURN_ERROR_STATUS(
+          Code::INTERNAL,
+          "Error encountered when undoing changes to action profile group "
+          "member watch port status committed during one-shot indirect table "
+          "programming. This is a serious error and you may need to reboot "
+          "the system");
+    }
+    RETURN_OK_STATUS();
+  }
+
+  void cancel() override {
+    access = nullptr;
+  }
+
+  ActionProfAccessOneshot *access;
+  pi_indirect_handle_t group_h;
+  pi_indirect_handle_t member_h;
+  pi_port_t watch;
+};
+
+bool
+ActionProfAccessOneshot::empty() const {
+  return group_members.empty();
+}
+
+Status
+ActionProfAccessOneshot::group_create_helper(
+      pi::ActProf &ap, pi_indirect_handle_t group_h,
+      std::vector<pi_indirect_handle_t> members_h,
+      std::vector<pi_port_t> members_watch_port,
+      SessionTemp *session) {
+  if (pi_api_choice == PiApiChoice::INDIVIDUAL_ADDS_AND_REMOVES) {
+    for (size_t i = 0; i < members_h.size(); i++) {
+      auto pi_status = ap.group_add_member(group_h, members_h[i]);
+      if (pi_status != PI_STATUS_SUCCESS) {
+        RETURN_ERROR_STATUS(
+            Code::UNKNOWN, "Error when adding member to group on target");
+      }
+      RETURN_IF_ERROR(watch_port_enforcer->add_member_and_update_hw(
+          &ap, group_h, members_h[i], members_watch_port[i]));
+      session->cleanup_task_push(std::unique_ptr<OneShotWatchPortCleanupTask>(
+          new OneShotWatchPortCleanupTask(
+              this, group_h, members_h[i], members_watch_port[i])));
+    }
+  } else if (pi_api_choice == PiApiChoice::SET_MEMBERSHIP) {
+    std::unique_ptr<bool[]> activate(new bool[members_h.size()]);
+    for (size_t i = 0; i < members_h.size(); i++) {
+      auto port_status = watch_port_enforcer->get_port_status(
+          act_prof_id, members_watch_port[i]);
+      activate[i] = (port_status == PI_PORT_STATUS_UP);
+    }
+    auto pi_status = ap.group_set_members(
+        group_h, members_h.size(), members_h.data(), activate.get());
+    if (pi_status != PI_STATUS_SUCCESS) {
+      RETURN_ERROR_STATUS(
+          Code::UNKNOWN, "Error when setting group membership on target");
+    }
+    for (size_t i = 0; i < members_h.size(); i++) {
+      RETURN_IF_ERROR(watch_port_enforcer->add_member(
+          act_prof_id, group_h, members_h[i], members_watch_port[i]));
+      session->cleanup_task_push(std::unique_ptr<OneShotWatchPortCleanupTask>(
+          new OneShotWatchPortCleanupTask(
+              this, group_h, members_h[i], members_watch_port[i])));
+    }
+  } else {
+    RETURN_ERROR_STATUS(Code::INTERNAL, "Unknown PiApiChoice");
+  }
+  RETURN_OK_STATUS();
+}
+
+Status
+ActionProfAccessOneshot::group_create(
+    const p4::v1::ActionProfileActionSet &action_set,
+    pi_indirect_handle_t *group_h, SessionTemp *session) {
+  if (action_set.action_profile_actions().empty()) {
+    RETURN_ERROR_STATUS(
+        Code::UNIMPLEMENTED, "No support for empty action profile groups");
+  }
+  for (const auto &action : action_set.action_profile_actions())
+    RETURN_IF_ERROR(validate_action(action.action()));
+
+  size_t sum_of_weights = 0;
+  for (const auto &action : action_set.action_profile_actions()) {
+    if (action.weight() <= 0) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "Member weight must be a positive integer value");
+    }
+    sum_of_weights += action.weight();
+  }
+
+  if (max_group_size > 0 && sum_of_weights > max_group_size) {
+    RETURN_ERROR_STATUS(
+        Code::RESOURCE_EXHAUSTED,
+        "Sum of weights exceeds static max_group_size (from P4Info)");
+  }
+
+  session->cleanup_scope_push();
+  pi::ActProf ap(session->get(), device_tgt, p4info, act_prof_id);
+  std::vector<OneShotMember> members;
+  std::vector<pi_indirect_handle_t> members_h;
+  std::vector<pi_port_t> members_watch_port;
+  for (const auto &action : action_set.action_profile_actions()) {
+    for (int i = 0; i < action.weight(); i++) {
+      pi_indirect_handle_t member_h;
+      auto action_data = construct_action_data(action.action());
+      auto pi_status = ap.member_create(action_data, &member_h);
+      if (pi_status != PI_STATUS_SUCCESS) {
+        RETURN_ERROR_STATUS(
+            Code::UNKNOWN, "Error when creating member on target");
+      }
+      members.push_back(
+          {member_h, (i == 0) ? action.weight() : 0, action.watch()});
+      members_h.push_back(member_h);
+      members_watch_port.push_back(watch_port_p4rt_to_pi(action.watch()));
+      session->cleanup_task_push(std::unique_ptr<OneShotMemberCleanupTask>(
+          new OneShotMemberCleanupTask(this, member_h)));
+    }
+  }
+  {
+    auto pi_status = ap.group_create(
+        action_set.action_profile_actions_size(), group_h);
+    if (pi_status != PI_STATUS_SUCCESS)
+      RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when creating group on target");
+    session->cleanup_task_push(std::unique_ptr<OneShotGroupCleanupTask>(
+        new OneShotGroupCleanupTask(this, *group_h)));
+  }
+  assert(members_h.size() == members_watch_port.size());
+
+  RETURN_IF_ERROR(group_create_helper(
+      ap, *group_h, members_h, members_watch_port, session));
+
+  session->cleanup_scope_pop();
+  auto p = group_members.emplace(*group_h, members);
+  assert(p.second);
+  (void)p;
+  RETURN_OK_STATUS();
+}
+
+Status
+ActionProfAccessOneshot::group_delete(pi_indirect_handle_t group_h,
+                                      const SessionTemp &session) {
+  auto members_it = group_members.find(group_h);
+  assert(members_it != group_members.end());
+  pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
+  for (const auto &member : members_it->second) {
+    auto pi_status = ap.member_delete(member.member_h);
+    if (pi_status != PI_STATUS_SUCCESS) {
+      RETURN_ERROR_STATUS(
+          Code::UNKNOWN, "Error when deleting member on target");
+    }
+
+    // no reason to fail, we are just updating the watch_port_enforcer internal
+    // state
+    RETURN_IF_ERROR(watch_port_enforcer->delete_member(
+        act_prof_id, group_h, member.member_h,
+        watch_port_p4rt_to_pi(member.watch)));
+  }
+  {
+    auto pi_status = ap.group_delete(group_h);
+    if (pi_status != PI_STATUS_SUCCESS)
+      RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when deleting group on target");
+  }
+  group_members.erase(members_it);
+  RETURN_OK_STATUS();
+}
+
+bool
+ActionProfAccessOneshot::group_get_members(
+    pi_indirect_handle_t group_h, std::vector<OneShotMember> *members) const {
+  auto it = group_members.find(group_h);
+  if (it == group_members.end()) return false;
+  *members = it->second;
+  return true;
+}
+
+ActionProfMgr::ActionProfMgr(pi_dev_tgt_t device_tgt, pi_p4_id_t act_prof_id,
+                             pi_p4info_t *p4info, PiApiChoice pi_api_choice,
+                             WatchPortEnforcer *watch_port_enforcer)
+    : device_tgt(device_tgt), act_prof_id(act_prof_id), p4info(p4info),
+      pi_api_choice(pi_api_choice), watch_port_enforcer(watch_port_enforcer),
+      pimp(nullptr) { }
+
+namespace {
+
+template <typename T> struct AccessType;
+
+template <> struct AccessType<ActionProfAccessManual> {
+  static constexpr ActionProfMgr::SelectorUsage usage =
+      ActionProfMgr::SelectorUsage::MANUAL;
+};
+
+template <> struct AccessType<ActionProfAccessOneshot> {
+  static constexpr ActionProfMgr::SelectorUsage usage =
+      ActionProfMgr::SelectorUsage::ONESHOT;
+};
+
+}  // namespace
+
+template <typename T>
+Status
+ActionProfMgr::check_selector_usage() {
+  if (selector_usage == AccessType<T>::usage) RETURN_OK_STATUS();
+  if (selector_usage == SelectorUsage::UNSPECIFIED || pimp->empty()) {
+    selector_usage = AccessType<T>::usage;
+    pimp.reset(new T(
+        device_tgt, act_prof_id, p4info, pi_api_choice, watch_port_enforcer));
+    RETURN_OK_STATUS();
+  }
+  RETURN_ERROR_STATUS(
+      Code::INVALID_ARGUMENT,
+      "Invalid attempt to mix action selector programming modes");
+}
+
+StatusOr<ActionProfAccessOneshot *>
+ActionProfMgr::oneshot() {
+  RETURN_IF_ERROR(check_selector_usage<ActionProfAccessOneshot>());
+  return static_cast<ActionProfAccessOneshot *>(pimp.get());
+}
+
+StatusOr<ActionProfAccessManual *>
+ActionProfMgr::manual() {
+  RETURN_IF_ERROR(check_selector_usage<ActionProfAccessManual>());
+  return static_cast<ActionProfAccessManual *>(pimp.get());
 }
 
 /* static */

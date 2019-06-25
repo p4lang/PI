@@ -43,6 +43,8 @@ namespace fe {
 
 namespace proto {
 
+using Status = ::google::rpc::Status;
+
 class ActionProfBiMap {
  public:
   using Id = uint32_t;  // may change in the future
@@ -62,6 +64,9 @@ class ActionProfBiMap {
  private:
   BiMap<Id, pi_indirect_handle_t> bimap;
 };
+
+using ActionProfMemberId = ActionProfBiMap::Id;
+using ActionProfGroupId = ActionProfBiMap::Id;
 
 // Support for weighted members assume that the underlying PI implementation has
 // no native support for weights.
@@ -166,13 +171,9 @@ class ActionProfGroupMembership {
 
 class WatchPortEnforcer;
 
-class ActionProfMgr {
+class ActionProfAccessBase {
  public:
-  using Id = ActionProfBiMap::Id;
-  using Status = ::google::rpc::Status;
   using SessionTemp = common::SessionTemp;
-
-  enum class SelectorUsage { UNSPECIFIED, ONESHOT, MANUAL };
 
   // The ActionProfMgr is essentially a frontend to the pi_act_prof_* methods in
   // the PI C library. PI offers 2 ways of programming action profile groups:
@@ -187,9 +188,41 @@ class ActionProfMgr {
   // method.
   enum class PiApiChoice { INDIVIDUAL_ADDS_AND_REMOVES, SET_MEMBERSHIP };
 
-  ActionProfMgr(pi_dev_tgt_t device_tgt, pi_p4_id_t act_prof_id,
-                pi_p4info_t *p4info, PiApiChoice pi_api_choice,
-                WatchPortEnforcer *watch_port_enforcer);
+  enum class SelectorUsage { UNSPECIFIED, ONESHOT, MANUAL };
+
+  // ideally this should be protected, but the base classes are inheriting this
+  // constructor
+  ActionProfAccessBase(pi_dev_tgt_t device_tgt, pi_p4_id_t act_prof_id,
+                       pi_p4info_t *p4info, PiApiChoice pi_api_choice,
+                       WatchPortEnforcer *watch_port_enforcer);
+
+  virtual ~ActionProfAccessBase() = default;
+
+  virtual bool empty() const = 0;
+
+ protected:
+  bool check_p4_action_id(pi_p4_id_t p4_id) const;
+
+  Status validate_action(const p4::v1::Action &action);
+  pi::ActionData construct_action_data(const p4::v1::Action &action);
+
+  pi_dev_tgt_t device_tgt;
+  pi_p4_id_t act_prof_id;
+  pi_p4info_t *p4info;
+  // set at construction time, cannot be changed during the lifetime of the
+  // object
+  PiApiChoice pi_api_choice;
+  WatchPortEnforcer *watch_port_enforcer;  // non-owning pointer
+  size_t max_group_size{0};
+};
+
+
+class ActionProfAccessManual : public ActionProfAccessBase {
+ public:
+  using Id = ActionProfBiMap::Id;
+
+  // inheriting base constructor to reduce boilerplate code
+  using ActionProfAccessBase::ActionProfAccessBase;
 
   Status member_create(const p4::v1::ActionProfileMember &member,
                        const SessionTemp &session);
@@ -214,30 +247,6 @@ class ActionProfMgr {
   bool get_member_info(const Id &group_id, const Id &member_id,
                        int *weight, int *watch_port) const;
 
-  Status oneshot_group_create(const p4::v1::ActionProfileActionSet &action_set,
-                              pi_indirect_handle_t *group_h,
-                              SessionTemp *session);
-  Status oneshot_group_delete(pi_indirect_handle_t group_h,
-                              const SessionTemp &session);
-
-  struct OneShotMember {
-    pi_indirect_handle_t member_h;
-    // When a one-shot is created with weights > 1, we create multiple member
-    // copies and add them to the group. In order to respect read-write
-    // symmetry, we need to remember weight information. In the vector of
-    // OneShotMember that we store for each one-shot group, the first copy
-    // stores the correct, user-provided weight, while all the subsequent copies
-    // have their weight field set to 0.
-    int weight;
-    int watch;
-  };
-
-  bool oneshot_group_get_members(
-      pi_indirect_handle_t group_h,
-      std::vector<OneShotMember> *members) const;
-
-  SelectorUsage get_selector_usage() const;
-
   // would be nice to be able to use boost::optional for the retrieve functions;
   // we cannot return a pointer (that would be null if the key couldn't be
   // found) because some other thread may come in and remove the corresponding
@@ -253,21 +262,8 @@ class ActionProfMgr {
   bool retrieve_member_id(pi_indirect_handle_t member_h, Id *member_id) const;
   bool retrieve_group_id(pi_indirect_handle_t group_h, Id *group_id) const;
 
-  // Choose the best programming style (individual adds / removes, or set
-  // membership) for the target.
-  static StatusOr<PiApiChoice> choose_pi_api(pi_dev_id_t device_id);
-
  private:
-  // nested classes so they have access to private data members and can create a
-  // pi::ActProf instance.
-  struct OneShotGroupCleanupTask;
-  struct OneShotMemberCleanupTask;
-  struct OneShotWatchPortCleanupTask;
-
-  bool check_p4_action_id(pi_p4_id_t p4_id) const;
-
-  Status validate_action(const p4::v1::Action &action);
-  pi::ActionData construct_action_data(const p4::v1::Action &action);
+  bool empty() const override;
 
   StatusOr<size_t> validate_max_group_size(int max_size);
 
@@ -288,23 +284,89 @@ class ActionProfMgr {
       pi::ActProf &ap,  // NOLINT(runtime/references)
       ActionProfMemberMap::MemberState *member_state);
 
-  Status check_selector_usage(SelectorUsage attempted_usage) const;
-  void reset_selector_usage();
-
-  pi_dev_tgt_t device_tgt;
-  pi_p4_id_t act_prof_id;
-  pi_p4info_t *p4info;
-  size_t max_group_size{0};
   ActionProfMemberMap member_map;
   ActionProfBiMap group_bimap{};
   std::map<Id, ActionProfGroupMembership> group_members{};
+};
+
+class ActionProfAccessOneshot : public ActionProfAccessBase {
+ public:
+  // inheriting base constructor to reduce boilerplate code
+  using ActionProfAccessBase::ActionProfAccessBase;
+
+  Status group_create(const p4::v1::ActionProfileActionSet &action_set,
+                      pi_indirect_handle_t *group_h, SessionTemp *session);
+  Status group_delete(pi_indirect_handle_t group_h, const SessionTemp &session);
+
+  struct OneShotMember {
+    pi_indirect_handle_t member_h;
+    // When a one-shot is created with weights > 1, we create multiple member
+    // copies and add them to the group. In order to respect read-write
+    // symmetry, we need to remember weight information. In the vector of
+    // OneShotMember that we store for each one-shot group, the first copy
+    // stores the correct, user-provided weight, while all the subsequent copies
+    // have their weight field set to 0.
+    int weight;
+    int watch;
+  };
+
+  bool group_get_members(pi_indirect_handle_t group_h,
+                         std::vector<OneShotMember> *members) const;
+
+ private:
+  // nested classes so they have access to private data members and can create a
+  // pi::ActProf instance.
+  struct OneShotGroupCleanupTask;
+  struct OneShotMemberCleanupTask;
+  struct OneShotWatchPortCleanupTask;
+
+  Status group_create_helper(
+      pi::ActProf &ap,  // NOLINT(runtime/references)
+      pi_indirect_handle_t group_h,
+      std::vector<pi_indirect_handle_t> members_h,
+      std::vector<pi_port_t> members_watch_port,
+      SessionTemp *session);
+
+  bool empty() const override;
+
   std::unordered_map<pi_indirect_handle_t, std::vector<OneShotMember> >
-  oneshot_group_members{};
+  group_members{};
+};
+
+class ActionProfMgr {
+ public:
+  using PiApiChoice = ActionProfAccessBase::PiApiChoice;
+  using SelectorUsage = ActionProfAccessBase::SelectorUsage;
+
+  ActionProfMgr(pi_dev_tgt_t device_tgt, pi_p4_id_t act_prof_id,
+                pi_p4info_t *p4info, PiApiChoice pi_api_choice,
+                WatchPortEnforcer *watch_port_enforcer);
+
+  StatusOr<ActionProfAccessOneshot *> oneshot();
+
+  StatusOr<ActionProfAccessManual *> manual();
+
+  SelectorUsage get_selector_usage() const {
+    return selector_usage;
+  }
+
+  // Choose the best programming style (individual adds / removes, or set
+  // membership) for the target.
+  static StatusOr<PiApiChoice> choose_pi_api(pi_dev_id_t device_id);
+
+ private:
+  template <typename T>
+  Status check_selector_usage();
+
   SelectorUsage selector_usage{SelectorUsage::UNSPECIFIED};
-  // set at construction time, cannot be changed durting the lifetime of the
+  pi_dev_tgt_t device_tgt;
+  pi_p4_id_t act_prof_id;
+  pi_p4info_t *p4info;
+  // set at construction time, cannot be changed during the lifetime of the
   // object
   PiApiChoice pi_api_choice;
   WatchPortEnforcer *watch_port_enforcer;  // non-owning pointer
+  std::unique_ptr<ActionProfAccessBase> pimp;
 };
 
 }  // namespace proto
