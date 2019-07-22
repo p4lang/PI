@@ -10,7 +10,6 @@ cc_library(
     includes = ["."],
     copts = ["-DUSE_ABSL=1"],
     deps = ["@com_github_p4lang_p4runtime//:p4runtime_cc_grpc",
-            "@com_github_openconfig_gnmi//:gnmi_cc_grpc",
             "@com_google_googleapis//google/rpc:code_cc_proto",
             "//proto:piprotoutil",
             "//proto/third_party:fmt",

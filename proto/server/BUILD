@@ -11,5 +11,6 @@ cc_library(
             "uint128.cpp"],
     hdrs = ["PI/proto/pi_server.h", "pi_server_testing.h", "gnmi.h"],
     deps = ["@com_github_p4lang_p4runtime//:p4runtime_cc_grpc",
+            "@com_github_openconfig_gnmi//:gnmi_cc_grpc",
             "//proto/frontend:pifeproto"],
 )
