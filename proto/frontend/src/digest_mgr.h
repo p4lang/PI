@@ -41,7 +41,7 @@ namespace fe {
 namespace proto {
 
 namespace common {
-struct SessionTemp;
+class SessionTemp;
 }  // namespace common
 
 template <typename Clock> class TaskQueue;

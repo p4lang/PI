@@ -3334,6 +3334,34 @@ TEST_F(PREMulticastTest, Read) {
   EXPECT_EQ(status.code(), Code::UNIMPLEMENTED);
 }
 
+TEST_F(PREMulticastTest, GroupCreateError) {
+  int32_t group_id = 66;
+  GroupEntry group;
+  group.set_multicast_group_id(group_id);
+  int32_t port1 = 1, rid1 = 1, port2 = 2, rid2 = 2;
+  ReplicaMgr replicas(&group);
+  replicas.push_back(port1, rid1).push_back(port2, rid2);
+
+  EXPECT_CALL(*mock, mc_grp_create(group_id, _));
+  // simulate error on second call to mc_node_create
+  EXPECT_CALL(*mock, mc_node_create(_, _, _)).WillOnce(DoDefault()).WillOnce(
+      Return(PI_STATUS_TARGET_ERROR));
+  EXPECT_CALL(*mock, mc_grp_attach_node(_, _));
+
+  // we expect the following calls for cleanup:
+  EXPECT_CALL(*mock, mc_grp_detach_node(_, _));
+  EXPECT_CALL(*mock, mc_node_delete(_));
+  EXPECT_CALL(*mock, mc_grp_delete(_));
+
+  EXPECT_EQ(create_group(group), OneExpectedError(Code::UNKNOWN));
+
+  // we should be able to create the same group without issue
+  EXPECT_CALL(*mock, mc_grp_create(group_id, _));
+  EXPECT_CALL(*mock, mc_node_create(_, _, _)).Times(2);
+  EXPECT_CALL(*mock, mc_grp_attach_node(_, _)).Times(2);
+  EXPECT_OK(create_group(group));
+}
+
 class PRECloningTest : public PRETestBase<
   ::p4v1::CloneSessionEntry,
   &::p4v1::PacketReplicationEngineEntry::mutable_clone_session_entry> {
