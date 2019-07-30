@@ -39,7 +39,7 @@ namespace fe {
 
 namespace proto {
 
-namespace common { struct SessionTemp; }  // namespace common
+namespace common { class SessionTemp; }  // namespace common
 
 // This class is used to map P4Runtime CloneSessionEntry messages to lower-level
 // PI operations. At the moment every clone session is associated to a multicast

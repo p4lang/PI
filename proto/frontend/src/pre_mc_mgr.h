@@ -37,7 +37,7 @@ namespace fe {
 
 namespace proto {
 
-struct McSessionTemp;
+class McSessionTemp;
 
 // This class is used to map P4Runtime MulticastGroupEntry messages to
 // lower-level PI operations. It currently does not do any rollback in case of
@@ -59,7 +59,7 @@ class PreMcMgr {
       : device_id(device_id) { }
 
   Status group_create(const GroupEntry &group_entry,
-                      GroupOwner = GroupOwner::CLIENT);
+                      GroupOwner owner = GroupOwner::CLIENT);
   Status group_modify(const GroupEntry &group_entry);
   Status group_delete(const GroupEntry &group_entry);
 
@@ -83,9 +83,22 @@ class PreMcMgr {
     GroupOwner owner;
   };
 
+  // cleanup tasks
+  struct GroupCleanupTask;
+  struct NodeDetachCleanupTask;
+  struct NodeCleanupTask;
+
+  Status group_create_(McSessionTemp *session,
+                       GroupId group_id,
+                       Group *group);
+  Status group_modify_(McSessionTemp *session,
+                       GroupId group_id,
+                       Group *old_group,
+                       Group *new_group);
+
   static Status make_new_group(const GroupEntry &group_entry, Group *group);
 
-  Status create_and_attach_node(const McSessionTemp &session,
+  Status create_and_attach_node(McSessionTemp *session,
                                 pi_mc_grp_handle_t group_h,
                                 RId rid,
                                 Node *node);
