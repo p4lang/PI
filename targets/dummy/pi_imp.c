@@ -18,6 +18,7 @@
  *
  */
 
+#include <PI/int/pi_int.h>
 #include <PI/pi.h>
 #include <PI/target/pi_imp.h>
 
@@ -29,13 +30,14 @@
 
 static char *counter_dump_path = NULL;
 
-pi_status_t _pi_init(void *extra) {
+pi_status_t _pi_init(int *abi_version, void *extra) {
   if (extra)
     counter_dump_path = strdup((const char *)extra);
   else
     counter_dump_path = strdup("func_counter.txt");
   func_counter_init();
   func_counter_increment(__func__);
+  *abi_version = PI_ABI_VERSION;
   return PI_STATUS_SUCCESS;
 }
 

@@ -27,6 +27,9 @@
 extern "C" {
 #endif
 
+// Increment any time a change is made to the PI internal ABI
+#define PI_ABI_VERSION 1
+
 static inline pi_p4_id_t pi_make_action_id(uint16_t index) {
   return (PI_ACTION_ID << 24) | index;
 }

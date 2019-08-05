@@ -145,7 +145,22 @@ pi_status_t pi_init(size_t max_devices, pi_remote_addr_t *remote_addr) {
   if (status != PI_STATUS_SUCCESS) return status;
   status = pi_table_init();
   if (status != PI_STATUS_SUCCESS) return status;
-  return _pi_init((void *)remote_addr);
+
+  int abi_version = 0;
+  status = _pi_init(&abi_version, (void *)remote_addr);
+  if (status != PI_STATUS_SUCCESS) return status;
+
+  if (abi_version != PI_ABI_VERSION) {
+    PI_LOG_ERROR(
+        "ABI version mismatch between PI core library (%d) and "
+        "PI implementation (%d)\n",
+        PI_ABI_VERSION, abi_version);
+    // assert in DEBUG mode so that the error does not go unnoticed...
+    assert(abi_version == PI_ABI_VERSION && "PI ABI version mismatch");
+    return PI_STATUS_INVALID_ABI_VERSION;
+  }
+
+  return PI_STATUS_SUCCESS;
 }
 
 // acquire device_map_mutex first

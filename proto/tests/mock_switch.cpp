@@ -1399,7 +1399,10 @@ namespace {
 // here we implement the _pi_* methods which are needed for our tests
 extern "C" {
 
-pi_status_t _pi_init(void *) { return PI_STATUS_SUCCESS; }
+pi_status_t _pi_init(int *abi_version, void *) {
+  *abi_version = PI_ABI_VERSION;
+  return PI_STATUS_SUCCESS;
+}
 
 pi_status_t _pi_destroy() { return PI_STATUS_SUCCESS; }
 
