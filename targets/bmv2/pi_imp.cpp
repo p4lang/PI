@@ -18,6 +18,7 @@
  *
  */
 
+#include <PI/int/pi_int.h>
 #include <PI/pi.h>
 #include <PI/target/pi_imp.h>
 
@@ -44,12 +45,13 @@ pibmv2::CpuSendRecv *cpu_send_recv = nullptr;
 
 extern "C" {
 
-pi_status_t _pi_init(void *extra) {
+pi_status_t _pi_init(int *abi_version, void *extra) {
   (void) extra;
   pibmv2::device_info_state = new pibmv2::DeviceInfo();
   pibmv2::conn_mgr_state = pibmv2::conn_mgr_create();
   cpu_send_recv = new pibmv2::CpuSendRecv();
   cpu_send_recv->start();
+  *abi_version = PI_ABI_VERSION;
   return PI_STATUS_SUCCESS;
 }
 

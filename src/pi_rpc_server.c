@@ -148,7 +148,9 @@ static void __pi_init(char *req) {
   pi_status_t status = PI_STATUS_SUCCESS;
   if (!devices) {  // not init yet
     assert(num_devices == 0);
-    status = _pi_init(NULL);
+    int abi_version;
+    status = _pi_init(NULL, &abi_version);
+    assert(abi_version == PI_ABI_VERSION);
   }
 
   typedef struct {

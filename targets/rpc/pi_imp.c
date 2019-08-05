@@ -26,6 +26,7 @@
   for p4info, need to write some JSON serialization code
 */
 
+#include <PI/int/pi_int.h>
 #include <PI/pi.h>
 #include <PI/target/pi_imp.h>
 
@@ -79,7 +80,7 @@ static void free_addrs() {
 
 extern pi_status_t notifications_start(const char *);
 
-pi_status_t _pi_init(void *extra) {
+pi_status_t _pi_init(int *abi_version, void *extra) {
   assert(!state.init);
   init_addrs((pi_remote_addr_t *)extra);
   state.s = nn_socket(AF_SP, NN_REQ);
@@ -114,6 +115,8 @@ pi_status_t _pi_init(void *extra) {
   rep_ += sizeof(rep_hdr_t);
 
   process_state_sync(rep_);
+
+  *abi_version = PI_ABI_VERSION;
 
   return PI_STATUS_SUCCESS;
 }
