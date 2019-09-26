@@ -31,6 +31,7 @@
 
 #include "matchers.h"
 #include "mock_switch.h"
+#include "test_proto_fe_base.h"
 
 namespace p4v1 = ::p4::v1;
 namespace p4configv1 = ::p4::config::v1;
@@ -48,39 +49,16 @@ using ::testing::AllArgs;
 using ::testing::StrEq;
 using ::testing::Truly;
 
-class DeviceMgrPacketIOTest : public ::testing::Test {
+class DeviceMgrPacketIOTest : public DeviceMgrBaseTest {
  public:
-  DeviceMgrPacketIOTest()
-      : mock(wrapper.sw()), device_id(wrapper.device_id()), mgr(device_id) { }
-
-  static void SetUpTestCase() {
-    DeviceMgr::init(256);
-  }
-
-  static void TearDownTestCase() {
-    DeviceMgr::destroy();
-  }
+  DeviceMgrPacketIOTest() { }
 
   void SetUp() override {
-    p4v1::ForwardingPipelineConfig config;
-    config.set_allocated_p4info(&p4info_proto);
-    auto status = mgr.pipeline_config_set(
-        p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT,
-        config);
-    // releasing resource before the assert to avoid double free in case the
-    // assert is false
-    config.release_p4info();
+    auto status = set_pipeline_config(&p4info_proto);
     ASSERT_OK(status);
   }
 
-  void TearDown() override { }
-
   p4configv1::P4Info p4info_proto;
-
-  DummySwitchWrapper wrapper{};
-  DummySwitchMock *mock;
-  device_id_t device_id;
-  DeviceMgr mgr;
 };
 
 // Base case for packet-in / packet-out: no special metadata fields

@@ -27,7 +27,8 @@ filegroup(
 
 cc_binary(
     name = "Judy1TablesGen",
-    srcs = ["src/JudyCommon/JudyTables.c", ":Judy1_int_hdrs"],
+    srcs = ["src/JudyCommon/JudyTables.c", ":Judy1_int_hdrs", "src/Judy.h"],
+    includes = ["src"],
     copts = DEFAULT_COPTS + ["-DJUDY1", "-Iexternal/judy/src/Judy1"],
 )
 
@@ -42,6 +43,7 @@ cc_library(
     name = "Judy1Prev",
     srcs = ["src/JudyCommon/JudyPrevNext.c",
             "src/JudyCommon/JudyPrevNextEmpty.c",
+            "src/Judy.h",
             ":Judy1_int_hdrs"],
     includes = ["src"],
     copts = DEFAULT_COPTS + ["-DJUDY1", "-DJUDYNEXT", "-Iexternal/judy/src/Judy1"],
@@ -51,6 +53,7 @@ cc_library(
     name = "Judy1Next",
     srcs = ["src/JudyCommon/JudyPrevNext.c",
             "src/JudyCommon/JudyPrevNextEmpty.c",
+            "src/Judy.h",
             ":Judy1_int_hdrs"],
     includes = ["src"],
     copts = DEFAULT_COPTS + ["-DJUDY1", "-DJUDYPREV", "-Iexternal/judy/src/Judy1"],
@@ -76,7 +79,8 @@ filegroup(
 
 cc_binary(
     name = "JudyLTablesGen",
-    srcs = ["src/JudyCommon/JudyTables.c", ":JudyL_int_hdrs"],
+    srcs = ["src/JudyCommon/JudyTables.c", ":JudyL_int_hdrs", "src/Judy.h"],
+    includes = ["src"],
     copts = DEFAULT_COPTS + ["-DJUDYL", "-Iexternal/judy/src/JudyL"],
 )
 
@@ -91,6 +95,7 @@ cc_library(
     name = "JudyLPrev",
     srcs = ["src/JudyCommon/JudyPrevNext.c",
             "src/JudyCommon/JudyPrevNextEmpty.c",
+            "src/Judy.h",
             ":JudyL_int_hdrs"],
     includes = ["src"],
     copts = DEFAULT_COPTS + ["-DJUDYL", "-DJUDYNEXT", "-Iexternal/judy/src/JudyL"],
@@ -100,6 +105,7 @@ cc_library(
     name = "JudyLNext",
     srcs = ["src/JudyCommon/JudyPrevNext.c",
             "src/JudyCommon/JudyPrevNextEmpty.c",
+            "src/Judy.h",
             ":JudyL_int_hdrs"],
     includes = ["src"],
     copts = DEFAULT_COPTS + ["-DJUDYL", "-DJUDYPREV", "-Iexternal/judy/src/JudyL"],

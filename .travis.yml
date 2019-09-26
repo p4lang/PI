@@ -11,16 +11,19 @@ services:
 
 matrix:
   include:
-    - env: CXX=g++ CC=gcc
-    - env: CXX=g++-7 CC=gcc-7
-    - env: CXX=clang++-3.8 CC=clang-3.8
-    - env: CXX=clang++-6.0 CC=clang-6.0
-
-addons:
-  apt:
-    sources:
-      - ubuntu-toolchain-r-test
-      - llvm-toolchain-xenial-6.0
+    - name: gcc
+      env: CXX=g++ CC=gcc
+    - name: gcc-7
+      env: CXX=g++-7 CC=gcc-7
+    - name: clang-3.8
+      env: CXX=clang++-3.8 CC=clang-3.8
+    - name: clang-6.0
+      env: CXX=clang++-6.0 CC=clang-6.0
+    - name: Bazel 0.23.2
+      install:
+        - docker pull l.gcr.io/google/bazel:0.23.2
+      script:
+        - docker run -v `pwd`:/PI -w /PI l.gcr.io/google/bazel:0.23.2 test //proto/tests:pi_proto_tests //proto/tests:pi_proto_server_tests
 
 install:
   - docker build -t pi --build-arg IMAGE_TYPE=test --build-arg CC=$CC --build-arg CXX=$CXX -f Dockerfile.bmv2 .

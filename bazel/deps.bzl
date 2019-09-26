@@ -32,7 +32,7 @@ def PI_deps():
         remote_workspace(
             name = "com_google_absl",
             remote = "https://github.com/abseil/abseil-cpp",
-            branch = "master",
+            branch = "lts_2019_08_08",
         )
 
     if "com_github_openconfig_gnmi" not in native.existing_rules():
@@ -67,4 +67,11 @@ def PI_deps():
             name = "build_stack_rules_proto",
             remote = "https://github.com/stackb/rules_proto",
             commit = "2f4e4f62a3d7a43654d69533faa0652e1c4f5082",
+        )
+
+    if "com_github_nelhage_rules_boost" not in native.existing_rules():
+        remote_workspace(
+            name = "com_github_nelhage_rules_boost",
+            remote = "https://github.com/nelhage/rules_boost",
+            commit = "a3b25bf1a854ca7245d5786fda4821df77c57827",
         )
