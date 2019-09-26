@@ -76,7 +76,13 @@ class WatchPortEnforcerTest : public ProtoFrontendBaseTest {
                 PI_STATUS_SUCCESS);
     }
     ASSERT_OK(watch_port_enforcer.p4_change(p4info));
-  };
+  }
+
+  void process_all_port_events() {
+    // the call to p4_change will block until the async task queue is empty (all
+    // events have been processed)
+    ASSERT_OK(watch_port_enforcer.p4_change(p4info));
+  }
 
   mutable std::condition_variable cv;
   mutable std::mutex mutex;
@@ -204,7 +210,6 @@ TEST_F(WatchPortEnforcerTest, ConcurrentRead) {
     std::unique_lock<std::mutex> lock(mutex);
     if (x == 0) {
       x = 1;
-      cv.notify_one();
       EXPECT_TRUE(cv.wait_for(lock, timeout, [&x] { return x == 0; }));
     } else {
       x = 0;
@@ -222,6 +227,9 @@ TEST_F(WatchPortEnforcerTest, ConcurrentRead) {
   EXPECT_EQ(mock->port_status_set(watch_1, PI_PORT_STATUS_DOWN),
             PI_STATUS_SUCCESS);
   thread1.join();
+  // we need to call this, otherwise the call to action() triggered by the call
+  // to action_prof_group_deactivate_member may not have completed yet
+  process_all_port_events();
 }
 
 TEST_F(WatchPortEnforcerTest, ExclusiveWrite) {
@@ -230,7 +238,6 @@ TEST_F(WatchPortEnforcerTest, ExclusiveWrite) {
     std::unique_lock<std::mutex> lock(mutex);
     if (x == 0) {
       x = 1;
-      cv.notify_one();
       EXPECT_FALSE(cv.wait_for(lock, timeout, [&x] { return x == 0; }));
     } else {
       x = 0;
@@ -248,6 +255,7 @@ TEST_F(WatchPortEnforcerTest, ExclusiveWrite) {
   EXPECT_EQ(mock->port_status_set(watch_1, PI_PORT_STATUS_DOWN),
             PI_STATUS_SUCCESS);
   thread1.join();
+  process_all_port_events();
 }
 
 // make sure that there is no deadlock when updating pipeline config
@@ -309,6 +317,7 @@ TEST_P(WatchPortEnforcerNoWriteAccessOneOfTest, ConcurrentAccess) {
   EXPECT_EQ(mock->port_status_set(watch_1, PI_PORT_STATUS_DOWN),
             PI_STATUS_SUCCESS);
   thread1.join();
+  process_all_port_events();
 }
 
 INSTANTIATE_TEST_SUITE_P(

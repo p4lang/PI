@@ -9,7 +9,9 @@ cc_library(
             "mock_switch.cpp"],
     hdrs = ["matchers.h", "mock_switch.h"],
     deps = ["@com_google_googletest//:gtest",
-            "//proto/frontend:pifeproto"],
+            "//proto/frontend:pifeproto",
+            "@boost//:optional",
+            "@boost//:functional"],
     testonly = True,
 )
 
@@ -21,7 +23,8 @@ cc_test(
         + glob(["test_proto_fe*.cpp"]),
     deps = ["@com_google_googletest//:gtest",
             "//proto/frontend:pifeproto",
-            ":testutils"],
+            ":testutils",
+            "@boost//:optional"],
     data = ["//tests:exported_testdata"],
     copts = ['-DTESTDATADIR=\\"tests/testdata\\"'],
 )
@@ -31,7 +34,8 @@ cc_test(
     srcs = glob(["server/*.cpp", "server/*.h"]),
     deps = ["@com_google_googletest//:gtest",
             "//proto/server:piserver",
-            ":testutils"],
+            ":testutils",
+            "@boost//:optional"],
     data = ["//tests:exported_testdata"],
     copts = ['-DTESTDATADIR=\\"tests/testdata\\"',
              "-Iproto/server", "-Iproto/tests"],
