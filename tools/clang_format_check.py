@@ -183,8 +183,7 @@ def main():
     parser.add_argument("-e", "--exe",
                         required=False,
                         help="The clang-format executable to use, by default "
-                        "we will try 'clang-format', 'clang-format-3.8' and "
-                        "'clang-format-3.6'")
+                        "we will try 'clang-format' and 'clang-format-6.0'")
 
     # Files or directory to check
     parser.add_argument("file", nargs="+", help="Paths to the files that'll "
@@ -208,7 +207,7 @@ def main():
             exit(-1)
         clang_exec = args.exe
     else:
-        for e in ["clang-format", "clang-format-3.8", "clang-format-3.6"]:
+        for e in ["clang-format", "clang-format-6.0"]:
             if check_clang_format_exec(e):
                 clang_exec = e
                 break

@@ -26,7 +26,9 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-typedef struct device_map_s { void *_map; } device_map_t;
+typedef struct device_map_s {
+  void *_map;
+} device_map_t;
 
 void device_map_create(device_map_t *map);
 

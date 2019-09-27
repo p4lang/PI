@@ -24,7 +24,9 @@
 
 #include <stdio.h>
 
-typedef struct { Pvoid_t array; } func_counter_t;
+typedef struct {
+  Pvoid_t array;
+} func_counter_t;
 
 static func_counter_t func_counter;
 

@@ -18,8 +18,8 @@
  *
  */
 
-#include "PI/pi.h"
 #include "PI/target/pi_act_prof_imp.h"
+#include "PI/pi.h"
 
 #include <stdio.h>
 
