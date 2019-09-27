@@ -415,8 +415,8 @@ static pi_p4info_match_type_t match_type_from_str(const char *type) {
 }
 
 static int cmp_json_object_generic(const void *e1, const void *e2) {
-  cJSON *object_1 = *(cJSON * const *)e1;
-  cJSON *object_2 = *(cJSON * const *)e2;
+  cJSON *object_1 = *(cJSON *const *)e1;
+  cJSON *object_2 = *(cJSON *const *)e2;
   const cJSON *item_1, *item_2;
   item_1 = cJSON_GetObjectItem(object_1, "name");
   item_2 = cJSON_GetObjectItem(object_2, "name");

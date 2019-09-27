@@ -18,7 +18,7 @@ All contributed code must pass the style checker, which can be run with
 `./tools/check_style.sh`. If the style checker fails because of a C file, you
 can format this C file with `./tools/clang_format_check.py -s Google -i <file>`.
 
-CI uses clang-format-3.8 to validate the formatting of C files, which means that
+CI uses clang-format-6.0 to validate the formatting of C files, which means that
 your contribution may fail CI if you use a different version locally.
 
 ### Making changes to the PI internal API

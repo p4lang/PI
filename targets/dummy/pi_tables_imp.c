@@ -18,8 +18,8 @@
  *
  */
 
-#include "PI/pi.h"
 #include "PI/target/pi_tables_imp.h"
+#include "PI/pi.h"
 
 #include <stdio.h>
 
