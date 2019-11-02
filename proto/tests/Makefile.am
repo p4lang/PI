@@ -54,7 +54,8 @@ mock_switch.cpp \
 matchers.h \
 matchers.cpp \
 test_proto_fe_base.h \
-test_proto_fe_base.cpp
+test_proto_fe_base.cpp \
+stream_receiver.h
 
 test_proto_fe_SOURCES = $(proto_fe_common_source) test_proto_fe.cpp
 test_proto_fe_digest_SOURCES = $(proto_fe_common_source) \
@@ -118,6 +119,10 @@ test_pi_server_SOURCES = $(test_server_common_source) \
 server/test_pi_server.cpp
 test_pi_server_LDADD = $(test_server_libs)
 
+test_server_config_SOURCES = $(test_server_common_source) \
+server/test_server_config.cpp
+test_server_config_LDADD = $(test_server_libs)
+
 check_PROGRAMS = \
 test_p4info_convert \
 test_proto_fe \
@@ -130,4 +135,5 @@ test_proto_fe_watch_port_enforcer \
 test_server_gnmi \
 test_server_arbitration \
 test_pi_server \
-test_task_queue
+test_task_queue \
+test_server_config

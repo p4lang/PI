@@ -2,6 +2,8 @@ package(
     default_visibility = ["//visibility:public"],
 )
 
+load("@build_stack_rules_proto//cpp:cpp_grpc_library.bzl", "cpp_grpc_library")
+
 cc_library(
     name = "piprotoutil",
     srcs = ["src/util.cpp"],
@@ -18,4 +20,28 @@ proto_library(
 cc_proto_library(
     name = "p4config_cc_proto",
     deps = [":p4config_proto"],
+)
+
+cc_library(
+    name = "piprotoserverconfig",
+    srcs = ["server_config/server_config.cpp"],
+    hdrs = ["server_config/server_config.h"],
+    includes = ["."],
+    deps = [":p4serverconfig_cc_proto"],
+    visibility = ["//proto:__subpackages__"],
+)
+
+proto_library(
+    name = "p4serverconfig_proto",
+    srcs = ["p4/server/v1/config.proto"]
+)
+
+cc_proto_library(
+    name = "p4serverconfig_cc_proto",
+    deps = [":p4serverconfig_proto"],
+)
+
+cpp_grpc_library(
+    name = "p4serverconfig_cc_grpc",
+    deps = [":p4serverconfig_proto"],
 )

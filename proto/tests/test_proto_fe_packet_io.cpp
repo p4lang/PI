@@ -29,6 +29,9 @@
 
 #include "google/rpc/code.pb.h"
 
+#include "server_config/server_config.h"
+#include "src/packet_io_mgr.h"
+
 #include "matchers.h"
 #include "mock_switch.h"
 #include "test_proto_fe_base.h"
@@ -46,6 +49,7 @@ using Code = ::google::rpc::Code;
 
 using ::testing::_;
 using ::testing::AllArgs;
+using ::testing::Return;
 using ::testing::StrEq;
 using ::testing::Truly;
 
@@ -82,7 +86,7 @@ TEST_F(DeviceMgrPacketIORegTest, PacketIn) {
 }
 
 TEST_F(DeviceMgrPacketIORegTest, PacketOut) {
-  p4::v1::StreamMessageRequest msg;
+  p4v1::StreamMessageRequest msg;
   auto *packet_out = msg.mutable_packet();
   std::string payload(10, '\xab');
   packet_out->set_payload(payload);
@@ -264,7 +268,6 @@ struct PacketOutMatcher {
 TEST_F(DeviceMgrPacketIOMetadataTest, PacketIn) {
   std::string payload(10, '\xab');
   ValueIterator<VType> values(bitwidths, steps);
-  std::vector<std::string> binary_strs(num);
   p4v1::PacketIn packet_in;
   bool received;
   auto cb_fn = [&packet_in, &received](
@@ -294,9 +297,8 @@ TEST_F(DeviceMgrPacketIOMetadataTest, PacketIn) {
 TEST_F(DeviceMgrPacketIOMetadataTest, PacketOut) {
   std::string payload(10, '\xab');
   ValueIterator<VType> values(bitwidths, steps);
-  std::vector<std::string> binary_strs(num);
   for (const auto &v : values) {
-    p4::v1::StreamMessageRequest msg;
+    p4v1::StreamMessageRequest msg;
     auto *packet_out = msg.mutable_packet();
     packet_out->set_payload(payload);
     BitPattern pattern;
@@ -312,6 +314,127 @@ TEST_F(DeviceMgrPacketIOMetadataTest, PacketOut) {
     EXPECT_EQ(status.code(), Code::OK);
   }
 }
+
+TEST_F(DeviceMgrPacketIOMetadataTest, PacketOutUnknownMetadata) {
+  std::string payload(10, '\xab');
+  p4v1::StreamMessageRequest msg;
+  auto *packet_out = msg.mutable_packet();
+  packet_out->set_payload(payload);
+  auto metadata = packet_out->add_metadata();
+  metadata->set_metadata_id(num + 1);
+  metadata->set_value(to_binary(0, 8));
+  auto status = mgr.stream_message_request_handle(msg);
+  EXPECT_EQ(status.code(), Code::INVALID_ARGUMENT);
+}
+
+// TODO(antonin): not conformant to the P4Runtime spec; according to the spec
+// the PacketOut should be dropped if a metadata field is missing.
+TEST_F(DeviceMgrPacketIOMetadataTest, PacketOutMissingMetadata) {
+  std::string payload(10, '\xab');
+  p4v1::StreamMessageRequest msg;
+  auto *packet_out = msg.mutable_packet();
+  packet_out->set_payload(payload);
+  EXPECT_CALL(*mock, packetout_send(_, _));
+  auto status = mgr.stream_message_request_handle(msg);
+  EXPECT_EQ(status.code(), Code::OK);
+}
+
+
+using ErrorReportingLevel = p4::server::v1::StreamConfig::ErrorReportingLevel;
+using ::testing::WithParamInterface;
+using ::testing::Values;
+using pi::fe::proto::PacketIOMgr;
+
+class PacketIOStreamErrorTest
+    : public ProtoFrontendBaseTest,
+      public WithParamInterface<ErrorReportingLevel> {
+ protected:
+  PacketIOStreamErrorTest()
+      : mgr(device_id, &server_config) { }
+
+  void SetUp() override {
+    p4::server::v1::Config config;
+    config.mutable_stream()->set_error_reporting(GetParam());
+    server_config.set_config(config);
+  }
+
+  p4v1::PacketOut packet_out() const {
+    p4v1::PacketOut packet;
+    packet.set_payload(std::string(10, '\xab'));
+    return packet;
+  }
+
+  void check_stream_error(
+      const p4v1::PacketOut &packet, int code, bool detailed) {
+    p4v1::StreamError stream_error;
+    auto status = mgr.packet_out_send(packet, &stream_error);
+    EXPECT_EQ(status.code(), code);
+
+    if (GetParam() == p4::server::v1::StreamConfig::DISABLED) {
+      EXPECT_EQ(stream_error.canonical_code(), Code::OK);
+    } else {
+      EXPECT_EQ(stream_error.canonical_code(), code);
+      EXPECT_TRUE(stream_error.has_packet_out());
+      if (detailed) {
+        EXPECT_PROTO_EQ(stream_error.packet_out().packet_out(), packet);
+      } else {
+        EXPECT_FALSE(stream_error.packet_out().has_packet_out());
+      }
+    }
+  }
+
+  pi::fe::proto::ServerConfigAccessor server_config;
+  PacketIOMgr mgr;
+};
+
+TEST_P(PacketIOStreamErrorTest, PacketOutUnexpectedMetadata) {
+  auto packet = packet_out();
+
+  auto metadata = packet.add_metadata();
+  metadata->set_metadata_id(100);
+  metadata->set_value(to_binary(0, 8));
+
+  check_stream_error(
+      packet,
+      Code::INVALID_ARGUMENT,
+      GetParam() == p4::server::v1::StreamConfig::DETAILED);
+}
+
+TEST_P(PacketIOStreamErrorTest, PacketOutUnkownMetadata) {
+  p4configv1::P4Info p4info;
+  auto *packet_metadata = p4info.add_controller_packet_metadata();
+  auto *pre = packet_metadata->mutable_preamble();
+  pre->set_name("packet_out");
+  pre->set_id(1);
+  mgr.p4_change(p4info);
+
+  auto packet = packet_out();
+
+  auto metadata = packet.add_metadata();
+  metadata->set_metadata_id(100);
+  metadata->set_value(to_binary(0, 8));
+
+  check_stream_error(
+      packet,
+      Code::INVALID_ARGUMENT,
+      GetParam() == p4::server::v1::StreamConfig::DETAILED);
+}
+
+TEST_P(PacketIOStreamErrorTest, PacketOutTargetError) {
+  auto packet = packet_out();
+
+  EXPECT_CALL(*mock, packetout_send(_, _))
+      .WillOnce(Return(PI_STATUS_TARGET_ERROR));
+
+  check_stream_error(packet, Code::UNKNOWN, false);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    StreamErrorLevels, PacketIOStreamErrorTest,
+    Values(p4::server::v1::StreamConfig::DISABLED,
+           p4::server::v1::StreamConfig::ENABLED,
+           p4::server::v1::StreamConfig::DETAILED)
+);
 
 }  // namespace
 }  // namespace testing

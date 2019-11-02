@@ -33,8 +33,10 @@
 #include "gnmi/gnmi.grpc.pb.h"
 #include "google/rpc/code.pb.h"
 #include "log.h"
+#include "p4/server/v1/config.grpc.pb.h"
 #include "p4/v1/p4runtime.grpc.pb.h"
 #include "pi_server_testing.h"
+#include "server_config/server_config.h"
 #include "uint128.h"
 
 #include "PI/proto/pi_server.h"
@@ -50,7 +52,7 @@ using grpc::StatusCode;
 using pi::fe::proto::DeviceMgr;
 
 namespace p4v1 = ::p4::v1;
-namespace p4config = ::p4::config::v1;
+namespace p4serverv1 = ::p4::server::v1;
 
 namespace pi {
 
@@ -162,7 +164,7 @@ class DeviceState {
   static constexpr size_t max_connections = 16;
 
   explicit DeviceState(DeviceMgr::device_id_t device_id)
-      : device_id(device_id) { }
+      : device_id(device_id), server_config(default_server_config) { }
 
   DeviceMgr *get_p4_mgr() {
     std::lock_guard<std::mutex> lock(m);
@@ -171,8 +173,29 @@ class DeviceState {
 
   DeviceMgr *get_or_add_p4_mgr() {
     std::lock_guard<std::mutex> lock(m);
-    if (device_mgr == nullptr) device_mgr.reset(new DeviceMgr(device_id));
+    if (device_mgr == nullptr) {
+      device_mgr.reset(new DeviceMgr(device_id));
+      auto status = device_mgr->server_config_set(
+          server_config.get_config());
+      // Should not fail here since we accepted the config previously
+      // TODO(antonin): return something like StatusOr<DeviceMgr *> to handle
+      // potential error cases nonetheless?
+      assert(status.code() == ::google::rpc::Code::OK);
+    }
     return device_mgr.get();
+  }
+
+  Status set_server_config(const p4serverv1::Config &config) {
+    server_config.set_config(config);
+    std::lock_guard<std::mutex> lock(m);
+    if (device_mgr != nullptr) {
+      return to_grpc_status(device_mgr->server_config_set(config));
+    }
+    return Status::OK;
+  }
+
+  p4serverv1::Config get_server_config() {
+    return server_config.get_config();
   }
 
   void send_stream_message(p4v1::StreamMessageResponse *msg) {
@@ -310,13 +333,19 @@ class DeviceState {
     for (auto connection : connections) notify_one(connection);
   }
 
+  static p4serverv1::Config default_server_config;
+
   mutable std::mutex m{};
   uint64_t pkt_in_count{0};
   uint64_t pkt_out_count{0};
   std::unique_ptr<DeviceMgr> device_mgr{nullptr};
   std::set<Connection *, CompareConnections> connections{};
   DeviceMgr::device_id_t device_id;
+  pi::fe::proto::ServerConfigAccessor server_config;
 };
+
+/* static */
+p4serverv1::Config DeviceState::default_server_config;
 
 class Devices {
  public:
@@ -507,11 +536,31 @@ void stream_message_response_cb(DeviceMgr::device_id_t device_id,
   Devices::get(device_id)->send_stream_message(msg);
 }
 
+class ServerConfigServiceImpl : public p4serverv1::ServerConfig::Service {
+ private:
+  Status Set(ServerContext *context,
+             const p4serverv1::SetRequest *request,
+             p4serverv1::SetResponse *response) override {
+    (void) response;
+    auto device = Devices::get(request->device_id());
+    return device->set_server_config(request->config());
+  }
+
+  Status Get(ServerContext *context,
+             const p4serverv1::GetRequest *request,
+             p4serverv1::GetResponse *response) override {
+    auto device = Devices::get(request->device_id());
+    response->mutable_config()->CopyFrom(device->get_server_config());
+    return Status::OK;
+  }
+};
+
 struct ServerData {
   std::string server_address;
   int server_port;
   P4RuntimeServiceImpl pi_service;
   std::unique_ptr<gnmi::gNMI::Service> gnmi_service;
+  ServerConfigServiceImpl server_config_service;
   ServerBuilder builder;
   std::unique_ptr<Server> server;
 };
@@ -562,6 +611,7 @@ void PIGrpcServerRunAddrGnmi(const char *server_address, void *gnmi_service) {
 #endif  // WITH_SYSREPO
   }
   builder.RegisterService(server_data->gnmi_service.get());
+  builder.RegisterService(&server_data->server_config_service);
   builder.SetMaxReceiveMessageSize(256*1024*1024);  // 256MB
 
   server_data->server = builder.BuildAndStart();

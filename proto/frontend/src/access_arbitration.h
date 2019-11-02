@@ -45,7 +45,7 @@ namespace proto {
 
 // Arbitrates access between different concurrent RPCs. There are 4 different
 // levels of access:
-//   * UniqueAccess: exclusive, no concurrent access possible
+//   * UpdateAccess: exclusive, no concurrent access possible
 //   * WriteAccess: exclusive access to a specific set of P4Info objects
 //   * ReadAccess: shared access to the entire set of P4Info objects; other
 //     ReadAccess instances can exist concurrently, and so can NoWriteAccess

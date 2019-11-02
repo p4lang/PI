@@ -40,7 +40,7 @@ int main(int argc, char** argv) {
     server_address = argv[1];
   }
 
-  DeviceMgr::init(256);
+  DeviceMgr::init();
 
   auto handler = [](int s) {
     std::cout << "Server shutting down\n";

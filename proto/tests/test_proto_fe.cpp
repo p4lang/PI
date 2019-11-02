@@ -58,6 +58,7 @@
 
 #include "matchers.h"
 #include "mock_switch.h"
+#include "stream_receiver.h"
 #include "test_proto_fe_base.h"
 
 // Needs to be in same namespace as google::rpc::Status for ADL
@@ -3850,18 +3851,11 @@ TEST_F(MatchTableActionAnnotationsTest, DefaultOnly) {
 class IdleTimeoutTest : public ExactOneTest {
  protected:
   IdleTimeoutTest()
-      : ExactOneTest("IdleTimeoutTable", "header_test.field16") { }
+      : ExactOneTest("IdleTimeoutTable", "header_test.field16"),
+        stream_receiver(&mgr) { }
 
   void SetUp() override {
     ExactOneTest::SetUp();
-
-    mgr.stream_message_response_register_cb([this](
-        device_id_t, p4::v1::StreamMessageResponse *msg, void *) {
-      if (!msg->has_idle_timeout_notification()) return;
-      Lock lock(mutex);
-      notifications.push(msg->idle_timeout_notification());
-      cvar.notify_one();
-    }, nullptr);
   }
 
   // prevent name hiding
@@ -3881,23 +3875,12 @@ class IdleTimeoutTest : public ExactOneTest {
   template<typename Rep, typename Period>
   boost::optional<p4v1::IdleTimeoutNotification> notification_receive(
       const std::chrono::duration<Rep, Period> &timeout) {
-    using Clock = std::chrono::steady_clock;
-    Lock lock(mutex);
-    // using wait_until and not wait_for to account for spurious awakenings.
-    if (cvar.wait_until(lock, Clock::now() + timeout,
-                        [this] { return !notifications.empty(); })) {
-      auto notification = notifications.front();
-      notifications.pop();
-      return notification;
-    }
-    return boost::none;
+    return stream_receiver.get(timeout);
   }
 
   boost::optional<p4v1::IdleTimeoutNotification> notification_receive() {
     return notification_receive(defaultTimeout);
   }
-
-  using Lock = std::unique_lock<std::mutex>;
 
   static constexpr std::chrono::seconds defaultIdleTimeout{1};
   static constexpr std::chrono::milliseconds defaultTimeout{500};
@@ -3905,9 +3888,7 @@ class IdleTimeoutTest : public ExactOneTest {
   // DeviceMgr will not delay notifications (for batching) by more than 100ms
   static constexpr std::chrono::milliseconds notificationMaxDelay{100};
 
-  std::queue<p4v1::IdleTimeoutNotification> notifications;
-  mutable std::mutex mutex;
-  mutable std::condition_variable cvar;
+  StreamReceiver<p4v1::IdleTimeoutNotification> stream_receiver;
 };
 
 /* static */ constexpr std::chrono::seconds IdleTimeoutTest::defaultIdleTimeout;
@@ -4036,6 +4017,87 @@ TEST_F(IdleTimeoutTest, ReadEntry) {
     ASSERT_EQ(1, entities.size());
     EXPECT_TRUE(entities.Get(0).table_entry().has_time_since_last_hit());
   }
+}
+
+
+class StreamErrorTest : public DeviceMgrTest {
+ protected:
+  StreamErrorTest()
+      : stream_receiver(&mgr) { }
+
+  DeviceMgr::Status send_packet() {
+    p4v1::StreamMessageRequest request;
+    auto *packet = request.mutable_packet();
+    packet->set_payload(std::string(10, '\xab'));
+    return mgr.stream_message_request_handle(request);
+  }
+
+  template<typename Rep, typename Period>
+  boost::optional<p4v1::StreamError> error_receive(
+      const std::chrono::duration<Rep, Period> &timeout) {
+    return stream_receiver.get(timeout);
+  }
+
+  static constexpr std::chrono::milliseconds defaultTimeout{500};
+  static constexpr std::chrono::milliseconds negativeTimeout{200};
+
+  StreamReceiver<p4v1::StreamError> stream_receiver;
+};
+
+/* static */
+constexpr std::chrono::milliseconds StreamErrorTest::defaultTimeout;
+/* static */
+constexpr std::chrono::milliseconds StreamErrorTest::negativeTimeout;
+
+TEST_F(StreamErrorTest, StreamErrorDisabled) {
+  EXPECT_CALL(*mock, packetout_send(_, _))
+      .WillOnce(Return(PI_STATUS_TARGET_ERROR));
+  auto status = send_packet();
+  EXPECT_NE(status.code(), Code::OK);
+  EXPECT_EQ(error_receive(negativeTimeout), boost::none);
+}
+
+TEST_F(StreamErrorTest, StreamErrorEnabled) {
+  // enable stream error-reporting
+  p4::server::v1::Config config;
+  config.mutable_stream()->set_error_reporting(
+      p4::server::v1::StreamConfig::ENABLED);
+  EXPECT_OK(mgr.server_config_set(config));
+
+  EXPECT_CALL(*mock, packetout_send(_, _))
+      .WillOnce(Return(PI_STATUS_TARGET_ERROR));
+  auto status = send_packet();
+  EXPECT_NE(status.code(), Code::OK);
+  auto stream_error = error_receive(defaultTimeout);
+  EXPECT_NE(stream_error, boost::none);
+  EXPECT_TRUE(stream_error->has_packet_out());
+}
+
+
+// This test cannot be part of the StreamErrorTest suite since we need to call
+// DeviceMgr::init which can only be called once.
+TEST(DefaultServerConfig, Parse) {
+  p4::server::v1::Config config;
+  config.mutable_stream()->set_error_reporting(
+      p4::server::v1::StreamConfig::ENABLED);
+  std::string config_text;
+  google::protobuf::TextFormat::PrintToString(config, &config_text);
+
+  {
+    auto status = DeviceMgr::init(config_text, "v1");
+    EXPECT_OK(status);
+  }
+
+  DeviceMgr::device_id_t device_id(1);
+  DeviceMgr device(device_id);
+  {
+    p4::server::v1::Config config_read;
+    auto status = device.server_config_get(&config_read);
+    EXPECT_OK(status);
+    EXPECT_PROTO_EQ(config_read, config);
+  }
+
+  DeviceMgr::destroy();
 }
 
 }  // namespace

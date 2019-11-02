@@ -28,7 +28,18 @@
 
 #include "google/rpc/status.pb.h"
 #include "p4/config/v1/p4info.pb.h"
+#include "p4/server/v1/config.pb.h"
 #include "p4/v1/p4runtime.pb.h"
+
+#if __has_cpp_attribute(deprecated)
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wc++14-extensions"
+#endif  // clang
+#define _PI_DEPRECATED [[deprecated]]  // NOLINT(whitespace/braces)
+#else
+#define _PI_DEPRECATED
+#endif  // deprecated
 
 namespace pi {
 
@@ -74,7 +85,19 @@ class DeviceMgr {
   void stream_message_response_register_cb(StreamMessageResponseCb cb,
                                            void *cookie);
 
+  Status server_config_set(const p4::server::v1::Config &config);
+
+  Status server_config_get(p4::server::v1::Config *config);
+
+  _PI_DEPRECATED
   static void init(size_t max_devices);
+
+  static Status init();
+
+  static Status init(const p4::server::v1::Config &config);
+
+  static Status init(const std::string &config_text,
+                     const std::string &version = "v1");
 
   static void destroy();
 
@@ -88,5 +111,13 @@ class DeviceMgr {
 }  // namespace fe
 
 }  // namespace pi
+
+#if __has_cpp_attribute(deprecated)
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif  // clang
+#endif  // deprecated
+
+#undef _PI_DEPRECATED
 
 #endif  // PI_FRONTENDS_PROTO_DEVICE_MGR_H_

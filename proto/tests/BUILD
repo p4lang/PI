@@ -6,7 +6,8 @@ cc_library(
     name = "testutils",
     srcs = ["main.cpp",
             "matchers.cpp",
-            "mock_switch.cpp"],
+            "mock_switch.cpp",
+            "stream_receiver.h"],
     hdrs = ["matchers.h", "mock_switch.h"],
     deps = ["@com_google_googletest//:gtest",
             "//proto/frontend:pifeproto",
@@ -38,5 +39,6 @@ cc_test(
             "@boost//:optional"],
     data = ["//tests:exported_testdata"],
     copts = ['-DTESTDATADIR=\\"tests/testdata\\"',
-             "-Iproto/server", "-Iproto/tests"],
+             "-Iproto/server", "-Iproto/tests",
+             "-I$(GENDIR)/proto/p4serverconfig_cc_grpc_pb/proto"],
 )

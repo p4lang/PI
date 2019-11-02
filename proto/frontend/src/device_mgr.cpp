@@ -34,6 +34,8 @@
 
 #include "google/rpc/code.pb.h"
 
+#include "server_config/server_config.h"
+
 #include "access_arbitration.h"
 #include "action_helpers.h"
 #include "action_prof_mgr.h"
@@ -308,7 +310,8 @@ class DeviceMgrImp {
   explicit DeviceMgrImp(device_id_t device_id)
       : device_id(device_id),
         device_tgt({static_cast<pi_dev_id_t>(device_id), 0xffff}),
-        packet_io(device_id),
+        server_config(default_server_config),
+        packet_io(device_id, &server_config),
         digest_mgr(device_id),
         idle_timeout_buffer(device_id),
         watch_port_enforcer(device_tgt, &access_arbitration) { }
@@ -409,7 +412,7 @@ class DeviceMgrImp {
     p4info_proto.CopyFrom(p4info_proto_new);
     config_cookie.CopyFrom(config_proto_new.cookie());
     RETURN_IF_ERROR(saved_device_config.change_config(config_proto_new));
-    is_config_set = true;
+    is_p4_config_set = true;
     if (config_proto_new.has_cookie()) {
       config_cookie.CopyFrom(config_proto_new.cookie());
       has_config_cookie = true;
@@ -574,7 +577,7 @@ class DeviceMgrImp {
       p4v1::GetForwardingPipelineConfigRequest::ResponseType response_type,
       p4v1::ForwardingPipelineConfig *config) {
     // if no config has been set, return an "empty" message
-    if (!is_config_set) RETURN_OK_STATUS();
+    if (!is_p4_config_set) RETURN_OK_STATUS();
     using GetConfigRequest = p4v1::GetForwardingPipelineConfigRequest;
     switch (response_type) {
       case GetConfigRequest::ALL:
@@ -1539,28 +1542,19 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
-  Status packet_out_send(const p4v1::PacketOut &packet) const {
-    return packet_io.packet_out_send(packet);
-  }
-
   Status stream_message_request_handle(
-      const p4::v1::StreamMessageRequest &request) {
-    switch (request.update_case()) {
-      case p4v1::StreamMessageRequest::kArbitration:
-        // must be handled by server code
-        RETURN_ERROR_STATUS(
-            Code::INTERNAL, "Arbitration mesages must be handled by server");
-      case p4v1::StreamMessageRequest::kPacket:
-        return packet_io.packet_out_send(request.packet());
-      case p4v1::StreamMessageRequest::kDigestAck:
-        digest_mgr.ack(request.digest_ack());
-        RETURN_OK_STATUS();
-      default:
-        RETURN_ERROR_STATUS(
-            Code::INVALID_ARGUMENT, "Invalid stream message request type");
-    }
-    assert(0);
-    RETURN_ERROR_STATUS(Code::INTERNAL);  // unreachable
+      const p4v1::StreamMessageRequest &request) {
+    p4v1::StreamError stream_error;
+    auto status = stream_message_request_handle_(request, &stream_error);
+    // a canonical_code of 0 can either mean no error or that stream
+    // error-reporting was disabled.
+    if (stream_error.canonical_code() == Code::OK || !cb_) return status;
+
+    p4v1::StreamMessageResponse msg;
+    msg.set_allocated_error(&stream_error);
+    cb_(device_id, &msg, cookie_);
+    msg.release_error();
+    return status;
   }
 
   void stream_message_response_register_cb(StreamMessageResponseCb cb,
@@ -1568,6 +1562,18 @@ class DeviceMgrImp {
     idle_timeout_register_cb(cb, cookie);
     packet_io.packet_in_register_cb(cb, cookie);
     digest_mgr.stream_message_response_register_cb(cb, cookie);
+    cb_ = cb;
+    cookie_ = cookie;
+  }
+
+  Status server_config_set(const p4::server::v1::Config &config) {
+    server_config.set_config(config);
+    RETURN_OK_STATUS();
+  }
+
+  Status server_config_get(p4::server::v1::Config *config) {
+    config->CopyFrom(server_config.get_config());
+    RETURN_OK_STATUS();
   }
 
   Status counter_write(p4v1::Update::Type update,
@@ -1857,11 +1863,51 @@ class DeviceMgrImp {
     assert(pi_status == PI_STATUS_SUCCESS);
   }
 
+  static Status init() {
+    auto pi_status = pi_init(defaultMaxDevices, NULL);
+    if (pi_status != PI_STATUS_SUCCESS)
+      RETURN_ERROR_STATUS(Code::INTERNAL, "Error when initializing PI library");
+    RETURN_OK_STATUS()
+  }
+
+  static Status init(const p4::server::v1::Config &config) {
+    auto pi_status = pi_init(defaultMaxDevices, NULL);
+    if (pi_status != PI_STATUS_SUCCESS)
+      RETURN_ERROR_STATUS(Code::INTERNAL, "Error when initializing PI library");
+    default_server_config = config;
+    RETURN_OK_STATUS()
+  }
+
+  static Status init(const std::string &config_text,
+                     const std::string &version) {
+    auto pi_status = pi_init(defaultMaxDevices, NULL);
+    if (pi_status != PI_STATUS_SUCCESS)
+      RETURN_ERROR_STATUS(Code::INTERNAL, "Error when initializing PI library");
+    if (version != "v1") {
+      RETURN_ERROR_STATUS(
+          Code::INVALID_ARGUMENT,
+          "Server config version {} not supported",
+          version);
+    }
+    if (!ServerConfigFromText<p4::server::v1::Config>::parse(
+            config_text, &default_server_config)) {
+      RETURN_ERROR_STATUS(
+          Code::INVALID_ARGUMENT,
+          "Invalid text format for server config");
+    }
+    RETURN_OK_STATUS();
+  }
+
   static void destroy() {
     pi_destroy();
   }
 
  private:
+  // This is no longer required by PI and it no longer needs to be provided when
+  // calling DeviceMgr::init. For backwards-compatibility we still have to
+  // provide a dummy value to pi_init.
+  static constexpr size_t defaultMaxDevices = 256;
+
   // internal version of read, which does not request read access from
   // access_arbitration
   Status read_(const p4v1::ReadRequest &request,
@@ -2000,6 +2046,27 @@ class DeviceMgrImp {
           IS_OK(cleanup_status) ? status : cleanup_status);
     }
     return error_reporter.get_status();
+  }
+
+  Status stream_message_request_handle_(
+      const p4v1::StreamMessageRequest &request,
+      p4v1::StreamError *stream_error) {
+    switch (request.update_case()) {
+      case p4v1::StreamMessageRequest::kArbitration:
+        // must be handled by server code
+        RETURN_ERROR_STATUS(
+            Code::INTERNAL, "Arbitration mesages must be handled by server");
+      case p4v1::StreamMessageRequest::kPacket:
+        return packet_io.packet_out_send(request.packet(), stream_error);
+      case p4v1::StreamMessageRequest::kDigestAck:
+        digest_mgr.ack(request.digest_ack());
+        RETURN_OK_STATUS();
+      default:
+        RETURN_ERROR_STATUS(
+            Code::INVALID_ARGUMENT, "Invalid stream message request type");
+    }
+    assert(0);
+    RETURN_ERROR_STATUS(Code::INTERNAL);  // unreachable
   }
 
   p4_id_t pi_get_table_direct_resource_p4_id(
@@ -2877,7 +2944,13 @@ class DeviceMgrImp {
   // way
   pi_dev_tgt_t device_tgt;
 
-  bool is_config_set{false};
+  static p4::server::v1::Config default_server_config;
+  ServerConfigAccessor server_config;
+
+  StreamMessageResponseCb cb_{};
+  void *cookie_{nullptr};
+
+  bool is_p4_config_set{false};
   p4configv1::P4Info p4info_proto;
   bool has_config_cookie{false};
   p4v1::ForwardingPipelineConfig::Cookie config_cookie;
@@ -2903,6 +2976,10 @@ class DeviceMgrImp {
 
   WatchPortEnforcer watch_port_enforcer;
 };
+
+/* static */
+p4::server::v1::Config DeviceMgrImp::default_server_config;
+
 
 DeviceMgr::DeviceMgr(device_id_t device_id) {
   pimp = std::unique_ptr<DeviceMgrImp>(new DeviceMgrImp(device_id));
@@ -2945,7 +3022,7 @@ DeviceMgr::read_one(const p4v1::Entity &entity,
 
 Status
 DeviceMgr::stream_message_request_handle(
-    const p4::v1::StreamMessageRequest &request) {
+    const p4v1::StreamMessageRequest &request) {
   return pimp->stream_message_request_handle(request);
 }
 
@@ -2955,9 +3032,34 @@ DeviceMgr::stream_message_response_register_cb(StreamMessageResponseCb cb,
   return pimp->stream_message_response_register_cb(std::move(cb), cookie);
 }
 
+Status
+DeviceMgr::server_config_set(const p4::server::v1::Config &config) {
+  return pimp->server_config_set(config);
+}
+
+Status
+DeviceMgr::server_config_get(p4::server::v1::Config *config) {
+  return pimp->server_config_get(config);
+}
+
 void
 DeviceMgr::init(size_t max_devices) {
   DeviceMgrImp::init(max_devices);
+}
+
+Status
+DeviceMgr::init() {
+  return DeviceMgrImp::init();
+}
+
+Status
+DeviceMgr::init(const p4::server::v1::Config &config) {
+  return DeviceMgrImp::init(config);
+}
+
+Status
+DeviceMgr::init(const std::string &config_text, const std::string &version) {
+  return DeviceMgrImp::init(config_text, version);
 }
 
 void

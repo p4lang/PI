@@ -58,7 +58,7 @@ class WatchPortEnforcerTest : public ProtoFrontendBaseTest {
   }
 
   static void SetUpTestCase() {
-    DeviceMgr::init(256);
+    DeviceMgr::init();
     std::ifstream istream(input_path);
     google::protobuf::io::IstreamInputStream istream_(&istream);
     google::protobuf::TextFormat::Parse(&istream_, &p4info_proto);
