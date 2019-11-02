@@ -56,7 +56,10 @@ inline Matcher<::google::rpc::Status> IsOk() {
   return MakeMatcher(new IsOkMatcher());
 }
 
+// Recent versions of Protobuf may provide EXPECT_OK
+#undef ASSERT_OK
 #define ASSERT_OK(status) ASSERT_THAT(status, IsOk())
+#undef EXPECT_OK
 #define EXPECT_OK(status) EXPECT_THAT(status, IsOk())
 
 // Very poor man's version of EqualsProto, which is not available in gmock yet

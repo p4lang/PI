@@ -1,0 +1,54 @@
+// Copyright 2019 VMware, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package p4.server.v1;
+
+service ServerConfig {
+  rpc Set(SetRequest) returns (SetResponse);
+  rpc Get(GetRequest) returns (GetResponse);
+}
+
+message SetRequest {
+  uint64 device_id = 1;
+  Config config = 2;
+}
+
+message SetResponse {
+}
+
+message GetRequest {
+  uint64 device_id = 1;
+}
+
+message GetResponse {
+  Config config = 1;
+}
+
+message Config {
+  StreamConfig stream = 1;
+}
+
+message StreamConfig {
+  enum ErrorReportingLevel {
+    DISABLED = 0;
+    ENABLED = 1;
+    DETAILED = 2;
+  }
+
+  // Stream error-reporting is disabled by default. We recommend only enabling
+  // it for debugging purposes.
+  ErrorReportingLevel error_reporting = 1;
+}

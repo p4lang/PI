@@ -25,7 +25,8 @@ $(abs_srcdir)/p4/config/v1/p4types.proto \
 $(abs_srcdir)/google/rpc/status.proto \
 $(abs_srcdir)/google/rpc/code.proto \
 $(abs_srcdir)/p4/tmp/p4config.proto \
-$(abs_srcdir)/gnmi/gnmi.proto
+$(abs_srcdir)/gnmi/gnmi.proto \
+$(abs_srcdir)/p4/server/v1/config.proto
 
 # Somehow, using an absolute path above prevents me from using EXTRA_DIST =
 # $(protos)
@@ -37,7 +38,8 @@ p4/config/v1/p4types.proto \
 google/rpc/status.proto \
 google/rpc/code.proto \
 p4/tmp/p4config.proto \
-gnmi/gnmi.proto
+gnmi/gnmi.proto \
+p4/server/v1/config.proto
 
 proto_cpp_files = \
 cpp_out/p4/v1/p4data.pb.cc \
@@ -55,7 +57,9 @@ cpp_out/google/rpc/code.pb.h \
 cpp_out/p4/tmp/p4config.pb.cc \
 cpp_out/p4/tmp/p4config.pb.h \
 cpp_out/gnmi/gnmi.pb.cc \
-cpp_out/gnmi/gnmi.pb.h
+cpp_out/gnmi/gnmi.pb.h \
+cpp_out/p4/server/v1/config.pb.cc \
+cpp_out/p4/server/v1/config.pb.h
 
 proto_grpc_files = \
 grpc_out/p4/v1/p4data.grpc.pb.cc \
@@ -73,7 +77,9 @@ grpc_out/google/rpc/code.grpc.pb.h \
 grpc_out/p4/tmp/p4config.grpc.pb.cc \
 grpc_out/p4/tmp/p4config.grpc.pb.h \
 grpc_out/gnmi/gnmi.grpc.pb.cc \
-grpc_out/gnmi/gnmi.grpc.pb.h
+grpc_out/gnmi/gnmi.grpc.pb.h \
+grpc_out/p4/server/v1/config.grpc.pb.cc \
+grpc_out/p4/server/v1/config.grpc.pb.h
 
 includep4dir = $(includedir)/p4/v1/
 nodist_includep4_HEADERS = \
@@ -106,6 +112,11 @@ nodist_includegnmi_HEADERS = \
 cpp_out/gnmi/gnmi.pb.h \
 grpc_out/gnmi/gnmi.grpc.pb.h
 
+includep4serverdir = $(includedir)/p4/server/v1/
+nodist_includep4server_HEADERS = \
+cpp_out/p4/server/v1/config.pb.h \
+grpc_out/p4/server/v1/config.grpc.pb.h
+
 AM_CPPFLAGS = -Icpp_out -Igrpc_out \
 -I$(top_srcdir)/../include \
 -I$(top_srcdir)
@@ -116,6 +127,7 @@ if HAVE_GRPC_PY_PLUGIN
 p4pydir = $(pythondir)/p4
 nodist_p4py_PYTHON = \
 py_out/p4/__init__.py
+
 
 # protoc generates a few useless _pb2_grpc.py files for .proto files which do
 # not include any gRPC service definitions; we include them anyway in the
@@ -167,6 +179,16 @@ py_out/gnmi/__init__.py \
 py_out/gnmi/gnmi_pb2.py \
 py_out/gnmi/gnmi_pb2_grpc.py
 
+p4serverpydir = $(pythondir)/p4/server
+nodist_p4serverpy_PYTHON = \
+py_out/p4/server/__init__.py
+
+p4serverv1pydir = $(pythondir)/p4/server/v1
+nodist_p4serverv1py_PYTHON = \
+py_out/p4/server/v1/config_pb2.py \
+py_out/p4/server/v1/config_pb2_grpc.py \
+py_out/p4/server/v1/__init__.py
+
 BUILT_SOURCES += \
 $(nodist_p4py_PYTHON) \
 $(nodist_p4v1py_PYTHON) \
@@ -175,12 +197,17 @@ $(nodist_p4configv1py_PYTHON) \
 $(nodist_p4tmppy_PYTHON) \
 $(nodist_googlepy_PYTHON) \
 $(nodist_googlerpcpy_PYTHON) \
-$(nodist_gnmipy_PYTHON)
+$(nodist_gnmipy_PYTHON) \
+$(nodist_p4serverpy_PYTHON) \
+$(nodist_p4serverv1py_PYTHON)
 endif
 
 # See http://www.gnu.org/software/automake/manual/html_node/Multiple-Outputs.html
 
 # Is there any issue with running protoc only once, instead of once per proto?
+# TODO: at the moment if a single proto is modified we run protoc again on all
+# proto files, which in turn leads to some expensive C++ compilation. We should
+# only run protoc on the proto files which have been modified.
 proto_files.ts: $(protos)
 	@rm -f proto_files.tmp
 	@touch proto_files.tmp
@@ -199,6 +226,7 @@ if HAVE_GRPC_PY_PLUGIN
 	@touch $(builddir)/py_out/p4/config/__init__.py $(builddir)/py_out/p4/config/v1/__init__.py
 	@touch $(builddir)/py_out/p4/tmp/__init__.py
 	@touch $(builddir)/py_out/google/__init__.py $(builddir)/py_out/google/rpc/__init__.py $(builddir)/py_out/gnmi/__init__.py
+	@touch $(builddir)/py_out/p4/server/__init__.py $(builddir)/py_out/p4/server/v1/__init__.py
 endif
 	@mv -f proto_files.tmp $@
 
@@ -241,5 +269,10 @@ libpiprotogrpc_la_LIBADD = libpiprotobuf.la $(PROTOBUF_LIBS) $(GRPC_LIBS)
 
 nobase_include_HEADERS = \
 PI/proto/util.h
+
+noinst_LTLIBRARIES = libserverconfig.la
+libserverconfig_la_SOURCES = \
+server_config/server_config.h \
+server_config/server_config.cpp
 
 CLEANFILES = $(BUILT_SOURCES) proto_files.ts

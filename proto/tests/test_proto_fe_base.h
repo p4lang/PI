@@ -56,7 +56,7 @@ class ProtoFrontendBaseTest : public ::testing::Test {
         device_tgt({static_cast<pi_dev_id_t>(device_id), 0xffff}) { }
 
   static void SetUpTestCase() {
-    DeviceMgr::init(256);
+    DeviceMgr::init();
   }
 
   static void TearDownTestCase() {

@@ -27,8 +27,11 @@
 
 #include "google/rpc/code.pb.h"
 
+#include "report_error.h"
+
 namespace p4v1 = ::p4::v1;
 namespace p4configv1 = ::p4::config::v1;
+namespace p4serverv1 = ::p4::server::v1;
 
 namespace pi {
 
@@ -191,6 +194,10 @@ class Id2Offset {
     int bitwidth;
   };
 
+  using Map = std::unordered_map<uint32_t, Offset>;
+  using iterator = Map::iterator;
+  using const_iterator = Map::const_iterator;
+
   explicit Id2Offset(const ControllerPacketMetadata &metadata_hdr) {
     int nbits = 0;
     for (const auto &metadata : metadata_hdr.metadata()) {
@@ -203,11 +210,22 @@ class Id2Offset {
 
   const Offset &at(uint32_t id) const { return offsets.at(id); }
 
+  iterator find(uint32_t id) { return offsets.find(id); }
+  const_iterator find(uint32_t id) const { return offsets.find(id); }
+
+  iterator begin() noexcept { return offsets.begin(); }
+  const_iterator begin() const noexcept { return offsets.begin(); }
+
+  iterator end() noexcept { return offsets.end(); }
+  const_iterator end() const noexcept { return offsets.end(); }
+
  private:
-  std::unordered_map<uint32_t, Offset> offsets{};
+  Map offsets{};
 };
 
 }  // namespace
+
+using Status = PacketIOMgr::Status;
 
 class PacketOutMutate {
  public:
@@ -218,18 +236,28 @@ class PacketOutMutate {
     nbytes = compute_nbytes(metadata_hdr);
   }
 
-  bool operator ()(const p4v1::PacketOut &packet_out, std::string *pkt) const {
+  // TODO(antonin): to be fully conformant to the P4Runtime spec, we should drop
+  // the PacketOut message if even one metadata field is missing. It may be a
+  // good idea to make this behavior configurable since some clients may rely on
+  // the current behavior.
+  Status operator ()(const p4v1::PacketOut &packet_out,
+                     std::string *pkt) const {
     pkt->clear();
     const auto &payload = packet_out.payload();
     pkt->reserve(nbytes + payload.size());
     pkt->append(nbytes, 0);
     for (const auto &metadata : packet_out.metadata()) {
-      const auto &offset = id2offset.at(metadata.metadata_id());
+      auto offset_it = id2offset.find(metadata.metadata_id());
+      if (offset_it == id2offset.end()) {
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                            "Unknown metadata id in PacketOut message");
+      }
+      const auto &offset = offset_it->second;
       generic_deparse(metadata.value().data(), offset.bitwidth,
                       &(*pkt)[offset.byte_offset], offset.bit_offset);
     }
     pkt->append(payload);
-    return true;
+    RETURN_OK_STATUS();
   }
 
  private:
@@ -240,10 +268,11 @@ class PacketOutMutate {
 
 constexpr const char PacketOutMutate::name[];
 
-using Status = PacketIOMgr::Status;
-
-PacketIOMgr::PacketIOMgr(device_id_t device_id)
-    : device_id(device_id), packet_in_mutate(nullptr),
+PacketIOMgr::PacketIOMgr(device_id_t device_id,
+                         ServerConfigAccessor *server_config)
+    : device_id(device_id),
+      server_config(server_config),
+      packet_in_mutate(nullptr),
       packet_out_mutate(nullptr) { }
 
 PacketIOMgr::~PacketIOMgr() = default;
@@ -264,29 +293,81 @@ PacketIOMgr::p4_change(const p4configv1::P4Info &p4info) {
   packet_out_mutate.reset(packet_out_mutate_new);
 }
 
+namespace {
+
+void make_stream_error(p4v1::StreamError *stream_error,
+                       const p4v1::PacketOut &packet,
+                       int code,
+                       const std::string &message,
+                       bool detailed) {
+  stream_error->set_canonical_code(code);
+  stream_error->set_message(message);
+  stream_error->set_space("ALL-sswitch-p4org");
+  auto *details = stream_error->mutable_packet_out();
+  if (detailed) details->mutable_packet_out()->CopyFrom(packet);
+}
+
+void make_stream_error(p4v1::StreamError *stream_error,
+                       const p4v1::PacketOut &packet,
+                       const Status &status,
+                       bool detailed) {
+  make_stream_error(
+      stream_error, packet, status.code(), status.message(), detailed);
+}
+
+template <typename... Args>
+void make_stream_error_if(p4serverv1::StreamConfig::ErrorReportingLevel level,
+                          Args &&...args) {
+  if (level == p4serverv1::StreamConfig::DISABLED) return;
+  make_stream_error(std::forward<Args>(args)...);
+}
+
+}  // namespace
+
 Status
 PacketIOMgr::packet_out_send(const p4v1::PacketOut &packet) const {
-    Status status;
-    pi_status_t pi_status = PI_STATUS_SUCCESS;
-    if (packet_out_mutate) {
-      std::string raw_packet;
-      auto success = (*packet_out_mutate)(packet, &raw_packet);
-      if (!success) {
-        status.set_code(Code::UNKNOWN);
-        return status;
-      }
-      pi_status = pi_packetout_send(device_id, raw_packet.data(),
-                                    raw_packet.size());
-    } else {
-      const auto &payload = packet.payload();
-      pi_status = pi_packetout_send(device_id, payload.data(),
-                                    payload.size());
+  p4v1::StreamError stream_error;
+  return packet_out_send(packet, &stream_error);
+}
+
+Status
+PacketIOMgr::packet_out_send(const p4v1::PacketOut &packet,
+                             p4v1::StreamError *stream_error) const {
+  pi_status_t pi_status = PI_STATUS_SUCCESS;
+  // TODO(antonin): unify both cases, we could have a mutator (no-op) even when
+  // there is no metadata.
+  if (packet_out_mutate) {
+    std::string raw_packet;
+    auto status = (*packet_out_mutate)(packet, &raw_packet);
+    if (IS_ERROR(status)) {
+      auto error_reporting_level = error_reporting();
+      make_stream_error_if(
+          error_reporting_level, stream_error, packet, status,
+          error_reporting_level == p4serverv1::StreamConfig::DETAILED);
+      return status;
     }
-    if (pi_status != PI_STATUS_SUCCESS)
-      status.set_code(Code::UNKNOWN);
-    else
-      status.set_code(Code::OK);
+    pi_status = pi_packetout_send(device_id, raw_packet.data(),
+                                  raw_packet.size());
+  } else if (packet.metadata_size() > 0) {  // unexpected metadata
+    auto status = ERROR_STATUS(
+        Code::INVALID_ARGUMENT, "Unexpected metadata in PacketOut message");
+    auto error_reporting_level = error_reporting();
+    make_stream_error_if(
+        error_reporting_level, stream_error, packet, status,
+        error_reporting_level == p4serverv1::StreamConfig::DETAILED);
     return status;
+  } else {
+    const auto &payload = packet.payload();
+    pi_status = pi_packetout_send(device_id, payload.data(),
+                                  payload.size());
+  }
+  if (pi_status != PI_STATUS_SUCCESS) {
+    make_stream_error_if(
+        error_reporting(), stream_error, packet, Code::UNKNOWN,
+        "Unknown error when target sending packet-out", false);
+    RETURN_ERROR_STATUS(Code::UNKNOWN);
+  }
+  RETURN_OK_STATUS();
 }
 
 void
@@ -312,6 +393,13 @@ PacketIOMgr::packet_in_cb(pi_dev_id_t dev_id, const char *pkt, size_t size,
     packet_in->set_payload(pkt, size);
   }
   mgr->cb_(mgr->device_id, &msg, mgr->cookie_);
+}
+
+p4serverv1::StreamConfig::ErrorReportingLevel
+PacketIOMgr::error_reporting() const {
+  return server_config->get([](
+      const p4::server::v1::Config &config) {
+          return config.stream().error_reporting(); });
 }
 
 }  // namespace proto

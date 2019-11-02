@@ -5,7 +5,7 @@ load("//bazel:workspace_rule.bzl", "remote_workspace")
 
 GNMI_COMMIT = "39cb2fffed5c9a84970bde47b3d39c8c716dc17a";
 GNMI_SHA = "3701005f28044065608322c179625c8898beadb80c89096b3d8aae1fbac15108";
-P4RUNTIME_COMMIT = "20c22c45387794935b549cc49948c4c07dc0b99c";
+P4RUNTIME_COMMIT = "09a02842321aecd224cfdbbcea95b1dbc6255266";
 
 def PI_deps():
     """Loads dependencies needed to compile PI."""
@@ -14,9 +14,6 @@ def PI_deps():
         remote_workspace(
             name = "com_github_p4lang_p4runtime",
             remote = "https://github.com/p4lang/p4runtime",
-            # Cannot use 1.0.0 tag, we need a more recent version which includes
-            # a Bazel build fix.
-            # tag = "1.0.0",
             commit = P4RUNTIME_COMMIT,
         )
 
@@ -25,6 +22,7 @@ def PI_deps():
             name = "judy",
             build_file = "@com_github_p4lang_PI//bazel/external:judy.BUILD",
             url = "http://archive.ubuntu.com/ubuntu/pool/universe/j/judy/judy_1.0.5.orig.tar.gz",
+            sha256 = "d2704089f85fdb6f2cd7e77be21170ced4b4375c03ef1ad4cf1075bd414a63eb",
             strip_prefix = "judy-1.0.5",
         )
 
