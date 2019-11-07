@@ -19,7 +19,7 @@ to install different dependencies.
 | Configure flag        | Default (yes / no) | Dependencies | Remarks |
 | --------------------- | --- | --- | --- |
 | `--with-bmv2`         | no  | bmv2 and its deps | Implies `--with-fe-cpp` |
-| `--with-proto`        | no  | protobuf, grpc, libboost-thread-dev | - |
+| `--with-proto`        | no  | Protobuf, gRPC, libboost-thread-dev | - |
 | `--with-fe-cpp`       | no  | - | - |
 | `--with-internal-rpc` | no  | nanomsg | - |
 | `--with-cli`          | no  | readline | - |
@@ -52,22 +52,22 @@ is not the right one.
   follow instructions in the [bmv2
   README](https://github.com/p4lang/behavioral-model/blob/master/README.md)
 - [nanomsg 1.0.0](https://github.com/nanomsg/nanomsg/releases/tag/1.0.0)
-- [protobuf v3.2.0](https://github.com/google/protobuf/releases/tag/v3.2.0):
+- [Protobuf v3.6.1](https://github.com/google/protobuf/releases/tag/v3.6.1):
 ```
 git clone https://github.com/google/protobuf.git
 cd protobuf/
-git checkout tags/v3.2.0
+git checkout tags/v3.6.1
 ./autogen.sh
 ./configure
 make
 [sudo] make install
 [sudo] ldconfig
 ```
-- [grpc v1.3.2](https://github.com/grpc/grpc/releases/tag/v1.3.2):
+- [gRPC v1.17.2](https://github.com/grpc/grpc/releases/tag/v1.17.2):
 ```
 git clone https://github.com/google/grpc.git
 cd grpc/
-git checkout tags/v1.3.2
+git checkout tags/v1.17.2
 git submodule update --init --recursive
 make
 [sudo] make install
@@ -76,8 +76,10 @@ make
 - [sysrepo](https://github.com/sysrepo/sysrepo) and all its dependencies: see
   instructions in [proto/README.md](proto/README.md)
 
-You may be able to use more recent versions of nanomsg, protobuf or grpc, but
-the versions above are the ones we use for development and testing.
+You may be able to use different versions of Protobuf / gRPC, or a more recent
+version of nanomsg. However, the versions above are the ones we use for
+development and CI testing. When running `configure` with `--with-proto`, the
+script will verify that Protobuf >= 3.0.0 and gRPC >= 1.3.0 are installed.
 
 ## Building p4runtime.proto
 
