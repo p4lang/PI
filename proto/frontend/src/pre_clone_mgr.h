@@ -24,7 +24,6 @@
 #include <PI/pi_base.h>
 #include <PI/pi_clone.h>
 
-#include <bitset>
 #include <mutex>
 #include <unordered_map>
 
@@ -59,10 +58,27 @@ class PreCloneMgr {
                         const SessionTemp &session);
   Status session_delete(const CloneSession &clone_session,
                         const SessionTemp &session);
+  Status session_read(const CloneSession &clone_session,
+                      const SessionTemp &session,
+                      ::p4::v1::ReadResponse *response) const;
 
  private:
   using Mutex = std::mutex;
   using Lock = std::lock_guard<Mutex>;
+
+  struct CloneSessionConfig {
+    uint32_t class_of_service;
+    int32_t packet_length_bytes;
+
+    bool operator==(const CloneSessionConfig &other) const {
+      return class_of_service == other.class_of_service &&
+          packet_length_bytes == other.packet_length_bytes;
+    }
+
+    bool operator!=(const CloneSessionConfig &other) const {
+      return !(*this == other);
+    }
+  };
 
   // TODO(antonin): this should ideally be configurable based on te target but
   // these seem like a reasonnable place to start with.
@@ -75,10 +91,12 @@ class PreCloneMgr {
 
   static Status validate_session_id(CloneSessionId session_id);
 
+  static CloneSessionConfig make_clone_session_config(
+      const CloneSession &clone_session);
+
   pi_dev_tgt_t device_tgt;
   PreMcMgr* mc_mgr;  // non-owning pointer
-  // which sessions exist
-  std::bitset<kMaxCloneSessionId> sessions{};
+  std::unordered_map<CloneSessionId, CloneSessionConfig> sessions{};
   mutable Mutex mutex{};
 };
 

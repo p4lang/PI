@@ -62,9 +62,12 @@ class PreMcMgr {
                       GroupOwner owner = GroupOwner::CLIENT);
   Status group_modify(const GroupEntry &group_entry);
   Status group_delete(const GroupEntry &group_entry);
+  Status group_read(const GroupEntry &group_entry,
+                    ::p4::v1::ReadResponse *response) const;
+  Status group_read_one(GroupId group_id, GroupEntry *group_entry) const;
 
   // user-defined multicast group ids must be in the range
-  // [0,first_reserved_group[; ideally this should be configurable based on the
+  // ]0,first_reserved_group[; ideally this should be configurable based on the
   // target.
   static constexpr GroupId first_reserved_group_id() { return 1 << 15; }
 
@@ -97,6 +100,9 @@ class PreMcMgr {
                        Group *new_group);
 
   static Status make_new_group(const GroupEntry &group_entry, Group *group);
+
+  static void read_group(
+      GroupId group_id, const Group &group, GroupEntry *group_entry);
 
   Status create_and_attach_node(McSessionTemp *session,
                                 pi_mc_grp_handle_t group_h,

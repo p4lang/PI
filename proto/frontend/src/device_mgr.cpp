@@ -1803,6 +1803,9 @@ class DeviceMgrImp {
 
   Status pre_mc_write(p4v1::Update::Type update,
                       const p4v1::MulticastGroupEntry &mc_group_entry) {
+    if (mc_group_entry.multicast_group_id() == 0) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "0 is not a valid group id");
+    }
     if (mc_group_entry.multicast_group_id() >=
         PreMcMgr::first_reserved_group_id()) {
       RETURN_ERROR_STATUS(Code::OUT_OF_RANGE, "Group id value is too high");
@@ -1825,6 +1828,10 @@ class DeviceMgrImp {
   Status pre_clone_write(p4v1::Update::Type update,
                          const p4v1::CloneSessionEntry &clone_session_entry,
                          const SessionTemp &session) {
+    if (clone_session_entry.session_id() == 0) {
+      RETURN_ERROR_STATUS(
+          Code::INVALID_ARGUMENT, "0 is not a valid session id");
+    }
     switch (update) {
       case p4v1::Update::UNSPECIFIED:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Update type is not set");
@@ -1851,6 +1858,24 @@ class DeviceMgrImp {
       case PreEntry::kCloneSessionEntry:
         return pre_clone_write(
             update, pre_entry.clone_session_entry(), session);
+      default:
+        break;
+    }
+    RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid PRE operation");
+  }
+
+  Status pre_read(const p4v1::PacketReplicationEngineEntry &pre_entry,
+                  const SessionTemp &session,
+                  p4v1::ReadResponse *response) const {
+    using PreEntry = p4v1::PacketReplicationEngineEntry;
+    switch (pre_entry.type_case()) {
+      case PreEntry::kMulticastGroupEntry:
+        // PI uses a different session for multicast operations
+        return pre_mc_mgr->group_read(
+            pre_entry.multicast_group_entry(), response);
+      case PreEntry::kCloneSessionEntry:
+        return pre_clone_mgr->session_read(
+            pre_entry.clone_session_entry(), session, response);
       default:
         break;
     }
@@ -1925,54 +1950,41 @@ class DeviceMgrImp {
   // access_arbitration
   Status read_one_(const p4v1::Entity &entity,
                    p4v1::ReadResponse *response) const {
-    Status status;
     SessionTemp session(false  /* = batch */);
     switch (entity.entity_case()) {
       case p4v1::Entity::kTableEntry:
-        status = table_read(entity.table_entry(), session, response);
-        break;
+        return table_read(entity.table_entry(), session, response);
       case p4v1::Entity::kActionProfileMember:
-        status = action_profile_member_read(
+        return action_profile_member_read(
             entity.action_profile_member(), session, response);
-        break;
       case p4v1::Entity::kActionProfileGroup:
-        status = action_profile_group_read(
+        return action_profile_group_read(
             entity.action_profile_group(), session, response);
-        break;
       case p4v1::Entity::kMeterEntry:
-        status = meter_read(entity.meter_entry(), session, response);
-        break;
+        return meter_read(entity.meter_entry(), session, response);
       case p4v1::Entity::kDirectMeterEntry:
-        status = direct_meter_read(
+        return direct_meter_read(
             entity.direct_meter_entry(), session, response);
-        break;
       case p4v1::Entity::kCounterEntry:
-        status = counter_read(entity.counter_entry(), session, response);
-        break;
+        return counter_read(entity.counter_entry(), session, response);
       case p4v1::Entity::kDirectCounterEntry:
-        status = direct_counter_read(
+        return direct_counter_read(
             entity.direct_counter_entry(), session, response);
-        break;
       case p4v1::Entity::kPacketReplicationEngineEntry:
-        status = ERROR_STATUS(Code::UNIMPLEMENTED,
-                              "Reading from PRE is not supported yet");
-        break;
+        return pre_read(
+            entity.packet_replication_engine_entry(), session, response);
       case p4v1::Entity::kValueSetEntry:  // TODO(antonin)
-        status = ERROR_STATUS(Code::UNIMPLEMENTED,
-                              "ValueSet reads are not supported yet");
-        break;
+        RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
+                            "ValueSet reads are not supported yet");
       case p4v1::Entity::kRegisterEntry:
-        status = ERROR_STATUS(Code::UNIMPLEMENTED,
-                              "Register reads are not supported yet");
-        break;
+        RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
+                            "Register reads are not supported yet");
       case p4v1::Entity::kDigestEntry:
-        status = digest_mgr.config_read(entity.digest_entry(), response);
-        break;
+        return digest_mgr.config_read(entity.digest_entry(), response);
       default:
-        status = ERROR_STATUS(Code::UNKNOWN, "Incorrect entity type");
-        break;
+        RETURN_ERROR_STATUS(Code::UNKNOWN, "Incorrect entity type");
     }
-    return status;
+    RETURN_OK_STATUS();  // unreachable
   }
 
   // internal version of write, which does not request write access from

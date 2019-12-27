@@ -26,7 +26,7 @@
 #include <google/protobuf/text_format.h>
 #include <google/protobuf/util/message_differencer.h>
 
-#include <algorithm>  // std::generate
+#include <algorithm>  // std::generate, std::transform, std::sort
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -3203,8 +3203,11 @@ TEST_F(TernaryTwoTest, MissingMatchField) {
 }
 
 
-template <typename Entry,
-          Entry *(::p4v1::PacketReplicationEngineEntry::*Accessor)()>
+template <
+  typename Entry,
+  Entry *(::p4v1::PacketReplicationEngineEntry::*Accessor)(),
+  // NOLINTNEXTLINE(runtime/casting)
+  const Entry &(::p4v1::PacketReplicationEngineEntry::*ConstAccessor)() const>
 class PRETestBase : public DeviceMgrTest {
  protected:
   DeviceMgr::Status create_entry(const Entry &entry) {
@@ -3237,6 +3240,47 @@ class PRETestBase : public DeviceMgrTest {
     Entry *entry;
   };
 
+  DeviceMgr::Status read_entry(const Entry &entry, Entry *read_entry) {
+    p4v1::ReadRequest request;
+    p4v1::ReadResponse response;
+    auto *entity = request.add_entities();
+    auto *pre_entry = entity->mutable_packet_replication_engine_entry();
+    (pre_entry->*Accessor)()->CopyFrom(entry);
+    auto status = mgr.read(request, &response);
+    if (status.code() == Code::OK) {
+      const auto &entities = response.entities();
+      assert(entities.size() == 1);
+      const auto &read_pre_entity
+          = entities.Get(0).packet_replication_engine_entry();
+      read_entry->CopyFrom((read_pre_entity.*ConstAccessor)());
+    }
+    return status;
+  }
+
+  template <typename Fn, typename OutputIt>
+  DeviceMgr::Status read_and_sort_entries(
+      Fn fn, OutputIt out_begin, OutputIt out_end) {
+    p4v1::ReadRequest request;
+    p4v1::ReadResponse response;
+    auto *entity = request.add_entities();
+    auto *pre_entry = entity->mutable_packet_replication_engine_entry();
+    // initialize oneof, default value corresponds to wildcard read
+    (pre_entry->*Accessor)();
+    auto status = mgr.read(request, &response);
+    if (status.code() == Code::OK) {
+      const auto &entities = response.entities();
+      assert(std::distance(out_begin, out_end) == entities.size());
+      std::transform(
+          entities.begin(),
+          entities.end(),
+          out_begin,
+          [](const p4v1::Entity &e) {
+            return (e.packet_replication_engine_entry().*ConstAccessor)(); });
+      std::sort(out_begin, out_end, fn);
+    }
+    return status;
+  }
+
  private:
   DeviceMgr::Status write_entry(const Entry &entry, p4v1::Update::Type type) {
     p4v1::WriteRequest request;
@@ -3251,7 +3295,8 @@ class PRETestBase : public DeviceMgrTest {
 
 class PREMulticastTest : public PRETestBase<
   ::p4v1::MulticastGroupEntry,
-  &::p4v1::PacketReplicationEngineEntry::mutable_multicast_group_entry> {
+  &::p4v1::PacketReplicationEngineEntry::mutable_multicast_group_entry,
+  &::p4v1::PacketReplicationEngineEntry::multicast_group_entry> {
  protected:
   using GroupEntry = ::p4v1::MulticastGroupEntry;
 
@@ -3279,10 +3324,7 @@ TEST_F(PREMulticastTest, Write) {
   EXPECT_CALL(*mock, mc_node_create(rid1, ElementsAre(port1), _));
   EXPECT_CALL(*mock, mc_node_create(rid2, ElementsAre(port2), _));
   EXPECT_CALL(*mock, mc_grp_attach_node(_, _)).Times(2);
-  {
-    auto status = create_group(group);
-    ASSERT_EQ(status.code(), Code::OK);
-  }
+  ASSERT_OK(create_group(group));
   auto grp_h = mock->get_mc_grp_handle();
 
   int32_t port3 = 3, rid3 = rid1, port4 = 4, rid4 = 4;
@@ -3290,27 +3332,18 @@ TEST_F(PREMulticastTest, Write) {
   EXPECT_CALL(*mock, mc_node_modify(_, ElementsAre(port1, port3)));
   EXPECT_CALL(*mock, mc_node_create(rid4, ElementsAre(port4), _));
   EXPECT_CALL(*mock, mc_grp_attach_node(grp_h, _));
-  {
-    auto status = modify_group(group);
-    ASSERT_EQ(status.code(), Code::OK);
-  }
+  ASSERT_OK(modify_group(group));
   auto node_h = mock->get_mc_node_handle();  // rid4
 
   replicas.pop_back();
   EXPECT_CALL(*mock, mc_grp_detach_node(grp_h, node_h));
   EXPECT_CALL(*mock, mc_node_delete(node_h));
-  {
-    auto status = modify_group(group);
-    ASSERT_EQ(status.code(), Code::OK);
-  }
+  ASSERT_OK(modify_group(group));
 
   EXPECT_CALL(*mock, mc_grp_detach_node(grp_h, _)).Times(2);
   EXPECT_CALL(*mock, mc_node_delete(_)).Times(2);
   EXPECT_CALL(*mock, mc_grp_delete(grp_h));
-  {
-    auto status = delete_group(group);
-    ASSERT_EQ(status.code(), Code::OK);
-  }
+  ASSERT_OK(delete_group(group));
 }
 
 TEST_F(PREMulticastTest, Duplicates) {
@@ -3324,15 +3357,50 @@ TEST_F(PREMulticastTest, Duplicates) {
   EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
 }
 
-TEST_F(PREMulticastTest, Read) {
-  p4v1::ReadRequest request;
-  p4v1::ReadResponse response;
-  auto *entity = request.add_entities();
-  // set oneof to PRE
-  entity->mutable_packet_replication_engine_entry();
+TEST_F(PREMulticastTest, InvalidId) {
+  int32_t group_id = 0;
+  GroupEntry group;
+  group.set_multicast_group_id(group_id);
+  int32_t port1 = 1, rid1 = 1;
+  ReplicaMgr replicas(&group);;
+  replicas.push_back(port1, rid1);
+  auto status = create_group(group);
+  EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
+}
 
-  auto status = mgr.read(request, &response);
-  EXPECT_EQ(status.code(), Code::UNIMPLEMENTED);
+TEST_F(PREMulticastTest, Read) {
+  int32_t group_id1 = 66, group_id2 = 7;
+  GroupEntry group1, group2;
+  group1.set_multicast_group_id(group_id1);
+  group2.set_multicast_group_id(group_id2);
+  int32_t port1 = 1, rid1 = 1, port2 = 1, rid2 = 2, port3 = 2, rid3 = 2;
+  {
+    ReplicaMgr replicas(&group1);
+    replicas.push_back(port1, rid1).push_back(port2, rid2)
+        .push_back(port3, rid3);
+  }
+  {
+    ReplicaMgr replicas(&group2);
+    replicas.push_back(port1, rid1);
+  }
+  EXPECT_CALL(*mock, mc_grp_create(_, _)).Times(2);
+  EXPECT_CALL(*mock, mc_node_create(_, _, _)).Times(3);
+  EXPECT_CALL(*mock, mc_grp_attach_node(_, _)).Times(3);
+  ASSERT_OK(create_group(group1));
+  ASSERT_OK(create_group(group2));
+
+  {  // read one
+    GroupEntry entry;
+    ASSERT_OK(read_entry(group1, &entry));
+    EXPECT_PROTO_EQ_AS_SET(entry, group1);
+  }
+  {  // wildcard read
+    std::vector<GroupEntry> entries(2);
+    ASSERT_OK(read_and_sort_entries(
+        [](const GroupEntry &e1, const GroupEntry &e2) {
+          return e1.multicast_group_id() < e2.multicast_group_id(); },
+        entries.begin(), entries.end()));
+  }
 }
 
 TEST_F(PREMulticastTest, GroupCreateError) {
@@ -3365,7 +3433,8 @@ TEST_F(PREMulticastTest, GroupCreateError) {
 
 class PRECloningTest : public PRETestBase<
   ::p4v1::CloneSessionEntry,
-  &::p4v1::PacketReplicationEngineEntry::mutable_clone_session_entry> {
+  &::p4v1::PacketReplicationEngineEntry::mutable_clone_session_entry,
+  &::p4v1::PacketReplicationEngineEntry::clone_session_entry> {
  protected:
   using SessionEntry = ::p4v1::CloneSessionEntry;
 
@@ -3394,37 +3463,88 @@ TEST_F(PRECloningTest, Write) {
   EXPECT_CALL(*mock, mc_grp_attach_node(_, _));
   EXPECT_CALL(
       *mock, clone_session_set(session_id, CorrectCloneSessionConfig(session)));
-  {
-    auto status = create_session(session);
-    ASSERT_EQ(status.code(), Code::OK);
-  }
+  ASSERT_OK(create_session(session));
   auto grp_h = mock->get_mc_grp_handle();
 
   replicas.pop_back();
   EXPECT_CALL(*mock, mc_node_modify(_, ElementsAre(port1)));
-  {
-    auto status = modify_session(session);
-    ASSERT_EQ(status.code(), Code::OK);
-  }
+  ASSERT_OK(modify_session(session));
 
   EXPECT_CALL(*mock, mc_grp_detach_node(grp_h, _));
   EXPECT_CALL(*mock, mc_node_delete(_));
   EXPECT_CALL(*mock, mc_grp_delete(grp_h));
   EXPECT_CALL(*mock, clone_session_reset(session_id));
-  {
-    auto status = delete_session(session);
-    ASSERT_EQ(status.code(), Code::OK);
-  }
+  ASSERT_OK(delete_session(session));
+}
+
+TEST_F(PRECloningTest, ModifyConfig) {
+  int32_t session_id = 66;
+  SessionEntry session;
+  session.set_session_id(session_id);
+  int32_t port1 = 1, port2 = 2, rid = 1;
+  ReplicaMgr replicas(&session);
+  replicas.push_back(port1, rid).push_back(port2, rid);
+  session.set_packet_length_bytes(1000);
+  EXPECT_CALL(*mock, mc_grp_create(_, _));
+  EXPECT_CALL(*mock, mc_node_create(rid, ElementsAre(port1, port2), _));
+  EXPECT_CALL(*mock, mc_grp_attach_node(_, _));
+  EXPECT_CALL(
+      *mock, clone_session_set(session_id, CorrectCloneSessionConfig(session)));
+  ASSERT_OK(create_session(session));
+
+  session.set_packet_length_bytes(2000);
+  // no mc_* calls because the set of replicas did not change, only the
+  // packet_length_bytes field.
+  EXPECT_CALL(
+      *mock, clone_session_set(session_id, CorrectCloneSessionConfig(session)));
+  ASSERT_OK(modify_session(session));
+}
+
+TEST_F(PRECloningTest, InvalidId) {
+  int32_t session_id = 0;
+  SessionEntry session;
+  session.set_session_id(session_id);
+  int32_t port1 = 1, rid1 = 1;
+  ReplicaMgr replicas(&session);;
+  replicas.push_back(port1, rid1);
+  auto status = create_session(session);
+  EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
 }
 
 TEST_F(PRECloningTest, Read) {
-  p4v1::ReadRequest request;
-  p4v1::ReadResponse response;
-  auto *entity = request.add_entities();
-  auto *pre_entry = entity->mutable_packet_replication_engine_entry();
-  pre_entry->mutable_clone_session_entry();
-  auto status = mgr.read(request, &response);
-  EXPECT_EQ(status.code(), Code::UNIMPLEMENTED);
+  int32_t session_id1 = 66, session_id2 = 7;
+  SessionEntry session1, session2;
+  session1.set_session_id(session_id1);
+  session2.set_session_id(session_id2);
+  int32_t port1 = 1, rid1 = 1, port2 = 1, rid2 = 2, port3 = 2, rid3 = 2;
+  {
+    ReplicaMgr replicas(&session1);
+    replicas.push_back(port1, rid1).push_back(port2, rid2)
+        .push_back(port3, rid3);
+  }
+  {
+    ReplicaMgr replicas(&session2);
+    replicas.push_back(port1, rid1);
+  }
+  EXPECT_CALL(*mock, mc_grp_create(_, _)).Times(2);
+  EXPECT_CALL(*mock, mc_node_create(_, _, _)).Times(3);
+  EXPECT_CALL(*mock, mc_grp_attach_node(_, _)).Times(3);
+  EXPECT_CALL(*mock, clone_session_set(_, _)).Times(2);
+  ASSERT_OK(create_session(session1));
+  ASSERT_OK(create_session(session2));
+
+  {  // read one
+    SessionEntry entry;
+    ASSERT_OK(read_entry(session1, &entry));
+    EXPECT_PROTO_EQ_AS_SET(entry, session1);
+  }
+  {  // wildcard read
+    std::vector<SessionEntry> entries(2);
+    ASSERT_OK(read_and_sort_entries(
+        [](const SessionEntry &e1, const SessionEntry &e2) {
+          return e1.session_id() < e2.session_id(); },
+        entries.begin(), entries.end()));
+  }
 }
 
 class ReadConstTableTest : public DeviceMgrTest {

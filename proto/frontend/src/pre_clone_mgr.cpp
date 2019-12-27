@@ -25,6 +25,8 @@
 #include "pre_mc_mgr.h"
 #include "report_error.h"
 
+namespace p4v1 = ::p4::v1;
+
 namespace pi {
 
 namespace fe {
@@ -56,9 +58,18 @@ make_mc_group(const CloneSession &clone_session) {
 
 /* static */ Status
 PreCloneMgr::validate_session_id(CloneSessionId session_id) {
-  if (session_id < kMinCloneSessionId || session_id >= kMaxCloneSessionId)
-    RETURN_ERROR_STATUS(Code::OUT_OF_RANGE, "Clone session id out-of-range");
+  if (session_id < kMinCloneSessionId || session_id >= kMaxCloneSessionId) {
+    RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                        "Clone session id out-of-range");
+  }
   RETURN_OK_STATUS();
+}
+
+/* static */ PreCloneMgr::CloneSessionConfig
+PreCloneMgr::make_clone_session_config(
+    const CloneSession &clone_session) {
+  return CloneSessionConfig{
+    clone_session.class_of_service(), clone_session.packet_length_bytes()};
 }
 
 PreCloneMgr::PreCloneMgr(pi_dev_tgt_t device_tgt, PreMcMgr* mc_mgr)
@@ -88,6 +99,7 @@ PreCloneMgr::session_set(const CloneSession &clone_session,
     RETURN_ERROR_STATUS(Code::UNKNOWN,
                         "Error when creating clone session in target");
   }
+
   RETURN_OK_STATUS();
 }
 
@@ -97,7 +109,7 @@ PreCloneMgr::session_create(const CloneSession &clone_session,
   auto session_id = static_cast<CloneSessionId>(clone_session.session_id());
   RETURN_IF_ERROR(validate_session_id(session_id));
   Lock lock(mutex);
-  if (sessions[session_id]) {
+  if (sessions.count(session_id) > 0) {
     RETURN_ERROR_STATUS(Code::ALREADY_EXISTS,
                         "Clone session id already exists");
   }
@@ -107,7 +119,7 @@ PreCloneMgr::session_create(const CloneSession &clone_session,
   auto status = session_set(
       clone_session, mc_group.multicast_group_id(), session);
   if (IS_OK(status)) {
-    sessions[session_id] = true;
+    sessions.emplace(session_id, make_clone_session_config(clone_session));
     RETURN_OK_STATUS();
   }
   {
@@ -128,14 +140,27 @@ PreCloneMgr::session_create(const CloneSession &clone_session,
 Status
 PreCloneMgr::session_modify(const CloneSession &clone_session,
                             const SessionTemp &session) {
-  (void) session;
   auto session_id = static_cast<CloneSessionId>(clone_session.session_id());
   RETURN_IF_ERROR(validate_session_id(session_id));
   Lock lock(mutex);
-  if (!sessions[session_id])
+  auto it = sessions.find(session_id);
+  if (it == sessions.end())
     RETURN_ERROR_STATUS(Code::NOT_FOUND, "Clone session id does not exist");
   auto mc_group = make_mc_group(clone_session);
-  return mc_mgr->group_modify(mc_group);
+  RETURN_IF_ERROR(mc_mgr->group_modify(mc_group));
+
+  // update config if needed (e.g. if packet_length_bytes has changed).
+  auto new_clone_session_config = make_clone_session_config(clone_session);
+  if (new_clone_session_config != it->second) {
+    auto status = session_set(
+        clone_session, mc_group.multicast_group_id(), session);
+    if (IS_OK(status)) {
+      it->second = new_clone_session_config;
+    }
+    return status;
+  }
+
+  RETURN_OK_STATUS();
 }
 
 Status
@@ -144,7 +169,8 @@ PreCloneMgr::session_delete(const CloneSession &clone_session,
   auto session_id = static_cast<CloneSessionId>(clone_session.session_id());
   RETURN_IF_ERROR(validate_session_id(session_id));
   Lock lock(mutex);
-  if (!sessions[session_id])
+  auto it = sessions.find(session_id);
+  if (it == sessions.end())
     RETURN_ERROR_STATUS(Code::NOT_FOUND, "Clone session id does not exist");
   auto pi_status = pi_clone_session_reset(
       session.get(), device_tgt, session_id);
@@ -155,7 +181,7 @@ PreCloneMgr::session_delete(const CloneSession &clone_session,
   auto mc_group = make_mc_group(clone_session);
   auto status = mc_mgr->group_delete(mc_group);
   if (IS_OK(status)) {
-    sessions[session_id] = false;
+    sessions.erase(it);
     RETURN_OK_STATUS();
   }
   RETURN_ERROR_STATUS(
@@ -165,6 +191,51 @@ PreCloneMgr::session_delete(const CloneSession &clone_session,
       "session id {} again until it is resolved",
       mc_group.multicast_group_id(),
       session_id);
+}
+
+Status
+PreCloneMgr::session_read(const CloneSession &clone_session,
+                          const SessionTemp &session,
+                          p4v1::ReadResponse *response) const {
+  (void) session;
+  auto session_id = static_cast<CloneSessionId>(clone_session.session_id());
+
+  auto add_clone_session_to_response = [response, this](
+      CloneSessionId session_id, const CloneSessionConfig &clone_session_config)
+      -> Status {
+    auto *entry = response->add_entities()
+      ->mutable_packet_replication_engine_entry()
+      ->mutable_clone_session_entry();
+    entry->set_session_id(session_id);
+    entry->set_class_of_service(clone_session_config.class_of_service);
+    entry->set_packet_length_bytes(clone_session_config.packet_length_bytes);
+    auto mc_group_id = session_id_to_mc_group_id(session_id);
+    PreMcMgr::GroupEntry group_entry;
+    auto status = mc_mgr->group_read_one(mc_group_id, &group_entry);
+    if (IS_ERROR(status)) {
+      RETURN_ERROR_STATUS(
+          Code::INTERNAL,
+          "Unexpected error when retrieving replicas list for session id {}",
+          session_id);
+    }
+    entry->mutable_replicas()->CopyFrom(group_entry.replicas());
+    RETURN_OK_STATUS();
+  };
+
+  Lock lock(mutex);
+  if (session_id == 0) {  // wildcard read
+    for (const auto &p_session : sessions) {
+      RETURN_IF_ERROR(add_clone_session_to_response(
+          p_session.first, p_session.second));
+    }
+  } else {
+    auto it = sessions.find(session_id);
+    if (it == sessions.end())
+      RETURN_ERROR_STATUS(Code::NOT_FOUND, "Clone session id does not exist");
+    RETURN_IF_ERROR(add_clone_session_to_response(session_id, it->second));
+  }
+
+  RETURN_OK_STATUS();
 }
 
 }  // namespace proto

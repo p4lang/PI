@@ -80,6 +80,42 @@ ProtoEqMatcher::DescribeNegationTo(std::ostream *os) const {
   *os << "is not equal to:\n" << expected.DebugString();
 }
 
+ProtoEqAsSetMatcher::ProtoEqAsSetMatcher(
+    const ::google::protobuf::Message &expected)
+    : expected(expected) { }
+
+bool
+ProtoEqAsSetMatcher::MatchAndExplain(const ::google::protobuf::Message &actual,
+                                     MatchResultListener *listener) const {
+  using ::google::protobuf::util::MessageDifferencer;
+  MessageDifferencer differencer;
+  std::string diff;
+  differencer.ReportDifferencesToString(&diff);
+
+  auto *descriptor = expected.GetDescriptor();
+  for (int i = 0; i < descriptor->field_count(); i++) {
+    auto *f_descriptor = descriptor->field(i);
+    if (f_descriptor->is_repeated()) {
+      differencer.TreatAsSet(f_descriptor);
+    }
+  }
+
+  auto eq = differencer.Compare(actual, expected);
+  *listener << actual.DebugString();
+  *listener << diff;
+  return eq;
+}
+
+void
+ProtoEqAsSetMatcher::DescribeTo(std::ostream *os) const {
+  *os << "is equal to:\n" << expected.DebugString();
+}
+
+void
+ProtoEqAsSetMatcher::DescribeNegationTo(std::ostream *os) const {
+  *os << "is not equal to:\n" << expected.DebugString();
+}
+
 MatchKeyMatcher::MatchKeyMatcher(pi_p4_id_t t_id, const std::string &v)
     : t_id(t_id), v(v) { }
 
