@@ -160,6 +160,23 @@ PreMcMgr::make_new_group(const GroupEntry &group_entry, Group *group) {
   RETURN_OK_STATUS();
 }
 
+/* static */ void
+PreMcMgr::read_group(
+    GroupId group_id, const Group &group, GroupEntry *group_entry) {
+  group_entry->set_multicast_group_id(group_id);
+  // add all the replicas for the group: the order may defer from the order of
+  // the replicas in the corresponding WriteRequest, but this is allowed by the
+  // P4Runtime specification.
+  for (const auto &p_node : group.nodes) {
+    auto rid = static_cast<uint32_t>(p_node.first);
+    for (auto port : p_node.second.eg_ports) {
+      auto *replica = group_entry->add_replicas();
+      replica->set_egress_port(static_cast<uint32_t>(port));
+      replica->set_instance(rid);
+    }
+  }
+}
+
 Status
 PreMcMgr::create_and_attach_node(McSessionTemp *session,
                                  pi_mc_grp_handle_t group_h,
@@ -350,6 +367,44 @@ PreMcMgr::group_delete(const GroupEntry &group_entry) {
   }
 
   groups.erase(group_id);
+  RETURN_OK_STATUS();
+}
+
+Status
+PreMcMgr::group_read(const GroupEntry &group_entry,
+                     p4v1::ReadResponse *response) const {
+  auto group_id = static_cast<GroupId>(group_entry.multicast_group_id());
+
+  auto add_group_to_response = [response](GroupId group_id,
+                                          const Group &group) {
+    auto *entry = response->add_entities()
+      ->mutable_packet_replication_engine_entry()
+      ->mutable_multicast_group_entry();
+    read_group(group_id, group, entry);
+  };
+
+  Lock lock(mutex);
+  if (group_id == 0) {  // wildcard read
+    for (const auto &p_group : groups) {
+      add_group_to_response(p_group.first, p_group.second);
+    }
+  } else {
+    auto group_it = groups.find(group_id);
+    if (group_it == groups.end())
+      RETURN_ERROR_STATUS(Code::NOT_FOUND, "Multicast group does not exist");
+    add_group_to_response(group_entry.multicast_group_id(), group_it->second);
+  }
+
+  RETURN_OK_STATUS();
+}
+
+Status
+PreMcMgr::group_read_one(GroupId group_id, GroupEntry *group_entry) const {
+  Lock lock(mutex);
+  auto group_it = groups.find(group_id);
+  if (group_it == groups.end())
+    RETURN_ERROR_STATUS(Code::NOT_FOUND, "Multicast group does not exist");
+  read_group(group_id, group_it->second, group_entry);
   RETURN_OK_STATUS();
 }
 

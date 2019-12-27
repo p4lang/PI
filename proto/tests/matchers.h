@@ -89,6 +89,30 @@ inline Matcher<const ::google::protobuf::Message &> ProtoEq(
 #define EXPECT_PROTO_EQ(actual, expected) \
   EXPECT_THAT(actual, ProtoEq(expected));
 
+class ProtoEqAsSetMatcher
+    : public MatcherInterface<const ::google::protobuf::Message &> {
+ public:
+  explicit ProtoEqAsSetMatcher(const ::google::protobuf::Message &expected);
+
+ private:
+  bool MatchAndExplain(const ::google::protobuf::Message &actual,
+                       MatchResultListener *listener) const override;
+
+  void DescribeTo(std::ostream *os) const override;
+
+  void DescribeNegationTo(std::ostream *os) const override;
+
+  const ::google::protobuf::Message &expected;
+};
+
+inline Matcher<const ::google::protobuf::Message &> ProtoEqAsSet(
+    const ::google::protobuf::Message &expected) {
+  return MakeMatcher(new ProtoEqAsSetMatcher(expected));
+}
+
+#define EXPECT_PROTO_EQ_AS_SET(actual, expected) \
+  EXPECT_THAT(actual, ProtoEqAsSet(expected));
+
 
 // This is a very verbose matcher but it has the advantage to print convenient
 // error messages. Not sure I could achieve such a nice result by only using
