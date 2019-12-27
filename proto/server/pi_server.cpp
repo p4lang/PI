@@ -60,6 +60,8 @@ namespace server {
 
 namespace {
 
+constexpr char p4runtime_api_version[] = "1.1.0-rc.1";
+
 // Copied from
 // https://github.com/grpc/grpc/blob/master/src/cpp/util/error_details.cc
 // Cannot use libgrpc++_error_details, as the library includes
@@ -521,6 +523,14 @@ class P4RuntimeServiceImpl : public p4v1::P4Runtime::Service {
           break;
       }
     }
+    return Status::OK;
+  }
+
+  Status Capabilities(ServerContext* context,
+                      const p4v1::CapabilitiesRequest *request,
+                      p4v1::CapabilitiesResponse *rep) override {
+    (void) request;
+    rep->set_p4runtime_api_version(p4runtime_api_version);
     return Status::OK;
   }
 
