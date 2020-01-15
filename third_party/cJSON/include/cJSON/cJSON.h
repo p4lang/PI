@@ -64,8 +64,6 @@ typedef struct cJSON_Hooks {
 /* Supply malloc, realloc and free functions to cJSON */
 extern void cJSON_InitHooks(cJSON_Hooks* hooks);
 
-extern void *(*cJSON_malloc)(size_t sz);
-extern void (*cJSON_free)(void *ptr);
 
 /* Supply a block of JSON, and this returns a cJSON object you can interrogate. Call cJSON_Delete when finished. */
 extern cJSON *cJSON_Parse(const char *value);
@@ -77,6 +75,8 @@ extern char  *cJSON_PrintUnformatted(cJSON *item);
 extern char *cJSON_PrintBuffered(cJSON *item,int prebuffer,int fmt);
 /* Delete a cJSON entity and all subentities. */
 extern void   cJSON_Delete(cJSON *c);
+/* Delete entities allocated by cJSON_Print, cJSON_PrintUnformatted, or cJSON_PrintBuffered. */
+extern void   cJSON_Delete_char(char* c);
 
 /* Returns the number of items in an array (or object). */
 extern int	  cJSON_GetArraySize(cJSON *array);
