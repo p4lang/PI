@@ -106,11 +106,15 @@ char *pi_serialize_config(const pi_p4info_t *p4info, int fmt) {
   return str;
 }
 
+void pi_free_serialized_config(char * config) {
+  cJSON_free(config);
+}
+
 int pi_serialize_config_to_fd(const pi_p4info_t *p4info, int fd, int fmt) {
   char *config = pi_serialize_config(p4info, fmt);
   if (!config) return -1;
   int bytes = dprintf(fd, "%s", config);
-  free(config);
+  pi_free_serialized_config(config);
   return bytes;
 }
 
@@ -120,7 +124,7 @@ int pi_serialize_config_to_file(const pi_p4info_t *p4info, const char *path,
   FILE *f = fopen(path, "w");
   if (!f) return -1;
   int bytes = fprintf(f, "%s", config);
-  free(config);
+  pi_free_serialized_config(config);
   fclose(f);
   return bytes;
 }

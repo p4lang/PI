@@ -173,7 +173,7 @@ int main(int argc, char *argv[]) {
     char *native_json = pi_serialize_config(p4info, 1);
     std::cout << native_json << "\n";
     os << native_json << "\n";
-    free(native_json);
+    pi_free_serialized_config(native_json);
   } else if (to_str == "proto") {
     const auto p4info_proto = pi::p4info::p4info_serialize_to_proto(p4info);
     std::cout << p4info_proto.DebugString();

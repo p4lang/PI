@@ -425,8 +425,8 @@ TEST(P4Info, Serialize) {
 
   TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS, pi_destroy_config(p4info));
   TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS, pi_destroy_config(p4info_new));
-  free(dump);
-  free(dump_new);
+  pi_free_serialized_config(dump);
+  pi_free_serialized_config(dump_new);
   free(config);
 }
 

@@ -147,7 +147,11 @@ pi_status_t _pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
   req_ += emit_dev_id(req_, dev_id);
   memcpy(req_, p4info_json, p4info_size);
   req_ += p4info_size;
-  free(p4info_json);
+  if (p4info) {
+    pi_free_serialized_config(p4info_json);
+  } else {
+    free(p4info_json);
+  }
   req_ += emit_uint32(req_, num_extras);
   extra_ = extra;
   for (; !extra_->end_of_extras; extra_++) {
