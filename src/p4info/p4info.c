@@ -106,9 +106,7 @@ char *pi_serialize_config(const pi_p4info_t *p4info, int fmt) {
   return str;
 }
 
-void pi_free_serialized_config(char * config) {
-  cJSON_Delete_char(config);
-}
+void pi_free_serialized_config(char *config) { cJSON_Delete_char(config); }
 
 int pi_serialize_config_to_fd(const pi_p4info_t *p4info, int fd, int fmt) {
   char *config = pi_serialize_config(p4info, fmt);
