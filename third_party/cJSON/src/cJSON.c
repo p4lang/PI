@@ -92,6 +92,11 @@ void cJSON_Delete(cJSON *c)
 	}
 }
 
+/* Delete entities allocated by cJSON_Print, cJSON_PrintUnformatted, or cJSON_PrintBuffered*/
+void cJSON_Delete_char(char *c) {
+  cJSON_free(c);
+}
+
 /* Parse the input text to generate a number, and populate the result into item. */
 static const char *parse_number(cJSON *item,const char *num)
 {

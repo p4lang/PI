@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) {
   printf("%s\n", native_json);
 
   pi_destroy_config(p4info);
-  free(native_json);
+  pi_free_serialized_config(native_json);
 
   return 0;
 }

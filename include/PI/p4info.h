@@ -53,6 +53,9 @@ pi_status_t pi_add_config_from_file(const char *config_path,
 //! Release the memory for a given \p p4info object.
 pi_status_t pi_destroy_config(pi_p4info_t *p4info);
 
+//! Release the memory for a serialized \p p4info object.
+void pi_free_serialized_config(char *config);
+
 //! Serialize p4info in native PI JSON format. If \p fmt is 0, non-formatted,
 //! else formatted.
 char *pi_serialize_config(const pi_p4info_t *p4info, int fmt);
