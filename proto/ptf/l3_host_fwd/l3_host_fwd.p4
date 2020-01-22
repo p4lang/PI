@@ -139,7 +139,7 @@ control ingress(inout headers_t hdr,
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
     }
 
-    action drop() { mark_to_drop(); }
+    action drop() { mark_to_drop(standard_metadata); }
 
     table l3_host_fwd {
         key = {
@@ -154,7 +154,7 @@ control ingress(inout headers_t hdr,
         if (hdr.ipv4.ttl > 1) {
             l3_host_fwd.apply();
         } else {
-            mark_to_drop();
+            mark_to_drop(standard_metadata);
         }
      }
 }
