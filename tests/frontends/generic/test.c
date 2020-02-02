@@ -194,6 +194,54 @@ TEST_GROUP_RUNNER(FrontendGeneric_OneTernary) {
   RUN_TEST_CASE(FrontendGeneric_OneTernary, U8);
 }
 
+TEST_GROUP(FrontendGeneric_OneOptional);
+
+TEST_SETUP(FrontendGeneric_OneOptional) {
+  num_fields = 1;
+  num_actions = 1;
+  num_tables = 1;
+}
+
+TEST_TEAR_DOWN(FrontendGeneric_OneOptional) {}
+
+TEST(FrontendGeneric_OneOptional, U8) {
+  pi_status_t rc;
+  size_t bitwidth = 7;
+  p4info_init(bitwidth, PI_P4INFO_MATCH_TYPE_OPTIONAL);
+  uint8_t test_v = 0x5b;
+  pi_netv_t fv;
+  pi_match_key_init(mkey);
+
+  rc = pi_getnetv_u8(p4info, tid, fid, test_v, &fv);
+  TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
+
+  char expected_data[1];
+
+  // wildcard
+  rc = pi_match_key_optional_set(mkey, &fv, true /* is_wildcard */);
+  TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
+  expected_data[0] = test_v;
+  TEST_ASSERT_EQUAL_MEMORY(&expected_data, mkey->data, sizeof(expected_data));
+  expected_data[0] = '\x00';
+  TEST_ASSERT_EQUAL_MEMORY(&expected_data, mkey->data + sizeof(expected_data),
+                           sizeof(expected_data));
+
+  // non-wildcard
+  rc = pi_match_key_optional_set(mkey, &fv, false /* is_wildcard */);
+  TEST_ASSERT_EQUAL_INT(PI_STATUS_SUCCESS, rc);
+  expected_data[0] = test_v;
+  TEST_ASSERT_EQUAL_MEMORY(&expected_data, mkey->data, sizeof(expected_data));
+  expected_data[0] = '\x7f';
+  TEST_ASSERT_EQUAL_MEMORY(&expected_data, mkey->data + sizeof(expected_data),
+                           sizeof(expected_data));
+
+  p4info_destroy();
+}
+
+TEST_GROUP_RUNNER(FrontendGeneric_OneOptional) {
+  RUN_TEST_CASE(FrontendGeneric_OneOptional, U8);
+}
+
 TEST_GROUP(FrontendGeneric_Adata);
 
 TEST_SETUP(FrontendGeneric_Adata) {
@@ -250,5 +298,6 @@ void test_frontends_generic() {
   RUN_TEST_GROUP(FrontendGeneric_OneExact);
   RUN_TEST_GROUP(FrontendGeneric_OneLPM);
   RUN_TEST_GROUP(FrontendGeneric_OneTernary);
+  RUN_TEST_GROUP(FrontendGeneric_OneOptional);
   RUN_TEST_GROUP(FrontendGeneric_Adata);
 }

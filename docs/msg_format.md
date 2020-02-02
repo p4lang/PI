@@ -51,6 +51,11 @@ The number of bytes used is equal to twice the width, in bytes, of the P4
 field. The field value is serialized first, then the mask, as per the
 description [above](#exact-match).
 
+### Optional match
+
+This match is treated as a [ternary match](#ternary-match), but the mask must be
+either all 0s (for a wildcard match) or all 1s.
+
 ### Range match
 
 As for [ternary match](#ternary-match). the number of bytes used is twice the

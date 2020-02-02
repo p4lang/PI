@@ -120,6 +120,7 @@ std::vector<BmMatchParam> build_key(pi_p4_id_t table_id,
         key.push_back(std::move(param));
         break;
       case PI_P4INFO_MATCH_TYPE_TERNARY:
+      case PI_P4INFO_MATCH_TYPE_OPTIONAL:
         param_ternary.key = std::string(mk_data, nbytes);
         mk_data += nbytes;
         param_ternary.mask = std::string(mk_data, nbytes);

@@ -191,7 +191,7 @@ pi_cli_status_t read_match_fields(char *in, pi_p4_id_t t_id,
           return PI_CLI_STATUS_INVALID_TERNARY_MATCH_FIELD;
         break;
       default:
-        // TODO: range
+        // TODO: range, optional
         assert(0);
     }
   }

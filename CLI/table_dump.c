@@ -58,6 +58,8 @@ static const char *match_type_to_str(pi_p4info_match_type_t mt) {
       return "TERNARY";
     case PI_P4INFO_MATCH_TYPE_RANGE:
       return "RANGE";
+    case PI_P4INFO_MATCH_TYPE_OPTIONAL:
+      return "OPTIONAL";
     default:
       _PI_UNREACHABLE("Invalid switch statement");
   }
@@ -87,6 +89,7 @@ static void print_match_param_v(pi_p4_id_t f_id, pi_p4info_match_type_t mt,
       print_hexstr(fv_mask.v.ptr, fv_mask.size);
       break;
     case PI_P4INFO_MATCH_TYPE_RANGE:
+    case PI_P4INFO_MATCH_TYPE_OPTIONAL:
       break;
     default:
       assert(0);

@@ -28,7 +28,9 @@ extern "C" {
 #endif
 
 // Increment any time a change is made to the PI internal ABI
-#define PI_ABI_VERSION 1
+// Revision history:
+//  * 1 -> 2: support for optional match type
+#define PI_ABI_VERSION 2
 
 static inline pi_p4_id_t pi_make_action_id(uint16_t index) {
   return (PI_ACTION_ID << 24) | index;
@@ -73,6 +75,7 @@ static inline size_t get_match_key_size_one_field(
       return nbytes + sizeof(uint32_t);
     case PI_P4INFO_MATCH_TYPE_TERNARY:
     case PI_P4INFO_MATCH_TYPE_RANGE:
+    case PI_P4INFO_MATCH_TYPE_OPTIONAL:  // treat it as ternary for now
       return 2 * nbytes;
     default:
       assert(0);

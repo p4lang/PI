@@ -2195,6 +2195,13 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
+  Status validate_optional_match(const p4v1::FieldMatch::Optional &mf,
+                                 size_t bitwidth) const {
+    if (check_proto_bytestring(mf.value(), bitwidth) != Code::OK)
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid bytestring format");
+    RETURN_OK_STATUS();
+  }
+
   Status validate_match_key(const p4v1::TableEntry &entry) const {
     auto t_id = entry.table_id();
     size_t num_match_fields;
@@ -2214,7 +2221,8 @@ class DeviceMgrImp {
       auto mf = find_mf(entry, mf_id);
       bool can_be_omitted = (mf_info->match_type == PI_P4INFO_MATCH_TYPE_LPM) ||
           (mf_info->match_type == PI_P4INFO_MATCH_TYPE_TERNARY) ||
-          (mf_info->match_type == PI_P4INFO_MATCH_TYPE_RANGE);
+          (mf_info->match_type == PI_P4INFO_MATCH_TYPE_RANGE) ||
+          (mf_info->match_type == PI_P4INFO_MATCH_TYPE_OPTIONAL);
       if (mf == nullptr && !can_be_omitted) {
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                             "Missing non-ternary field in match key");
@@ -2247,6 +2255,11 @@ class DeviceMgrImp {
           if (!mf->has_range())
             RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
           RETURN_IF_ERROR(validate_range_match(mf->range(), bitwidth));
+          break;
+        case PI_P4INFO_MATCH_TYPE_OPTIONAL:
+          if (!mf->has_optional())
+            RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
+          RETURN_IF_ERROR(validate_optional_match(mf->optional(), bitwidth));
           break;
         default:
           assert(0);
@@ -2285,7 +2298,8 @@ class DeviceMgrImp {
       auto mf_info = pi_p4info_table_match_field_info(p4info.get(), t_id, i);
       need_priority = need_priority ||
           (mf_info->match_type == PI_P4INFO_MATCH_TYPE_TERNARY) ||
-          (mf_info->match_type == PI_P4INFO_MATCH_TYPE_RANGE);
+          (mf_info->match_type == PI_P4INFO_MATCH_TYPE_RANGE) ||
+          (mf_info->match_type == PI_P4INFO_MATCH_TYPE_OPTIONAL);
       auto mf = find_mf(entry, mf_id);
       if (mf != nullptr) {
         switch (mf_info->match_type) {
@@ -2316,6 +2330,11 @@ class DeviceMgrImp {
                                  mf->range().high().data(),
                                  mf->range().low().size());
             break;
+          case PI_P4INFO_MATCH_TYPE_OPTIONAL:
+            match_key->set_optional(mf_id, mf->optional().value().data(),
+                                    mf->optional().value().size(),
+                                    false /* is_wildcard */);
+            break;
           default:
             assert(0);
             break;
@@ -2326,6 +2345,7 @@ class DeviceMgrImp {
         switch (mf_info->match_type) {
           case PI_P4INFO_MATCH_TYPE_LPM:
           case PI_P4INFO_MATCH_TYPE_TERNARY:
+          case PI_P4INFO_MATCH_TYPE_OPTIONAL:
             // nothing to do: key, mask, pLen default to 0
             break;
           case PI_P4INFO_MATCH_TYPE_RANGE:

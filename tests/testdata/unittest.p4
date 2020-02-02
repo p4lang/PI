@@ -121,6 +121,16 @@ control ingress(inout headers_t hdr, inout metadata_t meta, inout standard_metad
         size = 512;
     }
 
+    // not a very interesting table, it can only have 2 entries...
+    @name(".OptionalOne")
+    table OptionalOne {
+        key = {
+            hdr.header_test.field32 : optional;
+        }
+        actions = { actionA; }
+        size = 512;
+    }
+
     @name(".MixMany")
     table MixMany {
         key = {
@@ -227,6 +237,7 @@ control ingress(inout headers_t hdr, inout metadata_t meta, inout standard_metad
         TernaryOne.apply();
         TernaryTwo.apply();
         RangeOne.apply();
+        OptionalOne.apply();
         MixMany.apply();
         IndirectWS.apply();
         IndirectWS2.apply();

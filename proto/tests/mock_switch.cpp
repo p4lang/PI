@@ -482,7 +482,8 @@ class DummyTable {
     for (size_t idx = 0; idx < num_mfs; idx++) {
       auto mf_info = pi_p4info_table_match_field_info(p4info, table_id, idx);
       if (mf_info->match_type == PI_P4INFO_MATCH_TYPE_TERNARY ||
-          mf_info->match_type == PI_P4INFO_MATCH_TYPE_RANGE)
+          mf_info->match_type == PI_P4INFO_MATCH_TYPE_RANGE ||
+          mf_info->match_type == PI_P4INFO_MATCH_TYPE_OPTIONAL)
         return true;
     }
     return false;
