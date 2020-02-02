@@ -243,6 +243,34 @@ pi_status_t pi_match_key_range_get(const pi_match_key_t *key, pi_p4_id_t fid,
   return PI_STATUS_SUCCESS;
 }
 
+pi_status_t pi_match_key_optional_set(pi_match_key_t *key, const pi_netv_t *fv,
+                                      bool is_wildcard) {
+  assert(key->table_id == fv->parent_id);
+  _fegen_mk_prefix_t *prefix = get_mk_prefix(key);
+  size_t f_index = pi_p4info_table_match_field_index(
+      key->p4info, prefix->table_id, fv->obj_id);
+  _fegen_mbr_info_t *info = &prefix->f_info[f_index];
+  char *dst = key->data + info->offset;
+  dst = dump_fv(dst, fv);
+  emit_repeated_byte(dst, is_wildcard ? '\x00' : '\xff', fv->size);
+  char byte0_mask = pi_p4info_table_match_field_byte0_mask(
+      key->p4info, key->table_id, fv->obj_id);
+  dst[0] &= byte0_mask;
+  mk_update_fset(prefix, f_index);
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_match_key_optional_get(const pi_match_key_t *key, pi_p4_id_t fid,
+                                      pi_netv_t *fv, bool *is_wildcard) {
+  size_t f_offset =
+      pi_p4info_table_match_field_offset(key->p4info, key->table_id, fid);
+  const char *src = key->data + f_offset;
+  pi_getnetv_ptr(key->p4info, key->table_id, fid, src, 0, fv);
+  src += fv->size;
+  *is_wildcard = (*src == '\x00');
+  return PI_STATUS_SUCCESS;
+}
+
 pi_status_t pi_match_key_destroy(pi_match_key_t *key) {
   _fegen_mk_prefix_t *prefix = get_mk_prefix(key);
   check_mk_prefix(prefix);

@@ -45,6 +45,9 @@ class MatchKeyReader {
   error_code_t get_ternary(pi_p4_id_t f_id, std::string *key,
                            std::string *mask) const;
 
+  error_code_t get_optional(pi_p4_id_t f_id, std::string *key,
+                            bool *is_wildcard) const;
+
   error_code_t get_range(pi_p4_id_t f_id, std::string *start,
                          std::string *end) const;
 
@@ -116,6 +119,15 @@ class MatchKey {
 
   error_code_t get_ternary(pi_p4_id_t f_id, std::string *key,
                            std::string *mask) const;
+
+  template <typename T>
+  typename std::enable_if<std::is_integral<T>::value, error_code_t>::type
+  set_optional(pi_p4_id_t f_id, T key, bool is_wildcard);
+  error_code_t
+  set_optional(pi_p4_id_t f_id, const char *key, size_t s, bool is_wildcard);
+
+  error_code_t get_optional(pi_p4_id_t f_id, std::string *key,
+                            bool *is_wildcard) const;
 
   template <typename T>
   typename std::enable_if<std::is_integral<T>::value, error_code_t>::type

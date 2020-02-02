@@ -58,6 +58,11 @@ pi_status_t pi_match_key_ternary_set(pi_match_key_t *key, const pi_netv_t *fv,
 pi_status_t pi_match_key_ternary_get(const pi_match_key_t *key, pi_p4_id_t fid,
                                      pi_netv_t *fv, pi_netv_t *mask);
 
+pi_status_t pi_match_key_optional_set(pi_match_key_t *key, const pi_netv_t *fv,
+                                      bool is_wildcard);
+pi_status_t pi_match_key_optional_get(const pi_match_key_t *key, pi_p4_id_t fid,
+                                      pi_netv_t *fv, bool *is_wildcard);
+
 pi_status_t pi_match_key_range_set(pi_match_key_t *key, const pi_netv_t *start,
                                    const pi_netv_t *end);
 pi_status_t pi_match_key_range_get(const pi_match_key_t *key, pi_p4_id_t fid,

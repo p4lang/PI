@@ -121,6 +121,17 @@ Status parse_match_key(const pi_p4info_t *p4info, p4_id_t table_id,
             entry->mutable_match()->RemoveLast();
         }
         break;
+      case PI_P4INFO_MATCH_TYPE_OPTIONAL:
+        {
+          auto optional = mf->mutable_optional();
+          bool is_wildcard;
+          match_key.get_optional(finfo->mf_id, optional->mutable_value(),
+                                 &is_wildcard);
+          // if optional field is wildcard, omit match field
+          if (is_wildcard)
+            entry->mutable_match()->RemoveLast();
+        }
+        break;
       default:
         RETURN_ERROR_STATUS(Code::INTERNAL, "Incorrect PI match type");
     }

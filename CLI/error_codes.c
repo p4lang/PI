@@ -46,6 +46,8 @@ const char *error_code_to_string(pi_cli_status_t error) {
       return "Invalid ternary match field";
     case PI_CLI_STATUS_INVALID_RANGE_MATCH_FIELD:
       return "Invalid range match field";
+    case PI_CLI_STATUS_INVALID_OPTIONAL_MATCH_FIELD:
+      return "Invalid optional match field";
     case PI_CLI_STATUS_INVALID_COMMAND_FORMAT:
       return "Invalid command format";
     case PI_CLI_STATUS_TOO_FEW_ACTION_PARAMS:

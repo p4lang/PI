@@ -331,7 +331,7 @@ using ::testing::Values;
 class MatchKeyInput {
  public:
   enum class Type {
-    EXACT, LPM, TERNARY, RANGE
+    EXACT, LPM, TERNARY, OPTIONAL, RANGE
   };
 
   static MatchKeyInput make_exact(const std::string &mf_v) {
@@ -346,6 +346,12 @@ class MatchKeyInput {
                                     const std::string &mask_v,
                                     int priority) {
     return MatchKeyInput(Type::TERNARY, mf_v, mask_v, 0, priority);
+  }
+
+  static MatchKeyInput make_optional(const std::string &mf_v,
+                                     const std::string &mask_v,
+                                     int priority) {
+    return MatchKeyInput(Type::OPTIONAL, mf_v, mask_v, 0, priority);
   }
 
   static MatchKeyInput make_range(const std::string &start_v,
@@ -391,6 +397,12 @@ class MatchKeyInput {
           auto ternary = fm.mutable_ternary();
           ternary->set_value(mf);
           ternary->set_mask(mask);
+          break;
+        }
+      case Type::OPTIONAL:
+        {
+          auto optional = fm.mutable_optional();
+          optional->set_value(mf);
           break;
         }
       case Type::RANGE:
@@ -491,6 +503,9 @@ MatchTableTest::default_mf() const {
       return MatchKeyInput::make_lpm(std::string(4, '\x00'), 0);
     case MatchKeyInput::Type::TERNARY:
       return MatchKeyInput::make_ternary(
+          std::string(4, '\x00'), std::string(4, '\x00'), PRIORITY);
+    case MatchKeyInput::Type::OPTIONAL:
+      return MatchKeyInput::make_optional(
           std::string(4, '\x00'), std::string(4, '\x00'), PRIORITY);
     case MatchKeyInput::Type::RANGE:
       return MatchKeyInput::make_range(
@@ -801,6 +816,7 @@ TEST_P(MatchTableTest, WriteBatchWithError) {
 // for LPM, we need to ensure that mk ends with the appropriate number of
 // trailing zeros
 #define LPM_MK std::string("\xaa\xf0\x00\x00", 4)
+#define OPTIONAL_MASK std::string(4, '\xff')
 
 INSTANTIATE_TEST_SUITE_P(
     MatchTableTypes, MatchTableTest,
@@ -809,8 +825,12 @@ INSTANTIATE_TEST_SUITE_P(
            std::make_tuple(
                "TernaryOne",
                MatchKeyInput::make_ternary(TERNARY_MK, MASK, PRIORITY)),
-           std::make_tuple("RangeOne",
-                           MatchKeyInput::make_range(MK, MASK, PRIORITY))));
+           std::make_tuple(
+               "OptionalOne",
+               MatchKeyInput::make_optional(MK, OPTIONAL_MASK, PRIORITY)),
+           std::make_tuple(
+               "RangeOne",
+               MatchKeyInput::make_range(MK, MASK, PRIORITY))));
 
 #undef MK
 #undef MASK

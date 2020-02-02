@@ -108,6 +108,8 @@ void read_tables(const p4configv1::P4Info &p4info_proto, pi_p4info_t *p4info) {
             return PI_P4INFO_MATCH_TYPE_TERNARY;
           case p4configv1::MatchField_MatchType_RANGE:
             return PI_P4INFO_MATCH_TYPE_RANGE;
+          case p4configv1::MatchField_MatchType_OPTIONAL:
+            return PI_P4INFO_MATCH_TYPE_OPTIONAL;
           default:  // invalid
             throw read_proto_exception("Invalid match type");
         }
@@ -398,6 +400,8 @@ void p4info_serialize_tables(const pi_p4info_t *p4info,
             return p4configv1::MatchField_MatchType_TERNARY;
           case PI_P4INFO_MATCH_TYPE_RANGE:
             return p4configv1::MatchField_MatchType_RANGE;
+          case PI_P4INFO_MATCH_TYPE_OPTIONAL:
+            return p4configv1::MatchField_MatchType_OPTIONAL;
           default:
             return p4configv1::MatchField_MatchType_UNSPECIFIED;
         }

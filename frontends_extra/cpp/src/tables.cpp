@@ -26,6 +26,7 @@
 #include <PI/int/pi_int.h>
 #include <PI/int/serialize.h>
 
+#include <limits>
 #include <string>
 
 #include <cstring>
@@ -138,6 +139,16 @@ MatchKeyReader::get_ternary(pi_p4_id_t f_id, std::string *key,
   src += key->size();
   rc = read_one(f_id, src, mask);
   return rc;
+}
+
+error_code_t
+MatchKeyReader::get_optional(pi_p4_id_t f_id, std::string *key,
+                             bool *is_wildcard) const {
+  std::string mask;
+  auto rc = get_ternary(f_id, key, &mask);
+  if (rc != 0) return rc;
+  *is_wildcard = (mask[0] == 0);
+  return 0;
 }
 
 error_code_t
@@ -385,6 +396,50 @@ error_code_t
 MatchKey::get_ternary(pi_p4_id_t f_id, std::string *key,
                       std::string *mask) const {
   return reader.get_ternary(f_id, key, mask);
+}
+
+template <typename T>
+typename std::enable_if<std::is_integral<T>::value, error_code_t>::type
+MatchKey::set_optional(pi_p4_id_t f_id, T key, bool is_wildcard) {
+  // we rely on the fact that set_ternary does not perform any check for the
+  // match type of f_id.
+  if (is_wildcard) {
+    return set_ternary(f_id, key, static_cast<T>(0));
+  }
+  // format method will apply the appropriate byte0 mask.
+  auto mask = std::numeric_limits<T>::max();
+  return set_ternary(f_id, key, mask);
+}
+
+template error_code_t MatchKey::set_optional<uint8_t>(pi_p4_id_t, uint8_t,
+                                                      bool);
+template error_code_t MatchKey::set_optional<uint16_t>(pi_p4_id_t, uint16_t,
+                                                       bool);
+template error_code_t MatchKey::set_optional<uint32_t>(pi_p4_id_t, uint32_t,
+                                                       bool);
+template error_code_t MatchKey::set_optional<uint64_t>(pi_p4_id_t, uint64_t,
+                                                       bool);
+template error_code_t MatchKey::set_optional<int8_t>(pi_p4_id_t, int8_t,
+                                                     bool);
+template error_code_t MatchKey::set_optional<int16_t>(pi_p4_id_t, int16_t,
+                                                      bool);
+template error_code_t MatchKey::set_optional<int32_t>(pi_p4_id_t, int32_t,
+                                                      bool);
+template error_code_t MatchKey::set_optional<int64_t>(pi_p4_id_t, int64_t,
+                                                      bool);
+
+error_code_t
+MatchKey::set_optional(pi_p4_id_t f_id, const char *key, size_t s,
+                       bool is_wildcard) {
+  // format method will apply the appropriate byte0 mask.
+  std::string mask(s, is_wildcard ? '\x00' : '\xff');
+  return set_ternary(f_id, key, mask.data(), s);
+}
+
+error_code_t
+MatchKey::get_optional(pi_p4_id_t f_id, std::string *key,
+                       bool *is_wildcard) const {
+  return reader.get_optional(f_id, key, is_wildcard);
 }
 
 template <typename T>

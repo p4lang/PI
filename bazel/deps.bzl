@@ -5,7 +5,9 @@ load("//bazel:workspace_rule.bzl", "remote_workspace")
 
 GNMI_COMMIT = "39cb2fffed5c9a84970bde47b3d39c8c716dc17a";
 GNMI_SHA = "3701005f28044065608322c179625c8898beadb80c89096b3d8aae1fbac15108";
-P4RUNTIME_TAG = "1.1.0-rc.1"
+# We pick a commit SHA which includes support for the OPTIONAL match kind.
+# P4RUNTIME_TAG = "1.1.0"
+P4RUNTIME_SHA = "a48b45754b39756c226d00380f6e3d00c3087a21"
 
 def PI_deps():
     """Loads dependencies needed to compile PI."""
@@ -14,7 +16,8 @@ def PI_deps():
         remote_workspace(
             name = "com_github_p4lang_p4runtime",
             remote = "https://github.com/p4lang/p4runtime",
-            tag = P4RUNTIME_TAG,
+            # tag = P4RUNTIME_TAG,
+            commit = P4RUNTIME_SHA,
         )
 
     if "judy" not in native.existing_rules():

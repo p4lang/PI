@@ -33,6 +33,11 @@ size_t emit_uint64(char *dst, uint64_t v) {
   return sizeof(v);
 }
 
+size_t emit_repeated_byte(char *dst, char c, size_t count) {
+  memset(dst, c, count);
+  return count;
+}
+
 size_t emit_p4_id(char *dst, pi_p4_id_t v) { return emit_uint32(dst, v); }
 
 size_t emit_entry_handle(char *dst, pi_entry_handle_t v) {
