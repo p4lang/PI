@@ -7,7 +7,7 @@ GNMI_COMMIT = "39cb2fffed5c9a84970bde47b3d39c8c716dc17a";
 GNMI_SHA = "3701005f28044065608322c179625c8898beadb80c89096b3d8aae1fbac15108";
 # We pick a commit SHA which includes support for the OPTIONAL match kind.
 # P4RUNTIME_TAG = "1.1.0"
-P4RUNTIME_SHA = "a48b45754b39756c226d00380f6e3d00c3087a21"
+P4RUNTIME_SHA = "c09cd0bf2b529d328c7325ab00ab013ea74dc796"
 
 def PI_deps():
     """Loads dependencies needed to compile PI."""

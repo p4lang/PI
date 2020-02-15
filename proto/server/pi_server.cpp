@@ -60,7 +60,7 @@ namespace server {
 
 namespace {
 
-constexpr char p4runtime_api_version[] = "1.1.0-rc.1";
+constexpr char p4runtime_api_version[] = "1.2.0-dev";
 
 // Copied from
 // https://github.com/grpc/grpc/blob/master/src/cpp/util/error_details.cc
