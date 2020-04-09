@@ -137,6 +137,12 @@ pi_status_t pi_table_default_action_get(pi_session_handle_t session_handle,
                                         pi_dev_tgt_t dev_tgt,
                                         pi_p4_id_t table_id,
                                         pi_table_entry_t *table_entry) {
+  // This should not be required for a correct target implementation that
+  // sets all the fields correctly in table_entry, but it does not really hurt
+  // to be safe, e.g. if the target does not set direct_res_config to NULL in
+  // the absence of direct resources.
+  memset(table_entry, 0, sizeof(*table_entry));
+
   pi_status_t status;
   status = _pi_table_default_action_get(session_handle, dev_tgt, table_id,
                                         table_entry);

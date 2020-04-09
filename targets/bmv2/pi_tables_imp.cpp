@@ -515,6 +515,10 @@ pi_status_t _pi_table_default_action_get(pi_session_handle_t session_handle,
     return static_cast<pi_status_t>(PI_STATUS_TARGET_ERROR + ito.code);
   }
 
+  // Not supported by this target implementation
+  table_entry->entry_properties = nullptr;
+  table_entry->direct_res_config = nullptr;
+
   switch (entry.action_type) {
     case BmActionEntryType::NONE:
       table_entry->entry_type = PI_ACTION_ENTRY_TYPE_NONE;
