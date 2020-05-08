@@ -1,0 +1,128 @@
+pkg_info {
+  arch: "v1model"
+}
+tables {
+  preamble {
+    id: 33554433
+    name: "ExactOne"
+    alias: "ExactOne"
+  }
+  match_fields {
+    id: 101
+    name: "hdr.header_test.field64"
+    bitwidth: 64
+    match_type: EXACT
+  }
+  match_fields {
+    id: 2
+    name: "hdr.header_test.field12"
+    bitwidth: 12
+    match_type: EXACT
+  }
+  action_refs {
+    id: 16777217
+  }
+  action_refs {
+    id: 16777218
+  }
+  action_refs {
+    id: 21257015
+    annotations: "@defaultonly"
+    scope: DEFAULT_ONLY
+  }
+  size: 512
+}
+actions {
+  preamble {
+    id: 21257015
+    name: "NoAction"
+    alias: "NoAction"
+    annotations: "@noWarn(\"unused\")"
+  }
+}
+actions {
+  preamble {
+    id: 16777217
+    name: "actionA"
+    alias: "actionA"
+  }
+  params {
+    id: 101
+    name: "p1"
+    bitwidth: 48
+  }
+  params {
+    id: 2
+    name: "p2"
+    bitwidth: 32
+  }
+}
+actions {
+  preamble {
+    id: 16777218
+    name: "actionB"
+    alias: "actionB"
+  }
+  params {
+    id: 1
+    name: "param"
+    bitwidth: 8
+  }
+}
+controller_packet_metadata {
+  preamble {
+    id: 77503259
+    name: "packet_in"
+    alias: "packet_in"
+    annotations: "@controller_header(\"packet_in\")"
+  }
+  metadata {
+    id: 2
+    name: "f1"
+    bitwidth: 32
+  }
+  metadata {
+    id: 1
+    name: "f2"
+    bitwidth: 32
+  }
+}
+digests {
+  preamble {
+    id: 387015589
+    name: "test_digest_t"
+    alias: "test_digest_t"
+  }
+  type_spec {
+    struct {
+      name: "test_digest_t"
+    }
+  }
+}
+type_info {
+  structs {
+    key: "test_digest_t"
+    value {
+      members {
+        name: "f48"
+        type_spec {
+          bitstring {
+            bit {
+              bitwidth: 48
+            }
+          }
+        }
+      }
+      members {
+        name: "f12"
+        type_spec {
+          bitstring {
+            bit {
+              bitwidth: 12
+            }
+          }
+        }
+      }
+    }
+  }
+}
