@@ -18,9 +18,12 @@
  *
  */
 
+#include <google/protobuf/io/zero_copy_stream_impl.h>
+#include <google/protobuf/text_format.h>
 #include <google/protobuf/util/message_differencer.h>
 #include <gtest/gtest.h>
 
+#include <fstream>  // std::ifstream
 #include <iostream>
 #include <sstream>  // std::stringstream
 
@@ -35,9 +38,11 @@ namespace proto {
 namespace testing {
 namespace {
 
-class P4InfoProtoConvertTest : public ::testing::TestWithParam<const char*> { };
 
-TEST_P(P4InfoProtoConvertTest, Convert) {
+class P4InfoProtoConvertFromBmv2JsonTest
+    : public ::testing::TestWithParam<const char*> { };
+
+TEST_P(P4InfoProtoConvertFromBmv2JsonTest, Convert) {
   std::cout << "Processing " << GetParam() << "\n";
   std::stringstream ss;
   ss << TESTDATADIR << "/" << GetParam();
@@ -81,8 +86,42 @@ const char *input_jsons[] = {
   "act_prof.json"
 };
 INSTANTIATE_TEST_SUITE_P(P4Iterate,
-                         P4InfoProtoConvertTest,
+                         P4InfoProtoConvertFromBmv2JsonTest,
                          ::testing::ValuesIn(input_jsons));
+
+class P4InfoProtoConvertFromProtoTest
+    : public ::testing::TestWithParam<const char*> { };
+
+// This test just verifies that the input P4Info Protobuf message can be
+// correctly imported. We cannot export the p4info struct back to Protobuf
+// format and compare the result to the initial input, as this is a very lossy
+// transformation.
+TEST_P(P4InfoProtoConvertFromProtoTest, Convert) {
+  std::cout << "Processing " << GetParam() << "\n";
+  p4::config::v1::P4Info input_proto;
+  std::stringstream ss;
+  ss << TESTDATADIR << "/" << GetParam();
+  auto input_path_str = ss.str();
+  std::ifstream is(input_path_str);
+  ASSERT_TRUE(is) << "Error while opening protobuf text input file.";
+  google::protobuf::io::IstreamInputStream is_(&is);
+  auto status = google::protobuf::TextFormat::Parse(&is_, &input_proto);
+  ASSERT_TRUE(status) << "Error while importing protobuf text message.";
+
+  // convert proto to p4info
+  pi_p4info_t *p4info;
+  ASSERT_TRUE(pi::p4info::p4info_proto_reader(input_proto, &p4info));
+
+  // destroy p4info
+  pi_destroy_config(p4info);
+}
+
+const char *input_protos[] = {
+  "customids.p4info.txt"
+};
+INSTANTIATE_TEST_SUITE_P(P4Iterate,
+                         P4InfoProtoConvertFromProtoTest,
+                         ::testing::ValuesIn(input_protos));
 
 }  // namespace
 }  // namespace testing
