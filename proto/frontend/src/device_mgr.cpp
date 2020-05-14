@@ -1864,6 +1864,22 @@ class DeviceMgrImp {
     RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid PRE operation");
   }
 
+  Status pre_mc_read(const p4v1::MulticastGroupEntry &mc_group_entry,
+                     p4v1::ReadResponse *response) const {
+    // This seems to be more appropriate than NOT_FOUND for this case.
+    if (mc_group_entry.multicast_group_id() >=
+        PreMcMgr::first_reserved_group_id()) {
+      RETURN_ERROR_STATUS(Code::OUT_OF_RANGE, "Group id value is too high");
+    }
+    return pre_mc_mgr->group_read(mc_group_entry, response);
+  }
+
+  Status pre_clone_read(const p4v1::CloneSessionEntry &clone_session_entry,
+                        const SessionTemp &session,
+                        p4v1::ReadResponse *response) const {
+    return pre_clone_mgr->session_read(clone_session_entry, session, response);
+  }
+
   Status pre_read(const p4v1::PacketReplicationEngineEntry &pre_entry,
                   const SessionTemp &session,
                   p4v1::ReadResponse *response) const {
@@ -1871,10 +1887,9 @@ class DeviceMgrImp {
     switch (pre_entry.type_case()) {
       case PreEntry::kMulticastGroupEntry:
         // PI uses a different session for multicast operations
-        return pre_mc_mgr->group_read(
-            pre_entry.multicast_group_entry(), response);
+        return pre_mc_read(pre_entry.multicast_group_entry(), response);
       case PreEntry::kCloneSessionEntry:
-        return pre_clone_mgr->session_read(
+        return pre_clone_read(
             pre_entry.clone_session_entry(), session, response);
       default:
         break;

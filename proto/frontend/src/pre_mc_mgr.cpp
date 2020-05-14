@@ -386,6 +386,11 @@ PreMcMgr::group_read(const GroupEntry &group_entry,
   Lock lock(mutex);
   if (group_id == 0) {  // wildcard read
     for (const auto &p_group : groups) {
+      // Do not include groups created internally (for clone sessions).
+      // If groups was a map (ordered), we could break and stop the iteration
+      // here. However, given that we also do a lot of single-value lookups in
+      // groups, it is not clear which data structure is better.
+      if (p_group.first >= first_reserved_group_id()) continue;
       add_group_to_response(p_group.first, p_group.second);
     }
   } else {

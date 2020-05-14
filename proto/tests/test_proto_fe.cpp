@@ -3279,7 +3279,7 @@ class PRETestBase : public DeviceMgrTest {
 
   template <typename Fn, typename OutputIt>
   DeviceMgr::Status read_and_sort_entries(
-      Fn fn, OutputIt out_begin, OutputIt out_end) {
+      Fn fn, OutputIt out_begin, OutputIt out_end, int *num_entries) {
     p4v1::ReadRequest request;
     p4v1::ReadResponse response;
     auto *entity = request.add_entities();
@@ -3289,14 +3289,15 @@ class PRETestBase : public DeviceMgrTest {
     auto status = mgr.read(request, &response);
     if (status.code() == Code::OK) {
       const auto &entities = response.entities();
-      assert(std::distance(out_begin, out_end) == entities.size());
+      assert(std::distance(out_begin, out_end) >= entities.size());
       std::transform(
           entities.begin(),
           entities.end(),
           out_begin,
           [](const p4v1::Entity &e) {
             return (e.packet_replication_engine_entry().*ConstAccessor)(); });
-      std::sort(out_begin, out_end, fn);
+      std::sort(out_begin, out_begin + entities.size(), fn);
+      *num_entries = entities.size();
     }
     return status;
   }
@@ -3416,10 +3417,71 @@ TEST_F(PREMulticastTest, Read) {
   }
   {  // wildcard read
     std::vector<GroupEntry> entries(2);
+    int num_read;
     ASSERT_OK(read_and_sort_entries(
         [](const GroupEntry &e1, const GroupEntry &e2) {
           return e1.multicast_group_id() < e2.multicast_group_id(); },
-        entries.begin(), entries.end()));
+        entries.begin(), entries.end(), &num_read));
+    EXPECT_EQ(num_read, 2);
+  }
+}
+
+// The DeviceMgr implementation of P4Runtime creates multicast groups to
+// implement clone sessions. These groups created "internally" should not be
+// included in wildcard reads.
+TEST_F(PREMulticastTest, ReadExcludeGroupsFromCloneSessions) {
+  int32_t group_id = 66;
+  GroupEntry group;
+  group.set_multicast_group_id(group_id);
+  int32_t port1 = 1, rid1 = 1;
+  {
+    ReplicaMgr replicas(&group);
+    replicas.push_back(port1, rid1);
+  }
+
+  int32_t session_id = 7;
+  ::p4v1::CloneSessionEntry session;
+  session.set_session_id(session_id);
+  int32_t port2 = 2, rid2 = 2;
+  // ReplicaMgr is defined for MulticastGroupEntry but not CloneSessionEntry in
+  // this scope.
+  {
+    auto r = session.add_replicas();
+    r->set_egress_port(port2);
+    r->set_instance(rid2);
+  }
+
+  EXPECT_CALL(*mock, mc_grp_create(_, _)).Times(AnyNumber());
+  EXPECT_CALL(*mock, mc_node_create(_, _, _)).Times(AnyNumber());
+  EXPECT_CALL(*mock, mc_grp_attach_node(_, _)).Times(AnyNumber());
+  EXPECT_CALL(
+      *mock, clone_session_set(session_id, CorrectCloneSessionConfig(session)));
+
+
+  ASSERT_OK(create_group(group));
+  // create_session not available in this scope.
+  // TODO(antonin): refactor test code to make this test case simpler to write
+  // if possible.
+  {
+    p4v1::WriteRequest request;
+    auto *update = request.add_updates();
+    update->set_type(p4v1::Update::INSERT);
+    auto *entity = update->mutable_entity();
+    auto *pre_entry = entity->mutable_packet_replication_engine_entry();
+    pre_entry->mutable_clone_session_entry()->CopyFrom(session);
+    ASSERT_OK(mgr.write(request));
+  }
+
+  {  // wildcard read for multicast groups
+    std::vector<GroupEntry> entries(2);
+    int num_read;
+    ASSERT_OK(read_and_sort_entries(
+        [](const GroupEntry &e1, const GroupEntry &e2) {
+          return e1.multicast_group_id() < e2.multicast_group_id(); },
+        entries.begin(), entries.end(), &num_read));
+    // the multicast group created to implement the clone session should not be
+    // included.
+    EXPECT_EQ(num_read, 1);
   }
 }
 
@@ -3560,10 +3622,12 @@ TEST_F(PRECloningTest, Read) {
   }
   {  // wildcard read
     std::vector<SessionEntry> entries(2);
+    int num_read;
     ASSERT_OK(read_and_sort_entries(
         [](const SessionEntry &e1, const SessionEntry &e2) {
           return e1.session_id() < e2.session_id(); },
-        entries.begin(), entries.end()));
+        entries.begin(), entries.end(), &num_read));
+    EXPECT_EQ(num_read, 2);
   }
 }
 
