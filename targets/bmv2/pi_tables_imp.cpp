@@ -557,8 +557,8 @@ pi_status_t _pi_table_default_action_get_handle(
   (void)session_handle;
   (void)dev_tgt;
   (void)table_id;
-  (void)entry_handle;
-  return PI_STATUS_NOT_IMPLEMENTED_BY_TARGET;
+  *entry_handle = pibmv2::get_default_handle();
+  return PI_STATUS_SUCCESS;
 }
 
 pi_status_t _pi_table_entry_delete(pi_session_handle_t session_handle,

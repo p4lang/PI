@@ -149,6 +149,13 @@ pi_status_t _pi_counter_read_direct(pi_session_handle_t session_handle,
   (void)session_handle;
   (void)flags;
 
+  // bmv2 currently does not support direct counters for default entries
+  if (entry_handle == pibmv2::get_default_handle()) {
+    std::cout << "bmv2 does not support direct counters for default entries"
+              << std::endl;
+    return PI_STATUS_NOT_IMPLEMENTED_BY_TARGET;
+  }
+
   pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_tgt.dev_id);
   assert(d_info->assigned);
   const pi_p4info_t *p4info = d_info->p4info;
@@ -177,6 +184,13 @@ pi_status_t _pi_counter_write_direct(pi_session_handle_t session_handle,
                                      pi_entry_handle_t entry_handle,
                                      const pi_counter_data_t *counter_data) {
   (void)session_handle;
+
+  // bmv2 currently does not support direct counters for default entries
+  if (entry_handle == pibmv2::get_default_handle()) {
+    std::cout << "bmv2 does not support direct counters for default entries"
+              << std::endl;
+    return PI_STATUS_NOT_IMPLEMENTED_BY_TARGET;
+  }
 
   pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_tgt.dev_id);
   assert(d_info->assigned);
