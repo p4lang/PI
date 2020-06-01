@@ -40,7 +40,7 @@ int main(int argc, char** argv) {
     server_address = argv[1];
   }
 
-  DeviceMgr::init();
+  PIGrpcServerInit();
 
   auto handler = [](int s) {
     std::cout << "Server shutting down\n";
@@ -78,8 +78,6 @@ int main(int argc, char** argv) {
 
   PIGrpcServerWait();
   PIGrpcServerCleanup();
-
-  DeviceMgr::destroy();
 
   return 0;
 }
