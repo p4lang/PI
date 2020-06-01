@@ -129,6 +129,7 @@ static void register_std_direct_res() {
 
 pi_status_t pi_init(size_t max_devices, pi_remote_addr_t *remote_addr) {
   (void)max_devices;
+  if (device_arr != NULL) return PI_STATUS_INIT_ALREADY_CALLED;
   pi_status_t status;
   // TODO(antonin): best place for this? I don't see another option
   register_std_direct_res();
@@ -297,11 +298,18 @@ pi_status_t pi_batch_end(pi_session_handle_t session_handle, bool hw_sync) {
 }
 
 pi_status_t pi_destroy() {
+  // This ensures that pi_destroy is idempotent and can be called multiple times
+  // without issue and without returning an error. This was added because of
+  // some changes to the P4Runtime server C API (which includes functions like
+  // PIGrpcServerRunAddr), which may have caused existing client code to call
+  // DeviceMgr::destroy (and therefore pi_destroy) more than once.
+  if (device_arr == NULL) return PI_STATUS_SUCCESS;
   pi_status_t status;
   pthread_mutex_destroy(&device_map_mutex);
   pthread_mutex_destroy(&packet_cb_mutex);
   pthread_mutex_destroy(&port_cb_mutex);
   vector_destroy(device_arr);
+  device_arr = NULL;
   device_map_destroy(&device_map);
   cb_mgr_destroy(&packet_cb_mgr);
   cb_mgr_destroy(&port_cb_mgr);

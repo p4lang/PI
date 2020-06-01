@@ -602,6 +602,18 @@ pi::server::ServerData *server_data;
 
 extern "C" {
 
+void PIGrpcServerInit() {
+  auto status = DeviceMgr::init();
+  (void) status;
+  assert(status.code() == ::google::rpc::Code::OK);
+}
+
+void PIGrpcServerInitWithConfig(const char *config_text, const char *version) {
+  auto status = DeviceMgr::init(config_text, version);
+  (void) status;
+  assert(status.code() == ::google::rpc::Code::OK);
+}
+
 void PIGrpcServerRunAddrGnmi(const char *server_address, void *gnmi_service) {
   server_data = new ::pi::server::ServerData();
   server_data->server_address = std::string(server_address);
@@ -670,6 +682,7 @@ void PIGrpcServerForceShutdown(int deadline_seconds) {
 
 void PIGrpcServerCleanup() {
   delete server_data;
+  DeviceMgr::destroy();
 }
 
 }

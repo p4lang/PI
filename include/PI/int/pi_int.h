@@ -30,7 +30,8 @@ extern "C" {
 // Increment any time a change is made to the PI internal ABI
 // Revision history:
 //  * 1 -> 2: support for optional match type
-#define PI_ABI_VERSION 2
+//  * 2 -> 3: add PI_STATUS_INIT_ALREADY_CALLED error
+#define PI_ABI_VERSION 3
 
 static inline pi_p4_id_t pi_make_action_id(uint16_t index) {
   return (PI_ACTION_ID << 24) | index;

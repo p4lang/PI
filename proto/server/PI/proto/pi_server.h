@@ -26,6 +26,14 @@
 extern "C" {
 #endif
 
+// Initializes necessary resources. Should only be called once.
+void PIGrpcServerInit();
+
+// Same as PIGrpcServerInit but supports providing a serialized
+// p4::server::v1::Config Protobuf message (in text format) for P4Runtime server
+// configuration.
+void PIGrpcServerInitWithConfig(const char *config_text, const char *version);
+
 // Start server and bind to default address (0.0.0.0:50051)
 void PIGrpcServerRun();
 
