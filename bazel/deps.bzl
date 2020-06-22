@@ -5,19 +5,18 @@ load("//bazel:workspace_rule.bzl", "remote_workspace")
 
 GNMI_COMMIT = "39cb2fffed5c9a84970bde47b3d39c8c716dc17a";
 GNMI_SHA = "3701005f28044065608322c179625c8898beadb80c89096b3d8aae1fbac15108";
-# We pick a commit SHA which includes support for the OPTIONAL match kind.
-# P4RUNTIME_TAG = "1.1.0"
-P4RUNTIME_SHA = "c09cd0bf2b529d328c7325ab00ab013ea74dc796"
+P4RUNTIME_TAG = "1.2.0"
+P4RUNTIME_SHA="0fce7e06c63e60a8cddfe56f3db3d341953560c054d4c09ffda0e84476124f5a"
 
 def PI_deps():
     """Loads dependencies needed to compile PI."""
 
     if "com_github_p4lang_p4runtime" not in native.existing_rules():
-        remote_workspace(
+        http_archive(
             name = "com_github_p4lang_p4runtime",
-            remote = "https://github.com/p4lang/p4runtime",
-            # tag = P4RUNTIME_TAG,
-            commit = P4RUNTIME_SHA,
+            urls = ["https://github.com/p4lang/p4runtime/archive/v%s.zip" % P4RUNTIME_TAG],
+            sha256 = P4RUNTIME_SHA,
+            strip_prefix = "p4runtime-%s/proto" % P4RUNTIME_TAG,
         )
 
     if "judy" not in native.existing_rules():
@@ -61,13 +60,6 @@ def PI_deps():
             name = "com_google_googleapis",
             remote = "https://github.com/googleapis/googleapis",
             commit = "1079c999f0683196d857795ae6951ced9e15ce72",
-        )
-
-    if "build_stack_rules_proto" not in native.existing_rules():
-        remote_workspace(
-            name = "build_stack_rules_proto",
-            remote = "https://github.com/stackb/rules_proto",
-            commit = "2f4e4f62a3d7a43654d69533faa0652e1c4f5082",
         )
 
     if "com_github_nelhage_rules_boost" not in native.existing_rules():

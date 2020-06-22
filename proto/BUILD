@@ -2,7 +2,7 @@ package(
     default_visibility = ["//visibility:public"],
 )
 
-load("@build_stack_rules_proto//cpp:cpp_grpc_library.bzl", "cpp_grpc_library")
+load("@com_github_grpc_grpc//bazel:cc_grpc_library.bzl", "cc_grpc_library")
 
 cc_library(
     name = "piprotoutil",
@@ -41,7 +41,9 @@ cc_proto_library(
     deps = [":p4serverconfig_proto"],
 )
 
-cpp_grpc_library(
+cc_grpc_library(
     name = "p4serverconfig_cc_grpc",
-    deps = [":p4serverconfig_proto"],
+    srcs = [":p4serverconfig_proto"],
+    deps = [":p4serverconfig_cc_proto"],
+    grpc_only = True,
 )

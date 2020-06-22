@@ -1,0 +1,34 @@
+name: "Test Bazel Build"
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  schedule:
+    - cron: "0 0 * * *"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      BAZEL: bazelisk-linux-amd64
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: recursive
+    
+    - name: Mount bazel cache
+      uses: actions/cache@v2
+      with:
+        path: "~/.cache/bazel"  # See https://docs.bazel.build/versions/master/output_directories.html
+        key: bazel
+
+    - name: Install bazelisk
+      run: |
+        curl -LO "https://github.com/bazelbuild/bazelisk/releases/download/v1.4.0/$BAZEL"
+        chmod +x $BAZEL
+        sudo mv $BAZEL /usr/local/bin/bazel
+
+    - name: Build and run tests
+      run: bazel test //proto/tests:pi_proto_tests //proto/tests:pi_proto_server_tests
