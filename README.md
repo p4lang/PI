@@ -101,7 +101,9 @@ system. This should enable other Bazel projects to easily import this
 repository. For the great majority of users who wish to build and install PI, we
 recommend using the autotools-based build system.
 
-The Bazel version we have tested is 0.23.2. This is the version used to run CI.
+We use [bazelisk](https://github.com/bazelbuild/bazelisk) to install Bazel as
+part of [CI](.github/workflows/bazel-build.yml). bazelisk will install the
+official latest Bazel release.
 
 To build the P4Runtime PI frontend and run the tests:
 ```
@@ -113,12 +115,48 @@ To use PI in another Bazel project, do the following in your `WORKSPACE` file:
 1. Import this project, for example using `git_repository`.
 2. Import dependencies:
 ```
-load("@com_github_p4lang_PI//bazel:deps.bzl", "PI_deps")
+load("//bazel:deps.bzl", "PI_deps")
 PI_deps()
-load("@com_github_p4lang_p4runtime//bazel:deps.bzl", "p4runtime_deps")
+
+# Transitive dependencies
+
+load("@com_github_p4lang_p4runtime//:p4runtime_deps.bzl", "p4runtime_deps")
 p4runtime_deps()
-load("@com_github_p4lang_p4runtime//bazel:rules.bzl", "p4runtime_proto_repositories")
-p4runtime_proto_repositories()
+
+load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
+protobuf_deps()
+
+load("@rules_proto//proto:repositories.bzl", "rules_proto_dependencies", "rules_proto_toolchains")
+rules_proto_dependencies()
+rules_proto_toolchains()
+
+load("@com_google_googleapis//:repository_rules.bzl", "switched_rules_by_language")
+switched_rules_by_language(
+    name = "com_google_googleapis_imports",
+    grpc = True,
+    cc = True,
+    python = True,
+)
+
+load("@com_github_grpc_grpc//bazel:grpc_deps.bzl", "grpc_deps")
+grpc_deps()
+load("@com_github_grpc_grpc//bazel:grpc_extra_deps.bzl", "grpc_extra_deps")
+grpc_extra_deps()
+load("@com_github_grpc_grpc//bazel:grpc_python_deps.bzl", "grpc_python_deps")
+grpc_python_deps()
+
+load("@rules_python//python:pip.bzl", "pip_import", "pip_repositories")
+pip_repositories()
+pip_import(
+    name = "grpc_python_dependencies",
+    requirements = "@com_github_grpc_grpc//:requirements.bazel.txt",
+)
+
+load("@grpc_python_dependencies//:requirements.bzl", "pip_install")
+pip_install()
+
+load("@com_github_nelhage_rules_boost//:boost/boost.bzl", "boost_deps")
+boost_deps()
 ```
 
 ## PI CLI
