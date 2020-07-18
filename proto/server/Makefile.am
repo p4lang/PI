@@ -2,8 +2,8 @@ ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 
 AM_CPPFLAGS = \
 -I$(top_srcdir)/frontend \
--I$(top_builddir)/cpp_out \
--I$(top_builddir)/grpc_out
+-isystem $(top_builddir)/cpp_out \
+-isystem $(top_builddir)/grpc_out
 
 if WITH_SYSREPO
 AM_CPPFLAGS += -DWITH_SYSREPO

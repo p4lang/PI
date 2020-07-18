@@ -18,7 +18,7 @@
  *
  */
 
-#include <grpc++/grpc++.h>
+#include <grpcpp/grpcpp.h>
 
 #include "gnmi.h"
 #include "gnmi/gnmi.grpc.pb.h"

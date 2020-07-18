@@ -13,7 +13,7 @@
 
 #include <arpa/inet.h>
 
-#include <grpc++/grpc++.h>
+#include <grpcpp/grpcpp.h>
 
 #include "PI/proto/p4info_to_and_from_proto.h"  // for p4info_serialize_to_proto
 
