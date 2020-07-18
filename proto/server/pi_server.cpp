@@ -20,8 +20,8 @@
 
 #include <PI/frontends/proto/device_mgr.h>
 
-#include <grpc++/grpc++.h>
-// #include <grpc++/support/error_details.h>
+#include <grpcpp/grpcpp.h>
+// #include <grpcpp/support/error_details.h>
 
 #include <memory>
 #include <set>

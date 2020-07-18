@@ -20,7 +20,7 @@
 
 #include <boost/optional.hpp>
 
-#include <grpc++/grpc++.h>
+#include <grpcpp/grpcpp.h>
 
 #include <gtest/gtest.h>
 

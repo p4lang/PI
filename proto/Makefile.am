@@ -117,7 +117,7 @@ nodist_includep4server_HEADERS = \
 cpp_out/p4/server/v1/config.pb.h \
 grpc_out/p4/server/v1/config.grpc.pb.h
 
-AM_CPPFLAGS = -Icpp_out -Igrpc_out \
+AM_CPPFLAGS = -isystem cpp_out -isystem grpc_out \
 -I$(top_srcdir)/../include \
 -I$(top_srcdir)
 
