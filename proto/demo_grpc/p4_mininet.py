@@ -35,14 +35,14 @@ class P4Host(Host):
         return r
 
     def describe(self):
-        print "**********"
-        print self.name
-        print "default interface: %s\t%s\t%s" %(
+        print("**********")
+        print(self.name)
+        print("default interface: %s\t%s\t%s" %(
             self.defaultIntf().name,
             self.defaultIntf().IP(),
             self.defaultIntf().MAC()
-        )
-        print "**********"
+        ))
+        print("**********")
         
 class P4Switch(Switch):
     """P4 virtual switch"""
@@ -81,11 +81,11 @@ class P4Switch(Switch):
 
     def start( self, controllers ):
         "Start up a new P4 switch"
-        print "Starting P4 switch", self.name
+        print("Starting P4 switch", self.name)
         args = [self.sw_path]
         # args.extend( ['--name', self.name] )
         # args.extend( ['--dpid', self.dpid] )
-        for port, intf in self.intfs.items():
+        for port, intf in list(self.intfs.items()):
             if not intf.IP():
                 args.extend( ['-i', str(port) + "@" + intf.name] )
         if self.cpu_port:
@@ -108,12 +108,12 @@ class P4Switch(Switch):
             args.append("--debugger")
         args.append("-- --enable-swap")
         logfile = '/tmp/p4s.%s.log' % self.name
-        print ' '.join(args)
+        print(' '.join(args))
 
         self.cmd( ' '.join(args) + ' >' + logfile + ' 2>&1 &' )
         # self.cmd( ' '.join(args) + ' > /dev/null 2>&1 &' )
 
-        print "switch has been started"
+        print("switch has been started")
 
     def stop( self ):
         "Terminate IVS switch."

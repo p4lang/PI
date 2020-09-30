@@ -24,7 +24,7 @@ import re
 import sys
 import threading
 import time
-import Queue
+import queue
 
 import ptf
 from ptf.base_tests import BaseTest
@@ -124,7 +124,7 @@ class P4RuntimeErrorIterator:
     def __iter__(self):
         return self
 
-    def next(self):
+    def __next__(self):
         while self.idx < len(self.errors):
             p4_error = p4runtime_pb2.Error()
             one_error_any = self.errors[self.idx]
@@ -239,7 +239,7 @@ class P4RuntimeTest(BaseTest):
         self.stub = p4runtime_pb2_grpc.P4RuntimeStub(self.channel)
 
         proto_txt_path = testutils.test_param_get("p4info")
-        print "Importing p4info proto from", proto_txt_path
+        print("Importing p4info proto from", proto_txt_path)
         self.p4info = p4info_pb2.P4Info()
         with open(proto_txt_path, "rb") as fin:
             google.protobuf.text_format.Merge(fin.read(), self.p4info)
@@ -267,13 +267,13 @@ class P4RuntimeTest(BaseTest):
                     key = (obj_type, suffix)
                     self.p4info_obj_map[key] = obj
                     suffix_count[key] += 1
-        for key, c in suffix_count.items():
+        for key, c in list(suffix_count.items()):
             if c > 1:
                 del self.p4info_obj_map[key]
 
     def set_up_stream(self):
-        self.stream_out_q = Queue.Queue()
-        self.stream_in_q = Queue.Queue()
+        self.stream_out_q = queue.Queue()
+        self.stream_in_q = queue.Queue()
         def stream_req_iterator():
             while True:
                 p = self.stream_out_q.get()
@@ -408,7 +408,7 @@ class P4RuntimeTest(BaseTest):
             # case of LPM, trailing bits in the value (after prefix) must be set
             # to 0.
             first_byte_masked = self.pLen / 8
-            for i in xrange(first_byte_masked):
+            for i in range(first_byte_masked):
                 mf.lpm.value += self.v[i]
             if first_byte_masked == len(self.v):
                 return
@@ -432,7 +432,7 @@ class P4RuntimeTest(BaseTest):
             mf.ternary.value = ''
             # P4Runtime now has strict rules regarding ternary matches: in the
             # case of Ternary, "don't-care" bits in the value must be set to 0
-            for i in xrange(len(self.mask)):
+            for i in range(len(self.mask)):
                 mf.ternary.value += chr(ord(self.v[i]) & ord(self.mask[i]))
 
     # Sets the match key for a p4::TableEntry object. mk needs to be an iterable

@@ -32,7 +32,7 @@ import textwrap
 # Conditionally print a verbose message
 def log_verbose(msg):
     if verbose:
-        print >> sys.stderr, msg
+        print(msg, file=sys.stderr)
 
 # Set document.brief
 def set_doc_brief(doc, value):

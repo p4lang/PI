@@ -25,10 +25,8 @@ AX_CXX_COMPILE_STDCXX_11([noext],[optional])
 
 # TODO: this can be removed when the Python scripts are updated to work with
 # python3.
-m4_define_default([_AM_PYTHON_INTERPRETER_LIST], [python2 python2.7])
-AM_PATH_PYTHON([2.7],, [
-    AC_MSG_WARN([Cannot detect python2.7, is it installed? As a result, you may not be able to run the CLI tests and various scripts included in this project.])])
-AM_CONDITIONAL([HAVE_PYTHON2], [test "$PYTHON" != :])
+m4_define_default([_AM_PYTHON_INTERPRETER_LIST], [python python3 python2.7])
+AM_CONDITIONAL([HAVE_python], [test "$PYTHON" != :])
 
 DX_DOT_FEATURE([ON])
 DX_PDF_FEATURE([ON])

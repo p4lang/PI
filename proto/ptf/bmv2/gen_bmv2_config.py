@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 
 # Copyright 2013-present Barefoot Networks, Inc.
 #
@@ -54,11 +54,11 @@ def main():
     args = parser.parse_args()
 
     if not check_compiler_exec(args.compiler):
-        print "Cannot use provided compiler or compiler binary not in PATH"
+        print("Cannot use provided compiler or compiler binary not in PATH")
         sys.exit(1)
 
     if not os.path.exists(args.src):
-        print "P4 source", args.src, "does not exist"
+        print("P4 source", args.src, "does not exist")
         sys.exit(1)
 
     tmp_dir = tempfile.mkdtemp()
@@ -66,28 +66,28 @@ def main():
     out_p4info = os.path.join(tmp_dir, 'p4info.proto.txt')
     cmd = [args.compiler, '--std', 'p4-16', args.src, '-o', out_json,
            '--p4runtime-format', 'text', '--p4runtime-file', out_p4info]
-    print ' '.join(cmd)
+    print(' '.join(cmd))
     try:
         subprocess.check_output(cmd, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError:
-        print "Error when compiling P4 program"
+        print("Error when compiling P4 program")
         shutil.rmtree(tmp_dir)
         sys.exit(1)
     except OSError:
-        print "Fatal error when compiling P4 program"
+        print("Fatal error when compiling P4 program")
         shutil.rmtree(tmp_dir)
         sys.exit(2)
 
     try:
         shutil.copyfile(out_p4info, args.out_p4info)
     except:
-        print "Error when writing to", args.out_p4info
+        print("Error when writing to", args.out_p4info)
         sys.exit(1)
 
     try:
         shutil.copyfile(out_json, args.out_bin)
     except:
-        print "Error when writing to", args.out_bin
+        print("Error when writing to", args.out_bin)
         sys.exit(1)
 
     shutil.rmtree(tmp_dir)
