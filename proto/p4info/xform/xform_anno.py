@@ -21,7 +21,7 @@
 #
 # Chris Sommers (chris.sommers@keysight.com)
 #
-
+from __future__ import print_function
 import p4.config.p4info_pb2 as p4info_pb2
 import argparse
 import sys
