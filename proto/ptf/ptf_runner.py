@@ -105,7 +105,7 @@ def run_test(config_path, p4info_path, grpc_addr, device_id,
             iface_name = entry["iface_name"]
             port_map[p4_port] = iface_name
 
-    if not check_ifaces(list(port_map.values())):
+    if not check_ifaces(port_map.values()):
         error("Some interfaces are missing")
         return False
 
@@ -117,7 +117,7 @@ def run_test(config_path, p4info_path, grpc_addr, device_id,
         os.environ['PYTHONPATH'] += ":" + pypath
     else:
         os.environ['PYTHONPATH'] = pypath
-    for iface_idx, iface_name in list(port_map.items()):
+    for iface_idx, iface_name in port_map.items():
         ifaces.extend(['-i', '{}@{}'.format(iface_idx, iface_name)])
     cmd = ['ptf']
     cmd.extend(['--test-dir', ptfdir])

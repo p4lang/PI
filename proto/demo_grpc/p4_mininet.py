@@ -43,7 +43,7 @@ class P4Host(Host):
             self.defaultIntf().MAC()
         ))
         print("**********")
-        
+
 class P4Switch(Switch):
     """P4 virtual switch"""
     device_id = 0
@@ -85,7 +85,7 @@ class P4Switch(Switch):
         args = [self.sw_path]
         # args.extend( ['--name', self.name] )
         # args.extend( ['--dpid', self.dpid] )
-        for port, intf in list(self.intfs.items()):
+        for port, intf in self.intfs.items():
             if not intf.IP():
                 args.extend( ['-i', str(port) + "@" + intf.name] )
         if self.cpu_port:
