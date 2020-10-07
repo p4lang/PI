@@ -106,7 +106,7 @@ def errors_from_replacements(file, replacements=[]):
 
     lines = [0]  # line index to character offset
     file_content = ""
-    for line in open(file, "r"):
+    for line in open(file, "r", encoding="utf-8"):
         file_content += line
         lines.append(lines[-1] + len(line))
 
