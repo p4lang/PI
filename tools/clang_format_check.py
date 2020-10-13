@@ -10,6 +10,7 @@ import subprocess
 import xml.etree.ElementTree as ET
 import sys
 import re
+import io
 
 from collections import namedtuple
 Replacement = namedtuple("Replacement", "offset length text")
@@ -31,7 +32,7 @@ def process_overrides(filename):
       continue
 
     try:
-      with open(cfg_file) as file_handle:
+      with io.open(cfg_file) as file_handle:
         for line in file_handle:
           line, _, _ = line.partition('#')  # Remove comments.
           if not line.strip():
@@ -106,7 +107,7 @@ def errors_from_replacements(file, replacements=[]):
 
     lines = [0]  # line index to character offset
     file_content = ""
-    for line in open(file, "r", encoding="utf-8"):
+    for line in io.open(file, "r", encoding="utf-8"):
         file_content += line
         lines.append(lines[-1] + len(line))
 
