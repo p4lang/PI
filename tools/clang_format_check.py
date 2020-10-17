@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 # Modified from https://github.com/cloderic/clang_format_check
@@ -10,6 +10,7 @@ import subprocess
 import xml.etree.ElementTree as ET
 import sys
 import re
+import io
 
 from collections import namedtuple
 Replacement = namedtuple("Replacement", "offset length text")
@@ -31,7 +32,7 @@ def process_overrides(filename):
       continue
 
     try:
-      with open(cfg_file) as file_handle:
+      with io.open(cfg_file) as file_handle:
         for line in file_handle:
           line, _, _ = line.partition('#')  # Remove comments.
           if not line.strip():
@@ -92,7 +93,7 @@ def replacements_from_file(clang_exec, file, style="file", inplace=False):
     # inplace editing if required
     # apparently, "-output-replacements-xml" and "-i" cannot be combined
     if replacements and inplace:
-        print "Editing", file, "to fix errors"
+        print("Editing", file, "to fix errors")
         clang_format_args = clang_format_base + []
         clang_format_args.append("-i")
         clang_format_args.append(os.path.basename(file))
@@ -106,7 +107,7 @@ def errors_from_replacements(file, replacements=[]):
 
     lines = [0]  # line index to character offset
     file_content = ""
-    for line in open(file, "r"):
+    for line in io.open(file, "r", encoding="utf-8"):
         file_content += line
         lines.append(lines[-1] + len(line))
 
@@ -134,7 +135,7 @@ def clang_format_check(clang_exec, files=[], style="file", inplace=False):
 
     for file in files:
         if not process_overrides(file):
-            print "Skipping", file
+            print("Skipping", file)
             continue
         replacements = replacements_from_file(clang_exec, file, style,
                                               inplace=inplace)
@@ -146,27 +147,27 @@ def clang_format_check(clang_exec, files=[], style="file", inplace=False):
 
 def print_error_report(error_count, file_errors):
     if error_count == 0:
-        print "No format error found"
+        print("No format error found")
     else:
-        for file, errors in file_errors.iteritems():
-            print "-- {} format errors at {}:".format(len(errors), file)
+        for file, errors in file_errors.items():
+            print("-- {} format errors at {}:".format(len(errors), file))
             for error in errors:
-                print "    ({},{})".format(error.line + 1, error.column + 1)
+                print("    ({},{})".format(error.line + 1, error.column + 1))
                 # print "        - found: \"{}\"".format(error.found)
                 # print "        - expected: \"{}\"".format(error.expected)
-        print "---"
-        print "A total of {} format errors were found".format(error_count)
+        print("---")
+        print("A total of {} format errors were found".format(error_count))
 
 
 def check_clang_format_exec(clang_exec):
     try:
         subprocess.check_output([clang_exec, "-version"])
         return True
-    except subprocess.CalledProcessError, e:
+    except subprocess.CalledProcessError as e:
         # it seems that in some version of clang-format '-version' leads to
         # non-zero exist status
         return True
-    except OSError, e:
+    except OSError as e:
         return False
 
 def main():
@@ -203,7 +204,7 @@ def main():
     clang_exec = None
     if args.exe:
         if not check_clang_format_exec(args.exe):
-            print "Can't run provided binary '{}'".format(args.exe)
+            print("Can't run provided binary '{}'".format(args.exe))
             exit(-1)
         clang_exec = args.exe
     else:
@@ -212,11 +213,11 @@ def main():
                 clang_exec = e
                 break
         if clang_exec is None:
-            print "Can't run 'clang-format', please make sure it is installed "
+            print("Can't run 'clang-format', please make sure it is installed ")
             "and reachable in your PATH."
             exit(-1)
 
-    print "Using", clang_exec
+    print("Using", clang_exec)
 
     # globing the file paths
     files = set()
@@ -225,7 +226,7 @@ def main():
             files.add(os.path.relpath(file))
 
     file_list = list(files)
-    print "Checking {} files...".format(len(file_list))
+    print("Checking {} files...".format(len(file_list)))
     error_count, file_errors = clang_format_check(clang_exec,
                                                   style=args.style,
                                                   files=file_list,

@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 
 # Copyright 2013-present Barefoot Networks, Inc.
 #
@@ -175,11 +175,11 @@ def main():
         sys.exit(1)
 
     if not os.path.exists(args.p4info):
-        print "P4Info path '{}' does not exist".format(args.p4info)
+        print("P4Info path '{}' does not exist".format(args.p4info))
         sys.exit(1)
 
     if not os.path.exists(args.port_map):
-        print "Port map path '{}' does not exist".format(args.port_map)
+        print("Port map path '{}' does not exist".format(args.port_map))
         sys.exit(1)
 
     success = update_config(args.device_config, args.p4info,

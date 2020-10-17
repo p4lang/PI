@@ -21,7 +21,7 @@
 #
 # Chris Sommers (chris.sommers@keysight.com)
 #
-
+from __future__ import print_function
 import p4.config.p4info_pb2 as p4info_pb2
 import argparse
 import sys
@@ -32,7 +32,7 @@ import textwrap
 # Conditionally print a verbose message
 def log_verbose(msg):
     if verbose:
-        print >> sys.stderr, msg
+        print(msg, file=sys.stderr)
 
 # Set document.brief
 def set_doc_brief(doc, value):

@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 
 # Copyright 2013-present Barefoot Networks, Inc.
 #
@@ -26,7 +26,7 @@ import os
 import time
 import random
 import re
-import StringIO
+import io
 import tempfile
 
 sswitch_path = "@BM_SIMPLE_SWITCH@"
@@ -35,6 +35,8 @@ rpc_server_path = os.path.join("@abs_top_builddir@", "bin", "pi_rpc_server")
 valgrind_supp = os.path.join("@abs_srcdir@", "test.supp")
 
 # Class written by Mihai Budiu, for Barefoot Networks, Inc.
+
+
 class ConcurrentInteger(object):
     # Generates exclusive integers in a range 0-max
     # in a way which is safe across multiple processes.
@@ -45,10 +47,13 @@ class ConcurrentInteger(object):
     def __init__(self, folder, max):
         self.folder = folder
         self.max = max
+
     def lockName(self, value):
         return "lock_" + str(value)
+
     def release(self, value):
         os.rmdir(self.lockName(value))
+
     def generate(self):
         # try 10 times
         for i in range(0, 10):
@@ -63,14 +68,18 @@ class ConcurrentInteger(object):
                 continue
         return None
 
+
 def process_valgrind_output(stderr, name):
     f_name = None
     v = None
-    with tempfile.NamedTemporaryFile(delete=False) as f:
-        print "Valgrind output for", name, "written to", f.name
+    with tempfile.NamedTemporaryFile(delete=False, mode="w+") as f:
+        print("Valgrind output for", name, "written to", f.name)
         f_name = f.name
         while True:
             L = stderr.readline()
+            if sys.version_info >= (3, 0):
+                # force string conversion for Python2 and Python3 compatibility
+                L = L.decode()
             f.write(L)
             if "ERROR SUMMARY" in L:
                 m = re.search("ERROR SUMMARY: ([0-9]*) errors "
@@ -82,9 +91,10 @@ def process_valgrind_output(stderr, name):
         os.remove(f_name)
     return v
 
+
 def main():
     def fail_msg(msg):
-        print msg
+        print(msg)
         sys.exit(1)
 
     if len(sys.argv) != 4:
@@ -166,13 +176,19 @@ def main():
     p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE, cwd=testdata_dir)
 
+    if sys.version_info >= (3, 0):
+        # force string conversion for Python2 and Python3 compatibility
+        input_ = input_.encode()
     out, stderr = p.communicate(input_)
+    if sys.version_info >= (3, 0):
+        # force string conversion for Python2 and Python3 compatibility
+        out = out.decode()
 
     rc = p.returncode
 
     if rc:
-        print out
-        print stderr
+        print(out)
+        print(stderr)
         fail("CLI returned error code")
 
     assert(out)
@@ -191,14 +207,14 @@ def main():
     with open(output_path, "r") as f:
         expected_parse = parse_data(f.read(), "\?\?\?\?")
         if len(out_parsed) != len(expected_parse):
-            print out_parsed
-            print "****************"
+            print(out_parsed)
+            print("****************")
             fail("Mismatch between expected output and actual output")
         for o, e in zip(out_parsed, expected_parse):
             if o != e:
-                print o
-                print "****************"
-                print e
+                print(o)
+                print("****************")
+                print(e)
                 fail("Mismatch between expected output and actual output")
 
     # terminate gives the process a chance to flush to the file
@@ -207,7 +223,7 @@ def main():
     # apparently, there is no issue with me reading from the PIPE after
     # terminated the process
     if with_valgrind:
-        v1 = process_valgrind_output(StringIO.StringIO(stderr), "RPC CLI")
+        v1 = process_valgrind_output(io.BytesIO(stderr), "RPC CLI")
         v2 = process_valgrind_output(rpc_server_p.stderr, "RPC server")
 
         if (not v1) or (not v2):
@@ -215,6 +231,7 @@ def main():
     remove_rpc()
 
     sys.exit(0)
+
 
 if __name__ == '__main__':
     main()

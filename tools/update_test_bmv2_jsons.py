@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 
 import argparse
 import fnmatch
@@ -40,22 +40,22 @@ def main():
     args = parser.parse_args()
 
     if not check_compiler_exec(args.compiler):
-        print "Cannot use provided compiler"
+        print("Cannot use provided compiler")
         sys.exit(1)
 
     files = find_files(args.root)
     for input_f, output_f in files:
-        print "Regenerating", input_f, "->", output_f
+        print("Regenerating", input_f, "->", output_f)
         try:
             cmd = [args.compiler, input_f, "--json", output_f, "--keep-pragmas"]
             with open(os.devnull, 'w') as devnull:
                 out = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError:
-            print "ERROR"
-            print " ".join(cmd)
-            print out
+            print("ERROR")
+            print(" ".join(cmd))
+            print(out)
         except OSError:
-            print "FATAL ERROR"
+            print("FATAL ERROR")
             sys.exit(2)
 
 if __name__ == '__main__':
