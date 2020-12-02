@@ -60,7 +60,7 @@ namespace server {
 
 namespace {
 
-constexpr char p4runtime_api_version[] = "1.2.0";
+constexpr char p4runtime_api_version[] = "1.3.0";
 
 // Copied from
 // https://github.com/grpc/grpc/blob/master/src/cpp/util/error_details.cc
@@ -645,7 +645,7 @@ void PIGrpcServerRunAddr(const char *server_address) {
 }
 
 void PIGrpcServerRun() {
-  PIGrpcServerRunAddrGnmi("0.0.0.0:50051", nullptr);
+  PIGrpcServerRunAddrGnmi("0.0.0.0:9559", nullptr);
 }
 
 int PIGrpcServerGetPort() {

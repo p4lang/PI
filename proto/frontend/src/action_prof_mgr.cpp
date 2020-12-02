@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <map>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -49,19 +50,33 @@ using common::SessionTemp;
 using common::make_invalid_p4_id_status;
 using Code = ::google::rpc::Code;
 using MembershipInfo = ActionProfGroupMembership::MembershipInfo;
+using OneShotMember = ActionProfAccessOneshot::OneShotMember;
 
 namespace {
 
 // temporary until we have port translation support
+
+int bytestring_to_integer(const std::string &str) {
+  int v = 0;
+  if (str.size() > 4) return -1;
+  for (auto c : str) {
+    v = v << 8;
+    v += static_cast<int>(static_cast<unsigned char>(c));
+  }
+  return v;
+}
 
 pi_port_t watch_port_p4rt_to_pi(int watch) {
   return (watch == p4v1::SDN_PORT_UNKNOWN) ?
       WatchPortEnforcer::INVALID_WATCH : static_cast<pi_port_t>(watch);
 }
 
-int watch_port_pi_to_p4rt(pi_port_t watch) {
-  return (watch == WatchPortEnforcer::INVALID_WATCH) ?
-      p4v1::SDN_PORT_UNKNOWN : static_cast<int>(watch);
+pi_port_t watch_port_p4rt_to_pi(const std::string &watch) {
+  if (watch == "") return WatchPortEnforcer::INVALID_WATCH;
+  auto v = bytestring_to_integer(watch);
+  if (v < 0 || v == p4v1::SDN_PORT_UNKNOWN)
+      return WatchPortEnforcer::INVALID_WATCH;
+  return static_cast<pi_port_t>(v);
 }
 
 }  // namespace
@@ -154,6 +169,79 @@ bool operator==(const MembershipInfo &lhs, const MembershipInfo &rhs) {
   return (lhs.weight == rhs.weight) && (lhs.watch == rhs.watch);
 }
 
+namespace {
+
+template <typename T>
+WatchPort make_watch_port_helper(const T &msg) {
+  WatchPort::WatchKindCase watch_kind_case = WatchPort::WatchKindCase::kNotSet;
+  int watch = p4v1::SDN_PORT_UNKNOWN;
+  std::string watch_port = "";
+  pi_port_t pi_port = WatchPortEnforcer::INVALID_WATCH;
+  switch (msg.watch_kind_case()) {
+    case T::kWatch:
+      watch_kind_case = WatchPort::WatchKindCase::kWatch;
+      watch = msg.watch();
+      pi_port = watch_port_p4rt_to_pi(msg.watch());
+      break;
+    case T::kWatchPort:
+      watch_kind_case = WatchPort::WatchKindCase::kWatchPort;
+      watch_port = msg.watch_port();
+      pi_port = watch_port_p4rt_to_pi(msg.watch_port());
+      break;
+    default:
+      break;
+  }
+  return WatchPort{watch_kind_case, watch, watch_port, pi_port};
+}
+
+}  // namespace
+
+/* static */
+const WatchPort WatchPort::invalid_watch() {
+  return WatchPort{
+    WatchKindCase::kNotSet, 0, "", WatchPortEnforcer::INVALID_WATCH};
+}
+
+/* static */
+WatchPort WatchPort::make(const p4v1::ActionProfileGroup::Member &member) {
+  return make_watch_port_helper(member);
+}
+
+/* static */
+WatchPort WatchPort::make(const p4v1::ActionProfileAction &action) {
+  return make_watch_port_helper(action);
+}
+
+template <typename T>
+void WatchPort::to_p4rt_helper(T *msg) const {
+  switch (watch_kind_case) {
+    case WatchKindCase::kWatch:
+      msg->set_watch(watch);
+      break;
+    case WatchKindCase::kWatchPort:
+      msg->set_watch_port(watch_port);
+      break;
+    default:
+      break;
+  }
+}
+
+void WatchPort::to_p4rt(p4::v1::ActionProfileGroup::Member *member) const {
+  return to_p4rt_helper(member);
+}
+
+void WatchPort::to_p4rt(p4::v1::ActionProfileAction *action) const {
+  return to_p4rt_helper(action);
+}
+
+bool operator==(const WatchPort &lhs, const WatchPort &rhs) {
+  return lhs.pi_port == rhs.pi_port;
+}
+
+bool operator!=(const WatchPort &lhs, const WatchPort &rhs) {
+  return !(lhs == rhs);
+}
+
 // The result is the union of all members (current and new) with current_weight
 // and new_weight set appropriately. For a new member, current_weight is 0 while
 // new_weight is > 0. For an old member that needs to be removed, new_weight is
@@ -175,14 +263,14 @@ ActionProfGroupMembership::compute_membership_update(
         update.emplace_back(current_it->first,
                             current_it->second.weight, 0,
                             current_it->second.watch,
-                            WatchPortEnforcer::INVALID_WATCH);
+                            WatchPort::invalid_watch());
       break;
     }
     if (current_it == members.end()) {
       for (; new_it != desired_membership.end(); new_it++)
         update.emplace_back(new_it->first,
                             0, new_it->second.weight,
-                            WatchPortEnforcer::INVALID_WATCH,
+                            WatchPort::invalid_watch(),
                             new_it->second.watch);
       break;
     }
@@ -191,13 +279,13 @@ ActionProfGroupMembership::compute_membership_update(
       update.emplace_back(current_it->first,
                           current_it->second.weight, 0,
                           current_it->second.watch,
-                          WatchPortEnforcer::INVALID_WATCH);
+                          WatchPort::invalid_watch());
       current_it++;
     } else if (current_it->first > new_it->first) {
       // new member
       update.emplace_back(new_it->first,
                           0, new_it->second.weight,
-                          WatchPortEnforcer::INVALID_WATCH,
+                          WatchPort::invalid_watch(),
                           new_it->second.watch);
       new_it++;
     } else {
@@ -235,11 +323,11 @@ ActionProfGroupMembership::get_max_size_user() const {
 
 bool
 ActionProfGroupMembership::get_member_info(
-    const Id &member_id, int *weight, int *watch) const {
+    const Id &member_id, int *weight, WatchPort *watch) const {
   auto it = members.find(member_id);
   if (it == members.end()) return false;
   *weight = it->second.weight;
-  *watch = watch_port_pi_to_p4rt(it->second.watch);
+  *watch = it->second.watch;
   return true;
 }
 
@@ -479,7 +567,8 @@ ActionProfAccessManual::group_delete(const p4v1::ActionProfileGroup &group,
       // no reason to fail, we are just updating the watch_port_enforcer
       // internal state
       RETURN_IF_ERROR(watch_port_enforcer->delete_member(
-          act_prof_id, *group_h, member_state->handles[i], m.second.watch));
+          act_prof_id, *group_h, member_state->handles[i],
+          m.second.watch.pi_port));
     }
     RETURN_IF_ERROR(purge_unused_weighted_members_wrapper(ap, member_state));
   }
@@ -502,8 +591,10 @@ ActionProfAccessManual::group_get_max_size_user(const Id &group_id,
 }
 
 bool
-ActionProfAccessManual::get_member_info(const Id &group_id, const Id &member_id,
-                                        int *weight, int *watch_port) const {
+ActionProfAccessManual::get_member_info(const Id &group_id,
+                                        const Id &member_id,
+                                        int *weight,
+                                        WatchPort *watch_port) const {
   auto it = group_members.find(group_id);
   if (it == group_members.end()) return false;
   return it->second.get_member_info(member_id, weight, watch_port);
@@ -622,9 +713,8 @@ ActionProfAccessManual::group_update_members(
           "Duplicate member id {} for group {}, use weights instead",
           m.member_id(), group_id);
     }
-    auto watch_port = watch_port_p4rt_to_pi(m.watch());
     new_membership.emplace(m.member_id(),
-                           MembershipInfo{m.weight(), watch_port});
+                           MembershipInfo{m.weight(), WatchPort::make(m)});
   }
 
   auto membership_update = membership.compute_membership_update(
@@ -684,7 +774,7 @@ ActionProfAccessManual::group_update_members(
         // no reason to fail, we are just updating the watch_port_enforcer
         // internal state
         status = watch_port_enforcer->delete_member(
-            act_prof_id, *group_h, h, m.current_watch);
+            act_prof_id, *group_h, h, m.current_watch.pi_port);
         if (IS_ERROR(status)) break;
         status = remove_member(h);
         if (IS_ERROR(status)) break;
@@ -708,7 +798,7 @@ ActionProfAccessManual::group_update_members(
         minfo.weight++;
         minfo.watch = m.new_watch;
         status = watch_port_enforcer->add_member_and_update_hw(
-            &ap, *group_h, h, m.new_watch);
+            &ap, *group_h, h, m.new_watch.pi_port);
         if (IS_ERROR(status)) break;
       }
 
@@ -717,7 +807,7 @@ ActionProfAccessManual::group_update_members(
         for (int i = 0; i < std::min(m.current_weight, m.new_weight); i++) {
           auto h = member_state->handles.at(i);
           status = watch_port_enforcer->modify_member_and_update_hw(
-              &ap, *group_h, h, m.current_watch, m.new_watch);
+              &ap, *group_h, h, m.current_watch.pi_port, m.new_watch.pi_port);
           if (IS_ERROR(status)) break;
         }
         current_membership.at(m.id).watch = m.new_watch;
@@ -755,7 +845,7 @@ ActionProfAccessManual::group_update_members(
                               member_state->handles.begin() + m.new_weight);
 
         auto port_status = watch_port_enforcer->get_port_status(
-            act_prof_id, m.new_watch);
+            act_prof_id, m.new_watch.pi_port);
         for (int i = 0; i < m.new_weight; i++) {
           activate[activate_idx++] = (port_status == PI_PORT_STATUS_UP);
         }
@@ -781,14 +871,14 @@ ActionProfAccessManual::group_update_members(
       for (int i = m.current_weight - 1; i >= m.new_weight; i--) {
         auto h = member_state->handles.at(i);
         auto status = watch_port_enforcer->delete_member(
-            act_prof_id, *group_h, h, m.current_watch);
+            act_prof_id, *group_h, h, m.current_watch.pi_port);
         if (IS_ERROR(status)) watch_port_errors++;
       }
 
       for (int i = m.current_weight; i < m.new_weight; i++) {
         auto h = member_state->handles.at(i);
         auto status = watch_port_enforcer->add_member(
-            act_prof_id, *group_h, h, m.new_watch);
+            act_prof_id, *group_h, h, m.new_watch.pi_port);
         if (IS_ERROR(status)) watch_port_errors++;
       }
 
@@ -796,7 +886,8 @@ ActionProfAccessManual::group_update_members(
         for (int i = 0; i < std::min(m.current_weight, m.new_weight); i++) {
           auto h = member_state->handles.at(i);
           auto status = watch_port_enforcer->modify_member(
-              act_prof_id, *group_h, h, m.current_watch, m.new_watch);
+              act_prof_id, *group_h, h,
+              m.current_watch.pi_port, m.new_watch.pi_port);
           if (IS_ERROR(status)) watch_port_errors++;
         }
       }
@@ -1046,10 +1137,10 @@ ActionProfAccessOneshot::group_create(
         RETURN_ERROR_STATUS(
             Code::UNKNOWN, "Error when creating member on target");
       }
-      members.push_back(
-          {member_h, (i == 0) ? action.weight() : 0, action.watch()});
+      auto watch = WatchPort::make(action);
+      members.push_back({member_h, (i == 0) ? action.weight() : 0, watch});
       members_h.push_back(member_h);
-      members_watch_port.push_back(watch_port_p4rt_to_pi(action.watch()));
+      members_watch_port.push_back(watch.pi_port);
       session->cleanup_task_push(std::unique_ptr<OneShotMemberCleanupTask>(
           new OneShotMemberCleanupTask(this, member_h)));
     }
@@ -1090,8 +1181,7 @@ ActionProfAccessOneshot::group_delete(pi_indirect_handle_t group_h,
     // no reason to fail, we are just updating the watch_port_enforcer internal
     // state
     RETURN_IF_ERROR(watch_port_enforcer->delete_member(
-        act_prof_id, group_h, member.member_h,
-        watch_port_p4rt_to_pi(member.watch)));
+        act_prof_id, group_h, member.member_h, member.watch.pi_port));
   }
   {
     auto pi_status = ap.group_delete(group_h);

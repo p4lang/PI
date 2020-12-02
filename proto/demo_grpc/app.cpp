@@ -111,7 +111,7 @@ int main(int argc, char *argv[]) {
   boost::asio::io_service::work work(io_service);
 
   auto channel = grpc::CreateChannel(
-      "localhost:50051", grpc::InsecureChannelCredentials());
+      "localhost:9559", grpc::InsecureChannelCredentials());
 
   int dev_id = 0;
   SimpleRouterMgr simple_router_mgr(dev_id, io_service, channel);

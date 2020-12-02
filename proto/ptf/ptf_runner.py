@@ -155,7 +155,7 @@ def main():
                         help='Path to target-specific binary config')
     parser.add_argument('--p4info', type=str, required=True,
                         help='Path to P4Info text protobuf message')
-    parser.add_argument('--grpc-addr', type=str, default='localhost:50051',
+    parser.add_argument('--grpc-addr', type=str, default='localhost:9559',
                         help='Address to use to connect to P4 Runtime server')
     parser.add_argument('--device-id', type=int, default=0,
                         help='Device id for device under test')

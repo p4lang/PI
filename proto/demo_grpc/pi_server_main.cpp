@@ -30,7 +30,7 @@
 using pi::fe::proto::DeviceMgr;
 
 int main(int argc, char** argv) {
-  const char *server_address = "0.0.0.0:50051";
+  const char *server_address = "0.0.0.0:9559";
   if (argc > 2) {
     std::cerr << "Two many arguments.\n";
     std::cerr << "Usage: " << argv[0]

@@ -475,6 +475,7 @@ MatchTableTest::generic_make(pi_p4_id_t t_id,
   p4v1::TableEntry table_entry;
   table_entry.set_table_id(t_id);
   table_entry.set_controller_metadata(controller_metadata);
+  table_entry.set_metadata(std::to_string(controller_metadata));
   table_entry.set_priority(priority);
   // not supported by older versions of boost
   // if (mf != boost::none) {
@@ -914,6 +915,16 @@ class ActionProfTest
     member->set_member_id(member_id);
     member->set_weight(weight);
     member->set_watch(watch_port);
+  }
+
+  void add_member_to_group_new(p4v1::ActionProfileGroup *group,
+                               uint32_t member_id,
+                               int weight,
+                               const boost::optional<std::string> &watch_port) {
+    auto member = group->add_members();
+    member->set_member_id(member_id);
+    member->set_weight(weight);
+    if (watch_port.is_initialized()) member->set_watch_port(*watch_port);
   }
 
   template <typename It>
@@ -1391,6 +1402,101 @@ TEST_P(ActionProfTest, MemberWatchPort) {
       << "Expected no call to deactivate member";
 }
 
+// exact copy of MemberWatchPort above, but uses the "watch_port" field (bytes)
+// instead of the deprecated "watch" file (int32)
+// TODO(antonin): avoid duplication
+TEST_P(ActionProfTest, MemberWatchPortBytes) {
+  DeviceMgr::Status status;
+  uint32_t group_id = 1000;
+  uint32_t member_id = 1;
+
+  // create 1 member
+  std::string adata(6, '\x00');
+  EXPECT_CALL(*mock, action_prof_member_create(_, _, _));
+  auto member = make_member(member_id, adata);
+  EXPECT_OK(create_member(&member));
+
+  int weight = 2;
+  int watch_port = 7;
+  std::string watch_port_str("\x07");
+  EXPECT_CALL(*mock, action_prof_member_create(_, _, _)).Times(weight - 1);
+  EXPECT_CALL(*mock, action_prof_group_create(_, _, _));
+  if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
+    EXPECT_CALL_GROUP_ADD_MEMBER(*mock, act_prof_id, _, _)
+        .Times(weight);
+  } else {
+    EXPECT_CALL_GROUP_SET_MEMBERS(
+        *mock, act_prof_id, _, _, ElementsAre(true, true));
+  }
+  auto group = make_group(group_id);
+  add_member_to_group_new(&group, member_id, weight, watch_port_str);
+  EXPECT_OK(create_group(&group));
+
+  // read group and check contents
+  EXPECT_CALL(*mock, action_prof_entries_fetch(act_prof_id, _));
+  p4v1::ReadResponse response;
+  p4v1::ReadRequest request;
+  {
+    auto entity = request.add_entities();
+    auto group = entity->mutable_action_profile_group();
+    group->set_action_profile_id(act_prof_id);
+  }
+  ASSERT_OK(mgr.read(request, &response));
+  const auto &entities = response.entities();
+  ASSERT_EQ(1, entities.size());
+  EXPECT_PROTO_EQ(entities.Get(0).action_profile_group(), group);
+
+  std::chrono::milliseconds timeout(200);
+  CallCountTracker tracker_deactivate;
+  CallCountTracker tracker_activate;
+
+  // std::ref is required otherwise gmock tries to make a copy of the object,
+  // which is not possible because of the mutex member.
+  EXPECT_CALL(*mock, action_prof_group_deactivate_member(act_prof_id, _, _))
+      .WillRepeatedly(InvokeWithoutArgs(std::ref(tracker_deactivate)));
+  EXPECT_CALL(*mock, action_prof_group_activate_member(act_prof_id, _, _))
+      .WillRepeatedly(InvokeWithoutArgs(std::ref(tracker_activate)));
+
+  // bring port down
+  EXPECT_EQ(mock->port_status_set(watch_port, PI_PORT_STATUS_DOWN),
+            PI_STATUS_SUCCESS);
+  EXPECT_TRUE(tracker_deactivate.wait_for(weight, timeout))
+      << "Missing calls to deactivate member";
+
+  // bring port back up
+  EXPECT_EQ(mock->port_status_set(watch_port, PI_PORT_STATUS_UP),
+            PI_STATUS_SUCCESS);
+  EXPECT_TRUE(tracker_activate.wait_for(weight, timeout))
+      << "Missing calls to activate member";
+
+  // change watch port and bring it down
+  watch_port = 4;
+  watch_port_str = "\x04";
+  EXPECT_EQ(mock->port_status_set(watch_port, PI_PORT_STATUS_DOWN),
+            PI_STATUS_SUCCESS);
+  ASSERT_TRUE(tracker_activate.check_none(timeout))
+      << "Expected no call to activate member";
+  ASSERT_TRUE(tracker_deactivate.check_none(timeout))
+      << "Expected no call to deactivate member";
+
+  if (GetParam() != PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
+    EXPECT_CALL_GROUP_SET_MEMBERS(
+        *mock, act_prof_id, _, _, ElementsAre(false, false));
+  }
+  group.clear_members();
+  add_member_to_group_new(&group, member_id, weight, watch_port_str);
+  EXPECT_OK(modify_group(&group));
+
+  if (GetParam() == PiActProfApiSupport_ADD_AND_REMOVE_MBR) {
+    EXPECT_TRUE(tracker_deactivate.wait_for(weight, timeout))
+        << "Missing calls to deactivate member";
+  }
+  ASSERT_TRUE(tracker_activate.check_none(timeout))
+      << "Expected no call to activate member";
+  ASSERT_TRUE(tracker_deactivate.check_none(timeout))
+      << "Expected no call to deactivate member";
+}
+
 TEST_P(ActionProfTest, InvalidActionProfId) {
   DeviceMgr::Status status;
   uint32_t member_id = 123;
@@ -1679,6 +1785,32 @@ class MatchTableIndirectTest
   }
 
   template <typename It>
+  p4v1::TableEntry make_indirect_entry_one_shot_new(
+      const boost::optional<std::string> &mf_v,
+      It params_begin, It params_end,
+      int weight, const boost::optional<std::string> &watch_port) {
+    p4v1::TableEntry table_entry;
+    auto t_id = pi_p4info_table_id_from_name(p4info, "IndirectWS");
+    table_entry.set_table_id(t_id);
+    if (mf_v.is_initialized()) {
+      auto mf = table_entry.add_match();
+      mf->set_field_id(pi_p4info_table_match_field_id_from_name(
+          p4info, t_id, "header_test.field32"));
+      auto mf_exact = mf->mutable_exact();
+      mf_exact->set_value(*mf_v);
+    }
+    auto entry = table_entry.mutable_action();
+    auto ap_action_set = entry->mutable_action_profile_action_set();
+    for (auto param_it = params_begin; param_it != params_end; param_it++) {
+      auto ap_action = ap_action_set->add_action_profile_actions();
+      set_action(ap_action->mutable_action(), *param_it);
+      ap_action->set_weight(weight);
+      if (watch_port.is_initialized()) ap_action->set_watch_port(*watch_port);
+    }
+    return table_entry;
+  }
+
+  template <typename It>
   DeviceMgr::Status add_indirect_entry_one_shot(
       p4v1::TableEntry *entry, It params_begin, It params_end,
       int weight = 1, bool activate = true) {
@@ -1902,6 +2034,56 @@ TEST_P(MatchTableIndirectTest, OneShotWatchPort) {
 
   auto entry = make_indirect_entry_one_shot(
       mf, params.begin(), params.end(), weight, watch_port);
+  ASSERT_OK(add_indirect_entry_one_shot(
+      &entry, params.begin(), params.end(), weight, true /* activate */));
+
+  EXPECT_CALL(*mock, table_entries_fetch(t_id, _));
+  EXPECT_CALL(*mock, action_prof_entries_fetch(act_prof_id, _));
+
+  p4v1::ReadResponse response;
+  ASSERT_OK(read_table_entries(t_id, &response));
+  const auto &entities = response.entities();
+  ASSERT_EQ(1, entities.size());
+  EXPECT_PROTO_EQ(entities.Get(0).table_entry(), entry);
+
+  std::chrono::milliseconds timeout(200);
+  CallCountTracker tracker_activate;
+  CallCountTracker tracker_deactivate;
+
+  EXPECT_CALL(*mock, action_prof_group_deactivate_member(act_prof_id, _, _))
+      .WillRepeatedly(InvokeWithoutArgs(std::ref(tracker_deactivate)));
+  EXPECT_CALL(*mock, action_prof_group_activate_member(act_prof_id, _, _))
+      .WillRepeatedly(InvokeWithoutArgs(std::ref(tracker_activate)));
+
+  EXPECT_EQ(mock->port_status_set(watch_port, PI_PORT_STATUS_DOWN),
+            PI_STATUS_SUCCESS);
+  EXPECT_TRUE(tracker_deactivate.wait_for(weight * params.size(), timeout))
+      << "Missing calls to deactivate member";
+  EXPECT_EQ(mock->port_status_set(watch_port, PI_PORT_STATUS_UP),
+            PI_STATUS_SUCCESS);
+  EXPECT_TRUE(tracker_activate.wait_for(weight * params.size(), timeout))
+      << "Missing calls to activate member";
+
+  ASSERT_TRUE(tracker_activate.check_none(timeout))
+      << "Expected no call to activate member";
+  ASSERT_TRUE(tracker_deactivate.check_none(timeout))
+      << "Expected no call to deactivate member";
+}
+
+// exact copy of OneShotWatchPort above, but uses the "watch_port" field (bytes)
+// instead of the deprecated "watch" file (int32)
+// TODO(antonin): avoid duplication
+TEST_P(MatchTableIndirectTest, OneShotWatchPortBytes) {
+  std::string mf("\xaa\xbb\xcc\xdd", 4);
+  std::vector<std::string> params;
+  params.emplace_back(6, '\x00');
+  params.emplace_back(6, '\x01');
+  int weight = 2;
+  int watch_port = 7;
+  std::string watch_port_str("\x07");
+
+  auto entry = make_indirect_entry_one_shot_new(
+      mf, params.begin(), params.end(), weight, watch_port_str);
   ASSERT_OK(add_indirect_entry_one_shot(
       &entry, params.begin(), params.end(), weight, true /* activate */));
 
