@@ -26,6 +26,7 @@
 
 #include <memory>
 #include <mutex>
+#include <string>
 #include <unordered_map>
 
 namespace pi {
@@ -47,18 +48,20 @@ class TableInfoStore {
 
   struct Data {
     Data(pi_entry_handle_t handle, uint64_t controller_metadata,
-         uint64_t idle_timeout_ns)
+         const std::string &metadata, uint64_t idle_timeout_ns)
         : handle(handle), controller_metadata(controller_metadata),
-          idle_timeout_ns(idle_timeout_ns) { }
+          metadata(metadata), idle_timeout_ns(idle_timeout_ns) { }
 
     Data(pi_entry_handle_t handle, uint64_t controller_metadata,
-         uint64_t idle_timeout_ns, pi_indirect_handle_t oneshot_group_handle)
+         const std::string &metadata, uint64_t idle_timeout_ns,
+         pi_indirect_handle_t oneshot_group_handle)
         : handle(handle), controller_metadata(controller_metadata),
-          idle_timeout_ns(idle_timeout_ns),
+          metadata(metadata), idle_timeout_ns(idle_timeout_ns),
           is_oneshot(true), oneshot_group_handle(oneshot_group_handle) { }
 
     const pi_entry_handle_t handle{0};
     uint64_t controller_metadata{0};
+    std::string metadata;
     int64_t idle_timeout_ns{0};
     // wish I could use boost::optional here
     bool is_oneshot{false};

@@ -34,7 +34,7 @@ void PIGrpcServerInit();
 // configuration.
 void PIGrpcServerInitWithConfig(const char *config_text, const char *version);
 
-// Start server and bind to default address (0.0.0.0:50051)
+// Start server and bind to default address (0.0.0.0:9559)
 void PIGrpcServerRun();
 
 // Start server and bind to given address (eg. localhost:1234,

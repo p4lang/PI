@@ -25,6 +25,7 @@
 #include <PI/pi.h>
 
 #include <map>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -119,13 +120,40 @@ class ActionProfMemberMap {
   std::unordered_map<pi_indirect_handle_t, Id> handle_to_id;
 };
 
+struct WatchPort {
+  enum class WatchKindCase {
+    kNotSet,
+    kWatch,
+    kWatchPort,
+  };
+
+  WatchKindCase watch_kind_case;
+  int watch;
+  std::string watch_port;
+  pi_port_t pi_port;
+
+  friend bool operator==(const WatchPort &lhs, const WatchPort &rhs);
+  friend bool operator!=(const WatchPort &lhs, const WatchPort &rhs);
+
+  static const WatchPort invalid_watch();
+
+  static WatchPort make(const p4::v1::ActionProfileGroup::Member &member);
+  static WatchPort make(const p4::v1::ActionProfileAction &action);
+
+  void to_p4rt(p4::v1::ActionProfileGroup::Member *member) const;
+  void to_p4rt(p4::v1::ActionProfileAction *action) const;
+
+ private:
+  template <typename T> void to_p4rt_helper(T *msg) const;
+};
+
 class ActionProfGroupMembership {
  public:
   using Id = ActionProfBiMap::Id;
 
   struct MembershipInfo {
     int weight;
-    pi_port_t watch;
+    WatchPort watch;
 
     friend bool operator==(const MembershipInfo &lhs,
                            const MembershipInfo &rhs);
@@ -136,15 +164,16 @@ class ActionProfGroupMembership {
   // member is unchanged (same weight), current_weight == new_weight.
   struct MembershipUpdate {
     MembershipUpdate(Id id, int current_weight, int new_weight,
-                     int current_watch, int new_watch)
+                     const WatchPort &current_watch,
+                     const WatchPort &new_watch)
         : id(id), current_weight(current_weight), new_weight(new_weight),
           current_watch(current_watch), new_watch(new_watch) { }
 
     Id id;
     int current_weight;
     int new_weight;
-    pi_port_t current_watch;
-    pi_port_t new_watch;
+    WatchPort current_watch;
+    WatchPort new_watch;
   };
 
   explicit ActionProfGroupMembership(size_t max_size_user);
@@ -161,7 +190,8 @@ class ActionProfGroupMembership {
 
   std::map<Id, MembershipInfo> &get_membership();
 
-  bool get_member_info(const Id &member_id, int *weight, int *watch) const;
+  bool get_member_info(
+      const Id &member_id, int *weight, WatchPort *watch) const;
 
  private:
   std::map<Id, MembershipInfo> members{};
@@ -245,7 +275,7 @@ class ActionProfAccessManual : public ActionProfAccessBase {
   bool group_get_max_size_user(const Id &group_id, size_t *max_size_user) const;
 
   bool get_member_info(const Id &group_id, const Id &member_id,
-                       int *weight, int *watch_port) const;
+                       int *weight, WatchPort *watch_port) const;
 
   // would be nice to be able to use boost::optional for the retrieve functions;
   // we cannot return a pointer (that would be null if the key couldn't be
@@ -307,7 +337,7 @@ class ActionProfAccessOneshot : public ActionProfAccessBase {
     // stores the correct, user-provided weight, while all the subsequent copies
     // have their weight field set to 0.
     int weight;
-    int watch;
+    WatchPort watch;
   };
 
   bool group_get_members(pi_indirect_handle_t group_h,

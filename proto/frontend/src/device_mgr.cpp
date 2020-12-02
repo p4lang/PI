@@ -365,8 +365,9 @@ class DeviceMgrImp {
       table_info_store.add_entry(
           t_id, match_key,
           TableInfoStore::Data(default_entry_handle,
-                               0  /* controller_metadata */,
-                               0  /* idle_timeout_ns */));
+                               0   /* controller_metadata */,
+                               ""  /* metadata */,
+                               0   /* idle_timeout_ns */));
 
       // if idle timeout is supported, set min TTL
       if (pi_p4info_table_supports_idle_timeout(p4info_new, t_id)) {
@@ -1017,7 +1018,7 @@ class DeviceMgrImp {
           RETURN_ERROR_STATUS(Code::INTERNAL, "Invalid member handle in group");
         ap_action->mutable_action()->CopyFrom(action_spec_it->second);
         ap_action->set_weight(member.weight);
-        ap_action->set_watch(member.watch);
+        member.watch.to_p4rt(ap_action);
       }
     }
 
@@ -1156,6 +1157,7 @@ class DeviceMgrImp {
           Code::INTERNAL, "Cannot find default entry in table info store");
     }
     table_entry->set_controller_metadata(entry_data->controller_metadata);
+    table_entry->set_metadata(entry_data->metadata);
 
     RETURN_OK_STATUS();
   }
@@ -1287,6 +1289,7 @@ class DeviceMgrImp {
                             "Table state out-of-sync with target");
       }
       table_entry->set_controller_metadata(entry_data->controller_metadata);
+      table_entry->set_metadata(entry_data->metadata);
       table_entry->set_idle_timeout_ns(entry_data->idle_timeout_ns);
 
       if (requested_entry.has_time_since_last_hit()) {
@@ -1499,7 +1502,7 @@ class DeviceMgrImp {
       // have a flag to choose one or the other).
       std::map<ActionProfMemberId, int> member_weights;
       int weight;
-      int watch_port;
+      WatchPort watch_port;
       for (size_t j = 0; j < num; j++) {
         ActionProfMemberId member_id;
         if (!access_manual->retrieve_member_id(members_h[j], &member_id)) {
@@ -1516,7 +1519,7 @@ class DeviceMgrImp {
         auto member = group->add_members();
         member->set_member_id(m.first);
         member->set_weight(m.second);
-        member->set_watch(watch_port);
+        watch_port.to_p4rt(member);
       }
     }
 
@@ -2661,14 +2664,18 @@ class DeviceMgrImp {
         p4v1::TableAction::kActionProfileActionSet) {
       table_info_store.add_entry(
           table_id, match_key,
-          TableInfoStore::Data(handle, table_entry.controller_metadata(),
+          TableInfoStore::Data(handle,
+                               table_entry.controller_metadata(),
+                               table_entry.metadata(),
                                table_entry.idle_timeout_ns(),
                                action_entry.indirect_handle()));
       session->cleanup_scope_pop();
     } else {
       table_info_store.add_entry(
           table_id, match_key,
-          TableInfoStore::Data(handle, table_entry.controller_metadata(),
+          TableInfoStore::Data(handle,
+                               table_entry.controller_metadata(),
+                               table_entry.metadata(),
                                table_entry.idle_timeout_ns()));
     }
 
@@ -2742,9 +2749,11 @@ class DeviceMgrImp {
       // cannot be false as the function returns early with an error otherwise
       assert(table_entry.is_default_action());
       entry_data->controller_metadata = 0;
+      entry_data->metadata = "";
       entry_data->idle_timeout_ns = 0;
     } else {
       entry_data->controller_metadata = table_entry.controller_metadata();
+      entry_data->metadata = table_entry.metadata();
       entry_data->idle_timeout_ns = table_entry.idle_timeout_ns();
       if (table_entry.action().type_case() ==
           p4v1::TableAction::kActionProfileActionSet) {
