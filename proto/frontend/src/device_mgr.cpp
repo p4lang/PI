@@ -1,4 +1,5 @@
 /* Copyright 2013-present Barefoot Networks, Inc.
+ * Copyright 2020 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +15,7 @@
  */
 
 /*
- * Antonin Bas (antonin@barefootnetworks.com)
+ * Antonin Bas
  *
  */
 
@@ -237,6 +238,54 @@ struct ConfigFile {
  private:
   std::FILE *fp{nullptr};
   size_t size{0};
+};
+
+// RAII wrapper around pi_table_fetch_res_t to enable proper cleanup in case of
+// failure.
+struct PIEntries {
+  explicit PIEntries(const SessionTemp &session)
+      : session(session) { }
+
+  ~PIEntries() {
+    if (_init) pi_table_entries_fetch_done(session.get(), res);
+  }
+
+  Status fetch(pi_dev_tgt_t device_tgt, pi_p4_id_t table_id) {
+    assert(!_init);
+    auto pi_status = pi_table_entries_fetch(
+        session.get(), device_tgt, table_id, &res);
+    if (pi_status != PI_STATUS_SUCCESS) {
+      RETURN_ERROR_STATUS(
+          Code::UNKNOWN, "Error when reading table entries from target");
+    }
+    _init = true;
+    RETURN_OK_STATUS();
+  }
+
+  Status fetch_one(pi_dev_tgt_t device_tgt, pi_p4_id_t table_id,
+                   const pi::MatchKey &mk) {
+    assert(!_init);
+    auto pi_status = pi_table_entries_fetch_wkey(
+        session.get(), device_tgt, table_id, mk.get(), &res);
+    if (pi_status != PI_STATUS_SUCCESS) {
+      RETURN_ERROR_STATUS(
+          Code::UNKNOWN, "Error when reading table entry from target");
+    }
+    _init = true;
+    RETURN_OK_STATUS();
+  }
+
+  operator pi_table_fetch_res_t *() const {
+    return res;
+  }
+
+  pi_table_fetch_res_t *operator->() const {
+    return res;
+  }
+
+  bool _init{false};
+  const SessionTemp &session;
+  pi_table_fetch_res_t *res{nullptr};
 };
 
 // RAII wrapper around pi_act_prof_fetch_res_tt to enable proper cleanup in case
@@ -833,18 +882,21 @@ class DeviceMgrImp {
   Status direct_meter_read_one(const p4v1::TableEntry &table_entry,
                                const SessionTemp &session,
                                p4v1::ReadResponse *response) const {
+    auto table_id = table_entry.table_id();
+    p4_id_t table_direct_meter_id = pi_get_table_direct_resource_p4_id(
+        table_id, P4Ids::DIRECT_METER);
+    if (table_direct_meter_id == PI_INVALID_ID) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "Table has no direct meters");
+    }
+
+    // read single direct meter entry
     if (!table_entry.match().empty() || table_entry.is_default_action()) {
       // also works for default entry, since the default entry is added to the
       // table info store (with the corect target-generated handle) in p4_change
       pi_entry_handle_t entry_handle = 0;
       RETURN_IF_ERROR(entry_handle_from_table_entry(
           table_entry, &entry_handle));
-      p4_id_t table_direct_meter_id = pi_get_table_direct_resource_p4_id(
-        table_entry.table_id(), P4Ids::DIRECT_METER);
-      if (table_direct_meter_id == PI_INVALID_ID) {
-        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
-                            "Table has no direct meters");
-      }
       pi_meter_spec_t meter_spec;
       auto pi_status = pi_meter_read_direct(
           session.get(), device_tgt, table_direct_meter_id, entry_handle,
@@ -858,10 +910,47 @@ class DeviceMgrImp {
       meter_spec_pi_to_proto(meter_spec, entry->mutable_config());
       RETURN_OK_STATUS();
     }
-    // read all direct meters in table
-    RETURN_ERROR_STATUS(
-        Code::UNIMPLEMENTED,
-        "Reading ALL direct meters in a table is not supported yet");
+
+    // read all direct meters in table; in order to do that we choose to read
+    // all the table entries first, then extract direct meter values. As a
+    // result, a lot of this code is duplicated from table_read_one.
+    PIEntries entries(session);
+    RETURN_IF_ERROR(entries.fetch(device_tgt, table_id));
+    auto num_entries = pi_table_entries_num(entries);
+    pi_table_ma_entry_t pi_entry;
+    pi_entry_handle_t entry_handle;
+    pi::MatchKey mk(p4info.get(), table_id);
+    for (size_t i = 0; i < num_entries; i++) {
+      pi_table_entries_next(entries, &pi_entry, &entry_handle);
+
+      mk.from(pi_entry.match_key);
+
+      auto *entry = response->add_entities()->mutable_direct_meter_entry();
+      auto *tentry = entry->mutable_table_entry();
+      tentry->set_table_id(table_id);
+      RETURN_IF_ERROR(parse_match_key(p4info.get(), table_id, mk, tentry));
+
+      // direct resources
+      auto *direct_configs = pi_entry.entry.direct_res_config;
+      if (!direct_configs) {
+        RETURN_ERROR_STATUS(
+            Code::INTERNAL,
+            "Did not expect no direct resource for table entry");
+      }
+      for (size_t j = 0; j < direct_configs->num_configs; j++) {
+        const auto &config = direct_configs->configs[j];
+        if (config.res_id != table_direct_meter_id) continue;
+        meter_spec_pi_to_proto(
+            *static_cast<pi_meter_spec_t *>(config.config),
+            entry->mutable_config());
+      }
+      if (!entry->has_config()) {
+        RETURN_ERROR_STATUS(
+            Code::INTERNAL,
+            "Did not expect no direct meter for table entry");
+      }
+    }
+    RETURN_OK_STATUS();
   }
 
   Status direct_meter_read(const p4v1::DirectMeterEntry &meter_entry,
@@ -874,7 +963,7 @@ class DeviceMgrImp {
     const auto &table_entry = meter_entry.table_entry();
     if (table_entry.table_id() == 0) {
       RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
-        "Reading ALL direct meters for all tables is not supported yet");
+        "Reading all direct meters for ALL tables is not supported yet");
     }
     if (!check_p4_id(table_entry.table_id(), P4Ids::TABLE))
       return make_invalid_p4_id_status();
@@ -1169,54 +1258,6 @@ class DeviceMgrImp {
     if (requested_entry.is_default_action()) {
       return table_read_default(table_id, requested_entry, session, response);
     }
-
-    // RAII wrapper around pi_table_fetch_res_t to enable proper cleanup in case
-    // of failure.
-    struct PIEntries {
-      explicit PIEntries(const SessionTemp &session)
-          : session(session) { }
-
-      ~PIEntries() {
-        if (_init) pi_table_entries_fetch_done(session.get(), res);
-      }
-
-      Status fetch(pi_dev_tgt_t device_tgt, pi_p4_id_t table_id) {
-        assert(!_init);
-        auto pi_status = pi_table_entries_fetch(
-            session.get(), device_tgt, table_id, &res);
-        if (pi_status != PI_STATUS_SUCCESS) {
-          RETURN_ERROR_STATUS(
-              Code::UNKNOWN, "Error when reading table entries from target");
-        }
-        _init = true;
-        RETURN_OK_STATUS();
-      }
-
-      Status fetch_one(pi_dev_tgt_t device_tgt, pi_p4_id_t table_id,
-                       const pi::MatchKey &mk) {
-        assert(!_init);
-        auto pi_status = pi_table_entries_fetch_wkey(
-            session.get(), device_tgt, table_id, mk.get(), &res);
-        if (pi_status != PI_STATUS_SUCCESS) {
-          RETURN_ERROR_STATUS(
-              Code::UNKNOWN, "Error when reading table entry from target");
-        }
-        _init = true;
-        RETURN_OK_STATUS();
-      }
-
-      operator pi_table_fetch_res_t *() const {
-        return res;
-      }
-
-      pi_table_fetch_res_t *operator->() const {
-        return res;
-      }
-
-      bool _init{false};
-      const SessionTemp &session;
-      pi_table_fetch_res_t *res{nullptr};
-    };
 
     bool table_supports_idle_timeout = pi_p4info_table_supports_idle_timeout(
         p4info.get(), table_id);
@@ -1755,18 +1796,21 @@ class DeviceMgrImp {
   Status direct_counter_read_one(const p4v1::TableEntry &table_entry,
                                  const SessionTemp &session,
                                  p4v1::ReadResponse *response) const {
+    auto table_id =  table_entry.table_id();
+    p4_id_t table_direct_counter_id = pi_get_table_direct_resource_p4_id(
+        table_id, P4Ids::DIRECT_COUNTER);
+    if (table_direct_counter_id == PI_INVALID_ID) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "Table has no direct counters");
+    }
+
+    // read single direct counter entry
     if (!table_entry.match().empty() || table_entry.is_default_action()) {
       // also works for default entry, since the default entry is added to the
       // table info store (with the corect target-generated handle) in p4_change
       pi_entry_handle_t entry_handle = 0;
       RETURN_IF_ERROR(entry_handle_from_table_entry(
           table_entry, &entry_handle));
-      p4_id_t table_direct_counter_id = pi_get_table_direct_resource_p4_id(
-        table_entry.table_id(), P4Ids::DIRECT_COUNTER);
-      if (table_direct_counter_id == PI_INVALID_ID) {
-        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
-                            "Table has no direct counters");
-      }
       pi_counter_data_t counter_data;
       auto pi_status = pi_counter_read_direct(
           session.get(), device_tgt, table_direct_counter_id, entry_handle,
@@ -1780,10 +1824,47 @@ class DeviceMgrImp {
       counter_data_pi_to_proto(counter_data, entry->mutable_data());
       RETURN_OK_STATUS();
     }
-    // read all direct counters in table
-    RETURN_ERROR_STATUS(
-        Code::UNIMPLEMENTED,
-        "Reading ALL direct counters in a table is not supported yet");
+
+    // read all direct counters in table; in order to do that we choose to read
+    // all the table entries first, then extract direct counter values. As a
+    // result, a lot of this code is duplicated from table_read_one.
+    PIEntries entries(session);
+    RETURN_IF_ERROR(entries.fetch(device_tgt, table_id));
+    auto num_entries = pi_table_entries_num(entries);
+    pi_table_ma_entry_t pi_entry;
+    pi_entry_handle_t entry_handle;
+    pi::MatchKey mk(p4info.get(), table_id);
+    for (size_t i = 0; i < num_entries; i++) {
+      pi_table_entries_next(entries, &pi_entry, &entry_handle);
+
+      mk.from(pi_entry.match_key);
+
+      auto *entry = response->add_entities()->mutable_direct_counter_entry();
+      auto *tentry = entry->mutable_table_entry();
+      tentry->set_table_id(table_id);
+      RETURN_IF_ERROR(parse_match_key(p4info.get(), table_id, mk, tentry));
+
+      // direct resources
+      auto *direct_configs = pi_entry.entry.direct_res_config;
+      if (!direct_configs) {
+        RETURN_ERROR_STATUS(
+            Code::INTERNAL,
+            "Did not expect no direct resource for table entry");
+      }
+      for (size_t j = 0; j < direct_configs->num_configs; j++) {
+        const auto &config = direct_configs->configs[j];
+        if (config.res_id != table_direct_counter_id) continue;
+        counter_data_pi_to_proto(
+            *static_cast<pi_counter_data_t *>(config.config),
+            entry->mutable_data());
+      }
+      if (!entry->has_data()) {
+        RETURN_ERROR_STATUS(
+            Code::INTERNAL,
+            "Did not expect no direct counter for table entry");
+      }
+    }
+    RETURN_OK_STATUS();
   }
 
   Status direct_counter_read(const p4v1::DirectCounterEntry &counter_entry,
@@ -1797,7 +1878,7 @@ class DeviceMgrImp {
     if (table_entry.table_id() == 0) {
       RETURN_ERROR_STATUS(
           Code::UNIMPLEMENTED,
-          "Reading ALL direct counters for all tables is not supported yet");
+          "Reading all direct counters for ALL tables is not supported yet");
     }
     if (!check_p4_id(table_entry.table_id(), P4Ids::TABLE))
       return make_invalid_p4_id_status();
