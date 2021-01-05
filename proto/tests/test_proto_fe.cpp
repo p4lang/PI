@@ -1,4 +1,5 @@
 /* Copyright 2013-present Barefoot Networks, Inc.
+ * Copyright 2020 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +15,7 @@
  */
 
 /*
- * Antonin Bas (antonin@barefootnetworks.com)
+ * Antonin Bas
  *
  */
 
@@ -2515,6 +2516,37 @@ TEST_F(DirectMeterTest, MissingTableEntry) {
   EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
 }
 
+TEST_F(DirectMeterTest, ReadAllFromTable) {
+  std::string mf("\xaa\xbb\xcc\xdd", 4);
+  std::string adata(6, '\x00');
+  auto entry = make_entry(mf, adata);
+  auto *meter_config = entry.mutable_meter_config();
+  *meter_config = make_meter_config();
+
+  auto mk_matcher = CorrectMatchKey(t_id, mf);
+  auto *entry_matcher_ = new TableEntryMatcher_Direct(a_id, adata);
+  // expected meter spec as per the P4 program
+  entry_matcher_->add_direct_meter(
+      m_id, *meter_config, PI_METER_UNIT_BYTES, PI_METER_TYPE_COLOR_UNAWARE);
+  auto entry_matcher = ::testing::MakeMatcher(entry_matcher_);
+
+  EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
+  EXPECT_OK(add_entry(&entry));
+
+  EXPECT_CALL(*mock, table_entries_fetch(t_id, _));
+  {
+    p4v1::ReadResponse response;
+    p4v1::DirectMeterEntry meter_entry;
+    meter_entry.mutable_table_entry()->set_table_id(entry.table_id());
+    EXPECT_OK(read_meter(&meter_entry, &response));
+
+    const auto &entities = response.entities();
+    ASSERT_EQ(1, entities.size());
+    const auto &read_entry = entities.Get(0).direct_meter_entry();
+    EXPECT_PROTO_EQ(read_entry.config(), *meter_config);
+  }
+}
+
 // default entry direct meter access with DirectMeterEntry message
 TEST_F(DirectMeterTest, DefaultEntry) {
   std::string adata(6, '\x00');
@@ -2747,21 +2779,34 @@ TEST_F(DirectCounterTest, InvalidTableEntry) {
   }
 }
 
-// TODO(antonin)
 TEST_F(DirectCounterTest, ReadAllFromTable) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
   std::string adata(6, '\x00');
   auto entry = make_entry(mf, adata);
+  auto counter_data = entry.mutable_counter_data();
+  counter_data->set_packet_count(3);
+
   auto mk_matcher = CorrectMatchKey(t_id, mf);
-  auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
+  auto *entry_matcher_ = new TableEntryMatcher_Direct(a_id, adata);
+  // check packets, but not bytes, as per P4 program (packet-only counter)
+  entry_matcher_->add_direct_counter(c_id, *counter_data, false, true);
+  auto entry_matcher = ::testing::MakeMatcher(entry_matcher_);
   EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
   ASSERT_OK(add_entry(&entry));
 
-  p4v1::ReadResponse response;
-  p4v1::DirectCounterEntry counter_entry;
-  counter_entry.mutable_table_entry()->set_table_id(entry.table_id());
-  auto status = read_counter(&counter_entry, &response);
-  EXPECT_EQ(status.code(), Code::UNIMPLEMENTED);
+  EXPECT_CALL(*mock, table_entries_fetch(t_id, _));
+  {
+    p4v1::ReadResponse response;
+    p4v1::DirectCounterEntry counter_entry;
+    counter_entry.mutable_table_entry()->set_table_id(entry.table_id());
+    EXPECT_OK(read_counter(&counter_entry, &response));
+
+    const auto &entities = response.entities();
+    ASSERT_EQ(1, entities.size());
+    const auto &read_entry = entities.Get(0).direct_counter_entry();
+    EXPECT_EQ(read_entry.data().byte_count(), 0);
+    EXPECT_EQ(read_entry.data().packet_count(), 3);
+  }
 }
 
 TEST_F(DirectCounterTest, MissingTableEntry) {
