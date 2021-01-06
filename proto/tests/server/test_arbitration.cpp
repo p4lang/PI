@@ -1,4 +1,5 @@
 /* Copyright 2013-present Barefoot Networks, Inc.
+ * Copyright 2021 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +15,7 @@
  */
 
 /*
- * Antonin Bas (antonin@barefootnetworks.com)
+ * Antonin Bas
  *
  */
 
@@ -24,6 +25,7 @@
 #include <gtest/gtest.h>
 
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "p4/v1/p4runtime.grpc.pb.h"
@@ -152,7 +154,7 @@ class TestArbitration : public ::testing::Test {
 
 TestServer *TestArbitration::server = nullptr;
 
-TEST_F(TestArbitration, WriteNoMaster) {
+TEST_F(TestArbitration, WriteNoPrimary) {
   // no streams, empty election id, should go through
   {
     p4v1::WriteRequest request;
@@ -188,8 +190,8 @@ TEST_F(TestArbitration, DuplicateElectionId) {
 }
 
 TEST_F(TestArbitration, WriteAndPacketInAndPacketOut) {
-  Uint128 master_id(2);
-  Uint128 slave_id(1);
+  Uint128 primary_id(2);
+  Uint128 backup_id(1);
   const std::string payload("aaaa");
 
   auto check_write = [this](const Uint128 &election_id, bool success) {
@@ -215,41 +217,41 @@ TEST_F(TestArbitration, WriteAndPacketInAndPacketOut) {
     //             packetout_send(StrEq(payload.c_str()), payload.size()));
   };
 
-  ClientContext stream_master_context;
-  auto stream_master = stream_setup(&stream_master_context, master_id);
-  ASSERT_NE(stream_master, nullptr);
+  ClientContext stream_primary_context;
+  auto stream_primary = stream_setup(&stream_primary_context, primary_id);
+  ASSERT_NE(stream_primary, nullptr);
 
-  EXPECT_EQ(read_arbitration_status(stream_master.get()).code(),
+  EXPECT_EQ(read_arbitration_status(stream_primary.get()).code(),
             ::google::rpc::Code::OK);
   EXPECT_EQ(PIGrpcServerGetPacketInCount(device_id), 0u);
   EXPECT_EQ(PIGrpcServerGetPacketOutCount(device_id), 0u);
-  check_write(master_id, true);
-  check_packet_in(stream_master.get());
-  check_packet_out(stream_master.get());
+  check_write(primary_id, true);
+  check_packet_in(stream_primary.get());
+  check_packet_out(stream_primary.get());
   EXPECT_EQ(PIGrpcServerGetPacketInCount(device_id), 1u);
 
-  ClientContext stream_slave_context;
-  auto stream_slave = stream_setup(&stream_slave_context, slave_id);
-  ASSERT_NE(stream_slave, nullptr);
+  ClientContext stream_backup_context;
+  auto stream_backup = stream_setup(&stream_backup_context, backup_id);
+  ASSERT_NE(stream_backup, nullptr);
 
-  EXPECT_EQ(read_arbitration_status(stream_slave.get()).code(),
+  EXPECT_EQ(read_arbitration_status(stream_backup.get()).code(),
             ::google::rpc::Code::ALREADY_EXISTS);
-  check_write(master_id, true);
-  check_write(slave_id, false);
-  check_packet_in(stream_master.get());
-  check_packet_out(stream_master.get());
+  check_write(primary_id, true);
+  check_write(backup_id, false);
+  check_packet_in(stream_primary.get());
+  check_packet_out(stream_primary.get());
   EXPECT_EQ(PIGrpcServerGetPacketInCount(device_id), 2u);
 
-  EXPECT_TRUE(stream_teardown(std::move(stream_master)).ok());
+  EXPECT_TRUE(stream_teardown(std::move(stream_primary)).ok());
 
-  EXPECT_EQ(read_arbitration_status(stream_slave.get()).code(),
+  EXPECT_EQ(read_arbitration_status(stream_backup.get()).code(),
             ::google::rpc::Code::OK);
-  check_write(slave_id, true);
-  check_packet_in(stream_slave.get());
-  check_packet_out(stream_slave.get());
+  check_write(backup_id, true);
+  check_packet_in(stream_backup.get());
+  check_packet_out(stream_backup.get());
   EXPECT_EQ(PIGrpcServerGetPacketInCount(device_id), 3u);
 
-  EXPECT_TRUE(stream_teardown(std::move(stream_slave)).ok());
+  EXPECT_TRUE(stream_teardown(std::move(stream_backup)).ok());
 }
 
 TEST_F(TestArbitration, MaxConnections) {
@@ -283,6 +285,48 @@ TEST_F(TestArbitration, MaxConnections) {
               ::google::rpc::Code::OK);
     EXPECT_TRUE(stream_teardown(std::move(extra_stream)).ok());
   }
+}
+
+// The SingleThreadedClient test was added because of a deadlock in the server
+// implementation exposed by using a P4Runtime client reading streamed packet-in
+// messages and reacting to them with Write RPCs in the same thread.
+// See https://github.com/p4lang/PI/issues/523.
+TEST_F(TestArbitration, SingleThreadedClient) {
+  Uint128 election_id(1);
+  // These need to be large enough to account for buffering at the network
+  // interface.
+  const std::string payload(1000, 'a');
+  const size_t num_packets = 10000;
+
+  ClientContext stream_context;
+  auto stream = stream_setup(&stream_context, election_id);
+  ASSERT_NE(stream, nullptr);
+
+  EXPECT_EQ(read_arbitration_status(stream.get()).code(),
+            ::google::rpc::Code::OK);
+
+  auto send_packet_ins = [this, &payload]() {
+    for (size_t i = 0; i < num_packets; i++) {
+      p4v1::PacketIn packet;
+      packet.set_payload(payload);
+      ::pi::server::testing::send_packet_in(device_id, &packet);
+    }
+  };
+
+  auto handle_packet_ins = [this, &election_id, &stream]() {
+    for (size_t i = 0; i < num_packets; i++) {
+      EXPECT_TRUE(read_packet_in(stream.get()));
+      auto status = do_write(election_id);
+      EXPECT_EQ(StatusCode::FAILED_PRECONDITION, status.error_code());
+    }
+  };
+
+  std::thread thread1(handle_packet_ins);
+  std::thread thread2(send_packet_ins);
+  thread1.join();
+  thread2.join();
+
+  EXPECT_TRUE(stream_teardown(std::move(stream)).ok());
 }
 
 }  // namespace

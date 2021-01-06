@@ -37,6 +37,7 @@
 #include "p4/v1/p4runtime.grpc.pb.h"
 #include "pi_server_testing.h"
 #include "server_config/server_config.h"
+#include "shared_mutex.h"
 #include "uint128.h"
 
 #include "PI/proto/pi_server.h"
@@ -169,12 +170,12 @@ class DeviceState {
       : device_id(device_id), server_config(default_server_config) { }
 
   DeviceMgr *get_p4_mgr() {
-    std::lock_guard<std::mutex> lock(m);
+    auto lock = shared_lock();
     return device_mgr.get();
   }
 
   DeviceMgr *get_or_add_p4_mgr() {
-    std::lock_guard<std::mutex> lock(m);
+    auto lock = unique_lock();
     if (device_mgr == nullptr) {
       device_mgr.reset(new DeviceMgr(device_id));
       auto status = device_mgr->server_config_set(
@@ -189,7 +190,7 @@ class DeviceState {
 
   Status set_server_config(const p4serverv1::Config &config) {
     server_config.set_config(config);
-    std::lock_guard<std::mutex> lock(m);
+    auto lock = unique_lock();
     if (device_mgr != nullptr) {
       return to_grpc_status(device_mgr->server_config_set(config));
     }
@@ -201,9 +202,10 @@ class DeviceState {
   }
 
   void send_stream_message(p4v1::StreamMessageResponse *msg) {
-    std::lock_guard<std::mutex> lock(m);
+    auto lock = shared_lock();
     auto master = get_master();
     if (master == nullptr) return;
+    std::lock_guard<std::mutex> packetin_lock(packetin_mutex);
     auto stream = master->stream();
     auto success = stream->Write(*msg);
     if (msg->has_packet() && success) {
@@ -213,12 +215,12 @@ class DeviceState {
   }
 
   uint64_t get_pkt_in_count() {
-    std::lock_guard<std::mutex> lock(m);
+    std::lock_guard<std::mutex> packetin_lock(packetin_mutex);
     return pkt_in_count;
   }
 
   Status add_connection(Connection *connection) {
-    std::lock_guard<std::mutex> lock(m);
+    auto lock = unique_lock();
     if (connections.size() >= max_connections)
       return Status(StatusCode::RESOURCE_EXHAUSTED, "Too many connections");
     auto p = connections.insert(connection);
@@ -237,7 +239,7 @@ class DeviceState {
 
   Status update_connection(Connection *connection,
                            const Uint128 &new_election_id) {
-    std::lock_guard<std::mutex> lock(m);
+    auto lock = unique_lock();
     if (connection->election_id() == new_election_id) return Status::OK;
     auto connection_it = connections.find(connection);
     assert(connection_it != connections.end());
@@ -259,7 +261,7 @@ class DeviceState {
   }
 
   void cleanup_connection(Connection *connection) {
-    std::lock_guard<std::mutex> lock(m);
+    auto lock = unique_lock();
     auto connection_it = connections.find(connection);
     assert(connection_it != connections.end());
     auto was_master = (connection_it == connections.begin());
@@ -272,9 +274,10 @@ class DeviceState {
       Connection *connection, const p4v1::StreamMessageRequest &request) {
     // these are handled directly by StreamChannel
     assert(request.update_case() != p4v1::StreamMessageRequest::kArbitration);
-    std::lock_guard<std::mutex> lock(m);
+    auto lock = shared_lock();
     if (!is_master(connection)) return;
     if (device_mgr == nullptr) return;
+    std::lock_guard<std::mutex> packetout_lock(packetout_mutex);
     device_mgr->stream_message_request_handle(request);
     if (request.update_case() == p4v1::StreamMessageRequest::kPacket) {
       SIMPLELOG << "PACKET OUT\n";
@@ -283,22 +286,30 @@ class DeviceState {
   }
 
   uint64_t get_pkt_out_count() {
-    std::lock_guard<std::mutex> lock(m);
+    std::lock_guard<std::mutex> packetout_lock(packetout_mutex);
     return pkt_out_count;
   }
 
   bool is_master(const Uint128 &election_id) const {
-    std::lock_guard<std::mutex> lock(m);
+    auto lock = shared_lock();
     auto master = get_master();
     return (master == nullptr) ? false : (master->election_id() == election_id);
   }
 
   size_t connections_size() const {
-    std::lock_guard<std::mutex> lock(m);
+    auto lock = shared_lock();
     return connections.size();
   }
 
  private:
+  SharedLock shared_lock() const {
+    return ::pi::server::shared_lock(m);
+  }
+
+  UniqueLock unique_lock() const {
+    return ::pi::server::unique_lock(m);
+  }
+
   Connection *get_master() const {
     return connections.empty() ? nullptr : *connections.begin();
   }
@@ -337,7 +348,12 @@ class DeviceState {
 
   static p4serverv1::Config default_server_config;
 
-  mutable std::mutex m{};
+  // protects DeviceMgr, connections, ...
+  mutable SharedMutex m{};
+  // protects pkt_in_count and ensures sequential writes on the stream
+  mutable std::mutex packetin_mutex;
+  // protects pkt_out_count
+  mutable std::mutex packetout_mutex;
   uint64_t pkt_in_count{0};
   uint64_t pkt_out_count{0};
   std::unique_ptr<DeviceMgr> device_mgr{nullptr};
