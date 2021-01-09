@@ -98,8 +98,8 @@ grpc::Status no_pipeline_config_status() {
                       "No forwarding pipeline config set for this device");
 }
 
-grpc::Status not_master_status() {
-  return grpc::Status(grpc::StatusCode::PERMISSION_DENIED, "Not master");
+grpc::Status not_primary_status() {
+  return grpc::Status(grpc::StatusCode::PERMISSION_DENIED, "Not primary");
 }
 
 using StreamChannelReaderWriter = grpc::ServerReaderWriter<
@@ -203,10 +203,10 @@ class DeviceState {
 
   void send_stream_message(p4v1::StreamMessageResponse *msg) {
     auto lock = shared_lock();
-    auto master = get_master();
-    if (master == nullptr) return;
+    auto primary = get_primary();
+    if (primary == nullptr) return;
     std::lock_guard<std::mutex> packetin_lock(packetin_mutex);
-    auto stream = master->stream();
+    auto stream = primary->stream();
     auto success = stream->Write(*msg);
     if (msg->has_packet() && success) {
       SIMPLELOG << "PACKET IN\n";
@@ -229,8 +229,8 @@ class DeviceState {
                     "Election id already exists");
     }
     SIMPLELOG << "New connection\n";
-    auto is_master = (p.first == connections.begin());
-    if (is_master)
+    auto is_primary = (p.first == connections.begin());
+    if (is_primary)
       notify_all();
     else
       notify_one(connection);
@@ -243,7 +243,7 @@ class DeviceState {
     if (connection->election_id() == new_election_id) return Status::OK;
     auto connection_it = connections.find(connection);
     assert(connection_it != connections.end());
-    auto was_master = (connection_it == connections.begin());
+    auto was_primary = (connection_it == connections.begin());
     connections.erase(connection_it);
     connection->set_election_id(new_election_id);
     auto p = connections.insert(connection);
@@ -251,9 +251,9 @@ class DeviceState {
       return Status(StatusCode::INVALID_ARGUMENT,
                     "New election id already exists");
     }
-    auto is_master = (p.first == connections.begin());
-    auto master_changed = (is_master != was_master);
-    if (master_changed)
+    auto is_primary = (p.first == connections.begin());
+    auto primary_changed = (is_primary != was_primary);
+    if (primary_changed)
       notify_all();
     else
       notify_one(connection);
@@ -264,10 +264,10 @@ class DeviceState {
     auto lock = unique_lock();
     auto connection_it = connections.find(connection);
     assert(connection_it != connections.end());
-    auto was_master = (connection_it == connections.begin());
+    auto was_primary = (connection_it == connections.begin());
     connections.erase(connection_it);
     SIMPLELOG << "Connection removed\n";
-    if (was_master) notify_all();
+    if (was_primary) notify_all();
   }
 
   void process_stream_message_request(
@@ -275,7 +275,7 @@ class DeviceState {
     // these are handled directly by StreamChannel
     assert(request.update_case() != p4v1::StreamMessageRequest::kArbitration);
     auto lock = shared_lock();
-    if (!is_master(connection)) return;
+    if (!is_primary(connection)) return;
     if (device_mgr == nullptr) return;
     std::lock_guard<std::mutex> packetout_lock(packetout_mutex);
     device_mgr->stream_message_request_handle(request);
@@ -290,10 +290,11 @@ class DeviceState {
     return pkt_out_count;
   }
 
-  bool is_master(const Uint128 &election_id) const {
+  bool is_primary(const Uint128 &election_id) const {
     auto lock = shared_lock();
-    auto master = get_master();
-    return (master == nullptr) ? false : (master->election_id() == election_id);
+    auto primary = get_primary();
+    return (primary == nullptr) ?
+        false : (primary->election_id() == election_id);
   }
 
   size_t connections_size() const {
@@ -310,16 +311,16 @@ class DeviceState {
     return ::pi::server::unique_lock(m);
   }
 
-  Connection *get_master() const {
+  Connection *get_primary() const {
     return connections.empty() ? nullptr : *connections.begin();
   }
 
-  bool is_master(const Connection *connection) const {
-    return connection == get_master();
+  bool is_primary(const Connection *connection) const {
+    return connection == get_primary();
   }
 
   void notify_one(const Connection *connection) const {
-    auto is_master = (connection == *connections.begin());
+    auto is_primary = (connection == *connections.begin());
     auto stream = connection->stream();
     p4v1::StreamMessageResponse response;
     auto arbitration = response.mutable_arbitration();
@@ -328,16 +329,16 @@ class DeviceState {
       to->set_high(from.high());
       to->set_low(from.low());
     };
-    auto master_connection = get_master();
-    convert_u128(master_connection->election_id(),
+    auto primary_connection = get_primary();
+    convert_u128(primary_connection->election_id(),
                  arbitration->mutable_election_id());
     auto status = arbitration->mutable_status();
-    if (is_master) {
+    if (is_primary) {
       status->set_code(::google::rpc::Code::OK);
-      status->set_message("Is master");
+      status->set_message("Is primary");
     } else {
       status->set_code(::google::rpc::Code::ALREADY_EXISTS);
-      status->set_message("Is slave");
+      status->set_message("Is backup");
     }
     stream->Write(response);
   }
@@ -414,10 +415,10 @@ class P4RuntimeServiceImpl : public p4v1::P4Runtime::Service {
     // using grpc_cli, but may need to be changed in production.
     auto num_connections = device->connections_size();
     if (num_connections == 0 && request->has_election_id())
-      return not_master_status();
+      return not_primary_status();
     auto election_id = convert_u128(request->election_id());
-    if (num_connections > 0 && !device->is_master(election_id))
-      return not_master_status();
+    if (num_connections > 0 && !device->is_primary(election_id))
+      return not_primary_status();
     auto device_mgr = device->get_p4_mgr();
     if (device_mgr == nullptr) return no_pipeline_config_status();
     auto status = device_mgr->write(*request);
@@ -449,10 +450,10 @@ class P4RuntimeServiceImpl : public p4v1::P4Runtime::Service {
     // using grpc_cli, but may need to be changed in production.
     auto num_connections = device->connections_size();
     if (num_connections == 0 && request->has_election_id())
-      return not_master_status();
+      return not_primary_status();
     auto election_id = convert_u128(request->election_id());
-    if (num_connections > 0 && !device->is_master(election_id))
-      return not_master_status();
+    if (num_connections > 0 && !device->is_primary(election_id))
+      return not_primary_status();
     auto device_mgr = device->get_or_add_p4_mgr();
     auto status = device_mgr->pipeline_config_set(
         request->action(), request->config());
