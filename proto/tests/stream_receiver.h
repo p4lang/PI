@@ -15,12 +15,12 @@
 #ifndef PROTO_TESTS_STREAM_RECEIVER_H_
 #define PROTO_TESTS_STREAM_RECEIVER_H_
 
-#include <boost/optional.hpp>
-
 #include <chrono>
 #include <condition_variable>
 #include <mutex>
 #include <queue>
+
+#include <boost/optional.hpp>
 
 #include "p4/v1/p4runtime.pb.h"
 

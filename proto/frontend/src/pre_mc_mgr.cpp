@@ -20,6 +20,8 @@
 
 #include <PI/pi_mc.h>
 
+#include <memory>
+#include <utility>  // for std::move
 #include <vector>
 
 #include "google/rpc/code.pb.h"

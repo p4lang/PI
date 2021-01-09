@@ -18,8 +18,6 @@
  *
  */
 
-#include <boost/optional.hpp>
-
 #include <grpcpp/grpcpp.h>
 
 #include <gtest/gtest.h>
@@ -36,6 +34,8 @@
 #include <thread>
 #include <unordered_map>
 #include <vector>
+
+#include <boost/optional.hpp>
 
 #include "gnmi/gnmi.grpc.pb.h"
 

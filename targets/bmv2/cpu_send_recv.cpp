@@ -28,6 +28,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <utility>  // std::move
 
 #include <cassert>
 

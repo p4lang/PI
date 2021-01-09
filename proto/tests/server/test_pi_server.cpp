@@ -21,10 +21,11 @@ namespace proto {
 namespace testing {
 namespace {
 
-const std::string grpc_server_addr = "0.0.0.0";
+const char grpc_server_addr[] = "0.0.0.0";
 
 void StartGrpcServer(int port) {
-  std::string bind_addr = grpc_server_addr + ":" + std::to_string(port);
+  std::string bind_addr =
+      std::string(grpc_server_addr) + ":" + std::to_string(port);
   PIGrpcServerRunAddr(bind_addr.c_str());
 }
 

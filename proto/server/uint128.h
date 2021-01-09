@@ -34,7 +34,8 @@ class Uint128 {
       : high_(high), low_(low) { }
   template<typename T,
            typename std::enable_if<std::is_integral<T>::value, int>::type = 0>
-  constexpr Uint128(T i)
+  // we want implicit conversions for increment operator implementations
+  constexpr Uint128(T i)  // NOLINT(runtime/explicit)
       : high_(0), low_(i) { }
 
   Uint128& operator+=(const Uint128 &other) {

@@ -22,15 +22,16 @@
 
 #include <gmock/gmock.h>
 
-#include <boost/functional/hash.hpp>
-#include <boost/optional.hpp>
-
 #include <algorithm>  // std::copy, std::for_each, std::count
 #include <map>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>  // std::move
 #include <vector>
+
+#include <boost/functional/hash.hpp>
+#include <boost/optional.hpp>
 
 #include "PI/frontends/cpp/tables.h"
 #include "PI/frontends/proto/device_mgr.h"

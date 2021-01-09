@@ -18,7 +18,7 @@ function run_clang_format() {
 function run_cpplint() {
     # $1 is directory
     # $2 is root (for include guard)
-    python2 $THIS_DIR/cpplint.py --root=$2 $( find $1 -name \*.h -or -name \*.cpp )
+    python3 $THIS_DIR/cpplint.py --root=$2 $( find $1 -name \*.h -or -name \*.cpp )
     return_status=$(($return_status || $?))
 }
 

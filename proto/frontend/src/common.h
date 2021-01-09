@@ -25,6 +25,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>  // std::move
 #include <vector>
 
 #include "google/rpc/code.pb.h"
