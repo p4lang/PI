@@ -28,6 +28,7 @@
 #include <mutex>
 #include <queue>
 #include <thread>
+#include <utility>  // for std::move
 #include <vector>
 
 // A generic asynchronous task queue implementations. Tasks have to implement

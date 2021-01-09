@@ -25,8 +25,10 @@
 #include <PI/pi.h>
 
 #include <map>
+#include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>  // std::move
 #include <vector>
 
 #include "google/rpc/code.pb.h"

@@ -18,8 +18,6 @@
  *
  */
 
-#include <boost/optional.hpp>
-
 #include <gmock/gmock.h>
 
 #include <google/protobuf/io/zero_copy_stream_impl.h>
@@ -35,6 +33,8 @@
 #include <string>
 #include <thread>
 #include <vector>
+
+#include <boost/optional.hpp>
 
 #include "src/common.h"
 #include "src/digest_mgr.h"

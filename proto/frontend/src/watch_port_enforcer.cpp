@@ -26,6 +26,7 @@
 #include <future>
 #include <memory>
 #include <thread>
+#include <utility>  // std::move
 
 #include "access_arbitration.h"
 #include "common.h"

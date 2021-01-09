@@ -91,7 +91,7 @@ class AccessArbitration {
   class WriteAccess : public Access {
    public:
     template <typename ...Args>
-    WriteAccess(AccessArbitration *arbitrator, Args &&...args)
+    explicit WriteAccess(AccessArbitration *arbitrator, Args &&...args)
         : Access(arbitrator) {
       arbitrator->write_access(this, std::forward<Args>(args)...);
     }
@@ -106,7 +106,7 @@ class AccessArbitration {
   class ReadAccess : public Access {
    public:
     template <typename ...Args>
-    ReadAccess(AccessArbitration *arbitrator, Args &&...args)
+    explicit ReadAccess(AccessArbitration *arbitrator, Args &&...args)
         : Access(arbitrator) {
       arbitrator->read_access(this, std::forward<Args>(args)...);
     }
@@ -120,7 +120,7 @@ class AccessArbitration {
   class NoWriteAccess : public Access {
    public:
     template <typename ...Args>
-    NoWriteAccess(AccessArbitration *arbitrator, Args &&...args)
+    explicit NoWriteAccess(AccessArbitration *arbitrator, Args &&...args)
         : Access(arbitrator) {
       arbitrator->no_write_access(this, std::forward<Args>(args)...);
     }
@@ -137,7 +137,7 @@ class AccessArbitration {
   class UpdateAccess : public Access {
    public:
     template <typename ...Args>
-    UpdateAccess(AccessArbitration *arbitrator, Args &&...args)
+    explicit UpdateAccess(AccessArbitration *arbitrator, Args &&...args)
         : Access(arbitrator) {
       arbitrator->update_access(this, std::forward<Args>(args)...);
     }

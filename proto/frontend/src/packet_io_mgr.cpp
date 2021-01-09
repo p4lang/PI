@@ -23,6 +23,7 @@
 #include <algorithm>  // for std::fill, std::copy
 #include <string>
 #include <unordered_map>
+#include <utility>  // for std::move
 #include <vector>
 
 #include "google/rpc/code.pb.h"

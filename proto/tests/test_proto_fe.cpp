@@ -19,8 +19,6 @@
  *
  */
 
-#include <boost/optional.hpp>
-
 #include <gmock/gmock.h>
 
 #include <google/protobuf/io/zero_copy_stream_impl.h>
@@ -44,6 +42,8 @@
 #include <thread>
 #include <tuple>
 #include <vector>
+
+#include <boost/optional.hpp>
 
 #include "PI/frontends/cpp/tables.h"
 #include "PI/frontends/proto/device_mgr.h"

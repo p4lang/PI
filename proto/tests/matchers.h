@@ -21,13 +21,13 @@
 #ifndef PROTO_TESTS_MATCHERS_H_
 #define PROTO_TESTS_MATCHERS_H_
 
-#include <boost/optional.hpp>
-
 #include <gmock/gmock.h>
 
 #include <iosfwd>
 #include <string>
 #include <unordered_map>
+
+#include <boost/optional.hpp>
 
 #include "p4/v1/p4runtime.pb.h"
 
