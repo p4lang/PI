@@ -21,8 +21,13 @@ jobs:
     - name: Mount bazel cache
       uses: actions/cache@v2
       with:
-        path: "~/.cache/bazel"  # See https://docs.bazel.build/versions/master/output_directories.html
-        key: bazel
+        # See https://docs.bazel.build/versions/master/output_directories.html
+        path: "~/.cache/bazel"
+        # Create a new cache entry whenever Bazel files change.
+        # See https://docs.github.com/en/actions/guides/caching-dependencies-to-speed-up-workflows
+        key: ${{ runner.os }}-build-${{ hashFiles('**/*.bzl', '**/*.bazel') }}
+        restore-keys: |
+          ${{ runner.os }}-build-
 
     - name: Install bazelisk
       run: |
