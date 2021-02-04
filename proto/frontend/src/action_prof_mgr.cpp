@@ -1173,6 +1173,13 @@ ActionProfAccessOneshot::group_delete(pi_indirect_handle_t group_h,
   auto members_it = group_members.find(group_h);
   assert(members_it != group_members.end());
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
+  // Group needs to be deleted first, otherwise target may complain about group
+  // referencing members which no longer exist.
+  {
+    auto pi_status = ap.group_delete(group_h);
+    if (pi_status != PI_STATUS_SUCCESS)
+      RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when deleting group on target");
+  }
   for (const auto &member : members_it->second) {
     auto pi_status = ap.member_delete(member.member_h);
     if (pi_status != PI_STATUS_SUCCESS) {
@@ -1184,11 +1191,6 @@ ActionProfAccessOneshot::group_delete(pi_indirect_handle_t group_h,
     // state
     RETURN_IF_ERROR(watch_port_enforcer->delete_member(
         act_prof_id, group_h, member.member_h, member.watch.pi_port));
-  }
-  {
-    auto pi_status = ap.group_delete(group_h);
-    if (pi_status != PI_STATUS_SUCCESS)
-      RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when deleting group on target");
   }
   group_members.erase(members_it);
   RETURN_OK_STATUS();
