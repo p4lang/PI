@@ -24,6 +24,7 @@
 
 #include <algorithm>  // std::copy, std::for_each, std::count
 #include <map>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -582,6 +583,7 @@ class DummyActionProf {
   pi_status_t member_create(const pi_action_data_t *action_data,
                             pi_indirect_handle_t *mbr_handle) {
     members.emplace(member_counter, ActionData(action_data));
+    members_ref_count.emplace(member_counter, 0);
     *mbr_handle = member_counter++;
     return PI_STATUS_SUCCESS;
   }
@@ -595,8 +597,13 @@ class DummyActionProf {
   }
 
   pi_status_t member_delete(pi_indirect_handle_t mbr_handle) {
+    auto it = members_ref_count.find(mbr_handle);
+    if (it == members_ref_count.end() || it->second != 0)
+      return PI_STATUS_TARGET_ERROR;
     auto count = members.erase(mbr_handle);
-    return (count == 0) ? PI_STATUS_TARGET_ERROR : PI_STATUS_SUCCESS;
+    if (count == 0) return PI_STATUS_TARGET_ERROR;
+    members_ref_count.erase(it);
+    return PI_STATUS_SUCCESS;
   }
 
   pi_status_t group_create(size_t max_size, pi_indirect_handle_t *grp_handle) {
@@ -607,8 +614,12 @@ class DummyActionProf {
   }
 
   pi_status_t group_delete(pi_indirect_handle_t grp_handle) {
-    auto count = groups.erase(grp_handle);
-    return (count == 0) ? PI_STATUS_TARGET_ERROR : PI_STATUS_SUCCESS;
+    auto it = groups.find(grp_handle);
+    if (it == groups.end()) return PI_STATUS_TARGET_ERROR;
+    for (const auto mbr_handle : it->second)
+      members_ref_count[mbr_handle]--;
+    groups.erase(it);
+    return PI_STATUS_SUCCESS;
   }
 
   pi_status_t group_add_member(pi_indirect_handle_t grp_handle,
@@ -616,7 +627,9 @@ class DummyActionProf {
     auto it = groups.find(grp_handle);
     if (it == groups.end()) return PI_STATUS_TARGET_ERROR;
     auto p = it->second.insert(mbr_handle);
-    return (!p.second) ? PI_STATUS_TARGET_ERROR : PI_STATUS_SUCCESS;
+    if (!p.second) return PI_STATUS_TARGET_ERROR;
+    members_ref_count[mbr_handle]++;
+    return PI_STATUS_SUCCESS;
   }
 
   pi_status_t group_remove_member(pi_indirect_handle_t grp_handle,
@@ -624,7 +637,9 @@ class DummyActionProf {
     auto it = groups.find(grp_handle);
     if (it == groups.end()) return PI_STATUS_TARGET_ERROR;
     auto count = it->second.erase(mbr_handle);
-    return (count == 0) ? PI_STATUS_TARGET_ERROR : PI_STATUS_SUCCESS;
+    if (count == 0) return PI_STATUS_TARGET_ERROR;
+    members_ref_count[mbr_handle]--;
+    return PI_STATUS_SUCCESS;
   }
 
   pi_status_t group_set_members(
@@ -634,8 +649,12 @@ class DummyActionProf {
     (void)activate;
     auto it = groups.find(grp_handle);
     if (it == groups.end()) return PI_STATUS_TARGET_ERROR;
+    for (const auto mbr_handle : it->second)
+      members_ref_count[mbr_handle]--;
     it->second.clear();
     it->second.insert(mbr_handles.begin(), mbr_handles.end());
+    for (const auto mbr_handle : mbr_handles)
+      members_ref_count[mbr_handle]++;
     return PI_STATUS_SUCCESS;
   }
 
@@ -693,9 +712,10 @@ class DummyActionProf {
   }
 
  private:
-  using GroupMembers = std::unordered_set<pi_indirect_handle_t>;
+  using GroupMembers = std::set<pi_indirect_handle_t>;
   std::unordered_map<pi_indirect_handle_t, ActionData> members{};
   std::unordered_map<pi_indirect_handle_t, GroupMembers> groups{};
+  std::unordered_map<pi_indirect_handle_t, size_t> members_ref_count{};
 
   char *members_fetch(size_t buf_size,
                       pi_act_prof_fetch_res_t *res,
