@@ -25,9 +25,9 @@ jobs:
         path: "~/.cache/bazel"
         # Create a new cache entry whenever Bazel files change.
         # See https://docs.github.com/en/actions/guides/caching-dependencies-to-speed-up-workflows
-        key: ${{ runner.os }}-build-${{ hashFiles('**/*.bzl', '**/*.bazel') }}
+        key: bazel-${{ runner.os }}-build-${{ hashFiles('**/*.bzl', '**/*.bazel') }}
         restore-keys: |
-          ${{ runner.os }}-build-
+          bazel-${{ runner.os }}-build-
 
     - name: Install bazelisk
       run: |
