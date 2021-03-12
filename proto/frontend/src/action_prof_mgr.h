@@ -1,4 +1,5 @@
 /* Copyright 2013-present Barefoot Networks, Inc.
+ * Copyright 2021 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +15,7 @@
  */
 
 /*
- * Antonin Bas (antonin@barefootnetworks.com)
+ * Antonin Bas
  *
  */
 
@@ -236,7 +237,6 @@ class ActionProfAccessBase {
   bool check_p4_action_id(pi_p4_id_t p4_id) const;
 
   Status validate_action(const p4::v1::Action &action);
-  pi::ActionData construct_action_data(const p4::v1::Action &action);
 
   pi_dev_tgt_t device_tgt;
   pi_p4_id_t act_prof_id;

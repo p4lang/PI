@@ -1,4 +1,5 @@
 /* Copyright 2013-present Barefoot Networks, Inc.
+ * Copyright 2021 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,16 +15,21 @@
  */
 
 /*
- * Antonin Bas (antonin@barefootnetworks.com)
+ * Antonin Bas
  *
  */
 
 #include "action_helpers.h"
-#include "common.h"
+
+#include <PI/frontends/cpp/tables.h>
 
 #include "google/rpc/code.pb.h"
 #include "google/rpc/status.pb.h"
 #include "p4/v1/p4runtime.pb.h"
+
+#include "common.h"
+#include "report_error.h"
+#include "status_macros.h"
 
 namespace p4v1 = ::p4::v1;
 
@@ -33,33 +39,28 @@ namespace fe {
 
 namespace proto {
 
-using Code = ::google::rpc::Code;
-using common::check_proto_bytestring;
+using common::bytestring_p4rt_to_pi;
 
-Status validate_action_data(const pi_p4info_t *p4info,
-                            const p4v1::Action &action) {
-  Status status;
-  Code code;
+Status construct_action_data(const pi_p4info_t *p4info,
+                             const p4v1::Action &action,
+                             pi::ActionData *action_data) {
   size_t exp_num_params = pi_p4info_action_num_params(
       p4info, action.action_id());
   if (static_cast<size_t>(action.params().size()) != exp_num_params) {
-    status.set_code(Code::INVALID_ARGUMENT);
-    return status;
+    RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                        "Unexpected number of action parameters");
   }
   for (const auto &p : action.params()) {
     auto not_found = static_cast<size_t>(-1);
     size_t bitwidth = pi_p4info_action_param_bitwidth(
         p4info, action.action_id(), p.param_id());
     if (bitwidth == not_found) {
-      status.set_code(Code::INVALID_ARGUMENT);
-      return status;
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Unknown action parameter");
     }
-    if ((code = check_proto_bytestring(p.value(), bitwidth)) != Code::OK) {
-      status.set_code(code);
-      return status;
-    }
+    ASSIGN_OR_RETURN(auto value, bytestring_p4rt_to_pi(p.value(), bitwidth));
+    action_data->set_arg(p.param_id(), value.data(), value.size());
   }
-  return status;
+  RETURN_OK_STATUS();
 }
 
 }  // namespace proto

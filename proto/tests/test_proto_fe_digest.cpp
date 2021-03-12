@@ -1,4 +1,5 @@
 /* Copyright 2018-present Barefoot Networks, Inc.
+ * Copyright 2021 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +15,7 @@
  */
 
 /*
- * Antonin Bas (antonin@barefootnetworks.com)
+ * Antonin Bas
  *
  */
 
@@ -54,14 +55,16 @@ using pi::fe::proto::DigestMgr;
 using Status = DigestMgr::Status;
 using Clock = std::chrono::steady_clock;
 using SessionTemp = pi::fe::proto::common::SessionTemp;
+using ::pi::fe::proto::common::bytestring_pi_to_p4rt;
 
 using ::testing::_;
 using ::testing::AnyNumber;
 
 class Sample {
  public:
-  Sample &operator<<(std::string s) {
-    values.push_back(std::move(s));
+  Sample &operator<<(const std::string &s) {
+    values.push_back(s);
+    canonical_values.push_back(bytestring_pi_to_p4rt(s));
     return *this;
   }
 
@@ -72,7 +75,7 @@ class Sample {
       if (member.data_case() != p4v1::P4Data::kBitstring) return false;
       tmp.push_back(member.bitstring());
     }
-    return (tmp == values);
+    return (tmp == canonical_values);
   }
 
   std::string get() const {
@@ -83,6 +86,7 @@ class Sample {
 
  private:
   std::vector<std::string> values{};
+  std::vector<std::string> canonical_values{};
 };
 
 class DigestMgrTest : public DeviceMgrBaseTest {
@@ -212,6 +216,20 @@ TEST_F(DigestMgrTest, Default) {
   ASSERT_OK(config_digest_default());
   Sample s;
   s << "\x11\x22\x33\x44\x55\x66" << "\x01\x23";
+  EXPECT_CALL(*mock, learn_msg_ack(digest_id, _));
+  EXPECT_CALL(*mock, learn_msg_done(_));
+  ASSERT_EQ(digest_inject({s}), PI_STATUS_SUCCESS);
+  auto digest = digest_receive();
+  ASSERT_NE(digest, boost::none);
+  EXPECT_EQ(digest->digest_id(), digest_id);
+  EXPECT_EQ(digest->data_size(), 1);
+  EXPECT_TRUE(s.eq(digest->data(0)));
+}
+
+TEST_F(DigestMgrTest, DefaultCanonical) {
+  ASSERT_OK(config_digest_default());
+  Sample s;
+  s << "\x11\x22\x33\x44\x55\x66" << "\x00\x23";
   EXPECT_CALL(*mock, learn_msg_ack(digest_id, _));
   EXPECT_CALL(*mock, learn_msg_done(_));
   ASSERT_EQ(digest_inject({s}), PI_STATUS_SUCCESS);

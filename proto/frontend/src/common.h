@@ -1,4 +1,5 @@
 /* Copyright 2013-present Barefoot Networks, Inc.
+ * Copyright 2021 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +15,7 @@
  */
 
 /*
- * Antonin Bas (antonin@barefootnetworks.com)
+ * Antonin Bas
  *
  */
 
@@ -32,6 +33,7 @@
 #include "google/rpc/status.pb.h"
 
 #include "report_error.h"
+#include "statusor.h"
 
 namespace pi {
 
@@ -136,6 +138,18 @@ class SessionTemp final
   pi_session_handle_t sess;
   bool batch;
 };
+
+// bytestring_p4rt_to_pi converts any valid P4Runtime bytestring to the format
+// expected by PI. PI expects the length of the bytestring to be the same as the
+// size of the P4 type, which may require the P4Runtime bytestring to be padded
+// first.
+StatusOr<std::string> bytestring_p4rt_to_pi(const std::string &str,
+                                            size_t nbits);
+
+// bytestring_pi_to_p4rt converts the PI bytestring to a canonical P4Runtime
+// bytestring.
+std::string bytestring_pi_to_p4rt(const std::string &str);
+std::string bytestring_pi_to_p4rt(const char *, size_t n);
 
 Code check_proto_bytestring(const std::string &str, size_t nbits);
 

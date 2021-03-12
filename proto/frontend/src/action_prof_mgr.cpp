@@ -1,4 +1,5 @@
 /* Copyright 2013-present Barefoot Networks, Inc.
+ * Copyright 2021 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +15,7 @@
  */
 
 /*
- * Antonin Bas (antonin@barefootnetworks.com)
+ * Antonin Bas
  *
  */
 
@@ -349,15 +350,6 @@ ActionProfAccessBase::check_p4_action_id(pi_p4_id_t p4_id) const {
       && pi_p4info_is_valid_id(p4info, p4_id);
 }
 
-pi::ActionData
-ActionProfAccessBase::construct_action_data(const p4v1::Action &action) {
-  pi::ActionData action_data(p4info, action.action_id());
-  for (const auto &p : action.params()) {
-    action_data.set_arg(p.param_id(), p.value().data(), p.value().size());
-  }
-  return action_data;
-}
-
 Status
 ActionProfAccessBase::validate_action(const p4v1::Action &action) {
   auto action_id = action.action_id();
@@ -367,7 +359,7 @@ ActionProfAccessBase::validate_action(const p4v1::Action &action) {
     RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                         "Invalid action for action profile");
   }
-  return validate_action_data(p4info, action);
+  RETURN_OK_STATUS();
 }
 
 bool
@@ -379,7 +371,8 @@ Status
 ActionProfAccessManual::member_create(const p4v1::ActionProfileMember &member,
                                       const SessionTemp &session) {
   RETURN_IF_ERROR(validate_action(member.action()));
-  auto action_data = construct_action_data(member.action());
+  pi::ActionData action_data(p4info, member.action().action_id());
+  RETURN_IF_ERROR(construct_action_data(p4info, member.action(), &action_data));
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   // we check if the member id already exists
   if (member_map.access_member_state(member.member_id()) != nullptr) {
@@ -466,7 +459,8 @@ Status
 ActionProfAccessManual::member_modify(const p4v1::ActionProfileMember &member,
                                       const SessionTemp &session) {
   RETURN_IF_ERROR(validate_action(member.action()));
-  auto action_data = construct_action_data(member.action());
+  pi::ActionData action_data(p4info, member.action().action_id());
+  RETURN_IF_ERROR(construct_action_data(p4info, member.action(), &action_data));
   pi::ActProf ap(session.get(), device_tgt, p4info, act_prof_id);
   auto member_state = member_map.access_member_state(member.member_id());
   if (member_state == nullptr) {
@@ -1133,7 +1127,9 @@ ActionProfAccessOneshot::group_create(
   for (const auto &action : action_set.action_profile_actions()) {
     for (int i = 0; i < action.weight(); i++) {
       pi_indirect_handle_t member_h;
-      auto action_data = construct_action_data(action.action());
+      pi::ActionData action_data(p4info, action.action().action_id());
+      RETURN_IF_ERROR(
+          construct_action_data(p4info, action.action(), &action_data));
       auto pi_status = ap.member_create(action_data, &member_h);
       if (pi_status != PI_STATUS_SUCCESS) {
         RETURN_ERROR_STATUS(

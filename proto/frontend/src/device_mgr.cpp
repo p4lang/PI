@@ -72,7 +72,8 @@ using Status = DeviceMgr::Status;
 using StreamMessageResponseCb = DeviceMgr::StreamMessageResponseCb;
 using Code = ::google::rpc::Code;
 using common::SessionTemp;
-using common::check_proto_bytestring;
+using common::bytestring_p4rt_to_pi;
+using common::bytestring_pi_to_p4rt;
 using common::make_invalid_p4_id_status;
 using action_profile_set_map =
   std::unordered_map<pi_indirect_handle_t, p4v1::ActionProfileActionSet>;
@@ -981,7 +982,9 @@ class DeviceMgrImp {
     for (size_t j = 0; j < num_params; j++) {
       auto param = action->add_params();
       param->set_param_id(param_ids[j]);
-      reader.get_arg(param_ids[j], param->mutable_value());
+      std::string value;
+      reader.get_arg(param_ids[j], &value);
+      param->set_value(bytestring_pi_to_p4rt(value));
     }
     RETURN_OK_STATUS();
   }
@@ -2207,19 +2210,34 @@ class DeviceMgrImp {
     return nullptr;
   }
 
-  Status validate_exact_match(const p4v1::FieldMatch::Exact &mf,
-                              size_t bitwidth) const {
-    if (check_proto_bytestring(mf.value(), bitwidth) != Code::OK)
-      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid bytestring format");
+  Status set_valid_match(pi::MatchKey *match_key,
+                         pi_p4_id_t mf_id,
+                         const p4v1::FieldMatch::Exact &mf,
+                         size_t bitwidth) const {
+    ASSIGN_OR_RETURN(auto value, bytestring_p4rt_to_pi(mf.value(), bitwidth));
+    // For backward-compatibility with old workflow. A P4_14 valid match type is
+    // replaced by an exact match in the P4Info, which is why we read the value
+    // from the exact field in the P4Runtime message ('\x00' means invalid and
+    // every other value means valid).
+    match_key->set_valid(mf_id, value != std::string("\x00", 1));
     RETURN_OK_STATUS();
   }
 
-  Status validate_lpm_match(const p4v1::FieldMatch::LPM &mf,
-                            size_t bitwidth) const {
-    const auto &value = mf.value();
+  Status set_exact_match(pi::MatchKey *match_key,
+                         pi_p4_id_t mf_id,
+                         const p4v1::FieldMatch::Exact &mf,
+                         size_t bitwidth) const {
+    ASSIGN_OR_RETURN(auto value, bytestring_p4rt_to_pi(mf.value(), bitwidth));
+    match_key->set_exact(mf_id, value.data(), value.size());
+    RETURN_OK_STATUS();
+  }
+
+  Status set_lpm_match(pi::MatchKey *match_key,
+                       pi_p4_id_t mf_id,
+                       const p4v1::FieldMatch::LPM &mf,
+                       size_t bitwidth) const {
+    ASSIGN_OR_RETURN(auto value, bytestring_p4rt_to_pi(mf.value(), bitwidth));
     const auto pLen = mf.prefix_len();
-    if (check_proto_bytestring(value, bitwidth) != Code::OK)
-      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid bytestring format");
     if (pLen < 0) {
       RETURN_ERROR_STATUS(
           Code::INVALID_ARGUMENT, "Prefix length cannot be < 0");
@@ -2240,17 +2258,16 @@ class DeviceMgrImp {
           Code::INVALID_ARGUMENT,
           "Invalid LPM value, incorrect number of trailing zeros");
     }
+    match_key->set_lpm(mf_id, value.data(), value.size(), pLen);
     RETURN_OK_STATUS();
   }
 
-  Status validate_ternary_match(const p4v1::FieldMatch::Ternary &mf,
-                                size_t bitwidth) const {
-    const auto &value = mf.value();
-    const auto &mask = mf.mask();
-    if (check_proto_bytestring(value, bitwidth) != Code::OK)
-      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid bytestring format");
-    if (check_proto_bytestring(mask, bitwidth) != Code::OK)
-      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid bytestring format");
+  Status set_ternary_match(pi::MatchKey *match_key,
+                           pi_p4_id_t mf_id,
+                           const p4v1::FieldMatch::Ternary &mf,
+                           size_t bitwidth) const {
+    ASSIGN_OR_RETURN(auto value, bytestring_p4rt_to_pi(mf.value(), bitwidth));
+    ASSIGN_OR_RETURN(auto mask, bytestring_p4rt_to_pi(mf.mask(), bitwidth));
     // makes sure that mask is not 0 (otherwise mf should be omitted)
     if (ternary_match_is_dont_care(mf)) {
       RETURN_ERROR_STATUS(
@@ -2268,17 +2285,16 @@ class DeviceMgrImp {
             "Invalid ternary value, make sure value & mask == value");
       }
     }
+    match_key->set_ternary(mf_id, value.data(), mask.data(), value.size());
     RETURN_OK_STATUS();
   }
 
-  Status validate_range_match(const p4v1::FieldMatch::Range &mf,
-                              size_t bitwidth) const {
-    const auto &low = mf.low();
-    const auto &high = mf.high();
-    if (check_proto_bytestring(low, bitwidth) != Code::OK)
-      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid bytestring format");
-    if (check_proto_bytestring(high, bitwidth) != Code::OK)
-      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid bytestring format");
+  Status set_range_match(pi::MatchKey *match_key,
+                         pi_p4_id_t mf_id,
+                         const p4v1::FieldMatch::Range &mf,
+                         size_t bitwidth) const {
+    ASSIGN_OR_RETURN(auto low, bytestring_p4rt_to_pi(mf.low(), bitwidth));
+    ASSIGN_OR_RETURN(auto high, bytestring_p4rt_to_pi(mf.high(), bitwidth));
     assert(low.size() == high.size());
     if (range_match_is_dont_care(mf)) {
       RETURN_ERROR_STATUS(
@@ -2291,82 +2307,17 @@ class DeviceMgrImp {
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                             "Invalid range value, make sure low <= high");
     }
+    match_key->set_range(mf_id, low.data(), high.data(), low.size());
     RETURN_OK_STATUS();
   }
 
-  Status validate_optional_match(const p4v1::FieldMatch::Optional &mf,
-                                 size_t bitwidth) const {
-    if (check_proto_bytestring(mf.value(), bitwidth) != Code::OK)
-      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid bytestring format");
-    RETURN_OK_STATUS();
-  }
-
-  Status validate_match_key(const p4v1::TableEntry &entry) const {
-    auto t_id = entry.table_id();
-    size_t num_match_fields;
-    auto expected_mf_ids = pi_p4info_table_get_match_fields(
-        p4info.get(), t_id, &num_match_fields);
-    if (static_cast<size_t>(entry.match().size()) > num_match_fields) {
-      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
-                          "Too many fields in match key");
-    }
-
-    int num_mf_matched = 0;  // check if some extra fields in the match key
-    // the double loop is potentially too slow; refactor this code if it proves
-    // to be a bottleneck
-    for (size_t i = 0; i < num_match_fields; i++) {
-      auto mf_id = expected_mf_ids[i];
-      auto mf_info = pi_p4info_table_match_field_info(p4info.get(), t_id, i);
-      auto mf = find_mf(entry, mf_id);
-      bool can_be_omitted = (mf_info->match_type == PI_P4INFO_MATCH_TYPE_LPM) ||
-          (mf_info->match_type == PI_P4INFO_MATCH_TYPE_TERNARY) ||
-          (mf_info->match_type == PI_P4INFO_MATCH_TYPE_RANGE) ||
-          (mf_info->match_type == PI_P4INFO_MATCH_TYPE_OPTIONAL);
-      if (mf == nullptr && !can_be_omitted) {
-        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
-                            "Missing non-ternary field in match key");
-      }
-      if (mf == nullptr) continue;
-      num_mf_matched++;
-      auto bitwidth = mf_info->bitwidth;
-      switch (mf_info->match_type) {
-        // For backward-compatibility with old workflow. A P4_14 valid match
-        // type is replaced by an exact match in the P4Info, which is why we
-        // check that the P4Runtime message includes an exact field in that
-        // case.
-        case PI_P4INFO_MATCH_TYPE_VALID:
-        case PI_P4INFO_MATCH_TYPE_EXACT:
-          if (!mf->has_exact())
-            RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
-          RETURN_IF_ERROR(validate_exact_match(mf->exact(), bitwidth));
-          break;
-        case PI_P4INFO_MATCH_TYPE_LPM:
-          if (!mf->has_lpm())
-            RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
-          RETURN_IF_ERROR(validate_lpm_match(mf->lpm(), bitwidth));
-          break;
-        case PI_P4INFO_MATCH_TYPE_TERNARY:
-          if (!mf->has_ternary())
-            RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
-          RETURN_IF_ERROR(validate_ternary_match(mf->ternary(), bitwidth));
-          break;
-        case PI_P4INFO_MATCH_TYPE_RANGE:
-          if (!mf->has_range())
-            RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
-          RETURN_IF_ERROR(validate_range_match(mf->range(), bitwidth));
-          break;
-        case PI_P4INFO_MATCH_TYPE_OPTIONAL:
-          if (!mf->has_optional())
-            RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
-          RETURN_IF_ERROR(validate_optional_match(mf->optional(), bitwidth));
-          break;
-        default:
-          assert(0);
-          break;
-      }
-    }
-    if (num_mf_matched != entry.match().size())
-      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Unknown field in match key");
+  Status set_optional_match(pi::MatchKey *match_key,
+                            pi_p4_id_t mf_id,
+                            const p4v1::FieldMatch::Optional &mf,
+                            size_t bitwidth) const {
+    ASSIGN_OR_RETURN(auto value, bytestring_p4rt_to_pi(mf.value(), bitwidth));
+    match_key->set_optional(
+        mf_id, value.data(), value.size(), false /* is_wildcard */);
     RETURN_OK_STATUS();
   }
 
@@ -2384,14 +2335,19 @@ class DeviceMgrImp {
       match_key->set_is_default(true);
       RETURN_OK_STATUS();
     }
-    RETURN_IF_ERROR(validate_match_key(entry));
     auto t_id = entry.table_id();
     bool need_priority = false;
     size_t num_match_fields;
     auto expected_mf_ids = pi_p4info_table_get_match_fields(
         p4info.get(), t_id, &num_match_fields);
-    // same as for validate_match_key above: refactor if double loop too
-    // expensive
+    if (static_cast<size_t>(entry.match().size()) > num_match_fields) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "Too many fields in match key");
+    }
+
+    int num_mf_matched = 0;  // check if some extra fields in the match key
+    // the double loop is potentially too slow; refactor this code if it proves
+    // to be a bottleneck
     for (size_t i = 0; i < num_match_fields; i++) {
       auto mf_id = expected_mf_ids[i];
       auto mf_info = pi_p4info_table_match_field_info(p4info.get(), t_id, i);
@@ -2400,39 +2356,50 @@ class DeviceMgrImp {
           (mf_info->match_type == PI_P4INFO_MATCH_TYPE_RANGE) ||
           (mf_info->match_type == PI_P4INFO_MATCH_TYPE_OPTIONAL);
       auto mf = find_mf(entry, mf_id);
+
       if (mf != nullptr) {
+        num_mf_matched++;
+        auto bitwidth = mf_info->bitwidth;
         switch (mf_info->match_type) {
           // For backward-compatibility with old workflow. A P4_14 valid match
           // type is replaced by an exact match in the P4Info, which is why we
           // read the value from the exact field in the P4Runtime message
           // ('\x00' means invalid and every other value means valid).
           case PI_P4INFO_MATCH_TYPE_VALID:
-            match_key->set_valid(mf_id,
-                                 mf->exact().value() != std::string("\x00", 1));
+            if (!mf->has_exact())
+              RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
+            RETURN_IF_ERROR(
+                set_valid_match(match_key, mf_id, mf->exact(), bitwidth));
             break;
           case PI_P4INFO_MATCH_TYPE_EXACT:
-            match_key->set_exact(mf_id, mf->exact().value().data(),
-                                 mf->exact().value().size());
+            if (!mf->has_exact())
+              RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
+            RETURN_IF_ERROR(
+                set_exact_match(match_key, mf_id, mf->exact(), bitwidth));
             break;
           case PI_P4INFO_MATCH_TYPE_LPM:
-            match_key->set_lpm(mf_id, mf->lpm().value().data(),
-                               mf->lpm().value().size(),
-                               mf->lpm().prefix_len());
+            if (!mf->has_lpm())
+              RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
+            RETURN_IF_ERROR(
+                set_lpm_match(match_key, mf_id, mf->lpm(), bitwidth));
             break;
           case PI_P4INFO_MATCH_TYPE_TERNARY:
-            match_key->set_ternary(mf_id, mf->ternary().value().data(),
-                                   mf->ternary().mask().data(),
-                                   mf->ternary().value().size());
+            if (!mf->has_ternary())
+              RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
+            RETURN_IF_ERROR(
+                set_ternary_match(match_key, mf_id, mf->ternary(), bitwidth));
             break;
           case PI_P4INFO_MATCH_TYPE_RANGE:
-            match_key->set_range(mf_id, mf->range().low().data(),
-                                 mf->range().high().data(),
-                                 mf->range().low().size());
+            if (!mf->has_range())
+              RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
+            RETURN_IF_ERROR(
+                set_range_match(match_key, mf_id, mf->range(), bitwidth));
             break;
           case PI_P4INFO_MATCH_TYPE_OPTIONAL:
-            match_key->set_optional(mf_id, mf->optional().value().data(),
-                                    mf->optional().value().size(),
-                                    false /* is_wildcard */);
+            if (!mf->has_optional())
+              RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid match type");
+            RETURN_IF_ERROR(
+                set_optional_match(match_key, mf_id, mf->optional(), bitwidth));
             break;
           default:
             assert(0);
@@ -2454,11 +2421,13 @@ class DeviceMgrImp {
                                  nbytes);
             break;
           default:
-            assert(0);  // cannot reach this because of validate method call
-            break;
+            RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                                "Missing non-ternary field in match key");
         }
       }
     }
+    if (num_mf_matched != entry.match().size())
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Unknown field in match key");
     if (!need_priority && entry.priority() > 0) {
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                           "Non-zero priority for non-ternary match");
@@ -2535,13 +2504,10 @@ class DeviceMgrImp {
   Status construct_action_data(uint32_t table_id, const p4v1::Action &action,
                                pi::ActionEntry *action_entry) const {
     (void) table_id;
-    RETURN_IF_ERROR(validate_action_data(p4info.get(), action));
     action_entry->init_action_data(p4info.get(), action.action_id());
     auto action_data = action_entry->mutable_action_data();
-    for (const auto &p : action.params()) {
-      action_data->set_arg(p.param_id(), p.value().data(), p.value().size());
-    }
-    RETURN_OK_STATUS();
+    return ::pi::fe::proto::construct_action_data(
+        p4info.get(), action, action_data);
   }
 
   Status construct_action_entry_indirect(uint32_t table_id,

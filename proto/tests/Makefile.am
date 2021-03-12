@@ -22,6 +22,7 @@ endif
 TESTS = \
 test_p4info_convert \
 test_proto_fe \
+test_proto_fe_bytestrings \
 test_proto_fe_digest \
 test_proto_fe_packet_io \
 test_proto_fe_set_pipeline_config \
@@ -58,6 +59,8 @@ test_proto_fe_base.cpp \
 stream_receiver.h
 
 test_proto_fe_SOURCES = $(proto_fe_common_source) test_proto_fe.cpp
+test_proto_fe_bytestrings_SOURCES = $(proto_fe_common_source) \
+test_proto_fe_bytestrings.cpp
 test_proto_fe_digest_SOURCES = $(proto_fe_common_source) \
 test_proto_fe_digest.cpp
 test_proto_fe_packet_io_SOURCES = $(proto_fe_common_source) \
@@ -85,6 +88,7 @@ $(top_builddir)/libpiprotobuf.la \
 $(PROTOBUF_LIBS)
 
 test_proto_fe_LDADD = $(proto_fe_libs)
+test_proto_fe_bytestrings_LDADD = $(proto_fe_libs)
 test_proto_fe_digest_LDADD = $(proto_fe_libs)
 test_proto_fe_packet_io_LDADD = $(proto_fe_libs)
 test_proto_fe_set_pipeline_config_LDADD = $(proto_fe_libs)
@@ -126,6 +130,7 @@ test_server_config_LDADD = $(test_server_libs)
 check_PROGRAMS = \
 test_p4info_convert \
 test_proto_fe \
+test_proto_fe_bytestrings \
 test_proto_fe_digest \
 test_proto_fe_packet_io \
 test_proto_fe_set_pipeline_config \

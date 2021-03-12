@@ -1,4 +1,5 @@
 /* Copyright 2013-present Barefoot Networks, Inc.
+ * Copyright 2021 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,13 +15,16 @@
  */
 
 /*
- * Antonin Bas (antonin@barefootnetworks.com)
+ * Antonin Bas
  *
  */
 
 #include "common.h"
 
 #include <string>
+
+#include "report_error.h"
+#include "statusor.h"
 
 namespace pi {
 
@@ -53,6 +57,47 @@ uint8_t ctz(uint8_t b) {
 }
 
 }  // namespace
+
+StatusOr<std::string> bytestring_p4rt_to_pi(const std::string &str,
+                                            size_t nbits) {
+  size_t nbytes = (nbits + 7) / 8;
+  if (str.size() < nbytes) {
+    auto pi_str = str;
+    pi_str.insert(0, nbytes - str.size(), 0);
+    return pi_str;
+  }
+  size_t leading_zeros = 0;
+  size_t i = 0;
+  for (; i < str.size(); i++) {
+    if (str[i] != 0) break;
+    leading_zeros += 8;
+  }
+  if (i == str.size()) {
+    return std::string(nbytes, 0);
+  }
+  leading_zeros += static_cast<size_t>(clz(static_cast<uint8_t>(str[i])));
+  auto nbits_set = static_cast<size_t>(str.size() * 8 - leading_zeros);
+  if (nbits_set > nbits) {
+    RETURN_ERROR_STATUS(
+        Code::INVALID_ARGUMENT,
+        "Bytestring provided does not fit within {} bits",
+        nbits);
+  }
+  return str.substr(str.size() - nbytes);
+}
+
+std::string bytestring_pi_to_p4rt(const std::string &str) {
+  return bytestring_pi_to_p4rt(str.data(), str.size());
+}
+
+std::string bytestring_pi_to_p4rt(const char *str, size_t n) {
+  size_t i = 0;
+  for (; i < n; i++) {
+    if (str[i] != 0) break;
+  }
+  if (i == n) return std::string(1, 0);
+  return std::string(str + i, n - i);
+}
 
 Code check_proto_bytestring(const std::string &str, size_t nbits) {
   size_t nbytes = (nbits + 7) / 8;
