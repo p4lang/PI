@@ -517,7 +517,7 @@ MatchTableTest::default_mf() const {
 }
 
 TEST_P(MatchTableTest, AddAndRead) {
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   auto mk_input = std::get<1>(GetParam());
   auto mk_matcher = CorrectMatchKey(t_id, mk_input.get_match_key());
   auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
@@ -559,7 +559,7 @@ TEST_P(MatchTableTest, AddAndRead) {
 }
 
 TEST_P(MatchTableTest, AddAndDelete) {
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   auto mk_input = std::get<1>(GetParam());
   auto mk_matcher = CorrectMatchKey(t_id, mk_input.get_match_key());
   auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
@@ -580,7 +580,7 @@ TEST_P(MatchTableTest, AddAndDelete) {
 }
 
 TEST_P(MatchTableTest, AddAndModify) {
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   auto mk_input = std::get<1>(GetParam());
   auto mk_matcher = CorrectMatchKey(t_id, mk_input.get_match_key());
   auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
@@ -601,7 +601,7 @@ TEST_P(MatchTableTest, AddAndModify) {
 }
 
 TEST_P(MatchTableTest, SetDefault) {
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
   EXPECT_CALL(*mock, table_default_action_set(t_id, entry_matcher)).Times(2);
   auto entry = generic_make(t_id, boost::none, adata);
@@ -641,7 +641,7 @@ TEST_P(MatchTableTest, GetDefault) {
   auto entry_r1 = read_entry();
   ASSERT_OK(entry_r1.status());
 
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
   auto entry = generic_make(t_id, boost::none, adata);
   entry.set_is_default_action(true);
@@ -663,7 +663,7 @@ TEST_P(MatchTableTest, GetDefault) {
 
 TEST_P(MatchTableTest, InvalidSetDefault) {
   // Invalid to set is_default_action flag to true with a non-empty match key
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   auto mk_input = std::get<1>(GetParam());
   auto entry = generic_make(t_id, mk_input.get_proto(mf_id), adata);
   entry.set_is_default_action(true);
@@ -682,7 +682,7 @@ TEST_P(MatchTableTest, ResetDefault) {
 
 TEST_P(MatchTableTest, InvalidTableId) {
   // build valid table entry, then modify the table id
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   auto mk_input = std::get<1>(GetParam());
   auto entry = generic_make(t_id, mk_input.get_proto(mf_id), adata);
   auto check_bad_status_write = [this, &entry](pi_p4_id_t bad_id) {
@@ -720,7 +720,7 @@ TEST_P(MatchTableTest, InvalidTableId) {
 
 TEST_P(MatchTableTest, InvalidActionId) {
   // build valid table entry, then modify the action id
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   auto mk_input = std::get<1>(GetParam());
   auto entry = generic_make(
       t_id, mk_input.get_proto(mf_id), adata, mk_input.get_priority());
@@ -751,7 +751,7 @@ TEST_P(MatchTableTest, InvalidActionId) {
 }
 
 TEST_P(MatchTableTest, MissingMatchField) {
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   auto mk_input = default_mf();
   if (mk_input.is_initialized()) {  // omitting field supported for match type
     auto mk_matcher = CorrectMatchKey(t_id, mk_input.get().get_match_key());
@@ -769,7 +769,7 @@ TEST_P(MatchTableTest, MissingMatchField) {
 }
 
 TEST_P(MatchTableTest, WriteBatchWithError) {
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   auto mk_input = std::get<1>(GetParam());
   auto mk_matcher = CorrectMatchKey(t_id, mk_input.get_match_key());
   auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
@@ -1012,7 +1012,7 @@ TEST_P(ActionProfTest, Member) {
 TEST_P(ActionProfTest, CreateDupMemberId) {
   DeviceMgr::Status status;
   uint32_t member_id = 123;
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _))
       .Times(AtLeast(1));
   auto member = make_member(member_id, adata);
@@ -1023,7 +1023,7 @@ TEST_P(ActionProfTest, CreateDupMemberId) {
 TEST_P(ActionProfTest, BadMemberId) {
   DeviceMgr::Status status;
   uint32_t member_id = 123;
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   // in this test we do not expect any call to a mock method
   auto member = make_member(member_id, adata);
   // try to modify a member id which does not exist
@@ -1038,7 +1038,7 @@ TEST_P(ActionProfTest, Group) {
   uint32_t member_id_1 = 1, member_id_2 = 2;
 
   // create 2 members
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _))
       .Times(2);
   auto member_1 = make_member(member_id_1, adata);
@@ -1108,7 +1108,7 @@ TEST_P(ActionProfTest, Read) {
   uint32_t member_id_1 = 1;
 
   // create 1 member
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _));
   auto member_1 = make_member(member_id_1, adata);
   EXPECT_OK(create_member(&member_1));
@@ -1151,7 +1151,7 @@ TEST_P(ActionProfTest, ReadOne) {
   uint32_t member_id_1 = 1;
 
   // create 1 member
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _));
   auto member_1 = make_member(member_id_1, adata);
   EXPECT_OK(create_member(&member_1));
@@ -1235,7 +1235,7 @@ TEST_P(ActionProfTest, InvalidMemberWeight) {
   uint32_t member_id = 1;
 
   // create 1 member
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   EXPECT_CALL(*mock, action_prof_member_create(_, _, _));
   auto member = make_member(member_id, adata);
   EXPECT_OK(create_member(&member));
@@ -1257,7 +1257,7 @@ TEST_P(ActionProfTest, MemberWeights) {
   uint32_t member_id = 1;
 
   // create 1 member
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   EXPECT_CALL(*mock, action_prof_member_create(_, _, _));
   auto member = make_member(member_id, adata);
   EXPECT_OK(create_member(&member));
@@ -1319,7 +1319,7 @@ TEST_P(ActionProfTest, MemberWatchPort) {
   uint32_t member_id = 1;
 
   // create 1 member
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   EXPECT_CALL(*mock, action_prof_member_create(_, _, _));
   auto member = make_member(member_id, adata);
   EXPECT_OK(create_member(&member));
@@ -1412,7 +1412,7 @@ TEST_P(ActionProfTest, MemberWatchPortBytes) {
   uint32_t member_id = 1;
 
   // create 1 member
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   EXPECT_CALL(*mock, action_prof_member_create(_, _, _));
   auto member = make_member(member_id, adata);
   EXPECT_OK(create_member(&member));
@@ -1501,7 +1501,7 @@ TEST_P(ActionProfTest, MemberWatchPortBytes) {
 TEST_P(ActionProfTest, InvalidActionProfId) {
   DeviceMgr::Status status;
   uint32_t member_id = 123;
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   auto member = make_member(member_id, adata);
   auto check_bad_status_write = [this, &member](pi_p4_id_t bad_id) {
     member.set_action_profile_id(bad_id);
@@ -1539,7 +1539,7 @@ TEST_P(ActionProfTest, InvalidActionProfId) {
 TEST_P(ActionProfTest, InvalidActionId) {
   DeviceMgr::Status status;
   uint32_t member_id = 123;
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   auto member = make_member(member_id, adata);
   auto check_bad_status_write = [this, &member](
       pi_p4_id_t bad_id, const char *msg = invalid_p4_id_error_str) {
@@ -1589,7 +1589,7 @@ TEST_P(ActionProfTest, InvalidMaxSize) {
 
 TEST_P(ActionProfTest, MaxSizeExceeded) {
   uint32_t group_id = 1000;
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   std::vector<uint32_t> members(max_group_size_p4info + 1);
   int n = 1;
   std::generate(members.begin(), members.end(), [&n] () { return n++; });
@@ -1608,7 +1608,7 @@ TEST_P(ActionProfTest, MaxSizeExceeded) {
 
 TEST_P(ActionProfTest, DuplicateMemberIds) {
   uint32_t group_id = 1000, member_id = 1;
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
 
   EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _));
   auto member = make_member(member_id, adata);
@@ -1628,7 +1628,7 @@ TEST_P(ActionProfTest, MaxSizeModify) {
   uint32_t member_id_1 = 1, member_id_2 = 2;
 
   // create 2 members
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   EXPECT_CALL(*mock, action_prof_member_create(act_prof_id, _, _))
       .Times(2);
   auto member_1 = make_member(member_id_1, adata);
@@ -1880,7 +1880,7 @@ class MatchTableIndirectTest
 TEST_P(MatchTableIndirectTest, Member) {
   uint32_t member_id = 123;
   std::string mf("\xaa\xbb\xcc\xdd", 4);
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   create_member(member_id, adata);
   auto mbr_h = mock->get_action_prof_handle();
   auto mk_matcher = CorrectMatchKey(t_id, mf);
@@ -1906,7 +1906,7 @@ TEST_P(MatchTableIndirectTest, Group) {
   uint32_t member_id = 123;
   uint32_t group_id = 1000;
   std::string mf("\xaa\xbb\xcc\xdd", 4);
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   create_member(member_id, adata);
   create_group(group_id, member_id);
   auto grp_h = mock->get_action_prof_handle();
@@ -1932,8 +1932,8 @@ TEST_P(MatchTableIndirectTest, Group) {
 TEST_P(MatchTableIndirectTest, OneShotInsertAndRead) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
   std::vector<std::string> params;
-  params.emplace_back(6, '\x00');
   params.emplace_back(6, '\x01');
+  params.emplace_back(6, '\x02');
   auto entry = make_indirect_entry_one_shot(mf, params.begin(), params.end());
   ASSERT_OK(add_indirect_entry_one_shot(&entry, params.begin(), params.end()));
 
@@ -1950,8 +1950,8 @@ TEST_P(MatchTableIndirectTest, OneShotInsertAndRead) {
 TEST_P(MatchTableIndirectTest, OneShotInsertAndModify) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
   std::vector<std::string> params;
-  params.emplace_back(6, '\x00');
   params.emplace_back(6, '\x01');
+  params.emplace_back(6, '\x02');
   auto entry_1 = make_indirect_entry_one_shot(mf, params.begin(), params.end());
   ASSERT_OK(add_indirect_entry_one_shot(
       &entry_1, params.begin(), params.end()));
@@ -1979,8 +1979,8 @@ TEST_P(MatchTableIndirectTest, OneShotInsertAndModify) {
 TEST_P(MatchTableIndirectTest, OneShotInsertAndDelete) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
   std::vector<std::string> params;
-  params.emplace_back(6, '\x00');
   params.emplace_back(6, '\x01');
+  params.emplace_back(6, '\x02');
   auto entry = make_indirect_entry_one_shot(mf, params.begin(), params.end());
   ASSERT_OK(add_indirect_entry_one_shot(&entry, params.begin(), params.end()));
 
@@ -1995,8 +1995,8 @@ TEST_P(MatchTableIndirectTest, OneShotInsertAndDelete) {
 TEST_P(MatchTableIndirectTest, OneShotInvalidActionWeight) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
   std::vector<std::string> params;
-  params.emplace_back(6, '\x00');
   params.emplace_back(6, '\x01');
+  params.emplace_back(6, '\x02');
   auto entry =
       make_indirect_entry_one_shot(mf, params.begin(), params.end(), 0);
   EXPECT_EQ(
@@ -2008,8 +2008,8 @@ TEST_P(MatchTableIndirectTest, OneShotInvalidActionWeight) {
 TEST_P(MatchTableIndirectTest, OneShotWeights) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
   std::vector<std::string> params;
-  params.emplace_back(6, '\x00');
   params.emplace_back(6, '\x01');
+  params.emplace_back(6, '\x02');
   auto entry =
       make_indirect_entry_one_shot(mf, params.begin(), params.end(), 2);
   ASSERT_OK(add_indirect_entry_one_shot(
@@ -2028,8 +2028,8 @@ TEST_P(MatchTableIndirectTest, OneShotWeights) {
 TEST_P(MatchTableIndirectTest, OneShotWatchPort) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
   std::vector<std::string> params;
-  params.emplace_back(6, '\x00');
   params.emplace_back(6, '\x01');
+  params.emplace_back(6, '\x02');
   int weight = 2;
   int watch_port = 7;
 
@@ -2077,8 +2077,8 @@ TEST_P(MatchTableIndirectTest, OneShotWatchPort) {
 TEST_P(MatchTableIndirectTest, OneShotWatchPortBytes) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
   std::vector<std::string> params;
-  params.emplace_back(6, '\x00');
   params.emplace_back(6, '\x01');
+  params.emplace_back(6, '\x02');
   int weight = 2;
   int watch_port = 7;
   std::string watch_port_str("\x07");
@@ -2241,7 +2241,7 @@ TEST_P(OneShotCleanupTest, MemberAddError) {
 
 TEST_P(MatchTableIndirectTest, MixedSelectorModes) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   std::vector<std::string> params({adata});
   auto entry = make_indirect_entry_one_shot(mf, params.begin(), params.end());
   ASSERT_OK(add_indirect_entry_one_shot(&entry, params.begin(), params.end()));
@@ -2340,7 +2340,7 @@ class ExactOneTest : public DeviceMgrTest {
 
 TEST_F(ExactOneTest, PriorityForNonTernaryMatch) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   int priority(789);
   auto entry = make_entry(mf, adata);
   entry.set_priority(priority);
@@ -2355,7 +2355,7 @@ TEST_F(ExactOneTest, PriorityForNonTernaryMatch) {
 // code.
 TEST_F(ExactOneTest, ZeroKeyAndDefaultEntry) {
   std::string mf(4, '\x00');
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
   EXPECT_CALL(*mock, table_default_action_set(t_id, _)).Times(2);
   {
@@ -2428,7 +2428,7 @@ class DirectMeterTest : public ExactOneTest {
 
 TEST_F(DirectMeterTest, WriteAndRead) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   auto entry = make_entry(mf, adata);
   auto mk_matcher = CorrectMatchKey(t_id, mf);
   auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
@@ -2476,7 +2476,7 @@ TEST_F(DirectMeterTest, WriteAndRead) {
 
 TEST_F(DirectMeterTest, WriteInTableEntry) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   auto entry = make_entry(mf, adata);
   auto *meter_config = entry.mutable_meter_config();
   *meter_config = make_meter_config();
@@ -2494,7 +2494,7 @@ TEST_F(DirectMeterTest, WriteInTableEntry) {
 }
 
 TEST_F(DirectMeterTest, InvalidTableEntry) {
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   std::string mf_1("\xaa\xbb\xcc\xdd", 4);
   auto entry_1 = make_entry(mf_1, adata);
   EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
@@ -2518,7 +2518,7 @@ TEST_F(DirectMeterTest, MissingTableEntry) {
 
 TEST_F(DirectMeterTest, ReadAllFromTable) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   auto entry = make_entry(mf, adata);
   auto *meter_config = entry.mutable_meter_config();
   *meter_config = make_meter_config();
@@ -2549,7 +2549,7 @@ TEST_F(DirectMeterTest, ReadAllFromTable) {
 
 // default entry direct meter access with DirectMeterEntry message
 TEST_F(DirectMeterTest, DefaultEntry) {
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   auto entry = make_entry(boost::none, adata);
   entry.set_is_default_action(true);
   auto config = make_meter_config();
@@ -2572,7 +2572,7 @@ TEST_F(DirectMeterTest, DefaultEntry) {
 
 // default entry direct meter access with TableEntry message
 TEST_F(DirectMeterTest, WriteInTableEntryDefault) {
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   auto entry = make_entry(boost::none, adata);
   entry.set_is_default_action(true);
   auto *meter_config = entry.mutable_meter_config();
@@ -2711,7 +2711,7 @@ class DirectCounterTest : public ExactOneTest {
 
 TEST_F(DirectCounterTest, WriteAndRead) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   auto entry = make_entry(mf, adata);
   auto mk_matcher = CorrectMatchKey(t_id, mf);
   auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
@@ -2762,7 +2762,7 @@ TEST_F(DirectCounterTest, WriteAndRead) {
 
 TEST_F(DirectCounterTest, InvalidTableEntry) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   auto entry = make_entry(mf, adata);
   auto mk_matcher = CorrectMatchKey(t_id, mf);
   auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
@@ -2781,7 +2781,7 @@ TEST_F(DirectCounterTest, InvalidTableEntry) {
 
 TEST_F(DirectCounterTest, ReadAllFromTable) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   auto entry = make_entry(mf, adata);
   auto counter_data = entry.mutable_counter_data();
   counter_data->set_packet_count(3);
@@ -2827,7 +2827,7 @@ TEST_F(DirectCounterTest, ReadAll) {
 
 TEST_F(DirectCounterTest, WriteInTableEntry) {
   std::string mf("\xaa\xbb\xcc\xdd", 4);
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   auto entry = make_entry(mf, adata);
   auto counter_data = entry.mutable_counter_data();
   counter_data->set_packet_count(3);
@@ -2845,7 +2845,7 @@ TEST_F(DirectCounterTest, WriteInTableEntry) {
 
 // default entry direct counter access with DirectCounterEntry message
 TEST_F(DirectCounterTest, DefaultEntry) {
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   auto entry = make_entry(boost::none, adata);
   entry.set_is_default_action(true);
   auto counter_entry = make_counter_entry(&entry);
@@ -2868,7 +2868,7 @@ TEST_F(DirectCounterTest, DefaultEntry) {
 
 // default entry direct counter access with TableEntry message
 TEST_F(DirectCounterTest, WriteInTableEntryDefault) {
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   auto entry = make_entry(boost::none, adata);
   entry.set_is_default_action(true);
   auto counter_data = entry.mutable_counter_data();
@@ -2998,7 +2998,7 @@ class MatchKeyFormatTest : public ExactOneTest {
     auto param = action->add_params();
     param->set_param_id(
         pi_p4info_action_param_id_from_name(p4info, a_id, "param"));
-    std::string adata(6, '\x00');
+    std::string adata(6, '\xcd');
     param->set_value(adata);
     return table_entry;
   }
@@ -3017,8 +3017,7 @@ TEST_F(MatchKeyFormatTest, Good1) {
   auto entry = make_entry_no_mk();
   std::string mf_v("\x0f\xbb", 2);
   add_one_mf(&entry, mf_v);
-  auto status = add_entry(&entry);
-  ASSERT_EQ(status.code(), Code::OK);
+  EXPECT_OK(add_entry(&entry));
 }
 
 TEST_F(MatchKeyFormatTest, Good2) {
@@ -3026,8 +3025,7 @@ TEST_F(MatchKeyFormatTest, Good2) {
   auto entry = make_entry_no_mk();
   std::string mf_v("\x00\x00", 2);
   add_one_mf(&entry, mf_v);
-  auto status = add_entry(&entry);
-  ASSERT_EQ(status.code(), Code::OK);
+  EXPECT_OK(add_entry(&entry));
 }
 
 TEST_F(MatchKeyFormatTest, MkMissingField) {
@@ -3046,11 +3044,11 @@ TEST_F(MatchKeyFormatTest, MkTooLong) {
 }
 
 TEST_F(MatchKeyFormatTest, FieldTooShort) {
+  EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
   auto entry = make_entry_no_mk();
   std::string mf_v("\x0a", 1);
   add_one_mf(&entry, mf_v);
-  auto status = add_entry(&entry);
-  EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
+  EXPECT_OK(add_entry(&entry));
 }
 
 TEST_F(MatchKeyFormatTest, FieldTooLong) {
@@ -3122,7 +3120,7 @@ class TernaryOneTest : public DeviceMgrTest {
 };
 
 TEST_F(TernaryOneTest, ValueEqValueAndMask) {
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   {  // value == value & mask
     std::string mf("\x11\x01\x01\x00", 4);
     std::string mask("\xff\xff\xff\xff", 4);
@@ -3142,7 +3140,7 @@ TEST_F(TernaryOneTest, ValueEqValueAndMask) {
 }
 
 TEST_F(TernaryOneTest, DontCare) {
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   {  // omitting match field: valid
     auto entry = make_entry(boost::none, boost::none, adata);
     EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
@@ -3168,7 +3166,7 @@ TEST_F(TernaryOneTest, DontCare) {
 }
 
 TEST_F(TernaryOneTest, ZeroPriority) {
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   auto entry = make_entry(boost::none, boost::none, adata, 0);
   EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _)).Times(0);
   auto status = add_entry(&entry);
@@ -3219,7 +3217,7 @@ class RangeOneTest : public DeviceMgrTest {
 };
 
 TEST_F(RangeOneTest, LowLeHigh) {
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   {  // low < high
     std::string low("\x11\x00\x11\x11", 4);
     std::string high("\x11\x00\x12\x11", 4);
@@ -3247,7 +3245,7 @@ TEST_F(RangeOneTest, LowLeHigh) {
 }
 
 TEST_F(RangeOneTest, DontCare) {
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   {  // omitting match field: valid
     auto entry = make_entry(boost::none, boost::none, adata);
     EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
@@ -3315,7 +3313,7 @@ class LpmOneTest : public DeviceMgrTest {
 };
 
 TEST_F(LpmOneTest, TrailingZeros) {
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   int pLen(12);
   {
     std::string mf("\xff\xf0\x00\x00", 4);
@@ -3348,7 +3346,7 @@ TEST_F(LpmOneTest, TrailingZeros) {
 }
 
 TEST_F(LpmOneTest, DontCare) {
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   int pLen(0);
   {  // omitting match field: valid
     auto entry = make_entry(boost::none, pLen, adata);
@@ -4049,7 +4047,7 @@ TEST_F(ReadExclusiveAccess, ConcurrentReadAndWrites) {
 
     uint32_t member_id = 123;
     std::string mf("\xaa\xbb\xcc\xdd", 4);
-    std::string adata(6, '\x00');
+    std::string adata(6, '\xcd');
     auto member = make_member(member_id, adata);
     auto entry = make_indirect_entry_to_member(mf, member_id);
 
@@ -4331,8 +4329,8 @@ constexpr std::chrono::milliseconds IdleTimeoutTest::negativeTimeout;
 constexpr std::chrono::milliseconds IdleTimeoutTest::notificationMaxDelay;
 
 TEST_F(IdleTimeoutTest, EntryAgeing) {
-  std::string mf(2, '\x00');
-  std::string adata(6, '\x00');
+  std::string mf(2, '\xab');
+  std::string adata(6, '\xcd');
   auto entry = make_entry(mf, adata, defaultIdleTimeout);
 
   auto *entry_matcher_ = new TableEntryMatcher_Direct(a_id, adata);
@@ -4357,7 +4355,7 @@ TEST_F(IdleTimeoutTest, EntryAgeing) {
 // load). By default the DeviceMgr implementation delays notifications by at
 // most 100ms.
 TEST_F(IdleTimeoutTest, Buffering) {
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   constexpr size_t num_entries = 3;
   EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _)).Times(num_entries);
   for (size_t i = 0; i < num_entries; i++) {
@@ -4376,7 +4374,7 @@ TEST_F(IdleTimeoutTest, Buffering) {
 
 // Checks that notifications are not buffered for too long.
 TEST_F(IdleTimeoutTest, MaxBuffering) {
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   constexpr size_t num_entries = 3;
   EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _)).Times(num_entries);
   for (size_t i = 0; i < num_entries; i++) {
@@ -4394,7 +4392,7 @@ TEST_F(IdleTimeoutTest, MaxBuffering) {
 
 TEST_F(IdleTimeoutTest, ModifyTTL) {
   std::string mf(2, '\x00');
-  std::string adata(6, '\x00');
+  std::string adata(6, '\xcd');
   auto entry = make_entry(mf, adata, defaultIdleTimeout);
 
   auto *entry_matcher_ = new TableEntryMatcher_Direct(a_id, adata);
@@ -4419,8 +4417,8 @@ TEST_F(IdleTimeoutTest, ModifyTTL) {
 }
 
 TEST_F(IdleTimeoutTest, ReadEntry) {
-  std::string mf(2, '\x00');
-  std::string adata(6, '\x00');
+  std::string mf(2, '\xab');
+  std::string adata(6, '\xcd');
   auto entry = make_entry(mf, adata, defaultIdleTimeout);
 
   EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));

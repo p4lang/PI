@@ -1,4 +1,5 @@
 /* Copyright 2013-present Barefoot Networks, Inc.
+ * Copyright 2021 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +15,7 @@
  */
 
 /*
- * Antonin Bas (antonin@barefootnetworks.com)
+ * Antonin Bas
  *
  */
 
@@ -22,6 +23,7 @@
 #define SRC_ACTION_HELPERS_H_
 
 #include <PI/pi.h>
+#include <PI/frontends/cpp/tables.h>
 
 #include "google/rpc/status.pb.h"
 #include "p4/v1/p4runtime.pb.h"
@@ -34,8 +36,9 @@ namespace proto {
 
 using Status = ::google::rpc::Status;
 
-Status validate_action_data(const pi_p4info_t *p4info,
-                            const p4::v1::Action &action);
+Status construct_action_data(const pi_p4info_t *p4info,
+                             const p4::v1::Action &action,
+                             pi::ActionData *action_data);
 
 }  // namespace proto
 

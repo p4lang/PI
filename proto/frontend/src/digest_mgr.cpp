@@ -71,6 +71,8 @@ using Code = ::google::rpc::Code;
 using EmptyPromise = std::promise<void>;
 using StreamMessageResponseCb = DigestMgr::StreamMessageResponseCb;
 
+using common::bytestring_pi_to_p4rt;
+
 // Fowler–Noll–Vo hash function parameters depending on desired output size
 // this ensures that things work correctly on both 32-bit and 64-bit systems
 // when using fnv_1a_hash_params<size_t>
@@ -270,7 +272,8 @@ TypeSpecConverterStruct::operator()(const Sample &s, p4v1::P4Data *p4_data) {
   auto *struct_like = p4_data->mutable_struct_();
   for (const auto &bitwidth : bitwidths) {
     bytes = (bitwidth + 7) / 8;
-    struct_like->add_members()->set_bitstring(s.data + offset, bytes);
+    struct_like->add_members()->set_bitstring(
+        bytestring_pi_to_p4rt(s.data + offset, bytes));
     offset += bytes;
   }
 }
@@ -310,7 +313,8 @@ TypeSpecConverterTuple::operator()(const Sample &s, p4v1::P4Data *p4_data) {
   auto *struct_like = p4_data->mutable_tuple();
   for (const auto &bitwidth : bitwidths) {
     bytes = (bitwidth + 7) / 8;
-    struct_like->add_members()->set_bitstring(s.data + offset, bytes);
+    struct_like->add_members()->set_bitstring(
+        bytestring_pi_to_p4rt(s.data + offset, bytes));
     offset += bytes;
   }
 }
@@ -340,8 +344,7 @@ TypeSpecConverterBitstring::operator()(const Sample &s, p4v1::P4Data *p4_data) {
         "Digest sample received from PI doesn't match expected format");
     return;
   }
-  // TODO(antonin): ensure correct formatting, use canonical representation?
-  p4_data->set_bitstring(s.data, s.size);
+  p4_data->set_bitstring(bytestring_pi_to_p4rt(s.data, s.size));
 }
 
 using Cache = std::unordered_set<Sample, SampleHash, SampleEq>;
