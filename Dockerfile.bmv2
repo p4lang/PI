@@ -16,18 +16,16 @@ ARG MAKEFLAGS=-j2
 ARG IMAGE_TYPE=build
 
 # Select the compiler to use.
-# We install the default version of GCC (GCC 5), as well as GCC 7, clang 3.8 and
-# clang 6.0.
+# We install the default version of GCC (GCC 5), as well as clang 3.8 and clang 8.
 ARG CC=gcc
 ARG CXX=g++
 
 ENV PI_DEPS automake \
             build-essential \
             clang-3.8 \
-            clang-6.0 \
-            clang-format-6.0 \
+            clang-8 \
+            clang-format-8 \
             g++ \
-            g++-7 \
             libboost-dev \
             libboost-system-dev \
             libboost-thread-dev \
@@ -50,9 +48,6 @@ COPY proto/sysrepo/docker_entry_point.sh /docker_entry_point.sh
 COPY . /PI/
 WORKDIR /PI/
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends software-properties-common && \
-    add-apt-repository -y ppa:ubuntu-toolchain-r/test && \
-    apt-get update && \
     apt-get install -y --no-install-recommends $PI_DEPS $PI_RUNTIME_DEPS && \
     ln -sf /usr/bin/python3 /usr/bin/python && \
     ln -sf /usr/bin/pip3 /usr/bin/pip && \
