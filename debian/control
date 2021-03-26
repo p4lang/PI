@@ -1,0 +1,119 @@
+Source: p4lang-pi
+Section: net
+Priority: optional
+Maintainer: Thomas Dreibholz <dreibh@simula.no>
+Build-Depends: autoconf,
+               automake,
+               debhelper (>= 12),
+               dh-python,
+               libboost-dev,
+               libboost-system-dev,
+               libboost-thread-dev,
+               libgrpc++-dev,
+               libgrpc-dev,
+               libjudy-dev,
+               libnanomsg-dev,
+               libprotobuf-dev,
+               libprotoc-dev,
+               libreadline-dev,
+               libtool,
+               libtool-bin,
+               p4lang-bmv2-dev,
+               pkg-config,
+               protobuf-compiler,
+               protobuf-compiler-grpc,
+               python2,
+               python3-all,
+               valgrind
+Standards-Version: 4.5.1.0
+Rules-Requires-Root: no
+Homepage: https://github.com/osinstom/PI
+Vcs-Git: https://github.com/simula/PI
+Vcs-Browser: https://github.com/simula/PI/tree/p4-packaging
+
+Package: p4lang-pi-bin
+Architecture: amd64 arm64
+Depends: libboost-dev,
+         p4lang-bmv2-bin,
+         p4lang-pi-libs (= ${binary:Version}),
+         ${misc:Depends},
+         ${python:Depends},
+         ${shlibs:Depends}
+Recommends: hipercontracer,
+            netperfmeter,
+            rsplib-tools,
+            subnetcalc,
+            tcpdump,
+            tsctp,
+            tshark
+Description: Implementation framework of a P4Runtime server (binaries)
+ Protocol Independent API (PI or P4 Runtime) defines a set of APIs that allow
+ interacting with entities defined in a P4 program.
+ .
+ This package contains the binary programs.
+
+Package: p4lang-pi-libs
+Section: libs
+Architecture: amd64 arm64
+Depends: p4lang-bmv2-libs,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: Implementation framework of a P4Runtime server (libraries)
+ Protocol Independent API (PI or P4 Runtime) defines a set of APIs that allow
+ interacting with entities defined in a P4 program.
+ .
+ This package contains the libraries.
+
+Package: python-p4lang-pi
+Section: python
+Architecture: amd64 arm64
+Depends: p4lang-bmv2,
+         p4lang-pi-libs (= ${binary:Version}),
+         python2,
+         ${misc:Depends},
+         ${python:Depends},
+         ${shlibs:Depends}
+Description: Implementation framework of a P4Runtime server (Python libraries)
+ Protocol Independent API (PI or P4 Runtime) defines a set of APIs that allow
+ interacting with entities defined in a P4 program.
+ .
+ This package contains the Python libraries.
+
+Package: p4lang-pi-dev
+Section: libdevel
+Architecture: amd64 arm64
+Depends: libboost-dev,
+         libboost-system-dev,
+         libboost-thread-dev,
+         libgrpc++-dev,
+         libgrpc-dev,
+         libjudy-dev,
+         libprotobuf-dev,
+         libprotoc-dev,
+         p4lang-bmv2,
+         p4lang-bmv2-dev,
+         p4lang-pi-libs (= ${binary:Version}),
+         protobuf-compiler,
+         protobuf-compiler-grpc,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: Implementation framework of a P4Runtime server (development files)
+ Protocol Independent API (PI or P4 Runtime) defines a set of APIs that allow
+ interacting with entities defined in a P4 program.
+ .
+ This package contains the development files.
+
+Package: p4lang-pi
+Architecture: amd64 arm64
+Depends: p4lang-pi-bin (= ${binary:Version}),
+         p4lang-pi-dev (= ${binary:Version}),
+         p4lang-pi-libs (= ${binary:Version}),
+         python-p4lang-pi  (= ${binary:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: Implementation framework of a P4Runtime server (metapackage)
+ Protocol Independent API (PI or P4 Runtime) defines a set of APIs that allow
+ interacting with entities defined in a P4 program.
+ .
+ This metapackage depends on the binaries, libraries and development
+ packages.
