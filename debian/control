@@ -27,9 +27,9 @@ Build-Depends: autoconf,
                valgrind
 Standards-Version: 4.5.1.0
 Rules-Requires-Root: no
-Homepage: https://github.com/osinstom/PI
-Vcs-Git: https://github.com/simula/PI
-Vcs-Browser: https://github.com/simula/PI/tree/p4-packaging
+Homepage: https://github.com/p4lang/PI
+Vcs-Git: https://github.com/p4lang/PI
+Vcs-Browser: https://github.com/p4lang/PI
 
 Package: p4lang-pi-bin
 Architecture: amd64 arm64
