@@ -63,9 +63,14 @@ def stringify(n, length):
     'length' bytes, it is represented in the fewest number of bytes it
     does fit into without loss of precision.  It always returns a
     string at least one byte long, even if value=width=0."""
-    h = '%x' % n
-    s = ('0'*(len(h) % 2) + h).zfill(length*2).decode('hex')
-    return s
+    if length == 0 and n == 0:
+        length = 1
+    while True:
+        try:
+            s = n.to_bytes(length, byteorder='big')
+            return s
+        except OverflowError:
+            length = length + 1
 
 def ipv4_to_binary(addr):
     """Take an argument 'addr' containing an IPv4 address written as a
@@ -74,10 +79,10 @@ def ipv4_to_binary(addr):
     client operations."""
     bytes_ = [int(b, 10) for b in addr.split('.')]
     assert len(bytes_) == 4
-    # Note: The chr(b) call below will throw exception if any b is
-    # outside of the range [0, 255]], so no need to add a separate
-    # check for that here.
-    return "".join(chr(b) for b in bytes_)
+    # Note: The bytes() call below will throw exception if any
+    # elements of bytes_ is outside of the range [0, 255]], so no need
+    # to add a separate check for that here.
+    return bytes(bytes_)
 
 def mac_to_binary(addr):
     """Take an argument 'addr' containing an Ethernet MAC address written
@@ -87,10 +92,10 @@ def mac_to_binary(addr):
     operations."""
     bytes_ = [int(b, 16) for b in addr.split(':')]
     assert len(bytes_) == 6
-    # Note: The chr(b) call below will throw exception if any b is
-    # outside of the range [0, 255]], so no need to add a separate
-    # check for that here.
-    return "".join(chr(b) for b in bytes_)
+    # Note: The bytes() call below will throw exception if any
+    # elements of bytes_ is outside of the range [0, 255]], so no need
+    # to add a separate check for that here.
+    return bytes(bytes_)
 
 # Used to indicate that the gRPC error Status object returned by the server has
 # an incorrect format.
@@ -267,7 +272,7 @@ class P4RuntimeTest(BaseTest):
                     key = (obj_type, suffix)
                     self.p4info_obj_map[key] = obj
                     suffix_count[key] += 1
-        for key, c in suffix_count.items():
+        for key, c in list(suffix_count.items()):
             if c > 1:
                 del self.p4info_obj_map[key]
 
@@ -402,21 +407,24 @@ class P4RuntimeTest(BaseTest):
             mf = mk.add()
             mf.field_id = mf_id
             mf.lpm.prefix_len = self.pLen
-            mf.lpm.value = ''
+            assert isinstance(self.v, bytes)
+            orig_v_list = list(self.v)
+            mod_v_list = []
 
             # P4Runtime now has strict rules regarding ternary matches: in the
             # case of LPM, trailing bits in the value (after prefix) must be set
             # to 0.
-            first_byte_masked = self.pLen / 8
+            first_byte_masked = self.pLen // 8
             for i in range(first_byte_masked):
-                mf.lpm.value += self.v[i]
-            if first_byte_masked == len(self.v):
+                mod_v_list.append(orig_v_list[i])
+            if first_byte_masked == len(orig_v_list):
+                mf.lpm.value = bytes(mod_v_list)
                 return
             r = self.pLen % 8
-            mf.lpm.value += chr(
-                ord(self.v[first_byte_masked]) & (0xff << (8 - r)))
-            for i in range(first_byte_masked + 1, len(self.v)):
-                mf.lpm.value += '\x00'
+            mod_v_list.append(orig_v_list[first_byte_masked] & (0xff << (8 - r)))
+            for i in range(first_byte_masked + 1, len(orig_v_list)):
+                mod_v_list.append(0)
+            mf.lpm.value = bytes(mod_v_list)
 
     class Ternary(MF):
         def __init__(self, name, v, mask):

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Copyright 2013-present Barefoot Networks, Inc.
 #
@@ -53,7 +53,7 @@ def check_ifaces(ifaces):
     '''
     Checks that required interfaces exist.
     '''
-    ip_out = subprocess.check_output(['ip', 'link'])
+    ip_out = subprocess.check_output(['ip', 'link'], text=True)
     # 'ip link' returns a list of interfaces as
     # <idx>: <iface>: ...
     # <idx>: <veth>@<peer veth>: ...
@@ -105,7 +105,7 @@ def run_test(config_path, p4info_path, grpc_addr, device_id,
             iface_name = entry["iface_name"]
             port_map[p4_port] = iface_name
 
-    if not check_ifaces(port_map.values()):
+    if not check_ifaces(list(port_map.values())):
         error("Some interfaces are missing")
         return False
 
@@ -117,7 +117,7 @@ def run_test(config_path, p4info_path, grpc_addr, device_id,
         os.environ['PYTHONPATH'] += ":" + pypath
     else:
         os.environ['PYTHONPATH'] = pypath
-    for iface_idx, iface_name in port_map.items():
+    for iface_idx, iface_name in list(port_map.items()):
         ifaces.extend(['-i', '{}@{}'.format(iface_idx, iface_name)])
     cmd = ['ptf']
     cmd.extend(['--test-dir', ptfdir])
