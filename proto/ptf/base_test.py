@@ -48,29 +48,24 @@ class partialmethod(partial):
         return partial(self.func, instance,
                        *(self.args or ()), **(self.keywords or {}))
 
-# Convert integer (with length) to binary byte string
-# Equivalent to Python 3.2 int.to_bytes
-# See
-# https://stackoverflow.com/questions/16022556/has-python-3-to-bytes-been-back-ported-to-python-2-7
-# TODO: When P4Runtime implementation is ready for it, use
-# minimum-length byte sequences to represent integers.  For unsigned
-# integers, this should only require removing the zfill() call below.
-def stringify(n, length):
+def stringify(n, length=0):
     """Take a non-negative integer 'n' as the first parameter, and a
     non-negative integer 'length' in units of _bytes_ as the second
-    parameter.  Return a string with binary contents expected by the
-    Python P4Runtime client operations.  If 'n' does not fit in
-    'length' bytes, it is represented in the fewest number of bytes it
-    does fit into without loss of precision.  It always returns a
-    string at least one byte long, even if value=width=0."""
+    parameter (it defaults to 0 if not provided).  Return a string
+    with binary contents expected by the Python P4Runtime client
+    operations.  If 'n' does not fit in 'length' bytes, it is
+    represented in the fewest number of bytes it does fit into without
+    loss of precision.  It always returns a string at least one byte
+    long, even if n=length=0."""
     if length == 0 and n == 0:
         length = 1
-    while True:
-        try:
-            s = n.to_bytes(length, byteorder='big')
-            return s
-        except OverflowError:
-            length = length + 1
+    else:
+        n_size_bits = n.bit_length()
+        n_size_bytes = (n_size_bits + 7) // 8
+        if n_size_bytes > length:
+            length = n_size_bytes
+    s = n.to_bytes(length, byteorder='big')
+    return s
 
 def ipv4_to_binary(addr):
     """Take an argument 'addr' containing an IPv4 address written as a
@@ -272,7 +267,7 @@ class P4RuntimeTest(BaseTest):
                     key = (obj_type, suffix)
                     self.p4info_obj_map[key] = obj
                     suffix_count[key] += 1
-        for key, c in list(suffix_count.items()):
+        for key, c in suffix_count.items():
             if c > 1:
                 del self.p4info_obj_map[key]
 
