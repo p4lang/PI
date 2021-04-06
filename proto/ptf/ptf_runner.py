@@ -117,7 +117,7 @@ def run_test(config_path, p4info_path, grpc_addr, device_id,
         os.environ['PYTHONPATH'] += ":" + pypath
     else:
         os.environ['PYTHONPATH'] = pypath
-    for iface_idx, iface_name in list(port_map.items()):
+    for iface_idx, iface_name in port_map.items():
         ifaces.extend(['-i', '{}@{}'.format(iface_idx, iface_name)])
     cmd = ['ptf']
     cmd.extend(['--test-dir', ptfdir])
