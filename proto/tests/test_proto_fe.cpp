@@ -2682,7 +2682,8 @@ class DirectCounterTest : public ExactOneTest {
                                  p4v1::ReadResponse *response) {
     p4v1::ReadRequest request;
     auto entity = request.add_entities();
-    entity->unsafe_arena_set_allocated_direct_counter_entry(direct_counter_entry);
+    entity->unsafe_arena_set_allocated_direct_counter_entry(
+        direct_counter_entry);
     auto status = mgr.read(request, response);
     entity->unsafe_arena_release_direct_counter_entry();
     return status;
@@ -2694,7 +2695,8 @@ class DirectCounterTest : public ExactOneTest {
     auto update = request.add_updates();
     update->set_type(p4v1::Update::MODIFY);
     auto entity = update->mutable_entity();
-    entity->unsafe_arena_set_allocated_direct_counter_entry(direct_counter_entry);
+    entity->unsafe_arena_set_allocated_direct_counter_entry(
+        direct_counter_entry);
     auto status = mgr.write(request);
     entity->unsafe_arena_release_direct_counter_entry();
     return status;
