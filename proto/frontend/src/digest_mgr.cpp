@@ -515,13 +515,15 @@ class DigestData {
     digest.set_timestamp(
         std::chrono::duration_cast<std::chrono::nanoseconds>(
             Clock::now().time_since_epoch()).count());
-    response.set_allocated_digest(&digest);
     // the test for a callback is probably not strictly required based on our
     // usage. However, in theory it is possible for the callback to be
     // unregistered and then have the timeout sweep task try to generate a
     // digest message.
-    if (cb) cb(device_id, &response, cookie);
-    response.release_digest();
+    if (cb) {
+        response.unsafe_arena_set_allocated_digest(&digest);
+        cb(device_id, &response, cookie);
+        response.unsafe_arena_release_digest();
+    }
     timeout_bit = false;
     // for the case where ack_timeout_ns is 0 and no caching is done
     if (!current_list_data.cache_pointers.empty())

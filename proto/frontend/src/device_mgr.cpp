@@ -602,11 +602,11 @@ class DeviceMgrImp {
       for (auto &entity : *forwarding_state.mutable_entities()) {
         auto *update = write_request.add_updates();
         update->set_type(p4v1::Update::INSERT);
-        update->set_allocated_entity(&entity);
+        update->unsafe_arena_set_allocated_entity(&entity);
       }
       auto status = write_(write_request);
       for (auto &update : *write_request.mutable_updates())
-        update.release_entity();
+        update.unsafe_arena_release_entity();
       if (IS_ERROR(status))
         RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when reconciling config")
     }
@@ -1598,9 +1598,9 @@ class DeviceMgrImp {
     if (stream_error.canonical_code() == Code::OK || !cb_) return status;
 
     p4v1::StreamMessageResponse msg;
-    msg.set_allocated_error(&stream_error);
+    msg.unsafe_arena_set_allocated_error(&stream_error);
     cb_(device_id, &msg, cookie_);
-    msg.release_error();
+    msg.unsafe_arena_release_error();
     return status;
   }
 
