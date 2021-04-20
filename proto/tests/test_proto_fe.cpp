@@ -890,9 +890,9 @@ class ActionProfTest
     auto update = request.add_updates();
     update->set_type(type);
     auto entity = update->mutable_entity();
-    entity->set_allocated_action_profile_member(member);
+    entity->unsafe_arena_set_allocated_action_profile_member(member);
     auto status = mgr.write(request);
-    entity->release_action_profile_member();
+    entity->unsafe_arena_release_action_profile_member();
     return status;
   }
 
@@ -953,9 +953,9 @@ class ActionProfTest
     auto update = request.add_updates();
     update->set_type(type);
     auto entity = update->mutable_entity();
-    entity->set_allocated_action_profile_group(group);
+    entity->unsafe_arena_set_allocated_action_profile_group(group);
     auto status = mgr.write(request);
-    entity->release_action_profile_group();
+    entity->unsafe_arena_release_action_profile_group();
     return status;
   }
 
@@ -1703,9 +1703,9 @@ class MatchTableIndirectTest
     auto update = request.add_updates();
     update->set_type(p4v1::Update::INSERT);
     auto entity = update->mutable_entity();
-    entity->set_allocated_action_profile_member(&member);
+    entity->unsafe_arena_set_allocated_action_profile_member(&member);
     auto status = mgr.write(request);
-    entity->release_action_profile_member();
+    entity->unsafe_arena_release_action_profile_member();
     EXPECT_EQ(status.code(), Code::OK);
   }
 
@@ -1739,9 +1739,9 @@ class MatchTableIndirectTest
     auto update = request.add_updates();
     update->set_type(p4v1::Update::INSERT);
     auto entity = update->mutable_entity();
-    entity->set_allocated_action_profile_group(&group);
+    entity->unsafe_arena_set_allocated_action_profile_group(&group);
     auto status = mgr.write(request);
-    entity->release_action_profile_group();
+    entity->unsafe_arena_release_action_profile_group();
     EXPECT_OK(status);
   }
 
@@ -2390,9 +2390,9 @@ class DirectMeterTest : public ExactOneTest {
     auto update = request.add_updates();
     update->set_type(p4v1::Update::MODIFY);
     auto entity = update->mutable_entity();
-    entity->set_allocated_direct_meter_entry(direct_meter_entry);
+    entity->unsafe_arena_set_allocated_direct_meter_entry(direct_meter_entry);
     auto status = mgr.write(request);
-    entity->release_direct_meter_entry();
+    entity->unsafe_arena_release_direct_meter_entry();
     return status;
   }
 
@@ -2417,9 +2417,9 @@ class DirectMeterTest : public ExactOneTest {
                                p4v1::ReadResponse *response) {
     p4v1::ReadRequest request;
     auto entity = request.add_entities();
-    entity->set_allocated_direct_meter_entry(direct_meter_entry);
+    entity->unsafe_arena_set_allocated_direct_meter_entry(direct_meter_entry);
     auto status = mgr.read(request, response);
-    entity->release_direct_meter_entry();
+    entity->unsafe_arena_release_direct_meter_entry();
     return status;
   }
 
@@ -2607,9 +2607,9 @@ class IndirectMeterTest : public DeviceMgrTest  {
                                p4v1::ReadResponse *response) {
     p4v1::ReadRequest request;
     auto entity = request.add_entities();
-    entity->set_allocated_meter_entry(meter_entry);
+    entity->unsafe_arena_set_allocated_meter_entry(meter_entry);
     auto status = mgr.read(request, response);
-    entity->release_meter_entry();
+    entity->unsafe_arena_release_meter_entry();
     return status;
   }
 
@@ -2618,9 +2618,9 @@ class IndirectMeterTest : public DeviceMgrTest  {
     auto update = request.add_updates();
     update->set_type(p4v1::Update::MODIFY);
     auto entity = update->mutable_entity();
-    entity->set_allocated_meter_entry(meter_entry);
+    entity->unsafe_arena_set_allocated_meter_entry(meter_entry);
     auto status = mgr.write(request);
-    entity->release_meter_entry();
+    entity->unsafe_arena_release_meter_entry();
     return status;
   }
 
@@ -2682,9 +2682,9 @@ class DirectCounterTest : public ExactOneTest {
                                  p4v1::ReadResponse *response) {
     p4v1::ReadRequest request;
     auto entity = request.add_entities();
-    entity->set_allocated_direct_counter_entry(direct_counter_entry);
+    entity->unsafe_arena_set_allocated_direct_counter_entry(direct_counter_entry);
     auto status = mgr.read(request, response);
-    entity->release_direct_counter_entry();
+    entity->unsafe_arena_release_direct_counter_entry();
     return status;
   }
 
@@ -2694,9 +2694,9 @@ class DirectCounterTest : public ExactOneTest {
     auto update = request.add_updates();
     update->set_type(p4v1::Update::MODIFY);
     auto entity = update->mutable_entity();
-    entity->set_allocated_direct_counter_entry(direct_counter_entry);
+    entity->unsafe_arena_set_allocated_direct_counter_entry(direct_counter_entry);
     auto status = mgr.write(request);
-    entity->release_direct_counter_entry();
+    entity->unsafe_arena_release_direct_counter_entry();
     return status;
   }
 
@@ -2902,9 +2902,9 @@ class IndirectCounterTest : public DeviceMgrTest  {
                                  p4v1::ReadResponse *response) {
     p4v1::ReadRequest request;
     auto entity = request.add_entities();
-    entity->set_allocated_counter_entry(counter_entry);
+    entity->unsafe_arena_set_allocated_counter_entry(counter_entry);
     auto status = mgr.read(request, response);
-    entity->release_counter_entry();
+    entity->unsafe_arena_release_counter_entry();
     return status;
   }
 
@@ -2913,9 +2913,9 @@ class IndirectCounterTest : public DeviceMgrTest  {
     auto update = request.add_updates();
     update->set_type(p4v1::Update::MODIFY);
     auto entity = update->mutable_entity();
-    entity->set_allocated_counter_entry(counter_entry);
+    entity->unsafe_arena_set_allocated_counter_entry(counter_entry);
     auto status = mgr.write(request);
-    entity->release_counter_entry();
+    entity->unsafe_arena_release_counter_entry();
     return status;
   }
 

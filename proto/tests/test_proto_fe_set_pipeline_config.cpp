@@ -72,9 +72,9 @@ class DeviceMgrSetPipelineConfigTest : public DeviceMgrBaseTest {
         .Times(AnyNumber());
 
     p4v1::ForwardingPipelineConfig config;
-    config.set_allocated_p4info(p4info_proto);
+    config.unsafe_arena_set_allocated_p4info(p4info_proto);
     auto status = mgr.pipeline_config_set(action, config);
-    config.release_p4info();
+    config.unsafe_arena_release_p4info();
     return status;
   }
 };
