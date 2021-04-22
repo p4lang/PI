@@ -3,14 +3,15 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("//bazel:workspace_rule.bzl", "remote_workspace")
 
-GNMI_COMMIT = "39cb2fffed5c9a84970bde47b3d39c8c716dc17a";
-GNMI_SHA = "3701005f28044065608322c179625c8898beadb80c89096b3d8aae1fbac15108";
+GNMI_COMMIT = "39cb2fffed5c9a84970bde47b3d39c8c716dc17a"
+GNMI_SHA = "3701005f28044065608322c179625c8898beadb80c89096b3d8aae1fbac15108"
+
 # P4RUNTIME_TAG = "1.3.0"
 # We cannot use the latest release (v1.3.0) as we need to include a recent fix
 # to support Bazel 4.0. More precisely, this fix updates the Bazel build
 # dependencies to more recent versions compatible with Bazel 4.0.
-P4RUNTIME_COMMIT = "0d40261b67283999bf0f03bd6b40b5374c7aebd0"
-P4RUNTIME_SHA="d1b31378f58fa7c6039edac06299acfe77ec130e4dffb4704b4e5a30293bd2a5"
+P4RUNTIME_COMMIT = "e9c0d196c4c2acd6f1bd3439f5b30b423ef90c95"
+P4RUNTIME_SHA = "039fb488af8b5ae8f2a5dd05ca4385b1ab33099165c4d61405fb50eedf0c6324"
 
 def PI_deps():
     """Loads dependencies needed to compile PI."""
@@ -50,7 +51,7 @@ def PI_deps():
             build_file = "@//bazel:external/gnmi.BUILD",
             patch_cmds = [
                 "sed -i.bak 's#github.com/openconfig/gnmi/proto/##g' gnmi/gnmi.proto",
-                "rm gnmi/gnmi.proto.bak"
+                "rm gnmi/gnmi.proto.bak",
             ],
         )
 
