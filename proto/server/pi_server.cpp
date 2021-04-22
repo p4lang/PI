@@ -598,9 +598,9 @@ namespace testing {
 
 void send_packet_in(DeviceMgr::device_id_t device_id, p4v1::PacketIn *packet) {
   p4v1::StreamMessageResponse msg;
-  msg.set_allocated_packet(packet);
+  msg.unsafe_arena_set_allocated_packet(packet);
   Devices::get(device_id)->send_stream_message(&msg);
-  msg.release_packet();
+  msg.unsafe_arena_release_packet();
 }
 
 size_t max_connections() { return DeviceState::max_connections; }

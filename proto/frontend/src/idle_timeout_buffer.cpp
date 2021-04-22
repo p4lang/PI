@@ -79,9 +79,9 @@ class IdleTimeoutBuffer::TaskSendNotifications : public Task {
         std::chrono::duration_cast<std::chrono::nanoseconds>(
             Clock::now().time_since_epoch()).count());
     p4v1::StreamMessageResponse msg;
-    msg.set_allocated_idle_timeout_notification(&notifications);
+    msg.unsafe_arena_set_allocated_idle_timeout_notification(&notifications);
     buffer->cb(buffer->device_id, &msg, buffer->cookie);
-    msg.release_idle_timeout_notification();
+    msg.unsafe_arena_release_idle_timeout_notification();
     notifications.Clear();
   }
 };
