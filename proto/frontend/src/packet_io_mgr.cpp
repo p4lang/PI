@@ -28,7 +28,9 @@
 
 #include "google/rpc/code.pb.h"
 
+#include "common.h"
 #include "report_error.h"
+#include "status_macros.h"
 
 namespace p4v1 = ::p4::v1;
 namespace p4configv1 = ::p4::config::v1;
@@ -41,6 +43,9 @@ namespace fe {
 namespace proto {
 
 using Code = ::google::rpc::Code;
+
+using common::bytestring_p4rt_to_pi;
+using common::bytestring_pi_to_p4rt;
 
 namespace {
 
@@ -173,7 +178,7 @@ class PacketInMutate {
       generic_extract(pkt, bit_offset, bitwidth, buffer.data());
       bit_offset += (bitwidth % 8);
       pkt += (bitwidth / 8);
-      metadata->set_value(buffer.data(), buffer.size());
+      metadata->set_value(bytestring_pi_to_p4rt(buffer.data(), buffer.size()));
     }
     return true;
   }
@@ -254,7 +259,9 @@ class PacketOutMutate {
                             "Unknown metadata id in PacketOut message");
       }
       const auto &offset = offset_it->second;
-      generic_deparse(metadata.value().data(), offset.bitwidth,
+      ASSIGN_OR_RETURN(
+          auto value, bytestring_p4rt_to_pi(metadata.value(), offset.bitwidth));
+      generic_deparse(value.data(), offset.bitwidth,
                       &(*pkt)[offset.byte_offset], offset.bit_offset);
     }
     pkt->append(payload);
