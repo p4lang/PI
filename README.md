@@ -54,9 +54,8 @@ is not the right one.
 - [nanomsg 1.0.0](https://github.com/nanomsg/nanomsg/releases/tag/1.0.0)
 - [Protobuf v3.6.1](https://github.com/google/protobuf/releases/tag/v3.6.1):
 ```
-git clone https://github.com/google/protobuf.git
+git clone --depth=1 -b v3.6.1 https://github.com/google/protobuf.git
 cd protobuf/
-git checkout tags/v3.6.1
 ./autogen.sh
 ./configure
 make
@@ -65,9 +64,8 @@ make
 ```
 - [gRPC v1.17.2](https://github.com/grpc/grpc/releases/tag/v1.17.2):
 ```
-git clone https://github.com/google/grpc.git
+git clone --depth=1 -b v1.17.2 https://github.com/google/grpc.git
 cd grpc/
-git checkout tags/v1.17.2
 git submodule update --init --recursive
 make
 [sudo] make install
