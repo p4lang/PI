@@ -45,7 +45,7 @@ using namespace ::apache::thrift::transport;  // NOLINT(build/namespaces)
 namespace pibmv2 {
 
 struct ClientImp {
-  ::stdcxx::shared_ptr<TTransport> transport{nullptr};
+  std::shared_ptr<TTransport> transport{nullptr};
   std::unique_ptr<StandardClient> client{nullptr};
   std::unique_ptr<SimplePreLAGClient> mc_client{nullptr};
   std::mutex mutex{};
@@ -70,14 +70,14 @@ int conn_mgr_client_init(conn_mgr_t *conn_mgr_state, dev_id_t dev_id,
   assert(conn_mgr_state->clients.find(dev_id) == conn_mgr_state->clients.end());
   auto &client = conn_mgr_state->clients[dev_id];  // construct
 
-  ::stdcxx::shared_ptr<TTransport> socket(
+  std::shared_ptr<TTransport> socket(
       new TSocket("localhost", thrift_port_num));
-  ::stdcxx::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
-  ::stdcxx::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
+  std::shared_ptr<TTransport> transport(new TBufferedTransport(socket));
+  std::shared_ptr<TProtocol> protocol(new TBinaryProtocol(transport));
 
-  ::stdcxx::shared_ptr<TMultiplexedProtocol> standard_protocol(
+  std::shared_ptr<TMultiplexedProtocol> standard_protocol(
       new TMultiplexedProtocol(protocol, "standard"));
-  ::stdcxx::shared_ptr<TMultiplexedProtocol> mc_protocol(
+  std::shared_ptr<TMultiplexedProtocol> mc_protocol(
       new TMultiplexedProtocol(protocol, "simple_pre_lag"));
 
   try {
