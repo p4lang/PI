@@ -2169,7 +2169,7 @@ class DeviceMgrImp {
       case p4v1::StreamMessageRequest::kArbitration:
         // must be handled by server code
         RETURN_ERROR_STATUS(
-            Code::INTERNAL, "Arbitration mesages must be handled by server");
+            Code::INTERNAL, "Arbitration messages must be handled by server");
       case p4v1::StreamMessageRequest::kPacket:
         return packet_io.packet_out_send(request.packet(), stream_error);
       case p4v1::StreamMessageRequest::kDigestAck:
