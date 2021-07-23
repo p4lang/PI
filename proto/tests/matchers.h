@@ -165,6 +165,8 @@ class MeterSpecMatcher : public MatcherInterface<const pi_meter_spec_t *> {
                    pi_meter_unit_t meter_unit,
                    pi_meter_type_t meter_type);
 
+  explicit MeterSpecMatcher(const pi_meter_spec_t &spec);
+
   bool MatchAndExplain(const pi_meter_spec_t *spec,
                        MatchResultListener *listener) const override;
 
@@ -173,15 +175,18 @@ class MeterSpecMatcher : public MatcherInterface<const pi_meter_spec_t *> {
   void DescribeNegationTo(std::ostream *os) const override;
 
  private:
-  p4::v1::MeterConfig config;
-  pi_meter_unit_t meter_unit;
-  pi_meter_type_t meter_type;
+  pi_meter_spec_t expected_spec;
 };
 
 inline Matcher<const pi_meter_spec_t *> CorrectMeterSpec(
     const p4::v1::MeterConfig &config,
     pi_meter_unit_t meter_unit, pi_meter_type_t meter_type) {
   return MakeMatcher(new MeterSpecMatcher(config, meter_unit, meter_type));
+}
+
+inline Matcher<const pi_meter_spec_t *> CorrectMeterSpec(
+    const pi_meter_spec_t &spec) {
+  return MakeMatcher(new MeterSpecMatcher(spec));
 }
 
 class CounterDataMatcher : public MatcherInterface<const pi_counter_data_t *> {
