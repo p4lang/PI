@@ -723,9 +723,14 @@ class DeviceMgrImp {
                             "INSERT update type not supported for meters");
       case p4v1::Update::MODIFY:
         {
-          RETURN_IF_ERROR(validate_meter_spec(meter_entry.config()));
-          auto pi_meter_spec = meter_spec_proto_to_pi(
-              meter_entry.config(), meter_entry.meter_id());
+          pi_meter_spec_t pi_meter_spec;
+          if (meter_entry.has_config()) {
+            RETURN_IF_ERROR(validate_meter_spec(meter_entry.config()));
+            pi_meter_spec = meter_spec_proto_to_pi(
+                meter_entry.config(), meter_entry.meter_id());
+          } else {
+            pi_meter_spec = meter_spec_default(meter_entry.meter_id());
+          }
           auto pi_status = pi_meter_set(session.get(), device_tgt,
                                         meter_entry.meter_id(),
                                         index,
@@ -734,18 +739,9 @@ class DeviceMgrImp {
             RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when writing meter spec");
         }
         break;
-      case p4v1::Update::DELETE:  // TODO(antonin): return error instead?
-        {
-          pi_meter_spec_t pi_meter_spec =
-              {0, 0, 0, 0, PI_METER_UNIT_DEFAULT, PI_METER_TYPE_DEFAULT};
-          auto pi_status = pi_meter_set(session.get(), device_tgt,
-                                        meter_entry.meter_id(),
-                                        index,
-                                        &pi_meter_spec);
-          if (pi_status != PI_STATUS_SUCCESS)
-            RETURN_ERROR_STATUS(Code::UNKNOWN, "Error when writing meter spec");
-        }
-        break;
+      case p4v1::Update::DELETE:
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                            "DELETE update type not supported for meters");
       default:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid update type");
     }
@@ -796,9 +792,14 @@ class DeviceMgrImp {
                             "INSERT update type not supported for meters");
       case p4v1::Update::MODIFY:
         {
-          RETURN_IF_ERROR(validate_meter_spec(meter_entry.config()));
-          auto pi_meter_spec = meter_spec_proto_to_pi(
-              meter_entry.config(), table_direct_meter_id);
+          pi_meter_spec_t pi_meter_spec;
+          if (meter_entry.has_config()) {
+            RETURN_IF_ERROR(validate_meter_spec(meter_entry.config()));
+            pi_meter_spec = meter_spec_proto_to_pi(
+                meter_entry.config(), table_direct_meter_id);
+          } else {
+            pi_meter_spec = meter_spec_default(table_direct_meter_id);
+          }
           auto pi_status = pi_meter_set_direct(session.get(), device_tgt,
                                                table_direct_meter_id,
                                                entry_handle,
@@ -809,20 +810,9 @@ class DeviceMgrImp {
           }
         }
         break;
-      case p4v1::Update::DELETE:  // TODO(antonin): return error instead?
-        {
-          pi_meter_spec_t pi_meter_spec =
-              {0, 0, 0, 0, PI_METER_UNIT_DEFAULT, PI_METER_TYPE_DEFAULT};
-          auto pi_status = pi_meter_set_direct(session.get(), device_tgt,
-                                               table_direct_meter_id,
-                                               entry_handle,
-                                               &pi_meter_spec);
-          if (pi_status != PI_STATUS_SUCCESS) {
-            RETURN_ERROR_STATUS(Code::UNKNOWN,
-                                "Error when writing direct meter spec");
-          }
-        }
-        break;
+      case p4v1::Update::DELETE:
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                            "DELETE update type not supported for meters");
       default:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid update type");
     }
@@ -908,7 +898,8 @@ class DeviceMgrImp {
       }
       auto entry = response->add_entities()->mutable_direct_meter_entry();
       entry->mutable_table_entry()->CopyFrom(table_entry);
-      meter_spec_pi_to_proto(meter_spec, entry->mutable_config());
+      if (!meter_spec_is_default(meter_spec))
+        meter_spec_pi_to_proto(meter_spec, entry->mutable_config());
       RETURN_OK_STATUS();
     }
 
@@ -938,14 +929,18 @@ class DeviceMgrImp {
             Code::INTERNAL,
             "Did not expect no direct resource for table entry");
       }
+      bool meter_found = false;
       for (size_t j = 0; j < direct_configs->num_configs; j++) {
         const auto &config = direct_configs->configs[j];
         if (config.res_id != table_direct_meter_id) continue;
-        meter_spec_pi_to_proto(
-            *static_cast<pi_meter_spec_t *>(config.config),
-            entry->mutable_config());
+        meter_found = true;
+        auto meter_spec = static_cast<pi_meter_spec_t *>(config.config);
+        if (!meter_spec_is_default(*meter_spec)) {
+          meter_spec_pi_to_proto(*meter_spec, entry->mutable_config());
+        }
+        break;
       }
-      if (!entry->has_config()) {
+      if (!meter_found) {
         RETURN_ERROR_STATUS(
             Code::INTERNAL,
             "Did not expect no direct meter for table entry");
@@ -1162,13 +1157,10 @@ class DeviceMgrImp {
                 entry->mutable_counter_data());
           }
         } else if (pi_is_direct_meter_id(config.res_id)) {
-          // TODO(antonin): according to the P4Runtime spec, we are not supposed
-          // to to set meter_config if the meter is in its default configuration
-          // (all packets green).
-          if (requested_entry.has_meter_config()) {
-            meter_spec_pi_to_proto(
-                *static_cast<pi_meter_spec_t *>(config.config),
-                entry->mutable_meter_config());
+          auto meter_spec = static_cast<pi_meter_spec_t *>(config.config);
+          if (requested_entry.has_meter_config() &&
+              !meter_spec_is_default(*meter_spec)) {
+            meter_spec_pi_to_proto(*meter_spec, entry->mutable_meter_config());
           }
         } else {
           RETURN_ERROR_STATUS(Code::INTERNAL, "Unknown direct resource type");
@@ -2602,8 +2594,12 @@ class DeviceMgrImp {
                             "Table has no direct meters");
       }
       RETURN_IF_ERROR(validate_meter_spec(table_entry.meter_config()));
-      *meter_spec = meter_spec_proto_to_pi(
-          table_entry.meter_config(), meter_id);
+      if (table_entry.has_meter_config()) {
+        *meter_spec = meter_spec_proto_to_pi(
+            table_entry.meter_config(), meter_id);
+      } else {
+        *meter_spec = meter_spec_default(meter_id);
+      }
       action_entry->add_direct_res_config(meter_id, meter_spec);
     }
 
@@ -2899,15 +2895,18 @@ class DeviceMgrImp {
   }
 
   static Status validate_meter_spec(const p4v1::MeterConfig &config) {
-    // as per P4Runtime spec, -1 is a valid value and means that the packet is
-    // always marked "green"
-    if (config.cir() < 0 && config.cir() != -1)
+    // The P4Runtime spec does not say anything about -1 being a valid value,
+    // but to preserve backwards-compatibility with the old implementation, we
+    // accept it. It means that the packet is always marked "green". The
+    // standard P4Runtime way of achieving the same result is to keep the
+    // appropriate MeterConfig field empty / unset.
+    if (config.cir() < -1)
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Negative meter CIR");
-    if (config.cburst() < 0 && config.cburst() != -1)
+    if (config.cburst() < -1)
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Negative meter CBurst");
-    if (config.pir() < 0 && config.cir() != -1)
+    if (config.pir() < -1)
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Negative meter PIR");
-    if (config.pburst() < 0 && config.pburst() != -1)
+    if (config.pburst() < -1)
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Negative meter PBurst");
     auto max_burst = std::numeric_limits<uint32_t>::max();
     if (config.cburst() > static_cast<decltype(config.cburst())>(max_burst))
@@ -2915,6 +2914,26 @@ class DeviceMgrImp {
     if (config.pburst() > static_cast<decltype(config.pburst())>(max_burst))
       RETURN_ERROR_STATUS(Code::UNIMPLEMENTED, "Pburst too large");
     RETURN_OK_STATUS();
+  }
+
+  pi_meter_spec_t meter_spec_default(pi_p4_id_t meter_id) const {
+    pi_meter_spec_t pi_meter_spec;
+    pi_meter_spec.cir = static_cast<uint64_t>(-1);
+    pi_meter_spec.cburst = static_cast<uint32_t>(-1);
+    pi_meter_spec.pir = static_cast<uint64_t>(-1);
+    pi_meter_spec.pburst = static_cast<uint32_t>(-1);
+    pi_meter_spec.meter_unit =
+        (pi_meter_unit_t)pi_p4info_meter_get_unit(p4info.get(), meter_id);
+    pi_meter_spec.meter_type =
+        (pi_meter_type_t)pi_p4info_meter_get_type(p4info.get(), meter_id);
+    return pi_meter_spec;
+  }
+
+  bool meter_spec_is_default(const pi_meter_spec_t &pi_meter_spec) const {
+    return pi_meter_spec.cir == static_cast<uint64_t>(-1) &&
+        pi_meter_spec.cburst == static_cast<uint32_t>(-1) &&
+        pi_meter_spec.pir == static_cast<uint64_t>(-1) &&
+        pi_meter_spec.pburst == static_cast<uint32_t>(-1);
   }
 
   pi_meter_spec_t meter_spec_proto_to_pi(const p4v1::MeterConfig &config,
@@ -2978,7 +2997,9 @@ class DeviceMgrImp {
       RETURN_ERROR_STATUS(Code::UNKNOWN,
                           "Error when reading meter spec from target");
     }
-    meter_spec_pi_to_proto(meter_spec, entry->mutable_config());
+    if (!meter_spec_is_default(meter_spec)) {
+      meter_spec_pi_to_proto(meter_spec, entry->mutable_config());
+    }
     RETURN_OK_STATUS();
   }
 

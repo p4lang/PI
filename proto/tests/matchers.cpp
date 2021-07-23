@@ -184,41 +184,46 @@ ActionDataMatcher::DescribeNegationTo(std::ostream *os) const {
 
 MeterSpecMatcher::MeterSpecMatcher(const MeterConfig &config,
                                    pi_meter_unit_t meter_unit,
-                                   pi_meter_type_t meter_type)
-    : config(config), meter_unit(meter_unit), meter_type(meter_type) { }
+                                   pi_meter_type_t meter_type) {
+  expected_spec.meter_unit = meter_unit;
+  expected_spec.meter_type = meter_type;
+  expected_spec.cir = static_cast<uint64_t>(config.cir());
+  expected_spec.cburst = static_cast<uint32_t>(config.cburst());
+  expected_spec.pir = static_cast<uint64_t>(config.pir());
+  expected_spec.pburst = static_cast<uint32_t>(config.pburst());
+}
+
+MeterSpecMatcher::MeterSpecMatcher(const pi_meter_spec_t &spec)
+    : expected_spec(spec) { }
 
 bool
 MeterSpecMatcher::MatchAndExplain(const pi_meter_spec_t *spec,
                                   MatchResultListener *listener) const {
-  auto cir = static_cast<uint64_t>(config.cir());
-  if (spec->cir != cir) {
-    *listener << "Invalid CIR (expected " << cir << " but got "
-              << spec->cir << ")";
+  if (spec->cir != expected_spec.cir) {
+    *listener << "Invalid CIR (expected " << expected_spec.cir
+              << " but got " << spec->cir << ")";
     return false;
   }
-  auto cburst = static_cast<uint32_t>(config.cburst());
-  if (spec->cburst != cburst) {
-    *listener << "Invalid CBurst (expected " << cburst << " but got "
-              << spec->cburst << ")";
+  if (spec->cburst != expected_spec.cburst) {
+    *listener << "Invalid CBurst (expected " << expected_spec.cburst
+              << " but got " << spec->cburst << ")";
     return false;
   }
-  auto pir = static_cast<uint64_t>(config.pir());
-  if (spec->pir != pir) {
-    *listener << "Invalid PIR (expected " << pir << " but got "
-              << spec->pir << ")";
+  if (spec->pir != expected_spec.pir) {
+    *listener << "Invalid PIR (expected " << expected_spec.pir
+              << " but got " << spec->pir << ")";
     return false;
   }
-  auto pburst = static_cast<uint32_t>(config.pburst());
-  if (spec->pburst != pburst) {
-    *listener << "Invalid Pburst (expected " << pburst << " but got "
-              << spec->pburst << ")";
+  if (spec->pburst != expected_spec.pburst) {
+    *listener << "Invalid Pburst (expected " << expected_spec.pburst
+              << " but got " << spec->pburst << ")";
     return false;
   }
-  if (spec->meter_unit != meter_unit) {
+  if (spec->meter_unit != expected_spec.meter_unit) {
     *listener << "Invalid meter unit";
     return false;
   }
-  if (spec->meter_type != meter_type) {
+  if (spec->meter_type != expected_spec.meter_type) {
     *listener << "Invalid meter type";
     return false;
   }

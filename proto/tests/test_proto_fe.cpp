@@ -2670,6 +2670,40 @@ TEST_F(IndirectMeterTest, WriteAndRead) {
   EXPECT_PROTO_EQ(read_meter_entry, meter_entry);
 }
 
+TEST_F(IndirectMeterTest, WriteAndReadDefault) {
+  int index = 66;
+  p4v1::ReadResponse response;
+  p4v1::MeterEntry meter_entry;
+  meter_entry.set_meter_id(m_id);
+  set_index(&meter_entry, index);
+  // meter type & unit as per the P4 program
+  // default rates when no config provided (always "green")
+  pi_meter_spec_t pi_meter_spec = {
+    static_cast<uint64_t>(-1),
+    static_cast<uint32_t>(-1),
+    static_cast<uint64_t>(-1),
+    static_cast<uint32_t>(-1),
+    PI_METER_UNIT_PACKETS,
+    PI_METER_TYPE_COLOR_UNAWARE
+  };
+  auto meter_matcher = CorrectMeterSpec(pi_meter_spec);
+  EXPECT_CALL(*mock, meter_set(m_id, index, meter_matcher));
+  {
+    auto status = write_meter(&meter_entry);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+
+  EXPECT_CALL(*mock, meter_read(m_id, index, _));
+  {
+    auto status = read_meter(&meter_entry, &response);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+  const auto &entities = response.entities();
+  ASSERT_EQ(1, entities.size());
+  const auto &read_meter_entry = entities.Get(0).meter_entry();
+  EXPECT_FALSE(read_meter_entry.has_config());
+}
+
 class DirectCounterTest : public ExactOneTest {
  protected:
   DirectCounterTest()
