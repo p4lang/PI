@@ -35,18 +35,20 @@ to install different dependencies.
 
 ### Installing dependencies from package repositories
 
-| Dependency | Name of Debian package |
-| ---------- | ---------------------- |
-| [Judy](http://judy.sourceforge.net/) | libjudy-dev |
-| [readline](https://tiswww.case.edu/php/chet/readline/rltop.html) | libreadline-dev |
-| valgrind | valgrind |
-| libtool binary | libtool-bin |
-| Boost library | libboost-dev libboost-system-dev libboost-thread-dev |
+| Dependency | Ubuntu / Debian | Fedora |
+| ---------- | --- | --- |
+| [Judy](http://judy.sourceforge.net/) | libjudy-dev | Judy-devel |
+| [readline](https://tiswww.case.edu/php/chet/readline/rltop.html) | libreadline-dev | readline-devel |
+| valgrind | valgrind | valgrind |
+| libtool binary | libtool-bin | libtool |
+| Boost library | libboost-dev libboost-system-dev libboost-thread-dev | boost-devel boost-system boost-thread |
+| [gRPC](https://github.com/grpc/grpc) | Install from source (see below) | grpc-devel grpc-plugins |
+| [Protobuf](https://github.com/google/protobuf) | Install from source (see below) | protobuf-devel |
 
 ### Installing other dependencies from source
 
-Some dependencies are not available as Debian packages or the available version
-is not the right one.
+Some dependencies are not available as packages or the available version
+is not compatible.
 
 - [bmv2](https://github.com/p4lang/behavioral-model) and all its dependencies:
   follow instructions in the [bmv2
