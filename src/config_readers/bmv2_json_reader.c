@@ -1,4 +1,5 @@
 /* Copyright 2013-present Barefoot Networks, Inc.
+ * Copyright 2021 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +15,7 @@
  */
 
 /*
- * Antonin Bas (antonin@barefootnetworks.com)
+ * Antonin Bas
  *
  */
 
@@ -24,8 +25,8 @@
 #include "utils/logging.h"
 #include "vector.h"
 
-#include <Judy.h>
 #include <cJSON/cJSON.h>
+#include <uthash.h>
 
 #include <assert.h>
 #include <stdio.h>
@@ -37,30 +38,49 @@ static const int required_major_version = 2;
 static const int min_minor_version = 0;
 
 typedef struct {
-  // Judy1 array to keep track of which ids have already been allocated
-  Pvoid_t allocated_ids;
-  // Judy1 array to keep track of which ids have already been reserved
-  Pvoid_t reserved_ids;
-  // JudySL array to match field names to integer bitwidths; used when adding
-  // match fields to tables in p4info
-  Pvoid_t fields_bitwidth;
+  pi_p4_id_t id;
+  UT_hash_handle hh;
+} id_hash_t;
+
+typedef struct {
+  char *name;
+  size_t bitwidth;
+  UT_hash_handle hh;
+} field_bitwidth_t;
+
+typedef struct {
+  // Set to keep track of which ids have already been allocated
+  id_hash_t *allocated_ids;
+  // Set to keep track of which ids have already been reserved
+  id_hash_t *reserved_ids;
+  // Hash to map field names to integer bitwidths; used when adding match fields
+  // to tables in p4info
+  field_bitwidth_t *fields_bitwidth;
 } reader_state_t;
 
 static void init_reader_state(reader_state_t *state) {
-  state->allocated_ids = (Pvoid_t)NULL;
-  state->reserved_ids = (Pvoid_t)NULL;
-  state->fields_bitwidth = (Pvoid_t)NULL;
+  state->allocated_ids = NULL;
+  state->reserved_ids = NULL;
+  state->fields_bitwidth = NULL;
 }
 
 static void destroy_reader_state(reader_state_t *state) {
-  Word_t Rc_word;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic warning "-Wsign-compare"
-  J1FA(Rc_word, state->allocated_ids);
-  J1FA(Rc_word, state->reserved_ids);
-  JSLFA(Rc_word, state->fields_bitwidth);
-#pragma GCC diagnostic pop
-  (void)Rc_word;
+  // deletion-safe iterations
+  id_hash_t *id_hash, *id_hash_tmp;
+  HASH_ITER(hh, state->allocated_ids, id_hash, id_hash_tmp) {
+    HASH_DEL(state->allocated_ids, id_hash);
+    free(id_hash);
+  }
+  HASH_ITER(hh, state->reserved_ids, id_hash, id_hash_tmp) {
+    HASH_DEL(state->reserved_ids, id_hash);
+    free(id_hash);
+  }
+  field_bitwidth_t *f_bw, *f_bw_tmp;
+  HASH_ITER(hh, state->fields_bitwidth, f_bw, f_bw_tmp) {
+    free(f_bw->name);
+    HASH_DEL(state->fields_bitwidth, f_bw);
+    free(f_bw);
+  }
 }
 
 static void parse_ids(const char *str, const char *name, pi_p4_id_t *ids,
@@ -108,27 +128,29 @@ static void find_annotation_id(cJSON *object, pi_p4_id_t *ids,
 }
 
 static bool is_id_reserved(reader_state_t *state, pi_p4_id_t id) {
-  int Rc_int;
-  J1T(Rc_int, state->reserved_ids, (Word_t)id);
-  return (Rc_int == 1);
+  id_hash_t *id_hash;
+  HASH_FIND(hh, state->reserved_ids, &id, sizeof(id), id_hash);
+  return (id_hash != NULL);
 }
 
 static void reserve_id(reader_state_t *state, pi_p4_id_t id) {
-  int Rc_int;
-  J1S(Rc_int, state->reserved_ids, (Word_t)id);
-  assert(Rc_int == 1);
+  id_hash_t *id_hash;
+  id_hash = malloc(sizeof(*id_hash));
+  id_hash->id = id;
+  HASH_ADD(hh, state->reserved_ids, id, sizeof(id), id_hash);
 }
 
 static bool is_id_allocated(reader_state_t *state, pi_p4_id_t id) {
-  int Rc_int;
-  J1T(Rc_int, state->allocated_ids, (Word_t)id);
-  return (Rc_int == 1);
+  id_hash_t *id_hash;
+  HASH_FIND(hh, state->allocated_ids, &id, sizeof(id), id_hash);
+  return (id_hash != NULL);
 }
 
 static void allocate_id(reader_state_t *state, pi_p4_id_t id) {
-  int Rc_int;
-  J1S(Rc_int, state->allocated_ids, (Word_t)id);
-  assert(Rc_int == 1);
+  id_hash_t *id_hash;
+  id_hash = malloc(sizeof(*id_hash));
+  id_hash->id = id;
+  HASH_ADD(hh, state->allocated_ids, id, sizeof(id), id_hash);
 }
 
 static void pre_reserve_ids(reader_state_t *state, pi_res_type_id_t type_id,
@@ -161,6 +183,26 @@ static void pre_reserve_ids(reader_state_t *state, pi_res_type_id_t type_id,
       exit(1);
     }
   }
+}
+
+static int add_field_bitwidth(reader_state_t *state, char *fname, size_t bw) {
+  field_bitwidth_t *f_bw;
+  HASH_FIND_STR(state->fields_bitwidth, fname, f_bw);
+  if (f_bw) return 0;
+  f_bw = malloc(sizeof(*f_bw));
+  f_bw->name = fname;
+  f_bw->bitwidth = bw;
+  HASH_ADD_KEYPTR(hh, state->fields_bitwidth, f_bw->name, strlen(f_bw->name),
+                  f_bw);
+  return 1;
+}
+
+static const size_t *get_field_bitwidth(reader_state_t *state,
+                                        const char *fname) {
+  field_bitwidth_t *f_bw;
+  HASH_FIND_STR(state->fields_bitwidth, fname, f_bw);
+  if (!f_bw) return NULL;
+  return &f_bw->bitwidth;
 }
 
 // taken from https://en.wikipedia.org/wiki/Jenkins_hash_function
@@ -308,6 +350,12 @@ static bool exclude_field(const char *suffix) {
   return false;
 }
 
+typedef struct {
+  const char *header_name;
+  cJSON *header_type;
+  UT_hash_handle hh;
+} header_type_hash_t;
+
 // rules to exclude header instances
 static bool exclude_header(cJSON *header) {
   (void)header;
@@ -329,7 +377,7 @@ static pi_status_t read_fields(reader_state_t *state, cJSON *root) {
   cJSON *header_types = cJSON_GetObjectItem(root, "header_types");
   if (!header_types) return PI_STATUS_CONFIG_READER_ERROR;
 
-  Pvoid_t header_type_map = (Pvoid_t)NULL;
+  header_type_hash_t *header_type_map = NULL;
 
   cJSON *item;
 
@@ -338,9 +386,14 @@ static pi_status_t read_fields(reader_state_t *state, cJSON *root) {
     item = cJSON_GetObjectItem(header_type, "name");
     if (!item) return PI_STATUS_CONFIG_READER_ERROR;
     const char *name = item->valuestring;
-    Word_t *header_type_json;
-    JSLI(header_type_json, header_type_map, (const uint8_t *)name);
-    *header_type_json = (Word_t)header_type;
+
+    header_type_hash_t *header_type_hash;
+    HASH_FIND_STR(header_type_map, name, header_type_hash);
+    if (header_type_hash) return PI_STATUS_CONFIG_READER_ERROR;  // duplicate
+    header_type_hash = malloc(sizeof(*header_type_hash));
+    header_type_hash->header_name = name;
+    header_type_hash->header_type = header_type;
+    HASH_ADD_KEYPTR(hh, header_type_map, name, strlen(name), header_type_hash);
   }
 
   cJSON *header;
@@ -351,10 +404,10 @@ static pi_status_t read_fields(reader_state_t *state, cJSON *root) {
     const char *header_name = item->valuestring;
     item = cJSON_GetObjectItem(header, "header_type");
     const char *header_type_name = item->valuestring;
-    Word_t *header_type_json = NULL;
-    JSLG(header_type_json, header_type_map, (const uint8_t *)header_type_name);
-    if (!header_type_json) return PI_STATUS_CONFIG_READER_ERROR;
-    item = (cJSON *)*header_type_json;
+    header_type_hash_t *header_type_hash;
+    HASH_FIND_STR(header_type_map, header_type_name, header_type_hash);
+    if (!header_type_hash) return PI_STATUS_CONFIG_READER_ERROR;
+    item = header_type_hash->header_type;
     item = cJSON_GetObjectItem(item, "fields");
     cJSON *field;
     cJSON_ArrayForEach(field, item) {
@@ -372,9 +425,8 @@ static pi_status_t read_fields(reader_state_t *state, cJSON *root) {
       if (n <= 0 || (size_t)n >= sizeof(fname)) return PI_STATUS_BUFFER_ERROR;
       size_t bitwidth = (size_t)cJSON_GetArrayItem(field, 1)->valueint;
 
-      Word_t *bitwidth_ptr = NULL;
-      JSLI(bitwidth_ptr, state->fields_bitwidth, (const uint8_t *)fname);
-      *bitwidth_ptr = (Word_t)bitwidth;
+      if (!add_field_bitwidth(state, strdup(fname), bitwidth))
+        return PI_STATUS_CONFIG_READER_ERROR;  // duplicate
     }
     // Adding a field to represent validity, don't know how temporary this is
     {
@@ -383,19 +435,17 @@ static pi_status_t read_fields(reader_state_t *state, cJSON *root) {
       if (n <= 0 || (size_t)n >= sizeof(fname)) return PI_STATUS_BUFFER_ERROR;
 
       // 1 bit field
-      Word_t *bitwidth_ptr = NULL;
-      JSLI(bitwidth_ptr, state->fields_bitwidth, (const uint8_t *)fname);
-      *bitwidth_ptr = (Word_t)1;
+      if (!add_field_bitwidth(state, strdup(fname), 1))
+        return PI_STATUS_CONFIG_READER_ERROR;  // duplicate
     }
   }
 
-  Word_t Rc_word;
-// there is code in Judy headers that raises a warning with some compiler
-// versions
-#pragma GCC diagnostic push
-#pragma GCC diagnostic warning "-Wsign-compare"
-  JSLFA(Rc_word, header_type_map);
-#pragma GCC diagnostic pop
+  header_type_hash_t *header_type_hash, *tmp;
+  // deletion-safe iteration
+  HASH_ITER(hh, header_type_map, header_type_hash, tmp) {
+    HASH_DEL(header_type_map, header_type_hash);
+    free(header_type_hash);
+  }
 
   return PI_STATUS_SUCCESS;
 }
@@ -548,12 +598,10 @@ static pi_status_t read_tables(reader_state_t *state, cJSON *root,
       int n = snprintf(fname, sizeof(fname), "%s.%s", header_name, suffix);
       if (n <= 0 || (size_t)n >= sizeof(fname)) return PI_STATUS_BUFFER_ERROR;
       pi_p4_id_t mf_id = match_field_index++;
-      Word_t *bitwidth_ptr = NULL;
-      JSLG(bitwidth_ptr, state->fields_bitwidth, (const uint8_t *)fname);
+      const size_t *bitwidth_ptr = get_field_bitwidth(state, fname);
       if (!bitwidth_ptr) return PI_STATUS_CONFIG_READER_ERROR;
-      size_t bitwidth = (size_t)*bitwidth_ptr;
       pi_p4info_table_add_match_field(p4info, pi_id, mf_id, fname, match_type,
-                                      bitwidth);
+                                      *bitwidth_ptr);
       // TODO(antonin): const default action
     }
 

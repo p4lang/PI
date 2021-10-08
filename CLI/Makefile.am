@@ -2,7 +2,10 @@ ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 
 lib_LTLIBRARIES = libpicli.la
 
-AM_CPPFLAGS = -I$(top_srcdir)/include -I$(top_srcdir)/lib
+AM_CPPFLAGS = \
+-I$(top_srcdir)/include \
+-I$(top_srcdir)/lib \
+-isystem$(top_srcdir)/third_party/uthash/src
 
 libpicli_la_SOURCES = \
 commands.h \

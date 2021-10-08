@@ -1,6 +1,7 @@
 AM_CPPFLAGS = \
 -I$(top_srcdir)/include \
--I$(top_srcdir)/lib
+-I$(top_srcdir)/lib \
+-isystem$(top_srcdir)/third_party/uthash/src
 
 libpi_dummy_la_SOURCES = \
 pi_imp.c \

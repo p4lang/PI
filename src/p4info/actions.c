@@ -1,4 +1,5 @@
 /* Copyright 2013-present Barefoot Networks, Inc.
+ * Copyright 2021 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +15,7 @@
  */
 
 /*
- * Antonin Bas (antonin@barefootnetworks.com)
+ * Antonin Bas
  *
  */
 
@@ -153,8 +154,9 @@ void pi_p4info_action_init(pi_p4info_t *p4info, size_t num_actions) {
 
 void pi_p4info_action_add(pi_p4info_t *p4info, pi_p4_id_t action_id,
                           const char *name, size_t num_params) {
-  _action_data_t *action = p4info_add_res(p4info, action_id, name);
-  action->name = strdup(name);
+  char *name_copy = strdup(name);
+  _action_data_t *action = p4info_add_res(p4info, action_id, name_copy);
+  action->name = name_copy;
   action->action_id = action_id;
   action->num_params = num_params;
   if (num_params > INLINE_PARAMS) {

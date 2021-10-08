@@ -1,4 +1,5 @@
 /* Copyright 2013-present Barefoot Networks, Inc.
+ * Copyright 2021 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +15,7 @@
  */
 
 /*
- * Antonin Bas (antonin@barefootnetworks.com)
+ * Antonin Bas
  *
  */
 
@@ -106,8 +107,9 @@ static _counter_data_t *counter_add(pi_p4info_t *p4info, pi_p4_id_t counter_id,
                                     const char *name,
                                     pi_p4info_counter_unit_t counter_unit,
                                     size_t size) {
-  _counter_data_t *counter = p4info_add_res(p4info, counter_id, name);
-  counter->name = strdup(name);
+  char *name_copy = strdup(name);
+  _counter_data_t *counter = p4info_add_res(p4info, counter_id, name_copy);
+  counter->name = name_copy;
   counter->counter_id = counter_id;
   counter->counter_unit = counter_unit;
   counter->direct_table = PI_INVALID_ID;

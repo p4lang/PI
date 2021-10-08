@@ -1,4 +1,5 @@
 /* Copyright 2018-present Barefoot Networks, Inc.
+ * Copyright 2021 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +15,7 @@
  */
 
 /*
- * Antonin Bas (antonin@barefootnetworks.com)
+ * Antonin Bas
  *
  */
 
@@ -120,8 +121,9 @@ void pi_p4info_digest_init(pi_p4info_t *p4info, size_t num_digests) {
 
 void pi_p4info_digest_add(pi_p4info_t *p4info, pi_p4_id_t digest_id,
                           const char *name, size_t num_fields) {
-  _digest_data_t *digest = p4info_add_res(p4info, digest_id, name);
-  digest->name = strdup(name);
+  char *name_copy = strdup(name);
+  _digest_data_t *digest = p4info_add_res(p4info, digest_id, name_copy);
+  digest->name = name_copy;
   digest->digest_id = digest_id;
   digest->num_fields = num_fields;
   if (num_fields > INLINE_FIELDS) {

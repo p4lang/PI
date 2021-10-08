@@ -1,4 +1,5 @@
 /* Copyright 2013-present Barefoot Networks, Inc.
+ * Copyright 2021 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +15,7 @@
  */
 
 /*
- * Antonin Bas (antonin@barefootnetworks.com)
+ * Antonin Bas
  *
  */
 
@@ -104,8 +105,9 @@ void pi_p4info_act_prof_init(pi_p4info_t *p4info, size_t num_act_profs) {
 void pi_p4info_act_prof_add(pi_p4info_t *p4info, pi_p4_id_t act_prof_id,
                             const char *name, bool with_selector,
                             size_t max_size) {
-  _act_prof_data_t *act_prof = p4info_add_res(p4info, act_prof_id, name);
-  act_prof->name = strdup(name);
+  char *name_copy = strdup(name);
+  _act_prof_data_t *act_prof = p4info_add_res(p4info, act_prof_id, name_copy);
+  act_prof->name = name_copy;
   act_prof->act_prof_id = act_prof_id;
   act_prof->num_tables = 0;
   act_prof->with_selector = with_selector;

@@ -11,3 +11,6 @@
 [submodule "proto/p4runtime"]
 	path = proto/p4runtime
 	url = https://github.com/p4lang/p4runtime.git
+[submodule "third_party/uthash"]
+	path = third_party/uthash
+	url = https://github.com/troydhanson/uthash.git

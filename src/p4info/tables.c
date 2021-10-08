@@ -1,4 +1,5 @@
 /* Copyright 2013-present Barefoot Networks, Inc.
+ * Copyright 2021 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +15,7 @@
  */
 
 /*
- * Antonin Bas (antonin@barefootnetworks.com)
+ * Antonin Bas
  *
  */
 
@@ -231,8 +232,9 @@ void pi_p4info_table_add(pi_p4info_t *p4info, pi_p4_id_t table_id,
                          const char *name, size_t num_match_fields,
                          size_t num_actions, size_t max_size, bool is_const,
                          bool supports_idle_timeout) {
-  _table_data_t *table = p4info_add_res(p4info, table_id, name);
-  table->name = strdup(name);
+  char *name_copy = strdup(name);
+  _table_data_t *table = p4info_add_res(p4info, table_id, name_copy);
+  table->name = name_copy;
   table->table_id = table_id;
   table->num_match_fields = num_match_fields;
   table->num_actions = num_actions;

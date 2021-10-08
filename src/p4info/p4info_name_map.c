@@ -1,4 +1,5 @@
 /* Copyright 2013-present Barefoot Networks, Inc.
+ * Copyright 2021 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,36 +15,44 @@
  */
 
 /*
- * Antonin Bas (antonin@barefootnetworks.com)
+ * Antonin Bas
  *
  */
 
 #include "p4info_name_map.h"
 
-#include <Judy.h>
+#include <uthash.h>
+
+struct p4info_name_hash_s {
+  const char *name;
+  pi_p4_id_t id;
+  UT_hash_handle hh;
+};
+
+void p4info_name_map_init(p4info_name_map_t *map) { map->hash = NULL; }
 
 int p4info_name_map_add(p4info_name_map_t *map, const char *name,
                         pi_p4_id_t id) {
-  Word_t *ptr = NULL;
-  JSLI(ptr, *map, (const uint8_t *)name);
-  if (*ptr != 0) return 0;
-  *ptr = id;
+  p4info_name_hash_t *hash;
+  HASH_FIND_STR(map->hash, name, hash);
+  if (hash) return 0;
+  hash = malloc(sizeof(*hash));
+  hash->name = name;
+  hash->id = id;
+  HASH_ADD_KEYPTR(hh, map->hash, hash->name, strlen(hash->name), hash);
   return 1;
 }
 
 pi_p4_id_t p4info_name_map_get(const p4info_name_map_t *map, const char *name) {
-  Word_t *ptr = NULL;
-  JSLG(ptr, *map, (const uint8_t *)name);
-  if (!ptr) return PI_INVALID_ID;
-  return *ptr;
+  p4info_name_hash_t *hash;
+  HASH_FIND_STR(map->hash, name, hash);
+  return (hash) ? hash->id : PI_INVALID_ID;
 }
 
 void p4info_name_map_destroy(p4info_name_map_t *map) {
-  Word_t Rc_word;
-// there is code in Judy headers that raises a warning with some compiler
-// versions
-#pragma GCC diagnostic push
-#pragma GCC diagnostic warning "-Wsign-compare"
-  JSLFA(Rc_word, *map);
-#pragma GCC diagnostic pop
+  p4info_name_hash_t *hash, *tmp;
+  HASH_ITER(hh, map->hash, hash, tmp) {  // deletion-safe iteration
+    HASH_DEL(map->hash, hash);
+    free(hash);
+  }
 }
