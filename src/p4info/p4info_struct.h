@@ -1,4 +1,5 @@
 /* Copyright 2013-present Barefoot Networks, Inc.
+ * Copyright 2021 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +15,7 @@
  */
 
 /*
- * Antonin Bas (antonin@barefootnetworks.com)
+ * Antonin Bas
  *
  */
 
@@ -42,7 +43,7 @@ struct p4info_common_s {
   vector_t *aliases;
 };
 
-typedef void *p4info_id_map_t;
+typedef struct p4info_id_hash_s p4info_id_hash_t;
 
 typedef VectorCleanFn P4InfoFreeOneFn;
 
@@ -53,7 +54,7 @@ typedef struct {
   P4InfoSerializeFn serialize_fn;
   // the objects live in the vector, the map is just a way to access them by id
   // without iterating through the vector
-  p4info_id_map_t id_map;
+  p4info_id_hash_t *id_map;
   vector_t *vec;
   p4info_name_map_t name_map;
 } pi_p4info_res_t;

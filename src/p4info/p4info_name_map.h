@@ -1,4 +1,5 @@
 /* Copyright 2013-present Barefoot Networks, Inc.
+ * Copyright 2021 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +15,7 @@
  */
 
 /*
- * Antonin Bas (antonin@barefootnetworks.com)
+ * Antonin Bas
  *
  */
 
@@ -23,7 +24,13 @@
 
 #include <PI/pi_base.h>
 
-typedef void *p4info_name_map_t;
+typedef struct p4info_name_hash_s p4info_name_hash_t;
+
+typedef struct {
+  p4info_name_hash_t *hash;
+} p4info_name_map_t;
+
+void p4info_name_map_init(p4info_name_map_t *map);
 
 // returns 1 if value succesfully inserted, 0 if key was already present
 int p4info_name_map_add(p4info_name_map_t *map, const char *name,

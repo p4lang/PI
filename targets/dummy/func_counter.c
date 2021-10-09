@@ -1,4 +1,5 @@
 /* Copyright 2013-present Barefoot Networks, Inc.
+ * Copyright 2021 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,59 +15,64 @@
  */
 
 /*
- * Antonin Bas (antonin@barefootnetworks.com)
+ * Antonin Bas
  *
  */
 
 #include "func_counter.h"
 
-#include <Judy.h>
-
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include <uthash.h>
 
 typedef struct {
-  Pvoid_t array;
-} func_counter_t;
+  const char *name;
+  int counter;
+  UT_hash_handle hh;
+} counter_t;
 
-static func_counter_t func_counter;
+static counter_t *func_counter;
 
-void func_counter_init() { func_counter.array = (Pvoid_t)NULL; }
+void func_counter_init() { func_counter = NULL; }
 
 void func_counter_increment(const char *func_name) {
 #ifdef DEBUG
   printf("%s\n", func_name);
 #endif
-  Word_t *PValue;
-  JSLI(PValue, func_counter.array, (const uint8_t *)func_name);
-  (*PValue)++;
+  counter_t *c;
+  HASH_FIND_STR(func_counter, func_name, c);
+  if (!c) {
+    c = malloc(sizeof(*c));
+    c->name = func_name;
+    c->counter = 0;
+    HASH_ADD_KEYPTR(hh, func_counter, c->name, strlen(c->name), c);
+  }
+  c->counter++;
 }
 
 int func_counter_get(const char *func_name) {
-  Word_t *PValue;
-  JSLG(PValue, func_counter.array, (const uint8_t *)func_name);
-  return (PValue == NULL) ? -1 : (int)*PValue;
+  counter_t *c;
+  HASH_FIND_STR(func_counter, func_name, c);
+  return (c == NULL) ? -1 : c->counter;
 }
 
 int func_counter_dump_to_file(const char *path) {
   FILE *f = fopen(path, "w");
   if (f == NULL) return 1;
-  Word_t *PValue;
-  uint8_t index[128];  // max function name must be 128 bytes
-  index[0] = 0;
-  JSLF(PValue, func_counter.array, index);
-  while (PValue != NULL) {
-    fprintf(f, "%s : %d\n", (char *)index, (int)*PValue);
-    JSLN(PValue, func_counter.array, index);
+  counter_t *c;
+  for (c = func_counter; c != NULL; c = c->hh.next) {
+    fprintf(f, "%s : %d\n", c->name, c->counter);
   }
   fclose(f);
   return 0;
 }
 
 void func_counter_destroy() {
-  Word_t bytes_freed = 0;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic warning "-Wsign-compare"
-  JSLFA(bytes_freed, func_counter.array);
-#pragma GCC diagnostic pop
-  (void)bytes_freed;
+  counter_t *c, *tmp;
+  HASH_ITER(hh, func_counter, c, tmp) {  // deletion-safe iteration
+    HASH_DEL(func_counter, c);
+    free(c);
+  }
 }

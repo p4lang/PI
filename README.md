@@ -7,10 +7,6 @@
 
 ## Dependencies
 
-### Base dependencies
-
-- Judy
-
 ### Dependencies based on configure flags
 
 Based on the command-line flags you intend on providing to `configure`, you need
@@ -37,7 +33,6 @@ to install different dependencies.
 
 | Dependency | Ubuntu / Debian | Fedora |
 | ---------- | --- | --- |
-| [Judy](http://judy.sourceforge.net/) | libjudy-dev | Judy-devel |
 | [readline](https://tiswww.case.edu/php/chet/readline/rltop.html) | libreadline-dev | readline-devel |
 | valgrind | valgrind | valgrind |
 | libtool binary | libtool-bin | libtool |

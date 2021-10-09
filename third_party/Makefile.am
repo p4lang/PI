@@ -4,4 +4,6 @@ if WITH_GTEST
 include gtest.am
 endif
 
+include uthash.am
+
 SUBDIRS = cJSON unity

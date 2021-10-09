@@ -27,8 +27,8 @@
 
 #include "unity/unity_fixture.h"
 
-#include <Judy.h>
 #include <string.h>
+#include <uthash.h>
 
 #define DEFAULT_TABLE_SIZE 1024
 #define DEFAULT_TABLE_IS_CONST false
@@ -222,23 +222,31 @@ typedef struct {
   pi_p4_id_t actions[32];
 } tdata_t;
 
+typedef struct {
+  pi_p4_id_t id;
+  UT_hash_handle hh;
+} id_hash_t;
+
 void gen_rand_ids(pi_p4_id_t *ids, pi_p4_id_t max, size_t num) {
-  Pvoid_t set = (Pvoid_t)NULL;
+  id_hash_t *hashes;
+  hashes = malloc(num * sizeof(*hashes));
+  id_hash_t *set = NULL;
   for (size_t i = 0; i < num; i++) {
-    int Rc = 1;
+    id_hash_t *hash;
     pi_p4_id_t v;
-    while (Rc) {
+    while (true) {
       v = rand() % max;
-      J1T(Rc, set, v);
+      HASH_FIND_INT(set, &v, hash);
+      if (!hash) break;
     }
-    J1S(Rc, set, v);
+    hash = &hashes[i];
+    hash->id = v;
+    HASH_ADD_INT(set, id, hash);
     ids[i] = v;
   }
-  Word_t Rc_word;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic warning "-Wsign-compare"
-  J1FA(Rc_word, set);
-#pragma GCC diagnostic pop
+  id_hash_t *hash, *tmp;
+  HASH_ITER(hh, set, hash, tmp) { HASH_DEL(set, hash); }
+  free(hashes);
 }
 
 static void check_default_action(pi_p4_id_t tid, pi_p4_id_t expected_id) {

@@ -1,4 +1,5 @@
 /* Copyright 2013-present Barefoot Networks, Inc.
+ * Copyright 2021 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,91 +15,88 @@
  */
 
 /*
- * Antonin Bas (antonin@barefootnetworks.com)
+ * Antonin Bas
  *
  */
 
 #include "device_map.h"
 
 #include <assert.h>
+#include <stdlib.h>
+#include <string.h>
 
-#include <Judy.h>
+struct device_entry_s {
+  pi_dev_id_t dev_id;
+  void *e;
+};
 
-// Judy JL map uses Word_t for keys. On 32-bit systems, Word_t is a 32-bit word,
-// which means device ids in the high 64-bit range would not be supported.
-// TODO(antonin): change implementation to support arbitary 64-bit device ids
-// even on 32-bit systems.
-#define CHECK_DEV_ID_RANGE(dev_id) \
-  assert((sizeof(pi_dev_id_t) <= sizeof(Word_t)) || (dev_id <= (~(Word_t)1)));
+void device_map_create(device_map_t *map) {
+  map->size = 0;
+  map->capacity = 8;  // initial capacity
+  map->entries = malloc(map->capacity * sizeof(*map->entries));
+}
 
-void device_map_create(device_map_t *map) { map->_map = NULL; }
+static bool binary_search(device_map_t *map, pi_dev_id_t dev_id, int *idx) {
+  int a = 0;
+  int b = map->size;
+  while (a < b) {
+    *idx = a + (b - a) / 2;
+    device_entry_t *entry = &map->entries[*idx];
+    if (dev_id < entry->dev_id) {
+      b = *idx;
+    } else if (dev_id > entry->dev_id) {
+      a = *idx + 1;
+    } else {
+      return true;
+    }
+  }
+  *idx = a;
+  return false;
+}
 
 bool device_map_add(device_map_t *map, pi_dev_id_t dev_id, void *e) {
-  CHECK_DEV_ID_RANGE(dev_id);
-  Pvoid_t *jmap = (Pvoid_t *)&map->_map;
-  PWord_t ePtr;
-  Word_t id = (Word_t)dev_id;
-  JLG(ePtr, *jmap, id);
-  if (ePtr != NULL) return false;
-  JLI(ePtr, *jmap, id);
-  assert(ePtr != NULL);
-  assert(*ePtr == (Word_t)0);
-  *ePtr = (Word_t)e;
+  int idx;
+  if (binary_search(map, dev_id, &idx)) return false;  // already exists
+  if (map->size >= map->capacity) {
+    map->capacity *= 2;
+    map->entries = realloc(map->entries, map->capacity * sizeof(*map->entries));
+  }
+  // insert the new element at position "idx"
+  size_t size = (map->size - idx) * sizeof(*map->entries);
+  memmove(&map->entries[idx + 1], &map->entries[idx], size);
+  map->entries[idx].dev_id = dev_id;
+  map->entries[idx].e = e;
+  map->size++;
   return true;
 }
 
 bool device_map_remove(device_map_t *map, pi_dev_id_t dev_id) {
-  CHECK_DEV_ID_RANGE(dev_id);
-  Pvoid_t *jmap = (Pvoid_t *)&map->_map;
-  int rc;
-  Word_t id = (Word_t)dev_id;
-  JLD(rc, *jmap, id);
-  return (rc == 1);
+  int idx;
+  if (!binary_search(map, dev_id, &idx)) return false;  // not found
+  // we do not free up memory when we shrink the vector
+  size_t size = (map->size - idx - 1) * sizeof(*map->entries);
+  memmove(&map->entries[idx], &map->entries[idx + 1], size);
+  map->size--;
+  return true;
 }
 
 bool device_map_exists(device_map_t *map, pi_dev_id_t dev_id) {
-  CHECK_DEV_ID_RANGE(dev_id);
-  Pvoid_t *jmap = (Pvoid_t *)&map->_map;
-  PWord_t ePtr;
-  Word_t id = (Word_t)dev_id;
-  JLG(ePtr, *jmap, id);
-  return (ePtr != NULL);
+  int idx;
+  return binary_search(map, dev_id, &idx);
 }
 
 void *device_map_get(device_map_t *map, pi_dev_id_t dev_id) {
-  CHECK_DEV_ID_RANGE(dev_id);
-  Pvoid_t *jmap = (Pvoid_t *)&map->_map;
-  PWord_t ePtr;
-  Word_t id = (Word_t)dev_id;
-  JLG(ePtr, *jmap, id);
-  if (ePtr == NULL) return NULL;
-  return (void *)*ePtr;
+  int idx;
+  if (!binary_search(map, dev_id, &idx)) return NULL;
+  return map->entries[idx].e;
 }
 
 void device_map_for_each(device_map_t *map, DeviceMapApplyFn fn, void *cookie) {
-  Pvoid_t *jmap = (Pvoid_t *)&map->_map;
-  PWord_t ePtr;
-  Word_t id = 0;
-  JLF(ePtr, *jmap, id);
-  while (ePtr != NULL) {
-    fn((void *)*ePtr, cookie);
-    JLN(ePtr, *jmap, id);
+  for (int idx = 0; idx < map->size; idx++) {
+    fn(map->entries[idx].e, cookie);
   }
 }
 
-size_t device_map_count(device_map_t *map) {
-  Pvoid_t *jmap = (Pvoid_t *)&map->_map;
-  Word_t count;
-  JLC(count, *jmap, 0, -1);
-  return (size_t)count;
-}
+size_t device_map_count(device_map_t *map) { return map->size; }
 
-void device_map_destroy(device_map_t *map) {
-  Pvoid_t *jmap = (Pvoid_t *)&map->_map;
-  Word_t bytes_freed;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic warning "-Wsign-compare"
-  JLFA(bytes_freed, *jmap);
-#pragma GCC diagnostic pop
-  (void)bytes_freed;
-}
+void device_map_destroy(device_map_t *map) { free(map->entries); }

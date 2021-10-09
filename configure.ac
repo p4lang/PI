@@ -150,9 +150,6 @@ AC_PREPROC_IFELSE(
   [],
   [AC_MSG_FAILURE([Compiler does not define '__BYTE_ORDER__' preprocessor macro])])
 
-# Check for libjudy
-AC_CHECK_LIB([Judy], [Judy1Next], [], [AC_MSG_ERROR([Missing libJudy])])
-
 AM_COND_IF([WITH_CLI], [
   AC_CHECK_LIB([readline], [readline], [],
                [AC_MSG_ERROR([Missing readline lib])])

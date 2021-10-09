@@ -1,4 +1,5 @@
 /* Copyright 2013-present Barefoot Networks, Inc.
+ * Copyright 2021 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +15,7 @@
  */
 
 /*
- * Antonin Bas (antonin@barefootnetworks.com)
+ * Antonin Bas
  *
  */
 
@@ -26,8 +27,13 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-typedef struct device_map_s {
-  void *_map;
+typedef struct device_entry_s device_entry_t;
+
+// This is actually a sorted vector, we expect the num of devices to be small.
+typedef struct {
+  device_entry_t *entries;
+  int size;
+  int capacity;
 } device_map_t;
 
 void device_map_create(device_map_t *map);

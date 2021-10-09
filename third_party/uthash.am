@@ -1,0 +1,7 @@
+noinst_HEADERS = \
+uthash/src/utarray.h \
+uthash/src/uthash.h \
+uthash/src/utlist.h \
+uthash/src/utringbuffer.h \
+uthash/src/utstack.h \
+uthash/src/utstring.h

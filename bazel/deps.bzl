@@ -26,15 +26,6 @@ def PI_deps():
             strip_prefix = "p4runtime-%s/proto" % P4RUNTIME_COMMIT,
         )
 
-    if "judy" not in native.existing_rules():
-        http_archive(
-            name = "judy",
-            build_file = "@com_github_p4lang_PI//bazel/external:judy.BUILD",
-            url = "http://archive.ubuntu.com/ubuntu/pool/universe/j/judy/judy_1.0.5.orig.tar.gz",
-            sha256 = "d2704089f85fdb6f2cd7e77be21170ced4b4375c03ef1ad4cf1075bd414a63eb",
-            strip_prefix = "judy-1.0.5",
-        )
-
     if "com_google_absl" not in native.existing_rules():
         remote_workspace(
             name = "com_google_absl",

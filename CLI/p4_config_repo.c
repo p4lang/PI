@@ -1,4 +1,5 @@
 /* Copyright 2013-present Barefoot Networks, Inc.
+ * Copyright 2021 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,56 +15,49 @@
  */
 
 /*
- * Antonin Bas (antonin@barefootnetworks.com)
+ * Antonin Bas
  *
  */
 
 #include "p4_config_repo.h"
 
-#include <Judy.h>
+#include <uthash.h>
 
-static Pvoid_t repo = (Pvoid_t)NULL;
+typedef struct {
+  p4_config_id_t id;
+  pi_p4info_t *p4info;
+  UT_hash_handle hh;
+} p4_config_hash_t;
+
+static p4_config_hash_t *repo = NULL;
+static p4_config_id_t id_ctr = 0;
 
 p4_config_id_t p4_config_add(pi_p4info_t *p4info) {
-  int Rc_int;
-  Word_t index = 0;
-  JLFE(Rc_int, repo, index);
-  assert(Rc_int == 1);
-  Word_t *p4info_ptr = NULL;
-  JLI(p4info_ptr, repo, index);
-  assert(p4info_ptr && *p4info_ptr == 0);
-  *p4info_ptr = (Word_t)p4info;
-  return index;
+  p4_config_hash_t *config_hash;
+  config_hash = malloc(sizeof(*config_hash));
+  config_hash->id = id_ctr++;
+  config_hash->p4info = p4info;
+  HASH_ADD(hh, repo, id, sizeof(config_hash->id), config_hash);
+  return config_hash->id;
 }
 
 pi_p4info_t *p4_config_get(p4_config_id_t id) {
-  Word_t *p4info_ptr = NULL;
-  JLG(p4info_ptr, repo, (Word_t)id);
-  if (!p4info_ptr) return NULL;
-  return (pi_p4info_t *)*p4info_ptr;
+  p4_config_hash_t *config_hash;
+  HASH_FIND(hh, repo, &id, sizeof(id), config_hash);
+  return (config_hash) ? config_hash->p4info : NULL;
 }
 
 pi_p4info_t *p4_config_get_first() {
-  Word_t index = 0;
-  Word_t *p4info_ptr = NULL;
-  JLF(p4info_ptr, repo, index);
-  if (!p4info_ptr) return NULL;
-  return (pi_p4info_t *)*p4info_ptr;
+  // hash map is sorted by insertion order
+  return (repo) ? repo->p4info : NULL;
 }
 
 void p4_config_cleanup() {
-  Word_t index = 0;
-  Word_t *p4info_ptr = NULL;
-  JLF(p4info_ptr, repo, index);
-  while (p4info_ptr) {
-    pi_destroy_config((pi_p4info_t *)*p4info_ptr);
-    JLN(p4info_ptr, repo, index);
+  p4_config_hash_t *config_hash, *tmp;
+  // deletion-safe iteration
+  HASH_ITER(hh, repo, config_hash, tmp) {
+    pi_destroy_config(config_hash->p4info);
+    HASH_DEL(repo, config_hash);
+    free(config_hash);
   }
-  Word_t cnt;
-// there is code in Judy headers that raises a warning with some compiler
-// versions
-#pragma GCC diagnostic push
-#pragma GCC diagnostic warning "-Wsign-compare"
-  JLFA(cnt, repo);
-#pragma GCC diagnostic pop
 }

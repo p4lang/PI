@@ -27,11 +27,9 @@ cc_library(
     includes = ["include", "src"],
     copts = ["-DPI_LOG_ON"],
     deps = ["//third_party/cJSON:picjson",
+            "//third_party:piuthash",
             "//lib:pitoolkit",
-            ":piutils",
-            "@judy//:Judy1",
-            "@judy//:JudyL",
-            "@judy//:JudySL"],
+            ":piutils"],
 )
 
 # using glob looks a bit nasty because of the files we have to exclude, but in
@@ -47,9 +45,7 @@ cc_library(
     hdrs = glob(["include/PI/*.h", "include/PI/target/*.h"])
         + ["include/PI/int/pi_int.h", "include/PI/int/serialize.h"],
     includes = ["include"],
-    deps = [":pip4info",
-            "@judy//:JudyL",
-            "@judy//:JudySL"],
+    deps = [":pip4info"],
 )
 
 cc_library(

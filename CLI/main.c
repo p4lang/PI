@@ -1,4 +1,5 @@
 /* Copyright 2013-present Barefoot Networks, Inc.
+ * Copyright 2021 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +15,7 @@
  */
 
 /*
- * Antonin Bas (antonin@barefootnetworks.com)
+ * Antonin Bas
  *
  */
 
@@ -32,8 +33,7 @@
 
 #include <readline/history.h>
 #include <readline/readline.h>
-
-#include <Judy.h>
+#include <uthash.h>
 
 // this contains the current P4 information (for the selected device)
 const pi_p4info_t *p4info_curr = NULL;
@@ -59,17 +59,17 @@ typedef struct {
   const char *help_str;
   CLICompPtr comp_ptr;
   int flags;
+  UT_hash_handle hh;
 } cmd_data_t;
 
-static Pvoid_t J_cmd_name_map = (Pvoid_t)NULL;
+static cmd_data_t *cmd_name_map = NULL;
 static cmd_data_t cmd_map[1024];
 static size_t num_cmds = 0u;
 
 static cmd_data_t *get_cmd_data(const char *cmd_name) {
-  Word_t *cmd_data_ptr = NULL;
-  JSLG(cmd_data_ptr, J_cmd_name_map, (const uint8_t *)cmd_name);
-  if (!cmd_data_ptr) return NULL;
-  return (cmd_data_t *)(*cmd_data_ptr);
+  cmd_data_t *cmd_data;
+  HASH_FIND_STR(cmd_name_map, cmd_name, cmd_data);
+  return cmd_data;
 }
 
 typedef void (*CbFn)(const cmd_data_t *cmd_data, void *);
@@ -117,15 +117,20 @@ static char *complete_help(const char *text, int state) {
 
 static void register_cmd(const char *name, CLIFnPtr fn, const char *help_str,
                          CLICompPtr comp, int flags) {
-  cmd_data_t *cmd_data = &cmd_map[num_cmds];
+  cmd_data_t *cmd_data;
+  HASH_FIND_STR(cmd_name_map, name, cmd_data);
+  assert(!cmd_data && "Duplicate command name");
+
+  cmd_data = &cmd_map[num_cmds];
   cmd_data->name = name;
   cmd_data->fn_ptr = fn;
   cmd_data->help_str = help_str;
   cmd_data->comp_ptr = comp;
   cmd_data->flags = flags;
-  Word_t *cmd_data_ptr;
-  JSLI(cmd_data_ptr, J_cmd_name_map, (const uint8_t *)name);
-  *cmd_data_ptr = (Word_t)cmd_data;
+
+  HASH_ADD_KEYPTR(hh, cmd_name_map, cmd_data->name, strlen(cmd_data->name),
+                  cmd_data);
+
   num_cmds++;
 }
 
@@ -192,13 +197,10 @@ static void init_cmd_map() {
 }
 
 static void cleanup() {
-  Word_t bytes;
-// there is code in Judy headers that raises a warning with some compiler
-// versions
-#pragma GCC diagnostic push
-#pragma GCC diagnostic warning "-Wsign-compare"
-  JSLFA(bytes, J_cmd_name_map);
-#pragma GCC diagnostic pop
+  cmd_data_t *cmd_data, *tmp;
+  HASH_ITER(hh, cmd_name_map, cmd_data, tmp) {
+    HASH_DEL(cmd_name_map, cmd_data);
+  }
 
   if (is_device_selected) pi_remove_device(dev_tgt.dev_id);
 

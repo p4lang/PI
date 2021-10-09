@@ -1,4 +1,5 @@
 /* Copyright 2013-present Barefoot Networks, Inc.
+ * Copyright 2021 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +15,7 @@
  */
 
 /*
- * Antonin Bas (antonin@barefootnetworks.com)
+ * Antonin Bas
  *
  */
 
@@ -109,8 +110,9 @@ static _meter_data_t *meter_add(pi_p4info_t *p4info, pi_p4_id_t meter_id,
                                 pi_p4info_meter_unit_t meter_unit,
                                 pi_p4info_meter_type_t meter_type,
                                 size_t size) {
-  _meter_data_t *meter = p4info_add_res(p4info, meter_id, name);
-  meter->name = strdup(name);
+  char *name_copy = strdup(name);
+  _meter_data_t *meter = p4info_add_res(p4info, meter_id, name_copy);
+  meter->name = name_copy;
   meter->meter_id = meter_id;
   meter->meter_unit = meter_unit;
   meter->meter_type = meter_type;
