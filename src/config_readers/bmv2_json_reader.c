@@ -85,6 +85,7 @@ static void destroy_reader_state(reader_state_t *state) {
 
 static void parse_ids(const char *str, const char *name, pi_p4_id_t *ids,
                       size_t *num_ids) {
+  (void)name;
   char *str_copy = strdup(str);
   char *str_pos = str_copy;
   char *saveptr;
@@ -164,6 +165,7 @@ static void pre_reserve_ids(reader_state_t *state, pi_res_type_id_t type_id,
     if (num_ids == 0) continue;
     const cJSON *item = cJSON_GetObjectItem(object, "name");
     const char *name = item->valuestring;
+    (void)name;
     for (size_t i = 0; i < num_ids; i++) {
       pi_p4_id_t id = ids[i];
       pi_p4_id_t full_id = (type_id << 24) | id;
