@@ -31,8 +31,8 @@ void pi_logs_off();
 #define PI_LOG_ERROR(...) \
   if (_logs_on) fprintf(stderr, __VA_ARGS__)
 #else
-#define PI_LOG_DEBUG
-#define PI_LOG_ERROR
+#define PI_LOG_DEBUG(...)
+#define PI_LOG_ERROR(...)
 #endif
 
 #endif  // PI_SRC_UTILS_LOGGING_H_
