@@ -1,6 +1,7 @@
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 
 AM_CPPFLAGS = \
+-I$(top_srcdir) \
 -I$(top_srcdir)/frontend \
 -isystem $(top_builddir)/cpp_out \
 -isystem $(top_builddir)/grpc_out
