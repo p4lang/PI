@@ -1,4 +1,5 @@
 /* Copyright 2013-present Barefoot Networks, Inc.
+ * Copyright 2022 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +15,7 @@
  */
 
 /*
- * Antonin Bas (antonin@barefootnetworks.com)
+ * Antonin Bas
  *
  */
 
@@ -631,13 +632,29 @@ void PIGrpcServerInitWithConfig(const char *config_text, const char *version) {
   assert(status.code() == ::google::rpc::Code::OK);
 }
 
-void PIGrpcServerRunAddrGnmi(const char *server_address, void *gnmi_service) {
+void PIGrpcServerRunV2(const char *server_address,
+                       void *gnmi_service,
+                       PIGrpcServerSSLOptions_t *ssl_options) {
   server_data = new ::pi::server::ServerData();
   server_data->server_address = std::string(server_address);
   auto &builder = server_data->builder;
+  std::shared_ptr<grpc::ServerCredentials> creds;
+  if (ssl_options == nullptr) {
+    creds = grpc::InsecureServerCredentials();
+  } else {
+    grpc::SslServerCredentialsOptions::PemKeyCertPair pkcp;
+    pkcp.private_key = (ssl_options->pem_private_key == NULL) ?
+        "" : ssl_options->pem_private_key;;
+    pkcp.cert_chain = (ssl_options->pem_cert_chain == NULL) ?
+        "" : ssl_options->pem_cert_chain;
+    grpc::SslServerCredentialsOptions ssl_opts;
+    ssl_opts.pem_root_certs = (ssl_options->pem_root_certs == NULL) ?
+        "" : ssl_options->pem_root_certs;
+    ssl_opts.pem_key_cert_pairs.push_back(pkcp);
+    creds = grpc::SslServerCredentials(ssl_opts);
+  }
   builder.AddListeningPort(
-    server_data->server_address, grpc::InsecureServerCredentials(),
-    &server_data->server_port);
+      server_data->server_address, creds, &server_data->server_port);
   builder.RegisterService(&server_data->pi_service);
   if (gnmi_service != nullptr) {
     server_data->gnmi_service = std::unique_ptr<gnmi::gNMI::Service>(
@@ -657,12 +674,16 @@ void PIGrpcServerRunAddrGnmi(const char *server_address, void *gnmi_service) {
   std::cout << "Server listening on " << server_data->server_address << "\n";
 }
 
+void PIGrpcServerRunAddrGnmi(const char *server_address, void *gnmi_service) {
+  PIGrpcServerRunV2(server_address, gnmi_service, nullptr);
+}
+
 void PIGrpcServerRunAddr(const char *server_address) {
-  PIGrpcServerRunAddrGnmi(server_address, nullptr);
+  PIGrpcServerRunV2(server_address, nullptr, nullptr);
 }
 
 void PIGrpcServerRun() {
-  PIGrpcServerRunAddrGnmi("0.0.0.0:9559", nullptr);
+  PIGrpcServerRunV2("0.0.0.0:9559", nullptr, nullptr);
 }
 
 int PIGrpcServerGetPort() {

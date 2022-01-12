@@ -1,4 +1,5 @@
 /* Copyright 2013-present Barefoot Networks, Inc.
+ * Copyright 2022 VMware, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +15,7 @@
  */
 
 /*
- * Antonin Bas (antonin@barefootnetworks.com)
+ * Antonin Bas
  *
  */
 
@@ -25,6 +26,12 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct {
+  const char *pem_root_certs;
+  const char *pem_private_key;
+  const char *pem_cert_chain;
+} PIGrpcServerSSLOptions_t;
 
 // Initializes necessary resources. Should only be called once.
 void PIGrpcServerInit();
@@ -47,6 +54,10 @@ void PIGrpcServerRunAddr(const char *server_address);
 // pointer of type gnmi::gNMI::Service, and free it as a part of
 // PIGrpcServerCleanup
 void PIGrpcServerRunAddrGnmi(const char *server_address, void *gnmi_service);
+
+void PIGrpcServerRunV2(const char *server_address,
+                       void *gnmi_service,
+                       PIGrpcServerSSLOptions_t *ssl_options);
 
 // Get port number bound to the server
 int PIGrpcServerGetPort();
