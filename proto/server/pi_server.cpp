@@ -651,6 +651,32 @@ void PIGrpcServerRunV2(const char *server_address,
     ssl_opts.pem_root_certs = (ssl_options->pem_root_certs == NULL) ?
         "" : ssl_options->pem_root_certs;
     ssl_opts.pem_key_cert_pairs.push_back(pkcp);
+    switch (ssl_options->client_auth) {
+      case PI_GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE:
+        ssl_opts.client_certificate_request =
+            GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE;
+        break;
+      case PI_GRPC_SSL_REQUEST_CLIENT_CERTIFICATE_BUT_DONT_VERIFY:
+        ssl_opts.client_certificate_request =
+            GRPC_SSL_REQUEST_CLIENT_CERTIFICATE_BUT_DONT_VERIFY;
+        break;
+      case PI_GRPC_SSL_REQUEST_CLIENT_CERTIFICATE_AND_VERIFY:
+        ssl_opts.client_certificate_request =
+            GRPC_SSL_REQUEST_CLIENT_CERTIFICATE_AND_VERIFY;
+        break;
+      case PI_GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_BUT_DONT_VERIFY:
+        ssl_opts.client_certificate_request =
+            GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_BUT_DONT_VERIFY;
+        break;
+      case PI_GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_AND_VERIFY:
+        ssl_opts.client_certificate_request =
+            GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_AND_VERIFY;
+        break;
+      default:
+        ssl_opts.client_certificate_request =
+            GRPC_SSL_DONT_REQUEST_CLIENT_CERTIFICATE;
+        break;
+    }
     creds = grpc::SslServerCredentials(ssl_opts);
   }
   builder.AddListeningPort(
