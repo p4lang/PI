@@ -644,7 +644,7 @@ void PIGrpcServerRunV2(const char *server_address,
   } else {
     grpc::SslServerCredentialsOptions::PemKeyCertPair pkcp;
     pkcp.private_key = (ssl_options->pem_private_key == NULL) ?
-        "" : ssl_options->pem_private_key;;
+        "" : ssl_options->pem_private_key;
     pkcp.cert_chain = (ssl_options->pem_cert_chain == NULL) ?
         "" : ssl_options->pem_cert_chain;
     grpc::SslServerCredentialsOptions ssl_opts;
