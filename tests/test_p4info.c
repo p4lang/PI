@@ -127,7 +127,7 @@ TEST(P4Info, ActionsStress) {
   const size_t num_actions = 4096;
   adata_t *adata = calloc(num_actions, sizeof(adata_t));
 
-  char name[16];
+  char name[32];
   for (size_t i = 0; i < num_actions; i++) {
     adata[i].id = pi_make_action_id(i);
     snprintf(name, sizeof(name), "a%zu", i);
