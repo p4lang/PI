@@ -1,5 +1,8 @@
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 
+# for deprecated Protobuf fields
+AM_CXXFLAGS += -Wno-error=deprecated-declarations
+
 # issytem for generated code, to avoid potential warnings
 AM_CPPFLAGS = \
 -I$(top_srcdir)/../include \

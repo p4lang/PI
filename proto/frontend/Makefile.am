@@ -1,5 +1,8 @@
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 
+# for deprecated Protobuf fields
+AM_CXXFLAGS += -Wno-error=deprecated-declarations
+
 # include path for protoc-generated code will change when we agree on an
 # installation path
 AM_CPPFLAGS = \

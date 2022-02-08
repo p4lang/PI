@@ -1,5 +1,5 @@
 FROM p4lang/behavioral-model:no-pi
-LABEL maintainer="Antonin Bas <antonin@barefootnetworks.com>"
+LABEL maintainer="P4 Developers <p4-dev@lists.p4.org>"
 LABEL description="This Docker image includes all of the PI artifacts, \
 including the Thrift-based PI implementation for the bmv2 backend. It is \
 currently used to run CI tests."
@@ -16,14 +16,14 @@ ARG MAKEFLAGS=-j2
 ARG IMAGE_TYPE=build
 
 # Select the compiler to use.
-# We install the default version of GCC (GCC 5), as well as clang 3.8 and clang 8.
+# We install the default version of GCC (GCC 9), as well as clang 8 and clang 10.
 ARG CC=gcc
 ARG CXX=g++
 
 ENV PI_DEPS automake \
             build-essential \
-            clang-3.8 \
             clang-8 \
+            clang-10 \
             clang-format-8 \
             g++ \
             libboost-dev \
@@ -37,18 +37,17 @@ ENV PI_DEPS automake \
             libmicrohttpd-dev \
             doxygen \
             valgrind
-ENV PI_RUNTIME_DEPS libboost-system1.58.0 \
-                    libboost-thread1.58.0 \
+ENV PI_RUNTIME_DEPS libboost-system1.71.0 \
+                    libboost-thread1.71.0 \
                     libpcap0.8 \
-                    python
+                    python3 \
+                    python-is-python3
 
 COPY proto/sysrepo/docker_entry_point.sh /docker_entry_point.sh
 COPY . /PI/
 WORKDIR /PI/
 RUN apt-get update && \
     apt-get install -y --no-install-recommends $PI_DEPS $PI_RUNTIME_DEPS && \
-    ln -sf /usr/bin/python3 /usr/bin/python && \
-    ln -sf /usr/bin/pip3 /usr/bin/pip && \
     ./autogen.sh && \
     ./configure --enable-Werror --with-bmv2 --with-proto --with-cli --with-internal-rpc --with-sysrepo && \
     ./proto/sysrepo/install_yangs.sh && \

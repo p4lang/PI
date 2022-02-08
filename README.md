@@ -49,9 +49,9 @@ is not compatible.
   follow instructions in the [bmv2
   README](https://github.com/p4lang/behavioral-model/blob/master/README.md)
 - [nanomsg 1.0.0](https://github.com/nanomsg/nanomsg/releases/tag/1.0.0)
-- [Protobuf v3.6.1](https://github.com/google/protobuf/releases/tag/v3.6.1):
+- [Protobuf v3.18.1](https://github.com/google/protobuf/releases/tag/v3.18.1):
 ```
-git clone --depth=1 -b v3.6.1 https://github.com/google/protobuf.git
+git clone --depth=1 -b v3.18.1 https://github.com/google/protobuf.git
 cd protobuf/
 ./autogen.sh
 ./configure
@@ -59,9 +59,9 @@ make
 [sudo] make install
 [sudo] ldconfig
 ```
-- [gRPC v1.17.2](https://github.com/grpc/grpc/releases/tag/v1.17.2):
+- [gRPC v1.43.2](https://github.com/grpc/grpc/releases/tag/v1.43.2):
 ```
-git clone --depth=1 -b v1.17.2 https://github.com/google/grpc.git
+git clone --depth=1 -b v1.43.2 https://github.com/google/grpc.git
 cd grpc/
 git submodule update --init --recursive
 make
