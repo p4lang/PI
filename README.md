@@ -7,6 +7,18 @@
 
 ## Dependencies
 
+### Compiler versions
+
+The following compiler versions are supported:
+
+- gcc / g++: >= 5
+- clang / clang++: >= 3.8
+
+The following compiler versions are tested in CI:
+
+- gcc / g++: 9.3
+- clang / clang++: 8, 10
+
 ### Dependencies based on configure flags
 
 Based on the command-line flags you intend on providing to `configure`, you need
