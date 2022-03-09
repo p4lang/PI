@@ -1,6 +1,6 @@
 # PI LIBRARY REPOSITORY
 
-[![Build Status](https://travis-ci.org/p4lang/PI.svg?branch=main)](https://travis-ci.org/p4lang/PI)
+![Build Status](https://github.com/p4lang/PI/workflows/Test/badge.svg?branch=main)
 
 **This repository has submodules; after cloning it you should run `git submodule
   update --init --recursive`.**
