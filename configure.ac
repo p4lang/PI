@@ -23,9 +23,7 @@ AC_PROG_CXX
 # std=c++11, configure will not fail
 AX_CXX_COMPILE_STDCXX_11([noext],[optional])
 
-# TODO: this can be removed when the Python scripts are updated to work with
-# python3.
-m4_define_default([_AM_PYTHON_INTERPRETER_LIST], [python python3 python2.7])
+m4_define_default([_AM_PYTHON_INTERPRETER_LIST], [python3 python])
 AM_CONDITIONAL([HAVE_python], [test "$PYTHON" != :])
 
 DX_DOT_FEATURE([ON])

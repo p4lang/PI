@@ -18,7 +18,7 @@ AC_LANG_PUSH(C++)
 
 AX_CXX_COMPILE_STDCXX_11([noext],[mandatory])
 
-AM_PATH_PYTHON([2.7],, [:])
+AM_PATH_PYTHON([3.5],, [:])
 AM_CONDITIONAL([HAVE_PYTHON], [test "$PYTHON" != :])
 
 PKG_CHECK_MODULES([PROTOBUF], [protobuf >= 3.0.0])
