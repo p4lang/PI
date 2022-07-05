@@ -1,4 +1,4 @@
-#! /usr/bin/python
+#! /usr/bin/python3
 #
 # xform_anno.py - Utility to transform p4info annotations into first-class Message elements
 #

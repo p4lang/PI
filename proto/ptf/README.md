@@ -46,7 +46,7 @@ inject and receive test packets.
 
 3. Running the PTF tests (in a second terminal)
 
-    sudo python ptf_runner.py \
+    sudo python3 ptf_runner.py \
         --device-config config.bin --p4info p4info.proto.txt \
         --ptfdir l3_host_fwd/test/ --port-map bmv2/port_map.json
 
