@@ -17,7 +17,6 @@ rules_proto_toolchains()
 
 load("@io_bazel_rules_go//go:deps.bzl", "go_register_toolchains", "go_rules_dependencies")
 go_rules_dependencies()
-go_register_toolchains(version = "1.16")
 
 load("@com_google_googleapis//:repository_rules.bzl", "switched_rules_by_language")
 switched_rules_by_language(
@@ -34,15 +33,14 @@ grpc_extra_deps()
 load("@com_github_grpc_grpc//bazel:grpc_python_deps.bzl", "grpc_python_deps")
 grpc_python_deps()
 
-load("@rules_python//python:pip.bzl", "pip_import", "pip_repositories")
-pip_repositories()
-pip_import(
+load("@rules_python//python:pip.bzl", "pip_parse")
+pip_parse(
     name = "grpc_python_dependencies",
-    requirements = "@com_github_grpc_grpc//:requirements.bazel.txt",
+    requirements_lock = "@com_github_grpc_grpc//:requirements.bazel.txt",
 )
 
-load("@grpc_python_dependencies//:requirements.bzl", "pip_install")
-pip_install()
+load("@grpc_python_dependencies//:requirements.bzl", "install_deps")
+install_deps()
 
 # -- Boost dependencies -------------------------
 
