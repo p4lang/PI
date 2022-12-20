@@ -10,8 +10,8 @@ GNMI_SHA="3701005f28044065608322c179625c8898beadb80c89096b3d8aae1fbac15108";
 # We cannot use the latest release (v1.3.0) as we need to include a recent fix
 # to support Bazel 5.0. More precisely, this fix updates the Bazel build
 # dependencies to more recent versions compatible with Bazel 5.0.
-P4RUNTIME_COMMIT="e11182131554876f25ebb18f90914425f4b10e0a"
-P4RUNTIME_SHA="6c1c40e2dbcbdad73bcba2d99dc0769c23d9d0ff0066138a910a7159fed3af96"
+P4RUNTIME_COMMIT="e5d8c89e81ef655f79dbdd6749623fdc764ee90f"
+P4RUNTIME_SHA="5e418c86b6a377da0f3f92c1ae34359d8cd064f26b2b74ec128c6fbefc414173"
 
 def PI_deps():
     """Loads dependencies needed to compile PI."""
@@ -27,10 +27,14 @@ def PI_deps():
         )
 
     if "com_google_absl" not in native.existing_rules():
-        remote_workspace(
+        http_archive(
             name = "com_google_absl",
-            remote = "https://github.com/abseil/abseil-cpp",
-            branch = "lts_2021_11_02",
+            sha256 = "4208129b49006089ba1d6710845a45e31c59b0ab6bff9e5788a87f55c5abd602",
+            strip_prefix = "abseil-cpp-20220623.0",
+            urls = [
+                "https://storage.googleapis.com/grpc-bazel-mirror/github.com/abseil/abseil-cpp/archive/20220623.0.tar.gz",
+                "https://github.com/abseil/abseil-cpp/archive/20220623.0.tar.gz",
+            ],
         )
 
     if "com_github_openconfig_gnmi" not in native.existing_rules():
