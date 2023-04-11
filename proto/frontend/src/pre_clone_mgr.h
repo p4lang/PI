@@ -83,7 +83,7 @@ class PreCloneMgr {
   // TODO(antonin): this should ideally be configurable based on te target but
   // these seem like a reasonnable place to start with.
   static constexpr CloneSessionId kMinCloneSessionId = 1;
-  static constexpr CloneSessionId kMaxCloneSessionId = 512;
+  static constexpr CloneSessionId kMaxCloneSessionId = 65536;
 
   Status session_set(const CloneSession &clone_session,
                      PreMcMgr::GroupId mc_group_id,
