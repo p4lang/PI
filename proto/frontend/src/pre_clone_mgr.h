@@ -80,10 +80,16 @@ class PreCloneMgr {
     }
   };
 
-  // TODO(antonin): this should ideally be configurable based on te target but
-  // these seem like a reasonnable place to start with.
+  // We set the max session ID value to 32768.
+  // This is the the max value supported by simple_switch, which reserves the left-most bit
+  // (https://github.com/p4lang/behavioral-model/blob/e9fa7dc687f334e5cf327e0c993fc1a351d224c0/targets/simple_switch/register_access.h#L46).
+  // Additionally, for clone sessions to more than 1 port, PI will program a multicast group.
+  // There may only be 32768 mgids available for this usage (with another 32768 reserved for
+  // user-defined multicast groups).
+  // TODO(antonin): Ideally, these values should be configurable based on the target.
+  // Other targets may support a different number of clone sessions.
   static constexpr CloneSessionId kMinCloneSessionId = 1;
-  static constexpr CloneSessionId kMaxCloneSessionId = 65536;
+  static constexpr CloneSessionId kMaxCloneSessionId = 32768;
 
   Status session_set(const CloneSession &clone_session,
                      PreMcMgr::GroupId mc_group_id,
