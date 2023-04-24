@@ -48,23 +48,23 @@ class partialmethod(partial):
         return partial(self.func, instance,
                        *(self.args or ()), **(self.keywords or {}))
 
-# Convert integer (with length) to binary byte string
-# Equivalent to Python 3.2 int.to_bytes
-# See
-# https://stackoverflow.com/questions/16022556/has-python-3-to-bytes-been-back-ported-to-python-2-7
-# TODO: When P4Runtime implementation is ready for it, use
-# minimum-length byte sequences to represent integers.  For unsigned
-# integers, this should only require removing the zfill() call below.
-def stringify(n, length):
+def stringify(n, length=0):
     """Take a non-negative integer 'n' as the first parameter, and a
     non-negative integer 'length' in units of _bytes_ as the second
-    parameter.  Return a string with binary contents expected by the
-    Python P4Runtime client operations.  If 'n' does not fit in
-    'length' bytes, it is represented in the fewest number of bytes it
-    does fit into without loss of precision.  It always returns a
-    string at least one byte long, even if value=width=0."""
-    h = '%x' % n
-    s = ('0'*(len(h) % 2) + h).zfill(length*2).decode('hex')
+    parameter (it defaults to 0 if not provided).  Return a string
+    with binary contents expected by the Python P4Runtime client
+    operations.  If 'n' does not fit in 'length' bytes, it is
+    represented in the fewest number of bytes it does fit into without
+    loss of precision.  It always returns a string at least one byte
+    long, even if n=length=0."""
+    if length == 0 and n == 0:
+        length = 1
+    else:
+        n_size_bits = n.bit_length()
+        n_size_bytes = (n_size_bits + 7) // 8
+        if n_size_bytes > length:
+            length = n_size_bytes
+    s = n.to_bytes(length, byteorder='big')
     return s
 
 def ipv4_to_binary(addr):
@@ -74,10 +74,10 @@ def ipv4_to_binary(addr):
     client operations."""
     bytes_ = [int(b, 10) for b in addr.split('.')]
     assert len(bytes_) == 4
-    # Note: The chr(b) call below will throw exception if any b is
-    # outside of the range [0, 255]], so no need to add a separate
-    # check for that here.
-    return "".join(chr(b) for b in bytes_)
+    # Note: The bytes() call below will throw exception if any
+    # elements of bytes_ is outside of the range [0, 255]], so no need
+    # to add a separate check for that here.
+    return bytes(bytes_)
 
 def mac_to_binary(addr):
     """Take an argument 'addr' containing an Ethernet MAC address written
@@ -87,10 +87,10 @@ def mac_to_binary(addr):
     operations."""
     bytes_ = [int(b, 16) for b in addr.split(':')]
     assert len(bytes_) == 6
-    # Note: The chr(b) call below will throw exception if any b is
-    # outside of the range [0, 255]], so no need to add a separate
-    # check for that here.
-    return "".join(chr(b) for b in bytes_)
+    # Note: The bytes() call below will throw exception if any
+    # elements of bytes_ is outside of the range [0, 255]], so no need
+    # to add a separate check for that here.
+    return bytes(bytes_)
 
 # Used to indicate that the gRPC error Status object returned by the server has
 # an incorrect format.
@@ -402,21 +402,24 @@ class P4RuntimeTest(BaseTest):
             mf = mk.add()
             mf.field_id = mf_id
             mf.lpm.prefix_len = self.pLen
-            mf.lpm.value = ''
+            assert isinstance(self.v, bytes)
+            orig_v_list = list(self.v)
+            mod_v_list = []
 
             # P4Runtime now has strict rules regarding ternary matches: in the
             # case of LPM, trailing bits in the value (after prefix) must be set
             # to 0.
-            first_byte_masked = self.pLen / 8
+            first_byte_masked = self.pLen // 8
             for i in range(first_byte_masked):
-                mf.lpm.value += self.v[i]
-            if first_byte_masked == len(self.v):
+                mod_v_list.append(orig_v_list[i])
+            if first_byte_masked == len(orig_v_list):
+                mf.lpm.value = bytes(mod_v_list)
                 return
             r = self.pLen % 8
-            mf.lpm.value += chr(
-                ord(self.v[first_byte_masked]) & (0xff << (8 - r)))
-            for i in range(first_byte_masked + 1, len(self.v)):
-                mf.lpm.value += '\x00'
+            mod_v_list.append(orig_v_list[first_byte_masked] & (0xff << (8 - r)))
+            for i in range(first_byte_masked + 1, len(orig_v_list)):
+                mod_v_list.append(0)
+            mf.lpm.value = bytes(mod_v_list)
 
     class Ternary(MF):
         def __init__(self, name, v, mask):

@@ -27,7 +27,7 @@ import ptf.testutils as testutils
 
 from google.rpc import code_pb2
 
-from base_test import P4RuntimeTest, autocleanup, stringify, ipv4_to_binary
+from base_test import P4RuntimeTest, autocleanup, stringify, ipv4_to_binary, mac_to_binary
 
 class L3HostFwdTest(P4RuntimeTest):
     pass
@@ -36,13 +36,15 @@ class FwdTest(L3HostFwdTest):
     @autocleanup
     def runTest(self):
         ip_dst_addr = "10.0.0.1"
-        ip_dst_addr_str = ipv4_to_binary(ip_dst_addr)
+        ip_dst_addr_bin = ipv4_to_binary(ip_dst_addr)
         ig_port = self.swports(1)
         eg_port = self.swports(2)
         # port is 9-bit in v1model, i.e. 2 bytes
         eg_port_str = stringify(eg_port, 2)
-        smac = "\xee\xcd\x00\x7e\x70\x00"
-        dmac = "\xee\x30\xca\x9d\x1e\x00"
+        smac = "ee:cd:00:7e:70:00"
+        dmac = "ee:30:ca:9d:1e:00"
+        smac_bin = mac_to_binary(smac)
+        dmac_bin = mac_to_binary(dmac)
 
         # we do not care about the src mac address or the src IP address
         pkt = testutils.simple_tcp_packet(
@@ -54,9 +56,9 @@ class FwdTest(L3HostFwdTest):
 
         # add a forwarding entry
         self.send_request_add_entry_to_action(
-            "l3_host_fwd", [self.Exact("hdr.ipv4.dst_addr", ip_dst_addr_str)],
+            "l3_host_fwd", [self.Exact("hdr.ipv4.dst_addr", ip_dst_addr_bin)],
             "set_nexthop",
-            [("port", eg_port_str), ("smac", smac), ("dmac", dmac)])
+            [("port", eg_port_str), ("smac", smac_bin), ("dmac", dmac_bin)])
 
         # check that the entry is hit and that no other packets are received
         exp_pkt = testutils.simple_tcp_packet(
@@ -67,18 +69,21 @@ class FwdTest(L3HostFwdTest):
 class DupEntryTest(L3HostFwdTest):
     @autocleanup
     def runTest(self):
-        ip_dst_addr_str = "\x0a\x00\x00\x01"
+        ip_dst_addr = "10.0.0.1"
+        ip_dst_addr_bin = ipv4_to_binary(ip_dst_addr)
         eg_port = self.swports(2)
         eg_port_str = stringify(eg_port, 2)
-        smac = "\xee\xcd\x00\x7e\x70\x00"
-        dmac = "\xee\x30\xca\x9d\x1e\x00"
+        smac = "ee:cd:00:7e:70:00"
+        dmac = "ee:30:ca:9d:1e:00"
+        smac_bin = mac_to_binary(smac)
+        dmac_bin = mac_to_binary(dmac)
 
         def add_entry_once():
             self.send_request_add_entry_to_action(
                 "l3_host_fwd",
-                [self.Exact("hdr.ipv4.dst_addr", ip_dst_addr_str)],
+                [self.Exact("hdr.ipv4.dst_addr", ip_dst_addr_bin)],
                 "set_nexthop",
-                [("port", eg_port_str), ("smac", smac), ("dmac", dmac)])
+                [("port", eg_port_str), ("smac", smac_bin), ("dmac", dmac_bin)])
 
         add_entry_once()
         with self.assertP4RuntimeError():
@@ -87,28 +92,31 @@ class DupEntryTest(L3HostFwdTest):
 class BadMatchKeyTest(L3HostFwdTest):
     @autocleanup
     def runTest(self):
-        ip_dst_addr_str = "\x0a\x00\x00\x01"
-        bad_ip_dst_addr_str = "\x0a\x00\x00"  # missing one byte
+        ip_dst_addr = "10.0.0.1"
+        ip_dst_addr_bin = ipv4_to_binary(ip_dst_addr)
+        bad_ip_dst_addr_bin = ip_dst_addr_bin[0:3]   # missing one byte
         eg_port = self.swports(2)
         eg_port_str = stringify(eg_port, 2)
-        smac = "\xee\xcd\x00\x7e\x70\x00"
-        dmac = "\xee\x30\xca\x9d\x1e\x00"
+        smac = "ee:cd:00:7e:70:00"
+        dmac = "ee:30:ca:9d:1e:00"
+        smac_bin = mac_to_binary(smac)
+        dmac_bin = mac_to_binary(dmac)
 
         # missing one byte
         with self.assertP4RuntimeError(code_pb2.INVALID_ARGUMENT):
             self.send_request_add_entry_to_action(
                 "l3_host_fwd",
-                [self.Exact("hdr.ipv4.dst_addr", bad_ip_dst_addr_str)],
+                [self.Exact("hdr.ipv4.dst_addr", bad_ip_dst_addr_bin)],
                 "set_nexthop",
-                [("port", eg_port_str), ("smac", smac), ("dmac", dmac)])
+                [("port", eg_port_str), ("smac", smac_bin), ("dmac", dmac_bin)])
 
         # unexpected match type
         with self.assertP4RuntimeError(code_pb2.INVALID_ARGUMENT):
             self.send_request_add_entry_to_action(
                 "l3_host_fwd",
-                [self.Lpm("hdr.ipv4.dst_addr", ip_dst_addr_str, 24)],
+                [self.Lpm("hdr.ipv4.dst_addr", ip_dst_addr_bin, 24)],
                 "set_nexthop",
-                [("port", eg_port_str), ("smac", smac), ("dmac", dmac)])
+                [("port", eg_port_str), ("smac", smac_bin), ("dmac", dmac_bin)])
 
 class BadChecksumTest(L3HostFwdTest):
     @autocleanup
