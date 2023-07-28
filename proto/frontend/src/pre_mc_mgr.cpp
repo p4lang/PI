@@ -174,18 +174,7 @@ Status GetReplicaPort(const p4v1::Replica &replica, ReplicaPort &egress_port) {
     }
     case p4v1::Replica::kPort: {
       egress_port.num_bytes = replica.port().size();
-      if (egress_port.num_bytes > sizeof(pi_mc_port_t)) {
-        RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
-                            "Multicast group replica `port` has %d bytes, but "
-                            "only %d bytes are supported",
-                            egress_port.num_bytes, sizeof(pi_mc_port_t));
-      }
-      egress_port.port_id = 0;
-      for (char byte : replica.port()) {
-        egress_port.port_id <<= 8;
-        egress_port.port_id += static_cast<uint8_t>(byte);
-      }
-      RETURN_OK_STATUS();
+      return common::bytestring_to_pi_port(replica.port(), egress_port.port_id);
     }
     default:
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
@@ -199,18 +188,11 @@ Status SetReplicaPort(const ReplicaPort &port, p4v1::Replica &replica) {
     case p4v1::Replica::kEgressPort:
       replica.set_egress_port(static_cast<uint32_t>(port.port_id));
       RETURN_OK_STATUS();
-    case p4v1::Replica::kPort: {
-      std::string &bytes = *replica.mutable_port();
-      if (port.num_bytes > 0) {
-        bytes.resize(port.num_bytes);
-        auto value = static_cast<uint32_t>(port.port_id);
-        for (int i = port.num_bytes - 1; i >= 0; --i) {
-          bytes[i] = value & 0xffu;
-          value >>= 8;
-        }
-      }
+    case p4v1::Replica::kPort:
+      *replica.mutable_port() = 
+          common::pi_port_to_bytestring(port.port_id, port.num_bytes);
       RETURN_OK_STATUS();
-    }
+    
     default:
       RETURN_ERROR_STATUS(
           Code::INTERNAL,

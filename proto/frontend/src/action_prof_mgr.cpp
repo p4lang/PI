@@ -57,18 +57,6 @@ using OneShotMember = ActionProfAccessOneshot::OneShotMember;
 
 namespace {
 
-// temporary until we have port translation support
-
-int bytestring_to_integer(const std::string &str) {
-  int v = 0;
-  if (str.size() > 4) return -1;
-  for (auto c : str) {
-    v = v << 8;
-    v += static_cast<int>(static_cast<unsigned char>(c));
-  }
-  return v;
-}
-
 pi_port_t watch_port_p4rt_to_pi(int watch) {
   return (watch == p4v1::SDN_PORT_UNKNOWN) ?
       WatchPortEnforcer::INVALID_WATCH : static_cast<pi_port_t>(watch);
@@ -76,10 +64,11 @@ pi_port_t watch_port_p4rt_to_pi(int watch) {
 
 pi_port_t watch_port_p4rt_to_pi(const std::string &watch) {
   if (watch == "") return WatchPortEnforcer::INVALID_WATCH;
-  auto v = bytestring_to_integer(watch);
-  if (v < 0 || v == p4v1::SDN_PORT_UNKNOWN)
+  pi_port_t v;
+  Status status = common::bytestring_to_pi_port(watch, v);
+  if (!IS_OK(status) || v < 0 || v == p4v1::SDN_PORT_UNKNOWN)
       return WatchPortEnforcer::INVALID_WATCH;
-  return static_cast<pi_port_t>(v);
+  return v;
 }
 
 }  // namespace

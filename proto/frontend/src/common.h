@@ -151,6 +151,16 @@ StatusOr<std::string> bytestring_p4rt_to_pi(const std::string &str,
 std::string bytestring_pi_to_p4rt(const std::string &str);
 std::string bytestring_pi_to_p4rt(const char *, size_t n);
 
+// Converts the given bytestring to the given `pi_port_t` and return OK if
+// the bytestring fits into the port, or returns INVALID_ARGUMENT otherwise.
+Status bytestring_to_pi_port(const std::string &str, pi_port_t& result);
+
+// Converts the given `port` into a bytestring of `num_bytes` characters.
+// If `num_bytes > sizeof(pi_port_t)`, the initial bytes are zero.
+// If the given `port` has more than `num_bytes` significant bytes, only the
+// `num_bytes` least significant bytes are captured.
+std::string pi_port_to_bytestring(pi_port_t port, size_t num_bytes);
+
 Code check_proto_bytestring(const std::string &str, size_t nbits);
 
 bool check_prefix_trailing_zeros(const std::string &str, int pLen);
