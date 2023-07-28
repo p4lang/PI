@@ -214,7 +214,7 @@ Status SetReplicaPort(const ReplicaPort &port, p4v1::Replica &replica) {
     default:
       RETURN_ERROR_STATUS(
           Code::INTERNAL,
-          "Unset `port_kind` in intenral `ReplicaPort` representation");
+          "Unset `port_kind` in internal `ReplicaPort` representation");
   }
 }
 
