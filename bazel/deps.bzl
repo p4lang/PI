@@ -62,7 +62,6 @@ def PI_deps():
             name = "com_google_googleapis",
             remote = "https://github.com/googleapis/googleapis",
             commit = "9fe00a1330817b5ce00919bf2861cd8a9cea1a00",
-            sha256 = "b35510fd77d19562893da449b41d6fb44d2b9f391bd7928208984569e95dbe15",
         )
 
     if "com_github_nelhage_rules_boost" not in native.existing_rules():
