@@ -100,7 +100,7 @@ std::string bytestring_pi_to_p4rt(const char *str, size_t n) {
 }
 
 Status bytestring_to_pi_port(const std::string &str, pi_port_t& result) {
-  static_assert(sizeof(pi_port_t) == 4);
+  static_assert(sizeof(pi_port_t) == 4, "invariant broken");
   if (str.size() > 4) {
     RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
                         "Got port of %d bytes, but only 4 bytes are supported",
@@ -120,7 +120,7 @@ std::string pi_port_to_bytestring(pi_port_t port, size_t num_bytes) {
   if (num_bytes == 0) return "";
   std::string result;
   result.resize(num_bytes);
-  static_assert(sizeof(pi_port_t) == sizeof(uint32_t));
+  static_assert(sizeof(pi_port_t) == sizeof(uint32_t), "invariant broken");
   uint32_t value = static_cast<uint32_t>(port);
   for (int i = num_bytes - 1; i >= 0; --i) {
     result[i] = value & 0xffu;
