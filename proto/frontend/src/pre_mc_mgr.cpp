@@ -161,6 +161,8 @@ struct PreMcMgr::NodeCleanupTask : public McLocalCleanupIface {
   pi_mc_node_handle_t node_h;
 };
 
+namespace {
+
 // Extracts the egress port of a given P4Runtime `replica` into the given
 // `ReplicaPort`.
 Status GetReplicaPort(const p4v1::Replica &replica, ReplicaPort &egress_port) {
@@ -216,6 +218,8 @@ Status SetReplicaPort(const ReplicaPort &port, p4v1::Replica &replica) {
   }
 }
 
+}  // namespace
+
 /* static */ Status
 PreMcMgr::make_new_group(const GroupEntry &group_entry, Group *group) {
   for (const auto &replica : group_entry.replicas()) {
@@ -249,13 +253,17 @@ PreMcMgr::read_group(
   }
 }
 
-static std::vector<pi_mc_port_t> GetPiEgressPorts(
+namespace {
+
+std::vector<pi_mc_port_t> GetPiEgressPorts(
     const std::set<ReplicaPort> &ports) {
   std::vector<pi_mc_port_t> result;
   result.reserve(ports.size());
   for (const auto &port : ports) result.push_back(port.port_id);
   return result;
 }
+
+}  // namespace
 
 
 Status
