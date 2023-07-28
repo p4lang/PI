@@ -39,6 +39,15 @@ namespace proto {
 
 class McSessionTemp;
 
+// Internal representation of a replica port.
+struct ReplicaPort {
+  p4::v1::Replica::PortKindCase port_kind;
+  pi_mc_port_t port_id;
+  int num_bytes;
+};
+bool operator==(const ReplicaPort &x, const ReplicaPort &y);
+bool operator<(const ReplicaPort &x, const ReplicaPort &y);
+
 // This class is used to map P4Runtime MulticastGroupEntry messages to
 // lower-level PI operations. It currently does not do any rollback in case of
 // error, which means a single P4Runtime multicast group modification can be
@@ -77,7 +86,7 @@ class PreMcMgr {
 
   struct Node {
     pi_mc_node_handle_t node_h;
-    std::set<pi_mc_port_t> eg_ports{};
+    std::set<ReplicaPort> eg_ports{};
   };
 
   struct Group {

@@ -20,6 +20,8 @@
 
 #include <PI/pi_mc.h>
 
+#include <cstdint>
+#include <cstring>
 #include <memory>
 #include <utility>  // for std::move
 #include <vector>
@@ -29,6 +31,7 @@
 #include "common.h"
 #include "pre_mc_mgr.h"
 #include "report_error.h"
+#include "p4/v1/p4runtime.pb.h"
 
 namespace p4v1 = ::p4::v1;
 
@@ -41,6 +44,17 @@ namespace proto {
 using Code = ::google::rpc::Code;
 using Status = PreMcMgr::Status;
 using GroupEntry = PreMcMgr::GroupEntry;
+
+std::tuple<p4v1::Replica::PortKindCase, pi_mc_port_t, int> ReplicaPortAsTuple(
+    const ReplicaPort &port) {
+  return std::make_tuple(port.port_kind, port.port_id, port.num_bytes);
+}
+bool operator==(const ReplicaPort &x, const ReplicaPort &y) {
+  return ReplicaPortAsTuple(x) == ReplicaPortAsTuple(y);
+}
+bool operator<(const ReplicaPort &x, const ReplicaPort &y) {
+  return ReplicaPortAsTuple(x) < ReplicaPortAsTuple(y);
+}
 
 struct McLocalCleanupIface {
   virtual ~McLocalCleanupIface() { }
@@ -147,13 +161,67 @@ struct PreMcMgr::NodeCleanupTask : public McLocalCleanupIface {
   pi_mc_node_handle_t node_h;
 };
 
+// Extracts the egress port of a given P4Runtime `replica` into the given
+// `ReplicaPort`.
+Status GetReplicaPort(const p4v1::Replica &replica, ReplicaPort &egress_port) {
+  egress_port.port_kind = replica.port_kind_case();
+  switch (replica.port_kind_case()) {
+    case p4v1::Replica::kEgressPort: {
+      egress_port.port_id = static_cast<pi_mc_port_t>(replica.egress_port());
+      RETURN_OK_STATUS();
+    }
+    case p4v1::Replica::kPort: {
+      egress_port.num_bytes = replica.port().size();
+      if (egress_port.num_bytes > sizeof(pi_mc_port_t)) {
+        RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
+                            "Multicast group replica `port` has %d bytes, but "
+                            "only %d bytes are supported",
+                            egress_port.num_bytes, sizeof(pi_mc_port_t));
+      }
+      egress_port.port_id = 0;
+      for (char byte : replica.port()) {
+        egress_port.port_id <<= 8;
+        egress_port.port_id += static_cast<uint8_t>(byte);
+      }
+      RETURN_OK_STATUS();
+    }
+    default:
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "Missing port in multicast group replica");
+  }
+}
+
+// Sets the `port_kind` oneof of the given `replica` to the given `port`.
+Status SetReplicaPort(const ReplicaPort &port, p4v1::Replica &replica) {
+  switch (port.port_kind) {
+    case p4v1::Replica::kEgressPort:
+      replica.set_egress_port(static_cast<uint32_t>(port.port_id));
+      RETURN_OK_STATUS();
+    case p4v1::Replica::kPort: {
+      std::string &bytes = *replica.mutable_port();
+      bytes.resize(port.num_bytes);
+      auto value = static_cast<uint32_t>(port.port_id);
+      for (int i = port.num_bytes - 1; i >= 0; --i) {
+        bytes[i] = value & 0xffu;
+        value >>= 8;
+      }
+      RETURN_OK_STATUS();
+    }
+    default:
+      RETURN_ERROR_STATUS(
+          Code::INTERNAL,
+          "Unset `port_kind` in intenral `ReplicaPort` representation");
+  }
+}
+
 /* static */ Status
 PreMcMgr::make_new_group(const GroupEntry &group_entry, Group *group) {
   for (const auto &replica : group_entry.replicas()) {
     auto rid = static_cast<RId>(replica.instance());
-    auto eg_port = static_cast<pi_mc_port_t>(replica.egress_port());
+    ReplicaPort eg_port;
+    RETURN_IF_ERROR(GetReplicaPort(replica, eg_port));
     auto &node = group->nodes[rid];
-    auto p = node.eg_ports.insert(eg_port);
+    auto p = node.eg_ports.insert(std::move(eg_port));
     if (!p.second) {
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                           "Duplicate replica in multicast group");
@@ -172,12 +240,21 @@ PreMcMgr::read_group(
   for (const auto &p_node : group.nodes) {
     auto rid = static_cast<uint32_t>(p_node.first);
     for (auto port : p_node.second.eg_ports) {
-      auto *replica = group_entry->add_replicas();
-      replica->set_egress_port(static_cast<uint32_t>(port));
-      replica->set_instance(rid);
+      auto &replica = *group_entry->add_replicas();
+      SetReplicaPort(port, replica);
+      replica.set_instance(rid);
     }
   }
 }
+
+static std::vector<pi_mc_port_t> GetPiEgressPorts(
+    const std::set<ReplicaPort> &ports) {
+  std::vector<pi_mc_port_t> result;
+  result.reserve(ports.size());
+  for (const auto &port : ports) result.push_back(port.port_id);
+  return result;
+}
+
 
 Status
 PreMcMgr::create_and_attach_node(McSessionTemp *session,
@@ -185,8 +262,7 @@ PreMcMgr::create_and_attach_node(McSessionTemp *session,
                                  RId rid,
                                  Node *node) {
   pi_status_t pi_status;
-  std::vector<pi_mc_port_t> eg_ports_seq(
-      node->eg_ports.begin(), node->eg_ports.end());
+  std::vector<pi_mc_port_t> eg_ports_seq = GetPiEgressPorts(node->eg_ports);
   pi_status = pi_mc_node_create(
       session->get(), device_id, rid,
       eg_ports_seq.size(), eg_ports_seq.data(), &node->node_h);
@@ -210,8 +286,7 @@ PreMcMgr::create_and_attach_node(McSessionTemp *session,
 Status
 PreMcMgr::modify_node(const McSessionTemp &session, const Node &node) {
   pi_status_t pi_status;
-  std::vector<pi_mc_port_t> eg_ports_seq(
-      node.eg_ports.begin(), node.eg_ports.end());
+  std::vector<pi_mc_port_t> eg_ports_seq = GetPiEgressPorts(node.eg_ports);
   pi_status = pi_mc_node_modify(session.get(), device_id, node.node_h,
                                 eg_ports_seq.size(), eg_ports_seq.data());
   if (pi_status != PI_STATUS_SUCCESS) {
