@@ -11,7 +11,7 @@ GNMI_SHA="3701005f28044065608322c179625c8898beadb80c89096b3d8aae1fbac15108";
 # to support Bazel 5.0. More precisely, this fix updates the Bazel build
 # dependencies to more recent versions compatible with Bazel 5.0.
 P4RUNTIME_COMMIT="d76a3640a223f47a43dc34e5565b72e43796ba57"
-P4RUNTIME_SHA="5e418c86b6a377da0f3f92c1ae34359d8cd064f26b2b74ec128c6fbefc414173"
+P4RUNTIME_SHA="944648d331b5645d490ab592d2478d0d55bb7442edc068938efd79937af99d1d"
 
 def PI_deps():
     """Loads dependencies needed to compile PI."""
@@ -21,7 +21,7 @@ def PI_deps():
             name = "com_github_p4lang_p4runtime",
             # urls = ["https://github.com/p4lang/p4runtime/archive/v%s.zip" % P4RUNTIME_TAG],
             urls = ["https://github.com/p4lang/p4runtime/archive/%s.zip" % P4RUNTIME_COMMIT],
-            # sha256 = P4RUNTIME_SHA,
+            sha256 = P4RUNTIME_SHA,
             # strip_prefix = "p4runtime-%s/proto" % P4RUNTIME_TAG,
             strip_prefix = "p4runtime-%s/proto" % P4RUNTIME_COMMIT,
         )
