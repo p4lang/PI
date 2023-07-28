@@ -153,7 +153,7 @@ std::string bytestring_pi_to_p4rt(const char *, size_t n);
 
 // Converts the given bytestring to the given `pi_port_t` and return OK if
 // the bytestring fits into the port, or returns INVALID_ARGUMENT otherwise.
-Status bytestring_to_pi_port(const std::string &str, pi_port_t& result);
+Status bytestring_to_pi_port(const std::string &str, pi_port_t* result);
 
 // Converts the given `port` into a bytestring of `num_bytes` characters.
 // If `num_bytes > sizeof(pi_port_t)`, the initial bytes are zero.

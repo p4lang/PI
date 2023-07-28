@@ -99,7 +99,7 @@ std::string bytestring_pi_to_p4rt(const char *str, size_t n) {
   return std::string(str + i, n - i);
 }
 
-Status bytestring_to_pi_port(const std::string &str, pi_port_t& result) {
+Status bytestring_to_pi_port(const std::string &str, pi_port_t* result) {
   static_assert(sizeof(pi_port_t) == 4, "invariant broken");
   if (str.size() > 4) {
     RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
@@ -113,7 +113,7 @@ Status bytestring_to_pi_port(const std::string &str, pi_port_t& result) {
   }
   // Casting from unsigned to signed is implementation-defined if the source
   // value would not fit in the destination, so we use memcpy as a work-around.
-  memcpy(&result, &value, 4);
+  memcpy(result, &value, 4);
   RETURN_OK_STATUS();
 }
 std::string pi_port_to_bytestring(pi_port_t port, size_t num_bytes) {

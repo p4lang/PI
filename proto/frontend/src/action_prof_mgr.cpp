@@ -65,7 +65,7 @@ pi_port_t watch_port_p4rt_to_pi(int watch) {
 pi_port_t watch_port_p4rt_to_pi(const std::string &watch) {
   if (watch == "") return WatchPortEnforcer::INVALID_WATCH;
   pi_port_t v;
-  Status status = common::bytestring_to_pi_port(watch, v);
+  Status status = common::bytestring_to_pi_port(watch, &v);
   if (!IS_OK(status) || v < 0 || v == p4v1::SDN_PORT_UNKNOWN)
       return WatchPortEnforcer::INVALID_WATCH;
   return v;

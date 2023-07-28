@@ -24,6 +24,7 @@
 #include <cstring>
 #include <memory>
 #include <utility>  // for std::move
+#include <tuple>
 #include <vector>
 
 #include "google/rpc/code.pb.h"
@@ -45,8 +46,8 @@ using Code = ::google::rpc::Code;
 using Status = PreMcMgr::Status;
 using GroupEntry = PreMcMgr::GroupEntry;
 
-std::tuple<p4v1::Replica::PortKindCase, pi_mc_port_t, size_t> ReplicaPortAsTuple(
-    const ReplicaPort &port) {
+std::tuple<p4v1::Replica::PortKindCase, pi_mc_port_t, size_t>
+ReplicaPortAsTuple(const ReplicaPort &port) {
   return std::make_tuple(port.port_kind, port.port_id, port.num_bytes);
 }
 bool operator==(const ReplicaPort &x, const ReplicaPort &y) {
@@ -165,16 +166,17 @@ namespace {
 
 // Extracts the egress port of a given P4Runtime `replica` into the given
 // `ReplicaPort`.
-Status GetReplicaPort(const p4v1::Replica &replica, ReplicaPort &egress_port) {
-  egress_port.port_kind = replica.port_kind_case();
+Status GetReplicaPort(const p4v1::Replica &replica, ReplicaPort *egress_port) {
+  egress_port->port_kind = replica.port_kind_case();
   switch (replica.port_kind_case()) {
     case p4v1::Replica::kEgressPort: {
-      egress_port.port_id = static_cast<pi_mc_port_t>(replica.egress_port());
+      egress_port->port_id = static_cast<pi_mc_port_t>(replica.egress_port());
       RETURN_OK_STATUS();
     }
     case p4v1::Replica::kPort: {
-      egress_port.num_bytes = replica.port().size();
-      return common::bytestring_to_pi_port(replica.port(), egress_port.port_id);
+      egress_port->num_bytes = replica.port().size();
+      return common::bytestring_to_pi_port(replica.port(),
+                                           &egress_port->port_id);
     }
     default:
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
@@ -183,16 +185,16 @@ Status GetReplicaPort(const p4v1::Replica &replica, ReplicaPort &egress_port) {
 }
 
 // Sets the `port_kind` oneof of the given `replica` to the given `port`.
-Status SetReplicaPort(const ReplicaPort &port, p4v1::Replica &replica) {
+Status SetReplicaPort(const ReplicaPort &port, p4v1::Replica *replica) {
   switch (port.port_kind) {
     case p4v1::Replica::kEgressPort:
-      replica.set_egress_port(static_cast<uint32_t>(port.port_id));
+      replica->set_egress_port(static_cast<uint32_t>(port.port_id));
       RETURN_OK_STATUS();
     case p4v1::Replica::kPort:
-      *replica.mutable_port() = 
+      *replica->mutable_port() =
           common::pi_port_to_bytestring(port.port_id, port.num_bytes);
       RETURN_OK_STATUS();
-    
+
     default:
       RETURN_ERROR_STATUS(
           Code::INTERNAL,
@@ -207,7 +209,7 @@ PreMcMgr::make_new_group(const GroupEntry &group_entry, Group *group) {
   for (const auto &replica : group_entry.replicas()) {
     auto rid = static_cast<RId>(replica.instance());
     ReplicaPort eg_port;
-    RETURN_IF_ERROR(GetReplicaPort(replica, eg_port));
+    RETURN_IF_ERROR(GetReplicaPort(replica, &eg_port));
     auto &node = group->nodes[rid];
     auto p = node.eg_ports.insert(std::move(eg_port));
     if (!p.second) {
@@ -228,9 +230,9 @@ PreMcMgr::read_group(
   for (const auto &p_node : group.nodes) {
     auto rid = static_cast<uint32_t>(p_node.first);
     for (auto port : p_node.second.eg_ports) {
-      auto &replica = *group_entry->add_replicas();
+      auto *replica = group_entry->add_replicas();
       SetReplicaPort(port, replica);
-      replica.set_instance(rid);
+      replica->set_instance(rid);
     }
   }
 }
