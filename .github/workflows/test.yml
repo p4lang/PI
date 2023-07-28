@@ -48,7 +48,8 @@ jobs:
         docker build -t pi --build-arg IMAGE_TYPE=test --build-arg CC=$CC --build-arg CXX=$CXX -f Dockerfile.bmv2 .
     - name: Run tests
       run: |
-        docker run -w /PI pi make check -j2 || cat tests/test-suite.log
+        docker run -w /PI pi \
+          'make check -j2 || (find . -name "test-suite.log" | xargs cat)'
     - name: Check style
       run: |
         docker run -w /PI pi ./tools/check_style.sh
