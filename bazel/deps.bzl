@@ -10,7 +10,7 @@ GNMI_SHA="3701005f28044065608322c179625c8898beadb80c89096b3d8aae1fbac15108";
 # We cannot use the latest release (v1.3.0) as we need to include a recent fix
 # to support Bazel 5.0. More precisely, this fix updates the Bazel build
 # dependencies to more recent versions compatible with Bazel 5.0.
-P4RUNTIME_COMMIT="e5d8c89e81ef655f79dbdd6749623fdc764ee90f"
+P4RUNTIME_COMMIT="d76a3640a223f47a43dc34e5565b72e43796ba57"
 P4RUNTIME_SHA="5e418c86b6a377da0f3f92c1ae34359d8cd064f26b2b74ec128c6fbefc414173"
 
 def PI_deps():
