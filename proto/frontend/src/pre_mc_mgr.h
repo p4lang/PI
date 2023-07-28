@@ -42,8 +42,8 @@ class McSessionTemp;
 // Internal representation of a replica port.
 struct ReplicaPort {
   p4::v1::Replica::PortKindCase port_kind;
-  pi_mc_port_t port_id;
-  size_t num_bytes;
+  pi_mc_port_t port_id = 0;
+  size_t num_bytes = 0;
 };
 bool operator==(const ReplicaPort &x, const ReplicaPort &y);
 bool operator<(const ReplicaPort &x, const ReplicaPort &y);
