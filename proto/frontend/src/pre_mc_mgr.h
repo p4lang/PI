@@ -43,7 +43,7 @@ class McSessionTemp;
 struct ReplicaPort {
   p4::v1::Replica::PortKindCase port_kind;
   pi_mc_port_t port_id;
-  int num_bytes;
+  size_t num_bytes;
 };
 bool operator==(const ReplicaPort &x, const ReplicaPort &y);
 bool operator<(const ReplicaPort &x, const ReplicaPort &y);

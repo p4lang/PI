@@ -45,7 +45,7 @@ using Code = ::google::rpc::Code;
 using Status = PreMcMgr::Status;
 using GroupEntry = PreMcMgr::GroupEntry;
 
-std::tuple<p4v1::Replica::PortKindCase, pi_mc_port_t, int> ReplicaPortAsTuple(
+std::tuple<p4v1::Replica::PortKindCase, pi_mc_port_t, size_t> ReplicaPortAsTuple(
     const ReplicaPort &port) {
   return std::make_tuple(port.port_kind, port.port_id, port.num_bytes);
 }
@@ -199,11 +199,13 @@ Status SetReplicaPort(const ReplicaPort &port, p4v1::Replica &replica) {
       RETURN_OK_STATUS();
     case p4v1::Replica::kPort: {
       std::string &bytes = *replica.mutable_port();
-      bytes.resize(port.num_bytes);
-      auto value = static_cast<uint32_t>(port.port_id);
-      for (int i = port.num_bytes - 1; i >= 0; --i) {
-        bytes[i] = value & 0xffu;
-        value >>= 8;
+      if (port.num_bytes > 0) {
+        bytes.resize(port.num_bytes);
+        auto value = static_cast<uint32_t>(port.port_id);
+        for (int i = port.num_bytes - 1; i >= 0; --i) {
+          bytes[i] = value & 0xffu;
+          value >>= 8;
+        }
       }
       RETURN_OK_STATUS();
     }
