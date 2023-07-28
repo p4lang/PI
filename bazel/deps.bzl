@@ -21,7 +21,7 @@ def PI_deps():
             name = "com_github_p4lang_p4runtime",
             # urls = ["https://github.com/p4lang/p4runtime/archive/v%s.zip" % P4RUNTIME_TAG],
             urls = ["https://github.com/p4lang/p4runtime/archive/%s.zip" % P4RUNTIME_COMMIT],
-            sha256 = P4RUNTIME_SHA,
+            # sha256 = P4RUNTIME_SHA,
             # strip_prefix = "p4runtime-%s/proto" % P4RUNTIME_TAG,
             strip_prefix = "p4runtime-%s/proto" % P4RUNTIME_COMMIT,
         )
@@ -62,6 +62,7 @@ def PI_deps():
             name = "com_google_googleapis",
             remote = "https://github.com/googleapis/googleapis",
             commit = "9fe00a1330817b5ce00919bf2861cd8a9cea1a00",
+            sha256 = "b35510fd77d19562893da449b41d6fb44d2b9f391bd7928208984569e95dbe15",
         )
 
     if "com_github_nelhage_rules_boost" not in native.existing_rules():
