@@ -101,7 +101,8 @@ std::string bytestring_pi_to_p4rt(const char *str, size_t n) {
 
 Status bytestring_to_pi_port(const std::string &str, pi_port_t* result) {
   if (str.empty()) {
-    RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,"Port must not be the empty string");
+    RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                        "Port must not be the empty string");
   }
   if (str.size() > 4) {
     RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
@@ -120,7 +121,7 @@ Status bytestring_to_pi_port(const std::string &str, pi_port_t* result) {
   memcpy(result, &value, 4);
 
   if (*result <= 0) {
-    RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,"Port must be non-negative.");
+    RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Port must be non-negative.");
   }
   RETURN_OK_STATUS();
 }
