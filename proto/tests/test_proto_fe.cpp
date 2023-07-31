@@ -3514,6 +3514,13 @@ class PRETestBase : public DeviceMgrTest {
       return *this;
     }
 
+    ReplicaMgr &push_back(std::string port, int32_t rid) {
+      auto r = entry->add_replicas();
+      r->set_port(port);
+      r->set_instance(rid);
+      return *this;
+    }
+
     void pop_back() {
       entry->mutable_replicas()->RemoveLast();
     }
@@ -3611,6 +3618,41 @@ TEST_F(PREMulticastTest, Write) {
 
   int32_t port3 = 3, rid3 = rid1, port4 = 4, rid4 = 4;
   replicas.push_back(port3, rid3).push_back(port4, rid4);
+  EXPECT_CALL(*mock, mc_node_modify(_, ElementsAre(port1, port3)));
+  EXPECT_CALL(*mock, mc_node_create(rid4, ElementsAre(port4), _));
+  EXPECT_CALL(*mock, mc_grp_attach_node(grp_h, _));
+  ASSERT_OK(modify_group(group));
+  auto node_h = mock->get_mc_node_handle();  // rid4
+
+  replicas.pop_back();
+  EXPECT_CALL(*mock, mc_grp_detach_node(grp_h, node_h));
+  EXPECT_CALL(*mock, mc_node_delete(node_h));
+  ASSERT_OK(modify_group(group));
+
+  EXPECT_CALL(*mock, mc_grp_detach_node(grp_h, _)).Times(2);
+  EXPECT_CALL(*mock, mc_node_delete(_)).Times(2);
+  EXPECT_CALL(*mock, mc_grp_delete(grp_h));
+  ASSERT_OK(delete_group(group));
+}
+
+TEST_F(PREMulticastTest, WriteStringPorts) {
+  int32_t group_id = 66;
+  GroupEntry group;
+  group.set_multicast_group_id(group_id);
+  int32_t port1 = 1, rid1 = 1, port2 = 2, rid2 = 2;
+  std::string port1string = "\1", port2string = "\2";
+  ReplicaMgr replicas(&group);
+  replicas.push_back(port1string, rid1).push_back(port2string, rid2);
+  EXPECT_CALL(*mock, mc_grp_create(group_id, _));
+  EXPECT_CALL(*mock, mc_node_create(rid1, ElementsAre(port1), _));
+  EXPECT_CALL(*mock, mc_node_create(rid2, ElementsAre(port2), _));
+  EXPECT_CALL(*mock, mc_grp_attach_node(_, _)).Times(2);
+  ASSERT_OK(create_group(group));
+  auto grp_h = mock->get_mc_grp_handle();
+
+  int32_t port3 = 3, rid3 = rid1, port4 = 4, rid4 = 4;
+  std::string port3string = "\3", port4string = "\4";
+  replicas.push_back(port3string, rid3).push_back(port4string, rid4);
   EXPECT_CALL(*mock, mc_node_modify(_, ElementsAre(port1, port3)));
   EXPECT_CALL(*mock, mc_node_create(rid4, ElementsAre(port4), _));
   EXPECT_CALL(*mock, mc_grp_attach_node(grp_h, _));

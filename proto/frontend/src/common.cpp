@@ -99,6 +99,45 @@ std::string bytestring_pi_to_p4rt(const char *str, size_t n) {
   return std::string(str + i, n - i);
 }
 
+Status bytestring_to_pi_port(const std::string &str, pi_port_t* result) {
+  if (str.empty()) {
+    RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                        "Port must not be the empty string");
+  }
+  if (str.size() > 4) {
+    RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
+                        "Got port of %d bytes, but only 4 bytes are supported",
+                        str.size());
+  }
+
+  uint32_t value = 0;
+  for (char byte : str) {
+    value <<= 8;
+    value += static_cast<uint8_t>(byte);
+  }
+  // Casting from unsigned to signed is implementation-defined if the source
+  // value would not fit in the destination, so we use memcpy as a work-around.
+  static_assert(sizeof(pi_port_t) == 4, "invariant broken");
+  memcpy(result, &value, 4);
+
+  if (*result <= 0) {
+    RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Port must be non-negative.");
+  }
+  RETURN_OK_STATUS();
+}
+std::string pi_port_to_bytestring(pi_port_t port, size_t num_bytes) {
+  if (num_bytes == 0) return "";
+  std::string result;
+  result.resize(num_bytes);
+  static_assert(sizeof(pi_port_t) == sizeof(uint32_t), "invariant broken");
+  uint32_t value = static_cast<uint32_t>(port);
+  for (int i = num_bytes - 1; i >= 0; --i) {
+    result[i] = value & 0xffu;
+    value >>= 8;
+  }
+  return result;
+}
+
 Code check_proto_bytestring(const std::string &str, size_t nbits) {
   size_t nbytes = (nbits + 7) / 8;
   if (str.size() != nbytes) return Code::INVALID_ARGUMENT;
