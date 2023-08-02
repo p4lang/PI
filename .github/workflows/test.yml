@@ -46,6 +46,12 @@ jobs:
         CXX: ${{ matrix.cxx }}
       run: |
         docker build -t pi --build-arg IMAGE_TYPE=test --build-arg CC=$CC --build-arg CXX=$CXX -f Dockerfile.bmv2 .
+    - name: Run unit tests
+      run: |
+        docker run -w /PI pi bash -c \
+          'apt-get update && apt-get install -y python3-pip && \
+          python3 -m pip install ptf scapy grpcio googleapis-common-protos protobuf==3.20 && \
+          python3 ./proto/ptf/base_test.py'
     - name: Run tests
       run: |
         docker run -w /PI pi bash -c \

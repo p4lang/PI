@@ -25,6 +25,7 @@ import sys
 import threading
 import time
 import queue
+import unittest
 
 import ptf
 from ptf.base_tests import BaseTest
@@ -48,23 +49,27 @@ class partialmethod(partial):
         return partial(self.func, instance,
                        *(self.args or ()), **(self.keywords or {}))
 
-# Convert integer (with length) to binary byte string
-# Equivalent to Python 3.2 int.to_bytes
-# See
-# https://stackoverflow.com/questions/16022556/has-python-3-to-bytes-been-back-ported-to-python-2-7
-# TODO: When P4Runtime implementation is ready for it, use
-# minimum-length byte sequences to represent integers.  For unsigned
-# integers, this should only require removing the zfill() call below.
-def stringify(n, length):
+def stringify(n, length=0):
     """Take a non-negative integer 'n' as the first parameter, and a
     non-negative integer 'length' in units of _bytes_ as the second
-    parameter.  Return a string with binary contents expected by the
-    Python P4Runtime client operations.  If 'n' does not fit in
-    'length' bytes, it is represented in the fewest number of bytes it
-    does fit into without loss of precision.  It always returns a
-    string at least one byte long, even if value=width=0."""
-    h = '%x' % n
-    s = ('0'*(len(h) % 2) + h).zfill(length*2).decode('hex')
+    parameter (it defaults to 0 if not provided).  Return a string
+    with binary contents expected by the Python P4Runtime client
+    operations.  If 'n' does not fit in 'length' bytes, it is
+    represented in the fewest number of bytes it does fit into without
+    loss of precision.  It always returns a string at least one byte
+    long, even if n=length=0."""
+    assert isinstance(length, int)
+    assert length >= 0
+    assert isinstance(n, int)
+    assert n >= 0
+    if length == 0 and n == 0:
+        length = 1
+    else:
+        n_size_bits = n.bit_length()
+        n_size_bytes = (n_size_bits + 7) // 8
+        if n_size_bytes > length:
+            length = n_size_bytes
+    s = n.to_bytes(length, byteorder="big")
     return s
 
 def ipv4_to_binary(addr):
@@ -663,3 +668,40 @@ def autocleanup(f):
         finally:
             test.undo_write_requests(test._reqs)
     return handle
+
+
+class TestStringify(unittest.TestCase):
+    def test_zero(self):
+        """Test for 0 value"""
+        self.assertEqual(stringify(0, 1), b'\x00')
+        self.assertEqual(stringify(0, 2), b'\x00\x00')
+
+    def test_single_byte(self):
+        """Test for single-byte values"""
+        self.assertEqual(stringify(42, 1), b'*')
+        self.assertEqual(stringify(255, 1), b'\xff')
+
+    def test_multi_byte(self):
+        """Test for multi-byte values"""
+        self.assertEqual(stringify(512, 2), b'\x02\x00')
+        self.assertEqual(stringify(1000, 2), b'\x03\xe8')
+
+    def test_large_value_overflow(self):
+        """Test for a large value that doesn't fit in 'length' bytes"""
+        self.assertEqual(stringify(1000, 1), b'\x03\xe8')
+
+    def test_zero_length(self):
+        """Test for length=0"""
+        self.assertEqual(stringify(0, 0), b'\x00')
+        self.assertEqual(stringify(512, 0), b'\x02\x00')
+
+    def test_default_length(self):
+        """Test for length=None (default length calculation)"""
+        self.assertEqual(stringify(0), b'\x00')
+        self.assertEqual(stringify(255), b'\xff')
+        self.assertEqual(stringify(512), b'\x02\x00')
+        self.assertEqual(stringify(1000), b'\x03\xe8')
+
+
+if __name__ == '__main__':
+    unittest.main()
