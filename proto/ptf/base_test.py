@@ -92,11 +92,12 @@ def mac_to_binary(addr):
     binary contents expected by the Python P4Runtime client
     operations."""
     bytes_ = [int(b, 16) for b in addr.split(':')]
-    assert len(bytes_) == 6
-    # Note: The chr(b) call below will throw exception if any b is
-    # outside of the range [0, 255]], so no need to add a separate
-    # check for that here.
-    return "".join(chr(b) for b in bytes_)
+    if len(bytes_) != 6:
+        raise ValueError("Invalid MAC address format")
+    for b in bytes_:
+        if b < 0 or b > 255:
+            raise ValueError("MAC address contains out-of-range value")
+    return bytes(bytes_)
 
 # Used to indicate that the gRPC error Status object returned by the server has
 # an incorrect format.
@@ -724,6 +725,28 @@ class TestIPv4ToBinary(unittest.TestCase):
             ipv4_to_binary('256.0.0.0')
         with self.assertRaises(ValueError):
             ipv4_to_binary('10.1.300.4')
+
+
+class TestMacToBinary(unittest.TestCase):
+    def test_valid_mac(self):
+        """Test valid MAC addresses"""
+        self.assertEqual(mac_to_binary('00:00:00:00:00:00'), b'\x00\x00\x00\x00\x00\x00')
+        self.assertEqual(mac_to_binary('00:de:ad:be:ef:ff'), b'\x00\xde\xad\xbe\xef\xff')
+        self.assertEqual(mac_to_binary('a0:b1:c2:d3:e4:f5'), b'\xa0\xb1\xc2\xd3\xe4\xf5')
+
+    def test_invalid_mac(self):
+        """Test invalid MAC addresses (less or more than 6 bytes)"""
+        with self.assertRaises(ValueError):
+            mac_to_binary('00:de:ad:be:ef')
+        with self.assertRaises(ValueError):
+            mac_to_binary('00:de:ad:be:ef:ff:aa')
+
+    def test_out_of_range(self):
+        """Test MAC address with out-of-range values (above 255)"""
+        with self.assertRaises(ValueError):
+            mac_to_binary('00:de:ad:be:ef:gg')
+        with self.assertRaises(ValueError):
+            mac_to_binary('00:de:ad:be:ef:256')
 
 
 if __name__ == '__main__':
