@@ -78,11 +78,12 @@ def ipv4_to_binary(addr):
     to a string with binary contents expected by the Python P4Runtime
     client operations."""
     bytes_ = [int(b, 10) for b in addr.split('.')]
-    assert len(bytes_) == 4
-    # Note: The chr(b) call below will throw exception if any b is
-    # outside of the range [0, 255]], so no need to add a separate
-    # check for that here.
-    return "".join(chr(b) for b in bytes_)
+    if len(bytes_) != 4:
+        raise ValueError("Invalid IPv4 address format")
+    for b in bytes_:
+        if b < 0 or b > 255:
+            raise ValueError("IPv4 address contains out-of-range value")
+    return bytes(bytes_)
 
 def mac_to_binary(addr):
     """Take an argument 'addr' containing an Ethernet MAC address written
@@ -701,6 +702,28 @@ class TestStringify(unittest.TestCase):
         self.assertEqual(stringify(255), b'\xff')
         self.assertEqual(stringify(512), b'\x02\x00')
         self.assertEqual(stringify(1000), b'\x03\xe8')
+
+
+class TestIPv4ToBinary(unittest.TestCase):
+    def test_valid_ipv4(self):
+        """Test valid IPv4 addresses"""
+        self.assertEqual(ipv4_to_binary('0.0.0.0'), b'\x00\x00\x00\x00')
+        self.assertEqual(ipv4_to_binary('192.168.0.1'), b'\xc0\xa8\x00\x01')
+        self.assertEqual(ipv4_to_binary('255.255.255.255'), b'\xff\xff\xff\xff')
+
+    def test_invalid_ipv4(self):
+        """Test invalid IPv4 addresses (less or more than 4 bytes)"""
+        with self.assertRaises(ValueError):
+            ipv4_to_binary('10.0.1')
+        with self.assertRaises(ValueError):
+            ipv4_to_binary('10.0.1.2.3')
+
+    def test_out_of_range(self):
+        """Test IPv4 address with out-of-range values (above 255)"""
+        with self.assertRaises(ValueError):
+            ipv4_to_binary('256.0.0.0')
+        with self.assertRaises(ValueError):
+            ipv4_to_binary('10.1.300.4')
 
 
 if __name__ == '__main__':
