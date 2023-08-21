@@ -21,7 +21,9 @@ AX_CXX_COMPILE_STDCXX_11([noext],[mandatory])
 AM_PATH_PYTHON([3.5],, [:])
 AM_CONDITIONAL([HAVE_PYTHON], [test "$PYTHON" != :])
 
-PKG_CHECK_MODULES([PROTOBUF], [protobuf >= 3.0.0])
+dnl we need >= 3.12 because P4Runtime Protobuf files now require support for
+dnl proto3 optional fields.
+PKG_CHECK_MODULES([PROTOBUF], [protobuf >= 3.12.0])
 dnl Not necessary for recent autoconf versions but I think it makes things more
 dnl readable
 AC_SUBST([PROTOBUF_CFLAGS])
@@ -35,6 +37,12 @@ AC_SUBST([GRPC_LIBS])
 
 AC_PATH_PROG([PROTOC], [protoc], [])
 AS_IF([test "x$PROTOC" = x], [AC_MSG_ERROR([protoc not found])])
+
+AC_SUBST([PROTOC_VERSION], [`$PROTOC --version | cut -d ' ' -f 2`])
+AX_COMPARE_VERSION([$PROTOC_VERSION], [lt], [3.12], [AC_MSG_ERROR([unsupported protoc version $PROTOC_VERSION, should be >= 3.12])])
+PROTOFLAGS=""
+AX_COMPARE_VERSION([$PROTOC_VERSION], [lt], [3.15], [PROTOFLAGS="$PROTOFLAGS --experimental_allow_proto3_optional"])
+AC_SUBST([PROTOFLAGS])
 
 AC_PATH_PROG([GRPC_CPP_PLUGIN], [grpc_cpp_plugin])
 AS_IF([test "x$GRPC_CPP_PLUGIN" = x], [
