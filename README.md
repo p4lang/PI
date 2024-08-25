@@ -76,9 +76,16 @@ make
 git clone --depth=1 -b v1.43.2 https://github.com/google/grpc.git
 cd grpc/
 git submodule update --init --recursive
-make
-[sudo] make install
-[sudo] ldconfig
+mkdir -p "cmake/build"
+pushd "cmake/build"
+cmake \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DgRPC_INSTALL=ON \
+  -DgRPC_BUILD_TESTS=OFF \
+  -DgRPC_SSL_PROVIDER=package \
+  ../..
+make -j4 install
+popd
 ```
 - [sysrepo](https://github.com/sysrepo/sysrepo) and all its dependencies: see
   instructions in [proto/README.md](proto/README.md)
