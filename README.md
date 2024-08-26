@@ -84,7 +84,8 @@ cmake \
   -DgRPC_BUILD_TESTS=OFF \
   -DgRPC_SSL_PROVIDER=package \
   ../..
-make -j4 install
+make
+[sudo] make install
 popd
 ```
 - [sysrepo](https://github.com/sysrepo/sysrepo) and all its dependencies: see
