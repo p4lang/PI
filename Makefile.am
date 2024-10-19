@@ -24,7 +24,8 @@ AM_DISTCHECK_CONFIGURE_FLAGS = --with-bmv2 --with-fe-cpp
 # ensure the distribution of the doxygen configuration file
 EXTRA_DIST = $(top_srcdir)/docs/doxygen.cfg \
 	     $(top_srcdir)/docs/bfn_latex.sty \
-	     $(top_srcdir)/docs/*.md
+	     $(top_srcdir)/docs/*.md \
+	     autogen.sh
 
 mostlyclean-local:
 	-$(RM) -r $(DX_CLEANFILES)
