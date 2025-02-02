@@ -32,7 +32,7 @@ cc_library(
             ":piutils"],
 )
 
-# using glob looks a bit nasty because of the files we have to exclude, but in
+# using  glob looks a bit nasty because of the files we have to exclude, but in
 # the absence of a CI for the Bazel build, it is less error-prone that listing
 # all files manually.
 cc_library(
