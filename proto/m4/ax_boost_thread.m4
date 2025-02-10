@@ -24,6 +24,7 @@
 #
 #   Copyright (c) 2009 Thomas Porschberg <thomas@randspringer.de>
 #   Copyright (c) 2009 Michael Tindal
+#   SPDX-License-Identifier: FSFAP
 #
 #   Copying and distribution of this file, with or without modification, are
 #   permitted in any medium without royalty provided the copyright notice

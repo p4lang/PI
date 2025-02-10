@@ -27,6 +27,7 @@
 #   Copyright (c) 2008 Benjamin Kosnik <bkoz@redhat.com>
 #   Copyright (c) 2012 Zack Weinberg <zackw@panix.com>
 #   Copyright (c) 2013 Roy Stogner <roystgnr@ices.utexas.edu>
+#   SPDX-License-Identifier: FSFAP
 #
 #   Copying and distribution of this file, with or without modification, are
 #   permitted in any medium without royalty provided the copyright notice

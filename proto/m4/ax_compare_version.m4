@@ -73,6 +73,7 @@
 # LICENSE
 #
 #   Copyright (c) 2008 Tim Toolan <toolan@ele.uri.edu>
+#   SPDX-License-Identifier: FSFAP
 #
 #   Copying and distribution of this file, with or without modification, are
 #   permitted in any medium without royalty provided the copyright notice

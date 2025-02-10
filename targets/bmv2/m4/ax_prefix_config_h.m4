@@ -87,6 +87,7 @@
 #   Copyright (c) 2008 Guido U. Draheim <guidod@gmx.de>
 #   Copyright (c) 2008 Marten Svantesson
 #   Copyright (c) 2008 Gerald Point <Gerald.Point@labri.fr>
+#   SPDX-License-Identifier: GPL-3.0-or-later
 #
 #   This program is free software; you can redistribute it and/or modify it
 #   under the terms of the GNU General Public License as published by the

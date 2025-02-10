@@ -27,6 +27,7 @@
 #
 #   Copyright (c) 2008 Thomas Porschberg <thomas@randspringer.de>
 #   Copyright (c) 2009 Peter Adolphs
+#   SPDX-License-Identifier: FSFAP
 #
 #   Copying and distribution of this file, with or without modification, are
 #   permitted in any medium without royalty provided the copyright notice
