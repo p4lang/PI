@@ -25,6 +25,7 @@
 #   Copyright (c) 2008 Thomas Porschberg <thomas@randspringer.de>
 #   Copyright (c) 2008 Michael Tindal
 #   Copyright (c) 2008 Daniel Casimiro <dan.casimiro@gmail.com>
+#   SPDX-License-Identifier: FSFAP
 #
 #   Copying and distribution of this file, with or without modification, are
 #   permitted in any medium without royalty provided the copyright notice

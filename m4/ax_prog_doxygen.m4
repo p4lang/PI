@@ -91,6 +91,7 @@
 #
 #   Copyright (c) 2009 Oren Ben-Kiki <oren@ben-kiki.org>
 #   Copyright (c) 2015 Olaf Mandel <olaf@mandel.name>
+#   SPDX-License-Identifier: FSFAP
 #
 #   Copying and distribution of this file, with or without modification, are
 #   permitted in any medium without royalty provided the copyright notice

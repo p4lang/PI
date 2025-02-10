@@ -3,6 +3,7 @@ dnl serial 11 (pkg-config-0.29.1)
 dnl
 dnl Copyright © 2004 Scott James Remnant <scott@netsplit.com>.
 dnl Copyright © 2012-2015 Dan Nicholson <dbn.lists@gmail.com>
+dnl SPDX-License-Identifier: GPL-2.0-or-later
 dnl
 dnl This program is free software; you can redistribute it and/or modify
 dnl it under the terms of the GNU General Public License as published by
