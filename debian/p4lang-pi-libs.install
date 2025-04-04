@@ -1,0 +1,11 @@
+usr/lib/*/libpi.so.*
+usr/lib/*/libpi_dummy.so.*
+usr/lib/*/libpiall.so.*
+usr/lib/*/libpiconvertproto.so.*
+usr/lib/*/libpifecpp.so.*
+usr/lib/*/libpifegeneric.so.*
+usr/lib/*/libpifeproto.so.*
+usr/lib/*/libpigrpcserver.so.*
+usr/lib/*/libpip4info.so.*
+usr/lib/*/libpiprotobuf.so.*
+usr/lib/*/libpiprotogrpc.so.*
