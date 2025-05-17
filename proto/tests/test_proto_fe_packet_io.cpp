@@ -199,9 +199,9 @@ struct ValueIterator {
 class DeviceMgrPacketIOMetadataTest : public DeviceMgrPacketIOTest {
  public:
   static constexpr int num = 3;
-  static constexpr int bw1 = 2;
-  static constexpr int bw2 = 9;
-  static constexpr int bw3 = 5;
+  static constexpr int bw1 = 7;
+  static constexpr int bw2 = 7;
+  static constexpr int bw3 = 2;
   using VType = std::array<int, num>;
 
  protected:
