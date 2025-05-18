@@ -182,6 +182,10 @@ class PacketInMutate {
       generic_extract(pkt, bit_offset, bitwidth, buffer.data());
       bit_offset += (bitwidth % 8);
       pkt += (bitwidth / 8);
+      if (bit_offset >= 8) {
+          pkt += (bit_offset / 8);
+          bit_offset = bit_offset % 8;
+      }
       metadata->set_value(bytestring_pi_to_p4rt(buffer.data(), buffer.size()));
     }
     return true;
