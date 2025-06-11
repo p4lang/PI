@@ -1,0 +1,19 @@
+#!/usr/bin/make -f
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+DH_VERBOSE = 1
+
+%:
+	dh $@ --with python2,python3
+
+override_dh_auto_configure:
+	dh_auto_configure -- --with-proto --without-fe-cpp --without-cli --without-internal-rpc --without-bmv2 --without-sysrepo
+
+override_dh_auto_build:
+	$(MAKE) all
+
+override_dh_auto_install:
+	dh_auto_install -- DESTDIR=$(CURDIR)/debian/tmp install
+	find $(CURDIR)/debian/tmp -name "*.pyc" | xargs rm -f
+	find $(CURDIR)/debian/tmp -name "*.pyo" | xargs rm -f
