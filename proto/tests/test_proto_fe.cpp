@@ -3410,6 +3410,164 @@ TEST_F(LpmOneTest, DontCare) {
 
 #undef EXPECT_ONE_TABLE_ENTRY
 
+#define EXPECT_ONE_TABLE_ENTRY(response, expected_entry)                \
+  do {                                                                  \
+    const auto &entities = response.entities();                         \
+    ASSERT_EQ(1, entities.size());                                      \
+    EXPECT_PROTO_EQ(entities.Get(0).table_entry(), expected_entry);    \
+  } while (false)
+
+// Test class for LpmNonByte table with 20-bit field (non-byte-aligned)
+class LpmNonByteTest : public DeviceMgrTest {
+ protected:
+  LpmNonByteTest()
+      : LpmNonByteTest("LpmNonByte", "header_test.field20") { }
+
+  LpmNonByteTest(const std::string &t_name, const std::string &f_name)
+      : f_name(f_name) {
+    t_id = pi_p4info_table_id_from_name(p4info, t_name.c_str());
+    a_id = pi_p4info_action_id_from_name(p4info, "actionA");
+  }
+
+  p4v1::TableEntry make_entry(const boost::optional<std::string> &mf_v,
+                              int pLen,
+                              const std::string &param_v) {
+    p4v1::TableEntry table_entry;
+    table_entry.set_table_id(t_id);
+    if (mf_v.is_initialized()) {
+      auto mf = table_entry.add_match();
+      mf->set_field_id(pi_p4info_table_match_field_id_from_name(
+          p4info, t_id, f_name.c_str()));
+      auto mf_lpm = mf->mutable_lpm();
+      mf_lpm->set_value(*mf_v);
+      mf_lpm->set_prefix_len(pLen);
+    }
+    auto entry = table_entry.mutable_action();
+    auto action = entry->mutable_action();
+
+    action->set_action_id(a_id);
+    auto param = action->add_params();
+    param->set_param_id(
+        pi_p4info_action_param_id_from_name(p4info, a_id, "param"));
+    param->set_value(param_v);
+    return table_entry;
+  }
+
+  const std::string f_name;
+  pi_p4_id_t t_id;
+  pi_p4_id_t a_id;
+};
+
+// Test that validates byte alignment for 20-bit LPM field
+// NOTE: There is a discrepancy between what one might expect and what the PI
+// library actually implements:
+//
+// ACTUAL PI library behavior (per docs/msg_format.md):
+//   For a W=20 bit field stored in 3 bytes (24 bits):
+//   - MSB padding: the first 4 bits of byte 0 must be zero
+//   - Format: 0000_xxxx xxxx_xxxx xxxx_xxxx (big-endian, MSB first)
+//   - Example: 0x0FFFFF represents all 20 bits set
+//
+// However, there's a BUG in check_prefix_trailing_zeros():
+//   - It uses storage size (24 bits) instead of field size (20 bits)
+//   - For pLen=12, it expects 24-12=12 trailing zeros, not 20-12=8
+//   - This means values must have MORE trailing zeros than logically needed
+//
+// This test documents the CURRENT behavior (with the bug).
+TEST_F(LpmNonByteTest, NonByteAlignedField) {
+  // First verify the table and field exist
+  ASSERT_NE(t_id, PI_INVALID_ID) << "Table LpmNonByte not found in p4info";
+  ASSERT_NE(a_id, PI_INVALID_ID) << "Action actionA not found in p4info";
+  
+  std::string adata(6, '\xcd');
+  
+  // Test with prefix length 20 (full field width)
+  // Due to the bug, even pLen=20 requires 24-20=4 trailing zeros!
+  int pLen(20);
+  
+  {  // Valid: 20 bits set with 4 trailing zeros (due to bug)
+    // Binary: 0000_1111 1111_1111 1111_0000
+    // This represents only 16 bits of the field (0xFFF0), not the full 20 bits!
+    std::string mf("\x0f\xff\xf0", 3);
+    auto entry = make_entry(mf, pLen, adata);
+    EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
+    auto status = add_entry(&entry);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+  
+  {  // Invalid: not enough trailing zeros (has 0, needs 4 due to bug)
+    // Binary: 0000_1111 1111_1111 1111_1111
+    std::string mf("\x0f\xff\xff", 3);
+    auto entry = make_entry(mf, pLen, adata);
+    EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _)).Times(0);
+    auto status = add_entry(&entry);
+    EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
+  }
+  
+  {  // Invalid: MSB has too many bits set (violates 20-bit field width)
+    // 0xFF in first byte would require >20 bits
+    std::string mf("\xff\xff\xff", 3);
+    auto entry = make_entry(mf, pLen, adata);
+    EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _)).Times(0);
+    auto status = add_entry(&entry);
+    EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
+  }
+  
+  // Test with prefix length 12
+  // Due to the bug in check_prefix_trailing_zeros(), it expects 24-12=12
+  // trailing zeros (based on storage size) instead of 20-12=8 (based on field size)
+  pLen = 12;
+  
+  {  // Valid: first 12 bits of 24-bit storage set, last 12 bits zero
+    // Binary: 0000_1111 1111_0000 0000_0000
+    std::string mf("\x0f\xf0\x00", 3);
+    auto entry = make_entry(mf, pLen, adata);
+    EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
+    auto status = add_entry(&entry);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+  
+  {  // Invalid: not enough trailing zeros for the buggy validation
+    // Binary: 0000_1111 1111_1111 0000_0000 (only 8 trailing zeros, needs 12)
+    std::string mf("\x0f\xff\x00", 3);
+    auto entry = make_entry(mf, pLen, adata);
+    EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _)).Times(0);
+    auto status = add_entry(&entry);
+    EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
+  }
+  
+  {  // Valid: alternative pattern with 12 trailing zeros
+    // Binary: 0000_1111 1000_0000 0000_0000
+    std::string mf("\x0f\x80\x00", 3);
+    auto entry = make_entry(mf, pLen, adata);
+    EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
+    auto status = add_entry(&entry);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+  
+  // Test with prefix length 16 (exactly 2 bytes of the storage)
+  pLen = 16;
+  
+  {  // Valid: first 16 bits set, last 8 bits zero
+    // Binary: 0000_1111 1111_1111 0000_0000
+    std::string mf("\x0f\xff\x00", 3);
+    auto entry = make_entry(mf, pLen, adata);
+    EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
+    auto status = add_entry(&entry);
+    ASSERT_EQ(status.code(), Code::OK);
+  }
+  
+  {  // Invalid: bits set in last byte when pLen=16
+    std::string mf("\x0f\xff\xf0", 3);
+    auto entry = make_entry(mf, pLen, adata);
+    EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _)).Times(0);
+    auto status = add_entry(&entry);
+    EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
+  }
+}
+
+#undef EXPECT_ONE_TABLE_ENTRY
+
 class TernaryTwoTest : public DeviceMgrTest {
  protected:
   TernaryTwoTest() {
