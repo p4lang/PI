@@ -3458,26 +3458,27 @@ class LpmNonByteTest : public DeviceMgrTest {
   pi_p4_id_t a_id;
 };
 
-// Test that validates byte alignment for 20-bit LPM field (non-byte-aligned).
+// Test that validates byte alignment for 20-bit LPM field (non-byte-aligned)
 //
-// According to P4Runtime spec, a 20-bit field is stored in 3 bytes with MSB padding:
+// According to P4Runtime spec, a 20-bit field is stored in 3 bytes with MSB
+// padding:
 //   Byte 0 [MSB]: 0000_xxxx (4 leading zero bits for padding)
 //   Byte 1:       xxxx_xxxx (8 bits of field)
 //   Byte 2 [LSB]: xxxx_xxxx (8 bits of field)
 //
-// The check_prefix_trailing_zeros() function has been FIXED to use field bitwidth
-// instead of storage size when calculating required trailing zeros.
+// The check_prefix_trailing_zeros() function has been FIXED to use field
+// bitwidth instead of storage size when calculating required trailing zeros.
 TEST_F(LpmNonByteTest, NonByteAlignedField) {
   // First verify the table and field exist
   ASSERT_NE(t_id, PI_INVALID_ID) << "Table LpmNonByte not found in p4info";
   ASSERT_NE(a_id, PI_INVALID_ID) << "Action actionA not found in p4info";
-  
+
   std::string adata(6, '\xcd');
-  
+
   // Test with prefix length 20 (full field width)
   // With the fix, all 20 bits of the field can be used!
   int pLen(20);
-  
+
   {  // Valid: all 20 bits of the field set (no trailing zeros needed)
     // Binary: 0000_1111 1111_1111 1111_1111
     // Represents value 0xFFFFF (all 20 bits set)
@@ -3487,7 +3488,7 @@ TEST_F(LpmNonByteTest, NonByteAlignedField) {
     auto status = add_entry(&entry);
     ASSERT_EQ(status.code(), Code::OK);
   }
-  
+
   {  // Invalid: MSB has too many bits set (violates 20-bit field width)
     // Binary: 1111_1111 1111_1111 1111_1111
     std::string mf("\xff\xff\xff", 3);
@@ -3496,11 +3497,11 @@ TEST_F(LpmNonByteTest, NonByteAlignedField) {
     auto status = add_entry(&entry);
     EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
   }
-  
+
   // Test with prefix length 16
   // Requires 20-16=4 trailing zeros (not 24-16=8)
   pLen = 16;
-  
+
   {  // Valid: first 16 bits of field set, last 4 bits zero
     // Binary: 0000_1111 1111_1111 1111_0000
     std::string mf("\x0f\xff\xf0", 3);
@@ -3509,7 +3510,7 @@ TEST_F(LpmNonByteTest, NonByteAlignedField) {
     auto status = add_entry(&entry);
     ASSERT_EQ(status.code(), Code::OK);
   }
-  
+
   {  // Invalid: not enough trailing zeros (has 0, needs 4)
     // Binary: 0000_1111 1111_1111 1111_1111
     std::string mf("\x0f\xff\xff", 3);
@@ -3518,8 +3519,8 @@ TEST_F(LpmNonByteTest, NonByteAlignedField) {
     auto status = add_entry(&entry);
     EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
   }
-  
-  {  // Valid: more trailing zeros than needed (has 8, needs 4) - this is fine for LPM
+
+  {  // Valid: more trailing zeros than needed (has 8, needs 4) - fine for LPM
     // Binary: 0000_1111 1111_1111 0000_0000
     std::string mf("\x0f\xff\x00", 3);
     auto entry = make_entry(mf, pLen, adata);
@@ -3527,11 +3528,11 @@ TEST_F(LpmNonByteTest, NonByteAlignedField) {
     auto status = add_entry(&entry);
     ASSERT_EQ(status.code(), Code::OK);
   }
-  
+
   // Test with prefix length 12
   // Requires 20-12=8 trailing zeros (not 24-12=12)
   pLen = 12;
-  
+
   {  // Valid: first 12 bits of field set, last 8 bits zero
     // Binary: 0000_1111 1111_0000 0000_0000
     std::string mf("\x0f\xf0\x00", 3);
@@ -3540,7 +3541,7 @@ TEST_F(LpmNonByteTest, NonByteAlignedField) {
     auto status = add_entry(&entry);
     ASSERT_EQ(status.code(), Code::OK);
   }
-  
+
   {  // Valid: alternative pattern with exactly 8 trailing zeros
     // Binary: 0000_1111 1100_0000 0000_0000
     std::string mf("\x0f\xc0\x00", 3);
@@ -3549,7 +3550,7 @@ TEST_F(LpmNonByteTest, NonByteAlignedField) {
     auto status = add_entry(&entry);
     ASSERT_EQ(status.code(), Code::OK);
   }
-  
+
   {  // Invalid: not enough trailing zeros (has 4, needs 8)
     // Binary: 0000_1111 1111_1111 0000_0000
     std::string mf("\x0f\xff\xf0", 3);
@@ -3558,8 +3559,8 @@ TEST_F(LpmNonByteTest, NonByteAlignedField) {
     auto status = add_entry(&entry);
     EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
   }
-  
-  {  // Valid: more trailing zeros than needed (has 12, needs 8) - this is fine for LPM
+
+  {  // Valid: more trailing zeros than needed (has 12, needs 8) - fine for LPM
     // Binary: 0000_1111 1000_0000 0000_0000
     std::string mf("\x0f\x80\x00", 3);
     auto entry = make_entry(mf, pLen, adata);
@@ -3567,10 +3568,10 @@ TEST_F(LpmNonByteTest, NonByteAlignedField) {
     auto status = add_entry(&entry);
     ASSERT_EQ(status.code(), Code::OK);
   }
-  
+
   // Test with prefix length 8 (exactly 1 byte)
   pLen = 8;
-  
+
   {  // Valid: first 8 bits set, last 12 bits zero
     // Binary: 0000_1111 1000_0000 0000_0000
     std::string mf("\x0f\x80\x00", 3);
@@ -3579,7 +3580,7 @@ TEST_F(LpmNonByteTest, NonByteAlignedField) {
     auto status = add_entry(&entry);
     ASSERT_EQ(status.code(), Code::OK);
   }
-  
+
   {  // Valid: different pattern with 12 trailing zeros
     // Binary: 0000_1010 0000_0000 0000_0000
     std::string mf("\x0a\x00\x00", 3);
