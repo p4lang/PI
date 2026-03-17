@@ -4,7 +4,10 @@ package(
 
 cc_library(
     name = "piuthash",
-    hdrs = glob(["uthash/src/*.h"]),
-    includes = ["uthash/src"],
+    hdrs = [
+        "uthash.h",
+        "utarray.h",
+    ],
+    includes = ["."],
     deps = [],
 )
