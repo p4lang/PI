@@ -1,1 +1,6 @@
-build --conlyopt='-std=gnu11' --cxxopt='-std=gnu++14'
+build --copt=-DNDEBUG
+build --cxxopt=-DNDEBUG
+build --copt=-Wno-implicit-function-declaration
+build --jobs=2
+build --local_resources=memory=4096
+build --local_resources=cpu=2
