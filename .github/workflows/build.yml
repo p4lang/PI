@@ -26,9 +26,9 @@ jobs:
       run: |
         TAG=""
         if [[ "$GITHUB_REF" =~ "main" ]]; then
-            TAG="latest"
+            TAG="latest-24"
         elif [[ "$GITHUB_REF" =~ "stable" ]]; then
-            TAG="stable"
+            TAG="stable-24"
         else
             echo "Invalid Github ref $GITHUB_REF"
             exit 1
@@ -46,7 +46,7 @@ jobs:
       uses: docker/build-push-action@v6
       with:
         context: .
-        push: true
+        push: false
         tags: p4lang/pi:${{ steps.get-tag.outputs.tag }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
