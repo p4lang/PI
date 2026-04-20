@@ -164,7 +164,8 @@ std::string pi_port_to_bytestring(pi_port_t port, size_t num_bytes);
 
 Code check_proto_bytestring(const std::string &str, size_t nbits);
 
-bool check_prefix_trailing_zeros(const std::string &str, int pLen);
+bool check_prefix_trailing_zeros(const std::string &str, int pLen,
+                                  size_t bitwidth);
 
 std::string range_default_lo(size_t nbits);
 std::string range_default_hi(size_t nbits);

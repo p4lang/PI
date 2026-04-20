@@ -148,8 +148,9 @@ Code check_proto_bytestring(const std::string &str, size_t nbits) {
   return Code::OK;
 }
 
-bool check_prefix_trailing_zeros(const std::string &str, int pLen) {
-  size_t bitwidth = str.size() * 8;
+bool check_prefix_trailing_zeros(const std::string &str, int pLen,
+                                 size_t bitwidth) {
+  // Use field bitwidth, not storage size (str.size() * 8)
   // must be guaranteed by caller
   assert(pLen >= 0 && static_cast<size_t>(pLen) <= bitwidth);
   size_t trailing_zeros = bitwidth - pLen;
