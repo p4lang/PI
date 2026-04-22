@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2021 Antonin Bas
+#
+# SPDX-License-Identifier: Apache-2.0
+
 noinst_HEADERS = \
 uthash/src/utarray.h \
 uthash/src/uthash.h \
