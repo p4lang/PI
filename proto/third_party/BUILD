@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2018 Antonin Bas
+#
+# SPDX-License-Identifier: Apache-2.0
+
 package(
     default_visibility = ["//:__subpackages__"],
 )
