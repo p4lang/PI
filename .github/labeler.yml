@@ -1,0 +1,34 @@
+autoconf:
+  - changed-files:
+      - any-glob-to-any-file:
+          - configure.ac
+          - autogen.sh
+          - '**/Makefile.am'
+          - 'm4/**'
+
+bazel:
+  - changed-files:
+      - any-glob-to-any-file:
+          - WORKSPACE
+          - .bazelrc
+          - .bazelversion
+          - '**/BUILD'
+          - 'bazel/**'
+
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'third_party/**'
+          - .gitmodules
+          - .github/dependabot.yml
+
+github_actions:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/**'
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'docs/**'
+          - '*.md'
