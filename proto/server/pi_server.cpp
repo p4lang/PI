@@ -26,11 +26,14 @@
 // #include <grpcpp/support/error_details.h>
 
 #include <memory>
+#include <mutex>
 #include <set>
+#include <shared_mutex>
 #include <string>
 #include <thread>
 #include <unordered_map>
 
+#include "PI/proto/pi_server.h"
 #include "gnmi.h"
 #include "gnmi/gnmi.grpc.pb.h"
 #include "google/rpc/code.pb.h"
@@ -39,10 +42,7 @@
 #include "p4/v1/p4runtime.grpc.pb.h"
 #include "pi_server_testing.h"
 #include "server_config/server_config.h"
-#include "shared_mutex.h"
 #include "uint128.h"
-
-#include "PI/proto/pi_server.h"
 
 using grpc::Server;
 using grpc::ServerBuilder;
@@ -306,11 +306,11 @@ class DeviceState {
 
  private:
   SharedLock shared_lock() const {
-    return ::pi::server::shared_lock(m);
+    return std::shared_lock<std::shared_mutex>(m);
   }
 
   UniqueLock unique_lock() const {
-    return ::pi::server::unique_lock(m);
+    return std::unique_lock<std::shared_mutex>(m);
   }
 
   Connection *get_primary() const {

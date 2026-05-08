@@ -19,7 +19,6 @@ gnmi.h \
 gnmi_dummy.cpp \
 log.h \
 pi_server.cpp \
-shared_mutex.h \
 uint128.h \
 uint128.cpp \
 pi_server_testing.h
