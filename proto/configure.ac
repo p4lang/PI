@@ -16,7 +16,7 @@ AC_CONFIG_MACRO_DIR([m4])
 AC_LANG_PUSH(C)
 AC_LANG_PUSH(C++)
 
-AX_CXX_COMPILE_STDCXX_11([noext],[mandatory])
+AX_CXX_COMPILE_STDCXX([17], [noext], [mandatory])
 
 AM_PATH_PYTHON([3.5],, [:])
 AM_CONDITIONAL([HAVE_PYTHON], [test "$PYTHON" != :])

@@ -1,1 +1,1 @@
-build --conlyopt='-std=gnu11' --cxxopt='-std=gnu++14'
+build --conlyopt='-std=gnu11' --cxxopt='-std=gnu++17'

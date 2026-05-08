@@ -19,7 +19,7 @@ AC_LANG_PUSH(C++)
 # check for pthreads
 AX_PTHREAD([], [AC_MSG_ERROR([Missing pthread library])])
 
-AX_CXX_COMPILE_STDCXX_11([noext],[mandatory])
+AX_CXX_COMPILE_STDCXX([17], [noext], [mandatory])
 
 # To simplify usage, we will update PATH, CPPFLAGS,.. to include the 'prefix'
 # ones

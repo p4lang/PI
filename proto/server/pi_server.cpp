@@ -305,11 +305,11 @@ class DeviceState {
   }
 
  private:
-  SharedLock shared_lock() const {
+  std::shared_lock<std::shared_mutex> shared_lock() const {
     return std::shared_lock<std::shared_mutex>(m);
   }
 
-  UniqueLock unique_lock() const {
+  std::unique_lock<std::shared_mutex> unique_lock() const {
     return std::unique_lock<std::shared_mutex>(m);
   }
 
@@ -352,7 +352,7 @@ class DeviceState {
   static p4serverv1::Config default_server_config;
 
   // protects DeviceMgr, connections, ...
-  mutable SharedMutex m{};
+  mutable std::shared_mutex m{};
   // protects pkt_in_count and ensures sequential writes on the stream
   mutable std::mutex packetin_mutex;
   // protects pkt_out_count
