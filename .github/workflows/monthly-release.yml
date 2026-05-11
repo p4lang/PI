@@ -3,7 +3,8 @@ name: Monthly Release
 on:
   workflow_dispatch:
   schedule:
-    - cron: "17 12 1 * *" # At 12:17 on day-of-month 1 (avoid top-of-hour load)
+    # Temporarily change day-of-month to 12 in order to test a change sooner than next month
+    - cron: "17 12 12 * *" # At 12:17 on day-of-month 1 (avoid top-of-hour load)
 
 permissions:
   contents: write
@@ -111,7 +112,7 @@ jobs:
           add-paths: VERSION
           reviewers: fruffy, jafingerhut
           commit-message: ${{ steps.message.outputs.content }}
-          signoff: false
+          signoff: true
           branch: v${{ env.VERSION }}
           delete-branch: true
           title: Automated Release v${{ env.VERSION }}
