@@ -16,7 +16,7 @@ AC_CONFIG_MACRO_DIR([m4])
 AC_LANG_PUSH(C)
 AC_LANG_PUSH(C++)
 
-AX_CXX_COMPILE_STDCXX_11([noext],[mandatory])
+AX_CXX_COMPILE_STDCXX([17], [noext], [mandatory])
 
 AM_PATH_PYTHON([3.5],, [:])
 AM_CONDITIONAL([HAVE_PYTHON], [test "$PYTHON" != :])
@@ -58,9 +58,7 @@ AM_CONDITIONAL([HAVE_GRPC_PY_PLUGIN], [test "x$GRPC_PY_PLUGIN" != x])
 
 AX_BOOST_BASE([1.54.0], [], [AC_MSG_ERROR(
               [Please install boost >= 1.54.0 (thread and system)])])
-AX_BOOST_THREAD
 AX_BOOST_SYSTEM
-AC_SUBST([BOOST_THREAD_LIB])
 AC_SUBST([BOOST_SYSTEM_LIB])
 
 want_bmv2=no

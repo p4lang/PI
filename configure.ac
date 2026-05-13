@@ -21,7 +21,7 @@ AC_PROG_CXX
 # built if --with-proto=yes)
 # if there is no C++ compiler available or if the C++ compiler doesn't support
 # std=c++11, configure will not fail
-AX_CXX_COMPILE_STDCXX_11([noext],[optional])
+AX_CXX_COMPILE_STDCXX([17], [noext], [optional])
 
 m4_define_default([_AM_PYTHON_INTERPRETER_LIST], [python3 python])
 AM_CONDITIONAL([HAVE_python], [test "$PYTHON" != :])

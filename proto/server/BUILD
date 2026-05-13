@@ -7,7 +7,6 @@ cc_library(
     srcs = ["gnmi_dummy.cpp",
             "log.h",
             "pi_server.cpp",
-            "shared_mutex.h",
             "uint128.h",
             "uint128.cpp"],
     hdrs = ["PI/proto/pi_server.h", "pi_server_testing.h", "gnmi.h"],
