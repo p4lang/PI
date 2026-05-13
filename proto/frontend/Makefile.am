@@ -53,8 +53,7 @@ $(top_builddir)/p4info/libpiconvertproto.la \
 $(top_builddir)/libserverconfig.la \
 $(top_builddir)/libpiprotobuf.la \
 $(top_builddir)/../src/libpip4info.la \
-$(top_builddir)/third_party/libfmt.la \
-$(BOOST_THREAD_LIB)
+$(top_builddir)/third_party/libfmt.la
 
 nobase_include_HEADERS = \
 PI/frontends/proto/device_mgr.h \
