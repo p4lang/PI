@@ -39,7 +39,7 @@ to install different dependencies.
   required to run some of the generated binaries uner valgrind
 - valgrind, as some tests use it to check for memory errors
 - Boost library, for some of the C++ tests: we currently require
-  `boost/optional.hpp` and `boost/functional/hash.hpp`
+  `boost/functional/hash.hpp`
 
 ### Installing dependencies from package repositories
 

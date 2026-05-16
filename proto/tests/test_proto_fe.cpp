@@ -21,7 +21,6 @@
  */
 
 #include <gmock/gmock.h>
-
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <google/protobuf/text_format.h>
 #include <google/protobuf/util/message_differencer.h>
@@ -36,6 +35,7 @@
 #include <iterator>  // std::distance
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <ostream>
 #include <queue>
 #include <regex>
@@ -44,22 +44,17 @@
 #include <tuple>
 #include <vector>
 
-#include <boost/optional.hpp>
-
 #include "PI/frontends/cpp/tables.h"
 #include "PI/frontends/proto/device_mgr.h"
 #include "PI/int/pi_int.h"
 #include "PI/p4info.h"
 #include "PI/pi.h"
 #include "PI/proto/util.h"
-
-#include "src/report_error.h"
-#include "src/statusor.h"
-
 #include "google/rpc/code.pb.h"
-
 #include "matchers.h"
 #include "mock_switch.h"
+#include "src/report_error.h"
+#include "src/statusor.h"
 #include "stream_receiver.h"
 #include "test_proto_fe_base.h"
 
@@ -456,34 +451,28 @@ class MatchTableTest
   }
 
   p4v1::TableEntry generic_make(pi_p4_id_t t_id,
-                                boost::optional<p4v1::FieldMatch> mf,
-                                const std::string &param_v,
-                                int priority = 0,
+                                std::optional<p4v1::FieldMatch> mf,
+                                const std::string& param_v, int priority = 0,
                                 uint64_t controller_metadata = 0);
 
-  boost::optional<MatchKeyInput> default_mf() const;
+  std::optional<MatchKeyInput> default_mf() const;
 
   pi_p4_id_t t_id;
   pi_p4_id_t mf_id;
   pi_p4_id_t a_id;
 };
 
-p4v1::TableEntry
-MatchTableTest::generic_make(pi_p4_id_t t_id,
-                             boost::optional<p4v1::FieldMatch> mf,
-                             const std::string &param_v,
-                             int priority,
-                             uint64_t controller_metadata) {
+p4v1::TableEntry MatchTableTest::generic_make(
+    pi_p4_id_t t_id, std::optional<p4v1::FieldMatch> mf,
+    const std::string& param_v, int priority, uint64_t controller_metadata) {
   p4v1::TableEntry table_entry;
   table_entry.set_table_id(t_id);
   table_entry.set_controller_metadata(controller_metadata);
   table_entry.set_metadata(std::to_string(controller_metadata));
   table_entry.set_priority(priority);
-  // not supported by older versions of boost
-  // if (mf != boost::none) {
-  if (mf.is_initialized()) {
+  if (mf) {
     auto mf_ptr = table_entry.add_match();
-    *mf_ptr = mf.get();
+    *mf_ptr = mf.value();
   }
   auto entry = table_entry.mutable_action();
   auto action = entry->mutable_action();
@@ -496,12 +485,11 @@ MatchTableTest::generic_make(pi_p4_id_t t_id,
   return table_entry;
 }
 
-boost::optional<MatchKeyInput>
-MatchTableTest::default_mf() const {
+std::optional<MatchKeyInput> MatchTableTest::default_mf() const {
   auto mk_input = std::get<1>(GetParam());
   switch (mk_input.get_type()) {
     case MatchKeyInput::Type::EXACT:
-      return boost::none;
+      return std::nullopt;
     case MatchKeyInput::Type::LPM:
       return MatchKeyInput::make_lpm(std::string(4, '\x00'), 0);
     case MatchKeyInput::Type::TERNARY:
@@ -514,7 +502,7 @@ MatchTableTest::default_mf() const {
       return MatchKeyInput::make_range(
           std::string(4, '\x00'), std::string(4, '\xff'), PRIORITY);
   }
-  return boost::none;  // unreachable
+  return std::nullopt;  // unreachable
 }
 
 TEST_P(MatchTableTest, AddAndRead) {
@@ -605,7 +593,7 @@ TEST_P(MatchTableTest, SetDefault) {
   std::string adata(6, '\xcd');
   auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
   EXPECT_CALL(*mock, table_default_action_set(t_id, entry_matcher)).Times(2);
-  auto entry = generic_make(t_id, boost::none, adata);
+  auto entry = generic_make(t_id, std::nullopt, adata);
   entry.set_is_default_action(true);
   {
     auto status = add_entry(&entry);
@@ -644,7 +632,7 @@ TEST_P(MatchTableTest, GetDefault) {
 
   std::string adata(6, '\xcd');
   auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
-  auto entry = generic_make(t_id, boost::none, adata);
+  auto entry = generic_make(t_id, std::nullopt, adata);
   entry.set_is_default_action(true);
   EXPECT_CALL(*mock, table_default_action_set(t_id, entry_matcher));
   EXPECT_OK(modify_entry(&entry));
@@ -754,16 +742,16 @@ TEST_P(MatchTableTest, InvalidActionId) {
 TEST_P(MatchTableTest, MissingMatchField) {
   std::string adata(6, '\xcd');
   auto mk_input = default_mf();
-  if (mk_input.is_initialized()) {  // omitting field supported for match type
-    auto mk_matcher = CorrectMatchKey(t_id, mk_input.get().get_match_key());
+  if (mk_input) {  // omitting field supported for match type
+    auto mk_matcher = CorrectMatchKey(t_id, mk_input.value().get_match_key());
     auto entry_matcher = CorrectTableEntryDirect(a_id, adata);
     EXPECT_CALL(*mock, table_entry_add(t_id, mk_matcher, entry_matcher, _));
-    auto entry = generic_make(
-        t_id, boost::none, adata, mk_input->get_priority());
+    auto entry =
+        generic_make(t_id, std::nullopt, adata, mk_input->get_priority());
     auto status = add_entry(&entry);
     ASSERT_EQ(status.code(), Code::OK);
   } else {  // omitting field not supported for match type
-    auto entry = generic_make(t_id, boost::none, adata, 0);
+    auto entry = generic_make(t_id, std::nullopt, adata, 0);
     auto status = add_entry(&entry);
     EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
   }
@@ -919,14 +907,13 @@ class ActionProfTest
     member->set_watch(watch_port);
   }
 
-  void add_member_to_group_new(p4v1::ActionProfileGroup *group,
-                               uint32_t member_id,
-                               int weight,
-                               const boost::optional<std::string> &watch_port) {
+  void add_member_to_group_new(p4v1::ActionProfileGroup* group,
+                               uint32_t member_id, int weight,
+                               const std::optional<std::string>& watch_port) {
     auto member = group->add_members();
     member->set_member_id(member_id);
     member->set_weight(weight);
-    if (watch_port.is_initialized()) member->set_watch_port(*watch_port);
+    if (watch_port) member->set_watch_port(*watch_port);
   }
 
   template <typename It>
@@ -1762,13 +1749,12 @@ class MatchTableIndirectTest
 
   template <typename It>
   p4v1::TableEntry make_indirect_entry_one_shot(
-      const boost::optional<std::string> &mf_v,
-      It params_begin, It params_end,
+      const std::optional<std::string>& mf_v, It params_begin, It params_end,
       int weight = 1, int watch_port = 0) {
     p4v1::TableEntry table_entry;
     auto t_id = pi_p4info_table_id_from_name(p4info, "IndirectWS");
     table_entry.set_table_id(t_id);
-    if (mf_v.is_initialized()) {
+    if (mf_v) {
       auto mf = table_entry.add_match();
       mf->set_field_id(pi_p4info_table_match_field_id_from_name(
           p4info, t_id, "header_test.field32"));
@@ -1788,13 +1774,12 @@ class MatchTableIndirectTest
 
   template <typename It>
   p4v1::TableEntry make_indirect_entry_one_shot_new(
-      const boost::optional<std::string> &mf_v,
-      It params_begin, It params_end,
-      int weight, const boost::optional<std::string> &watch_port) {
+      const std::optional<std::string>& mf_v, It params_begin, It params_end,
+      int weight, const std::optional<std::string>& watch_port) {
     p4v1::TableEntry table_entry;
     auto t_id = pi_p4info_table_id_from_name(p4info, "IndirectWS");
     table_entry.set_table_id(t_id);
-    if (mf_v.is_initialized()) {
+    if (mf_v) {
       auto mf = table_entry.add_match();
       mf->set_field_id(pi_p4info_table_match_field_id_from_name(
           p4info, t_id, "header_test.field32"));
@@ -1807,7 +1792,7 @@ class MatchTableIndirectTest
       auto ap_action = ap_action_set->add_action_profile_actions();
       set_action(ap_action->mutable_action(), *param_it);
       ap_action->set_weight(weight);
-      if (watch_port.is_initialized()) ap_action->set_watch_port(*watch_port);
+      if (watch_port) ap_action->set_watch_port(*watch_port);
     }
     return table_entry;
   }
@@ -2278,8 +2263,8 @@ TEST_P(MatchTableIndirectTest, SetDefault) {
   std::vector<std::string> params;
   params.emplace_back(6, '\x00');
   params.emplace_back(6, '\x01');
-  auto entry = make_indirect_entry_one_shot(
-      boost::none /* no match */, params.begin(), params.end());
+  auto entry = make_indirect_entry_one_shot(std::nullopt /* no match */,
+                                            params.begin(), params.end());
   entry.set_is_default_action(true);
   // Cannot set default entry for indirect table
   EXPECT_EQ(
@@ -2312,11 +2297,11 @@ class ExactOneTest : public DeviceMgrTest {
   ExactOneTest()
       : ExactOneTest("ExactOne", "header_test.field32") { }
 
-  p4v1::TableEntry make_entry(const boost::optional<std::string> &mf_v,
-                              const std::string &param_v) {
+  p4v1::TableEntry make_entry(const std::optional<std::string>& mf_v,
+                              const std::string& param_v) {
     p4v1::TableEntry table_entry;
     table_entry.set_table_id(t_id);
-    if (mf_v.is_initialized()) {
+    if (mf_v) {
       auto mf = table_entry.add_match();
       mf->set_field_id(pi_p4info_table_match_field_id_from_name(
           p4info, t_id, f_name.c_str()));
@@ -2360,7 +2345,7 @@ TEST_F(ExactOneTest, ZeroKeyAndDefaultEntry) {
   EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
   EXPECT_CALL(*mock, table_default_action_set(t_id, _)).Times(2);
   {
-    auto entry = make_entry(boost::none, adata);
+    auto entry = make_entry(std::nullopt, adata);
     entry.set_is_default_action(true);
     auto status = modify_entry(&entry);
     EXPECT_EQ(status.code(), Code::OK);
@@ -2371,7 +2356,7 @@ TEST_F(ExactOneTest, ZeroKeyAndDefaultEntry) {
     EXPECT_EQ(status.code(), Code::OK);
   }
   {
-    auto entry = make_entry(boost::none, adata);
+    auto entry = make_entry(std::nullopt, adata);
     entry.set_is_default_action(true);
     auto status = modify_entry(&entry);
     EXPECT_EQ(status.code(), Code::OK);
@@ -2551,7 +2536,7 @@ TEST_F(DirectMeterTest, ReadAllFromTable) {
 // default entry direct meter access with DirectMeterEntry message
 TEST_F(DirectMeterTest, DefaultEntry) {
   std::string adata(6, '\xcd');
-  auto entry = make_entry(boost::none, adata);
+  auto entry = make_entry(std::nullopt, adata);
   entry.set_is_default_action(true);
   auto config = make_meter_config();
   auto meter_entry = make_meter_entry(entry, config);
@@ -2574,7 +2559,7 @@ TEST_F(DirectMeterTest, DefaultEntry) {
 // default entry direct meter access with TableEntry message
 TEST_F(DirectMeterTest, WriteInTableEntryDefault) {
   std::string adata(6, '\xcd');
-  auto entry = make_entry(boost::none, adata);
+  auto entry = make_entry(std::nullopt, adata);
   entry.set_is_default_action(true);
   auto *meter_config = entry.mutable_meter_config();
   *meter_config = make_meter_config();
@@ -2883,7 +2868,7 @@ TEST_F(DirectCounterTest, WriteInTableEntry) {
 // default entry direct counter access with DirectCounterEntry message
 TEST_F(DirectCounterTest, DefaultEntry) {
   std::string adata(6, '\xcd');
-  auto entry = make_entry(boost::none, adata);
+  auto entry = make_entry(std::nullopt, adata);
   entry.set_is_default_action(true);
   auto counter_entry = make_counter_entry(&entry);
   auto *counter_data = counter_entry.mutable_data();
@@ -2906,7 +2891,7 @@ TEST_F(DirectCounterTest, DefaultEntry) {
 // default entry direct counter access with TableEntry message
 TEST_F(DirectCounterTest, WriteInTableEntryDefault) {
   std::string adata(6, '\xcd');
-  auto entry = make_entry(boost::none, adata);
+  auto entry = make_entry(std::nullopt, adata);
   entry.set_is_default_action(true);
   auto counter_data = entry.mutable_counter_data();
   counter_data->set_packet_count(3);
@@ -3123,16 +3108,14 @@ class TernaryOneTest : public DeviceMgrTest {
   TernaryOneTest()
       : TernaryOneTest("TernaryOne", "header_test.field32") { }
 
-  p4v1::TableEntry make_entry(const boost::optional<std::string> &mf_v,
-                              const boost::optional<std::string> &mask_v,
-                              const std::string &param_v,
+  p4v1::TableEntry make_entry(const std::optional<std::string>& mf_v,
+                              const std::optional<std::string>& mask_v,
+                              const std::string& param_v,
                               int priority = PRIORITY) {
     p4v1::TableEntry table_entry;
     table_entry.set_table_id(t_id);
     table_entry.set_priority(priority);
-    // not supported by older versions of boost
-    // if (mf_v != boost::none) {
-    if (mf_v.is_initialized()) {
+    if (mf_v) {
       auto mf = table_entry.add_match();
       mf->set_field_id(pi_p4info_table_match_field_id_from_name(
           p4info, t_id, f_name.c_str()));
@@ -3179,7 +3162,7 @@ TEST_F(TernaryOneTest, ValueEqValueAndMask) {
 TEST_F(TernaryOneTest, DontCare) {
   std::string adata(6, '\xcd');
   {  // omitting match field: valid
-    auto entry = make_entry(boost::none, boost::none, adata);
+    auto entry = make_entry(std::nullopt, std::nullopt, adata);
     EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
     auto status = add_entry(&entry);
     ASSERT_EQ(status.code(), Code::OK);
@@ -3204,7 +3187,7 @@ TEST_F(TernaryOneTest, DontCare) {
 
 TEST_F(TernaryOneTest, ZeroPriority) {
   std::string adata(6, '\xcd');
-  auto entry = make_entry(boost::none, boost::none, adata, 0);
+  auto entry = make_entry(std::nullopt, std::nullopt, adata, 0);
   EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _)).Times(0);
   auto status = add_entry(&entry);
   EXPECT_EQ(status, OneExpectedError(Code::INVALID_ARGUMENT));
@@ -3221,15 +3204,13 @@ class RangeOneTest : public DeviceMgrTest {
   RangeOneTest()
       : RangeOneTest("RangeOne", "header_test.field32") { }
 
-  p4v1::TableEntry make_entry(const boost::optional<std::string> &low_v,
-                            const boost::optional<std::string> &high_v,
-                            const std::string &param_v) {
+  p4v1::TableEntry make_entry(const std::optional<std::string>& low_v,
+                              const std::optional<std::string>& high_v,
+                              const std::string& param_v) {
     p4v1::TableEntry table_entry;
     table_entry.set_table_id(t_id);
     table_entry.set_priority(PRIORITY);
-    // not supported by older versions of boost
-    // if (low_v != boost::none) {
-    if (low_v.is_initialized()) {
+    if (low_v) {
       auto mf = table_entry.add_match();
       mf->set_field_id(pi_p4info_table_match_field_id_from_name(
           p4info, t_id, f_name.c_str()));
@@ -3284,7 +3265,7 @@ TEST_F(RangeOneTest, LowLeHigh) {
 TEST_F(RangeOneTest, DontCare) {
   std::string adata(6, '\xcd');
   {  // omitting match field: valid
-    auto entry = make_entry(boost::none, boost::none, adata);
+    auto entry = make_entry(std::nullopt, std::nullopt, adata);
     EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
     auto status = add_entry(&entry);
     ASSERT_EQ(status.code(), Code::OK);
@@ -3318,14 +3299,11 @@ class LpmOneTest : public DeviceMgrTest {
   LpmOneTest()
       : LpmOneTest("LpmOne", "header_test.field32") { }
 
-  p4v1::TableEntry make_entry(const boost::optional<std::string> &mf_v,
-                              int pLen,
-                              const std::string &param_v) {
+  p4v1::TableEntry make_entry(const std::optional<std::string>& mf_v, int pLen,
+                              const std::string& param_v) {
     p4v1::TableEntry table_entry;
     table_entry.set_table_id(t_id);
-    // not supported by older versions of boost
-    // if (mf_v != boost::none) {
-    if (mf_v.is_initialized()) {
+    if (mf_v) {
       auto mf = table_entry.add_match();
       mf->set_field_id(pi_p4info_table_match_field_id_from_name(
           p4info, t_id, f_name.c_str()));
@@ -3386,7 +3364,7 @@ TEST_F(LpmOneTest, DontCare) {
   std::string adata(6, '\xcd');
   int pLen(0);
   {  // omitting match field: valid
-    auto entry = make_entry(boost::none, pLen, adata);
+    auto entry = make_entry(std::nullopt, pLen, adata);
     EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _));
     auto status = add_entry(&entry);
     ASSERT_EQ(status.code(), Code::OK);
@@ -4218,14 +4196,14 @@ class MatchTableConstDefaultActionTest : public DeviceMgrTest {
   }
 
   p4v1::TableEntry make_entry(pi_p4_id_t a_id,
-                              const boost::optional<std::string> &param_v) {
+                              const std::optional<std::string>& param_v) {
     p4v1::TableEntry table_entry;
     table_entry.set_table_id(t_id);
     table_entry.set_is_default_action(true);
     auto entry = table_entry.mutable_action();
     auto action = entry->mutable_action();
     action->set_action_id(a_id);
-    if (param_v.is_initialized()) {
+    if (param_v) {
       auto param = action->add_params();
       param->set_param_id(
           pi_p4info_action_param_id_from_name(p4info, a_id, "param"));
@@ -4235,7 +4213,7 @@ class MatchTableConstDefaultActionTest : public DeviceMgrTest {
   }
 
   DeviceMgr::Status set_default(pi_p4_id_t a_id,
-                                const boost::optional<std::string> &param_v) {
+                                const std::optional<std::string>& param_v) {
     auto table_entry = make_entry(a_id, param_v);
     return modify_entry(&table_entry);
   }
@@ -4251,7 +4229,7 @@ TEST_F(MatchTableConstDefaultActionTest, MutateParam) {
 }
 
 TEST_F(MatchTableConstDefaultActionTest, MutateAction) {
-  EXPECT_EQ(set_default(aC_id, boost::none),
+  EXPECT_EQ(set_default(aC_id, std::nullopt),
             OneExpectedError(Code::PERMISSION_DENIED, "const default action"));
 }
 
@@ -4286,7 +4264,7 @@ class MatchTableActionAnnotationsTest : public DeviceMgrTest {
   }
 
   DeviceMgr::Status set_default(pi_p4_id_t a_id,
-                                const boost::optional<std::string> &param_v) {
+                                const std::optional<std::string>& param_v) {
     p4v1::TableEntry table_entry;
     table_entry.set_table_id(t_id);
     table_entry.set_is_default_action(true);
@@ -4294,9 +4272,8 @@ class MatchTableActionAnnotationsTest : public DeviceMgrTest {
     return modify_entry(&table_entry);
   }
 
-  DeviceMgr::Status insert_entry(const std::string &mf_v,
-                                 pi_p4_id_t a_id,
-                                 const boost::optional<std::string> &param_v) {
+  DeviceMgr::Status insert_entry(const std::string& mf_v, pi_p4_id_t a_id,
+                                 const std::optional<std::string>& param_v) {
     p4v1::TableEntry table_entry;
     table_entry.set_table_id(t_id);
     auto mf = table_entry.add_match();
@@ -4314,13 +4291,12 @@ class MatchTableActionAnnotationsTest : public DeviceMgrTest {
   pi_p4_id_t aC_id;  // DEFAULT_ONLY scope
 
  private:
-  void set_action(p4v1::TableEntry *table_entry,
-                  pi_p4_id_t a_id,
-                  const boost::optional<std::string> &param_v) const {
+  void set_action(p4v1::TableEntry* table_entry, pi_p4_id_t a_id,
+                  const std::optional<std::string>& param_v) const {
     auto entry = table_entry->mutable_action();
     auto action = entry->mutable_action();
     action->set_action_id(a_id);
-    if (param_v.is_initialized()) {
+    if (param_v) {
       auto param = action->add_params();
       param->set_param_id(
           pi_p4info_action_param_id_from_name(p4info, a_id, "param"));
@@ -4348,9 +4324,9 @@ TEST_F(MatchTableActionAnnotationsTest, TableOnly) {
 
 TEST_F(MatchTableActionAnnotationsTest, DefaultOnly) {
   EXPECT_CALL(*mock, table_default_action_set(t_id, _));
-  EXPECT_OK(set_default(aC_id, boost::none));
+  EXPECT_OK(set_default(aC_id, std::nullopt));
   EXPECT_CALL(*mock, table_entry_add(t_id, _, _, _)).Times(Exactly(0));
-  EXPECT_EQ(insert_entry(std::string("\x01\x02"), aC_id, boost::none),
+  EXPECT_EQ(insert_entry(std::string("\x01\x02"), aC_id, std::nullopt),
             OneExpectedError(Code::PERMISSION_DENIED,
                              "Cannot use DEFAULT_ONLY action in table entry"));
 }
@@ -4369,24 +4345,23 @@ class IdleTimeoutTest : public ExactOneTest {
   // prevent name hiding
   using ExactOneTest::make_entry;
 
-  template<typename Rep, typename Period>
+  template <typename Rep, typename Period>
   p4v1::TableEntry make_entry(
-      const boost::optional<std::string> &mf_v,
-      const std::string &param_v,
-      const std::chrono::duration<Rep, Period> &timeout) {
+      const std::optional<std::string>& mf_v, const std::string& param_v,
+      const std::chrono::duration<Rep, Period>& timeout) {
     auto table_entry = make_entry(mf_v, param_v);
     table_entry.set_idle_timeout_ns(
         std::chrono::duration_cast<std::chrono::nanoseconds>(timeout).count());
     return table_entry;
   }
 
-  template<typename Rep, typename Period>
-  boost::optional<p4v1::IdleTimeoutNotification> notification_receive(
-      const std::chrono::duration<Rep, Period> &timeout) {
+  template <typename Rep, typename Period>
+  std::optional<p4v1::IdleTimeoutNotification> notification_receive(
+      const std::chrono::duration<Rep, Period>& timeout) {
     return stream_receiver.get(timeout);
   }
 
-  boost::optional<p4v1::IdleTimeoutNotification> notification_receive() {
+  std::optional<p4v1::IdleTimeoutNotification> notification_receive() {
     return notification_receive(defaultTimeout);
   }
 
@@ -4421,12 +4396,12 @@ TEST_F(IdleTimeoutTest, EntryAgeing) {
   auto entry_handle = mock->get_table_entry_handle();
   EXPECT_EQ(mock->age_entry(t_id, entry_handle), PI_STATUS_SUCCESS);
   auto notification = notification_receive();
-  ASSERT_NE(notification, boost::none);
+  ASSERT_NE(notification, std::nullopt);
   ASSERT_EQ(notification->table_entry_size(), 1);
   const auto &table_entry = notification->table_entry(0);
   entry.clear_action();
   EXPECT_PROTO_EQ(table_entry, entry);
-  EXPECT_EQ(notification_receive(negativeTimeout), boost::none);
+  EXPECT_EQ(notification_receive(negativeTimeout), std::nullopt);
 }
 
 // Checks that idle notifications which are close to each other in time are
@@ -4446,9 +4421,9 @@ TEST_F(IdleTimeoutTest, Buffering) {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
   auto notification = notification_receive();
-  ASSERT_NE(notification, boost::none);
+  ASSERT_NE(notification, std::nullopt);
   EXPECT_EQ(notification->table_entry_size(), static_cast<int>(num_entries));
-  EXPECT_EQ(notification_receive(negativeTimeout), boost::none);
+  EXPECT_EQ(notification_receive(negativeTimeout), std::nullopt);
 }
 
 // Checks that notifications are not buffered for too long.
@@ -4465,7 +4440,7 @@ TEST_F(IdleTimeoutTest, MaxBuffering) {
     std::this_thread::sleep_for(notificationMaxDelay);
   }
   int num_notifications = 0;
-  while (notification_receive() != boost::none) num_notifications++;
+  while (notification_receive() != std::nullopt) num_notifications++;
   EXPECT_GT(num_notifications, 1);
 }
 
@@ -4489,7 +4464,7 @@ TEST_F(IdleTimeoutTest, ModifyTTL) {
   EXPECT_CALL(*mock, table_entry_modify_wkey(t_id, _, entry_matcher));
   EXPECT_OK(modify_entry(&entry));
 
-  entry_matcher_->set_ttl(boost::none);
+  entry_matcher_->set_ttl(std::nullopt);
 
   EXPECT_CALL(*mock, table_entry_modify_wkey(t_id, _, entry_matcher));
   EXPECT_OK(modify_entry(&entry));
@@ -4540,9 +4515,9 @@ class StreamErrorTest : public DeviceMgrTest {
     return mgr.stream_message_request_handle(request);
   }
 
-  template<typename Rep, typename Period>
-  boost::optional<p4v1::StreamError> error_receive(
-      const std::chrono::duration<Rep, Period> &timeout) {
+  template <typename Rep, typename Period>
+  std::optional<p4v1::StreamError> error_receive(
+      const std::chrono::duration<Rep, Period>& timeout) {
     return stream_receiver.get(timeout);
   }
 
@@ -4562,7 +4537,7 @@ TEST_F(StreamErrorTest, StreamErrorDisabled) {
       .WillOnce(Return(PI_STATUS_TARGET_ERROR));
   auto status = send_packet();
   EXPECT_NE(status.code(), Code::OK);
-  EXPECT_EQ(error_receive(negativeTimeout), boost::none);
+  EXPECT_EQ(error_receive(negativeTimeout), std::nullopt);
 }
 
 TEST_F(StreamErrorTest, StreamErrorEnabled) {
@@ -4577,7 +4552,7 @@ TEST_F(StreamErrorTest, StreamErrorEnabled) {
   auto status = send_packet();
   EXPECT_NE(status.code(), Code::OK);
   auto stream_error = error_receive(defaultTimeout);
-  EXPECT_NE(stream_error, boost::none);
+  EXPECT_NE(stream_error, std::nullopt);
   EXPECT_TRUE(stream_error->has_packet_out());
 }
 
