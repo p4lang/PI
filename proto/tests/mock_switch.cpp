@@ -25,15 +25,13 @@
 
 #include <algorithm>  // std::copy, std::for_each, std::count
 #include <map>
+#include <optional>
 #include <set>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>  // std::move
 #include <vector>
-
-#include <boost/functional/hash.hpp>
-#include <boost/optional.hpp>
 
 #include "PI/frontends/cpp/tables.h"
 #include "PI/frontends/proto/device_mgr.h"
@@ -44,6 +42,7 @@
 #include "PI/target/pi_imp.h"
 #include "PI/target/pi_learn_imp.h"
 #include "PI/target/pi_tables_imp.h"
+#include "boost/functional/hash.hpp"
 
 namespace pi {
 namespace proto {
@@ -800,7 +799,7 @@ class DummyPRE {
                                  pi_mc_node_handle_t node_handle) {
     auto it = mc_nodes.find(node_handle);
     if (it == mc_nodes.end()) return PI_STATUS_TARGET_ERROR;
-    if (it->second.attached_to.is_initialized()) return PI_STATUS_TARGET_ERROR;
+    if (it->second.attached_to) return PI_STATUS_TARGET_ERROR;
     it->second.attached_to = grp_handle;
     return PI_STATUS_SUCCESS;
   }
@@ -810,8 +809,8 @@ class DummyPRE {
     (void)grp_handle;
     auto it = mc_nodes.find(node_handle);
     if (it == mc_nodes.end()) return PI_STATUS_TARGET_ERROR;
-    if (!it->second.attached_to.is_initialized()) return PI_STATUS_TARGET_ERROR;
-    it->second.attached_to = boost::none;
+    if (!it->second.attached_to) return PI_STATUS_TARGET_ERROR;
+    it->second.attached_to = std::nullopt;
     return PI_STATUS_SUCCESS;
   }
 
@@ -833,7 +832,7 @@ class DummyPRE {
     pi_mc_node_handle_t node_handle;
     pi_mc_rid_t rid;
     std::vector<pi_mc_port_t> eg_ports;
-    boost::optional<pi_mc_grp_handle_t> attached_to;
+    std::optional<pi_mc_grp_handle_t> attached_to;
 
     McNode(pi_mc_node_handle_t node_handle,
            pi_mc_rid_t rid,

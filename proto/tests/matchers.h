@@ -25,15 +25,13 @@
 #include <gmock/gmock.h>
 
 #include <iosfwd>
+#include <optional>
 #include <string>
 #include <unordered_map>
 
-#include <boost/optional.hpp>
-
-#include "p4/v1/p4runtime.pb.h"
-
 #include "PI/pi.h"
 #include "PI/pi_clone.h"
+#include "p4/v1/p4runtime.pb.h"
 
 namespace pi {
 namespace proto {
@@ -224,8 +222,8 @@ class TableEntryMatcher_Base {
                           const p4::v1::CounterData &data,
                           bool check_bytes, bool check_packets);
 
-  // boost:none means to TTL expected in the entry properties
-  void set_ttl(boost::optional<int64_t> ttl_ns);
+  // std::nullopt means to TTL expected in the entry properties
+  void set_ttl(std::optional<int64_t> ttl_ns);
 
  protected:
   TableEntryMatcher_Base();
@@ -235,7 +233,7 @@ class TableEntryMatcher_Base {
 
   std::unordered_map<pi_p4_id_t, MeterSpecMatcher> meters;
   std::unordered_map<pi_p4_id_t, CounterDataMatcher> counters;
-  boost::optional<int64_t> ttl;
+  std::optional<int64_t> ttl;
 };
 
 class TableEntryMatcher_Direct

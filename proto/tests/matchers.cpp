@@ -300,8 +300,7 @@ TableEntryMatcher_Base::add_direct_counter(pi_p4_id_t counter_id,
                    CounterDataMatcher(data, check_bytes, check_packets));
 }
 
-void
-TableEntryMatcher_Base::set_ttl(boost::optional<int64_t> ttl_ns) {
+void TableEntryMatcher_Base::set_ttl(std::optional<int64_t> ttl_ns) {
   ttl = ttl_ns;
 }
 
