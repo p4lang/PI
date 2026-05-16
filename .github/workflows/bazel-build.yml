@@ -38,7 +38,7 @@ jobs:
 
       - name: Run Buildifier
         run: |
-          BZL_FILES=$(find . -name *BUILD* -o -name '*bzl' -o -name '*.bazel')
+          BZL_FILES=$(git ls-files | grep -E 'BUILD.*|\.bzl$|\.bazel$')
           if ! buildifier --mode=check $BZL_FILES; then
             echo "::error::Buildifier formatting issues found."
             echo "::group::Buildifier Diff"
