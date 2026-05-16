@@ -19,7 +19,7 @@ cc_library(
     ],
     deps = [
         "//proto/frontend:pifeproto",
-        "@boost.functional//:boost.functional",
+        "@boost.container_hash//:boost.container_hash",
         "@com_github_p4lang_p4runtime//proto/p4/v1:p4runtime_cc_proto",
         "@com_google_googletest//:gtest",
     ],

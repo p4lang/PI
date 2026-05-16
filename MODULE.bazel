@@ -6,7 +6,7 @@ module(
 )
 
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
-bazel_dep(name = "boost.functional", version = "1.90.0.bcr.1")
+bazel_dep(name = "boost.container_hash", version = "1.90.0.bcr.1")
 bazel_dep(name = "googleapis", version = "0.0.0-20260130-c0fcb356", repo_name = "com_google_googleapis")
 bazel_dep(name = "googletest", version = "1.17.0.bcr.2", repo_name = "com_google_googletest")
 bazel_dep(name = "grpc", version = "1.76.0", repo_name = "com_github_grpc_grpc")
