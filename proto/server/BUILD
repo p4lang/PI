@@ -18,6 +18,7 @@ cc_library(
         "gnmi.h",
         "pi_server_testing.h",
     ],
+    includes = ["."],
     deps = [
         "//proto:gnmi_cc_grpc",
         "//proto:p4serverconfig_cc_grpc",
