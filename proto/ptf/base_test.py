@@ -86,6 +86,12 @@ def ipv4_to_binary(addr):
             raise ValueError("IPv4 address contains out-of-range value")
     return bytes(bytes_)
 
+def ipv6_to_binary(addr):
+    """ Accepts IPv6 address in colon format.
+        e.g., 2001:dead:beef::2
+    """
+    return socket.inet_pton(socket.AF_INET6, addr)
+
 def mac_to_binary(addr):
     """Take an argument 'addr' containing an Ethernet MAC address written
     as a string in hexadecimal notation, with each byte separated by a
