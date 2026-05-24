@@ -2,9 +2,9 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.68])
-AC_INIT([PI], [0.1], [antonin@barefootnetworks.com])
+AC_INIT([p4lang-pi], [0.1], [antonin@barefootnetworks.com])
 AC_CONFIG_AUX_DIR([.])
-AM_INIT_AUTOMAKE([foreign subdir-objects])
+AM_INIT_AUTOMAKE([1.9 tar-pax foreign subdir-objects])
 AC_CONFIG_HEADERS([config.h])
 
 AC_PROG_CC
@@ -177,13 +177,14 @@ AC_MSG_RESULT([$CLANG])
 # Enable all warnings. -Wno-tautological-constant-out-of-range-compare is
 # necessary because clang is excessively aggressive with this warning and
 # complains about some reasonable assertions.
-EXTRA_CFLAGS="-Wall -Wextra"
+EXTRA_CFLAGS="-Wall -Wextra -Wno-deprecated-declarations"
+EXTRA_CPPFLAGS="-Wno-deprecated-declarations"
 AS_IF([test "$enable_Werror" = "yes"], [EXTRA_CFLAGS="$EXTRA_CFLAGS -Werror"])
 AS_IF([test "x$CLANG" = "xyes"],
       [EXTRA_CFLAGS="$EXTRA_CFLAGS -Wno-tautological-constant-out-of-range-compare"])
 AC_SUBST([AM_CFLAGS], ["$PTHREAD_CFLAGS $EXTRA_CFLAGS"])
 
-AC_SUBST([AM_CPPFLAGS], ["-DPI_LOG_ON -isystem$INCLUDE_DIR"])
+AC_SUBST([AM_CPPFLAGS], ["$EXTRA_CPPFLAGS -DPI_LOG_ON -isystem$INCLUDE_DIR"])
 AC_SUBST([AM_LDFLAGS], ["-L$LIB_DIR"])
 
 # Generate makefiles
