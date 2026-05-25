@@ -19,4 +19,4 @@ concurrency:
 jobs:
   publish-release:
     if: ${{ github.repository == 'p4lang/PI' }}
-    uses: chreekat/auto-release-playground/.github/workflows/publish-release.yml@main
+    uses: p4lang/.github/.github/workflows/publish-release.yml@main
