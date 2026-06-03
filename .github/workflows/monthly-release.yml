@@ -13,6 +13,6 @@ permissions:
 jobs:
   monthly-release:
     if: ${{ github.repository == 'p4lang/PI' }}
-    uses: chreekat/auto-release-playground/.github/workflows/monthly-release.yml@main
+    uses: p4lang/.github/.github/workflows/monthly-release.yml@main
     with:
       reviewers: fruffy, jafingerhut
