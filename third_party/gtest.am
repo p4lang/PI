@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2016 Antonin Bas
+#
+# SPDX-License-Identifier: Apache-2.0
+
 check_LTLIBRARIES = libgtest.la libgmock.la
 
 libgtest_la_CPPFLAGS = \
