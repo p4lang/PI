@@ -467,8 +467,8 @@ pi_status_t pi_table_idle_timeout_notify(pi_dev_id_t dev_id,
   }
   const cb_data_t *default_cb_data = cb_mgr_get_default(&cb_mgr);
   if (default_cb_data->cb) {
-    ((PIIdleTimeoutCb)(default_cb_data->cb))(dev_id, table_id, match_key,
-                                             entry_handle, cb_data->cookie);
+    PIIdleTimeoutCb cb = (PIIdleTimeoutCb)default_cb_data->cb;
+    cb(dev_id, table_id, match_key, entry_handle, default_cb_data->cookie);
     pthread_mutex_unlock(&cb_mutex);
     return PI_STATUS_SUCCESS;
   }
