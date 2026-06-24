@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -94,7 +94,9 @@ void vector_remove(vector_t *v, size_t index) {
 
 void vector_remove_e(vector_t *v, void *e) {
   assert(e >= v->data);
-  size_t index = (char *)e - (char *)v->data;
+  size_t offset = (char *)e - (char *)v->data;
+  assert(offset % v->e_size == 0);
+  size_t index = offset / v->e_size;
   vector_remove(v, index);
 }
 
