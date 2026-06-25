@@ -363,6 +363,13 @@ typedef struct {
 static bool exclude_header(cJSON *header) {
   (void)header;
   return false;
+  // For some reason the new p4c compiler always sets pi_omit to true
+  // Now that we do not have "fields" in p4info anymore, this check is probably
+  // not even relevant anymore.
+  /* const cJSON *item = cJSON_GetObjectItem(header, "pi_omit"); */
+  /* if (!item) return false; */
+  /* if (item->valueint) return true; */
+  /* return false; */
 }
 
 static pi_status_t read_fields(reader_state_t *state, cJSON *root) {
@@ -643,13 +650,12 @@ static pi_status_t read_counters(reader_state_t *state, cJSON *root,
   // first pass needed because PI treats indirect & direct counters differently:
   // we need to count and pre-reserve ids for counters of each type before we
   // actually add them to p4info.
-  pi_status_t status = PI_STATUS_CONFIG_READER_ERROR;
   cJSON *counters_ = cJSON_CreateArray();
   cJSON *direct_counters_ = cJSON_CreateArray();
   size_t num_counters = 0, num_direct_counters = 0;
   cJSON_ArrayForEach(counter, counters) {
     const cJSON *item = cJSON_GetObjectItem(counter, "is_direct");
-    if (!item) goto cleanup_first_pass;
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
     bool is_direct = item->valueint;
     if (is_direct) {
       num_direct_counters++;
@@ -660,15 +666,11 @@ static pi_status_t read_counters(reader_state_t *state, cJSON *root,
     }
   }
   pre_reserve_ids(state, PI_COUNTER_ID, counters_);
+  cJSON_Delete(counters_);
   pi_p4info_counter_init(p4info, num_counters);
   pre_reserve_ids(state, PI_DIRECT_COUNTER_ID, direct_counters_);
-  pi_p4info_direct_counter_init(p4info, num_direct_counters);
-  status = PI_STATUS_SUCCESS;
-
-cleanup_first_pass:
-  cJSON_Delete(counters_);
   cJSON_Delete(direct_counters_);
-  if (status != PI_STATUS_SUCCESS) return status;
+  pi_p4info_direct_counter_init(p4info, num_direct_counters);
 
   sort_json_array(counters);
   cJSON_ArrayForEach(counter, counters) {
@@ -730,13 +732,12 @@ static pi_status_t read_meters(reader_state_t *state, cJSON *root,
   // first pass needed because PI treats indirect & direct meters differently:
   // we need to count and pre-reserve ids for meters of each type before we
   // actually add them to p4info.
-  pi_status_t status = PI_STATUS_CONFIG_READER_ERROR;
   cJSON *meters_ = cJSON_CreateArray();
   cJSON *direct_meters_ = cJSON_CreateArray();
   size_t num_meters = 0, num_direct_meters = 0;
   cJSON_ArrayForEach(meter, meters) {
     const cJSON *item = cJSON_GetObjectItem(meter, "is_direct");
-    if (!item) goto cleanup_first_pass;
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
     bool is_direct = item->valueint;
     if (is_direct) {
       num_direct_meters++;
@@ -747,15 +748,11 @@ static pi_status_t read_meters(reader_state_t *state, cJSON *root,
     }
   }
   pre_reserve_ids(state, PI_METER_ID, meters_);
+  cJSON_Delete(meters_);
   pi_p4info_meter_init(p4info, num_meters);
   pre_reserve_ids(state, PI_DIRECT_METER_ID, direct_meters_);
-  pi_p4info_direct_meter_init(p4info, num_direct_meters);
-  status = PI_STATUS_SUCCESS;
-
-cleanup_first_pass:
-  cJSON_Delete(meters_);
   cJSON_Delete(direct_meters_);
-  if (status != PI_STATUS_SUCCESS) return status;
+  pi_p4info_direct_meter_init(p4info, num_direct_meters);
 
   sort_json_array(meters);
   cJSON_ArrayForEach(meter, meters) {
@@ -831,39 +828,50 @@ static bool check_json_version(cJSON *root) {
 }
 
 pi_status_t pi_bmv2_json_reader(const char *config, pi_p4info_t *p4info) {
-  pi_status_t status = PI_STATUS_SUCCESS;
-
   cJSON *root = cJSON_Parse(config);
   if (!root) return PI_STATUS_CONFIG_READER_ERROR;
 
+  pi_status_t status;
+
   if (!check_json_version(root)) {
     PI_LOG_ERROR("Json version requirement not satisfied!\n");
-    status = PI_STATUS_CONFIG_READER_ERROR;
-    goto cleanup_root;
+    return PI_STATUS_CONFIG_READER_ERROR;
   }
 
   reader_state_t state;
   init_reader_state(&state);
 
-  if ((status = read_actions(&state, root, p4info)) != PI_STATUS_SUCCESS)
-    goto cleanup;
-  if ((status = read_fields(&state, root)) != PI_STATUS_SUCCESS)
-    goto cleanup;
-  if ((status = read_act_profs(&state, root, p4info)) != PI_STATUS_SUCCESS)
-    goto cleanup;
-  if ((status = read_tables(&state, root, p4info)) != PI_STATUS_SUCCESS)
-    goto cleanup;
-  if ((status = read_counters(&state, root, p4info)) != PI_STATUS_SUCCESS)
-    goto cleanup;
-  if ((status = read_meters(&state, root, p4info)) != PI_STATUS_SUCCESS)
-    goto cleanup;
-  if ((status = read_digests(&state, root, p4info)) != PI_STATUS_SUCCESS)
-    goto cleanup;
+  if ((status = read_actions(&state, root, p4info)) != PI_STATUS_SUCCESS) {
+    return status;
+  }
 
-cleanup:
-  destroy_reader_state(&state);
-cleanup_root:
+  if ((status = read_fields(&state, root)) != PI_STATUS_SUCCESS) {
+    return status;
+  }
+
+  if ((status = read_act_profs(&state, root, p4info)) != PI_STATUS_SUCCESS) {
+    return status;
+  }
+
+  if ((status = read_tables(&state, root, p4info)) != PI_STATUS_SUCCESS) {
+    return status;
+  }
+
+  if ((status = read_counters(&state, root, p4info)) != PI_STATUS_SUCCESS) {
+    return status;
+  }
+
+  if ((status = read_meters(&state, root, p4info)) != PI_STATUS_SUCCESS) {
+    return status;
+  }
+
+  if ((status = read_digests(&state, root, p4info)) != PI_STATUS_SUCCESS) {
+    return status;
+  }
+
   cJSON_Delete(root);
 
-  return status;
+  destroy_reader_state(&state);
+
+  return PI_STATUS_SUCCESS;
 }
