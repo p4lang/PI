@@ -1,4 +1,4 @@
-/* Copyright 2013-present Barefoot Networks, Inc.
+/* Copyright 2026-present The P4 Language Consortium & Devansh Singh
  * SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
