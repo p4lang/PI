@@ -794,7 +794,7 @@ pi_status_t _pi_table_entries_fetch(pi_session_handle_t session_handle,
         {
           data += emit_action_entry_type(data, PI_ACTION_ENTRY_TYPE_INDIRECT);
           auto indirect_handle =
-              static_cast<pi_indirect_handle_t>(action_entry.mbr_handle);
+              static_cast<pi_indirect_handle_t>(action_entry.grp_handle);
           indirect_handle = pibmv2::IndirectHMgr::make_grp_h(indirect_handle);
           data += emit_indirect_handle(data, indirect_handle);
         }

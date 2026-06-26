@@ -79,6 +79,9 @@ pi_status_t pi_add_config_from_file(const char *config_path,
                                     pi_config_type_t config_type,
                                     pi_p4info_t **p4info) {
   char *config_tmp = read_file(config_path);
+  if (config_tmp == NULL) {
+    return PI_STATUS_CONFIG_READER_ERROR;
+  }
   pi_status_t rc = pi_add_config(config_tmp, config_type, p4info);
   free(config_tmp);
   return rc;
