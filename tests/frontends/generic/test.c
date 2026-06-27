@@ -23,12 +23,16 @@
 #include "PI/int//serialize.h"
 #include "PI/p4info.h"
 #include "p4info/actions_int.h"
+#include "p4info/counters_int.h"
 #include "p4info/p4info_struct.h"
 #include "p4info/tables_int.h"
 
+#include "PI/int/pi_int.h"
+#include "PI/pi.h"
 #include "unity/unity_fixture.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 #define DEFAULT_TABLE_SIZE 1024
 #define DEFAULT_TABLE_IS_CONST false
@@ -295,10 +299,93 @@ TEST_GROUP_RUNNER(FrontendGeneric_Adata) {
   RUN_TEST_CASE(FrontendGeneric_Adata, U128);
 }
 
+TEST_GROUP(FrontendGeneric_DirectResourceValidation);
+
+TEST_SETUP(FrontendGeneric_DirectResourceValidation) {}
+
+TEST_TEAR_DOWN(FrontendGeneric_DirectResourceValidation) {}
+
+TEST(FrontendGeneric_DirectResourceValidation, Validation) {
+  // Regression test for array indexing bug in check_direct_res_config
+  // Bug: loop used configs[0] instead of configs[i]
+  pi_p4info_t *p4info;
+  pi_add_config(NULL, PI_CONFIG_TYPE_NONE, &p4info);
+
+  pi_p4info_action_init(p4info, 1);
+  pi_p4info_table_init(p4info, 1);
+  pi_p4info_direct_counter_init(p4info, 2);
+
+  pi_p4_id_t aid = pi_make_action_id(0);
+  pi_p4info_action_add(p4info, aid, "action0", 0);
+
+  pi_p4_id_t tid = pi_make_table_id(0);
+  pi_p4info_table_add(p4info, tid, "table0", 0, 1, 128, DEFAULT_TABLE_IS_CONST,
+                      DEFAULT_TABLE_IDLE_TIMEOUT);
+  pi_p4info_table_add_action(p4info, tid, aid,
+                             PI_P4INFO_ACTION_SCOPE_TABLE_AND_DEFAULT);
+
+  pi_p4_id_t ctr0 = pi_make_direct_counter_id(0);
+  pi_p4_id_t ctr1 = pi_make_direct_counter_id(1);
+  pi_p4info_direct_counter_add(p4info, ctr0, "counter0",
+                               PI_P4INFO_COUNTER_UNIT_BOTH, 0, tid);
+  pi_p4info_direct_counter_add(p4info, ctr1, "counter1",
+                               PI_P4INFO_COUNTER_UNIT_BOTH, 0, tid);
+  pi_p4info_table_add_direct_resource(p4info, tid, ctr0);
+  pi_p4info_table_add_direct_resource(p4info, tid, ctr1);
+
+  pi_status_t rc = pi_init(256, NULL);
+  TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS, rc);
+
+  pi_dev_id_t dev_id = 0;
+  rc = pi_assign_device(dev_id, p4info, NULL);
+  TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS, rc);
+
+  pi_match_key_t *mkey;
+  pi_match_key_allocate(p4info, tid, &mkey);
+
+  pi_table_entry_t entry;
+  memset(&entry, 0, sizeof(entry));
+  entry.entry_type = PI_ACTION_ENTRY_TYPE_DATA;
+  pi_action_data_t *adata;
+  pi_action_data_allocate(p4info, aid, &adata);
+  entry.entry.action_data = adata;
+  entry.entry_properties = NULL;
+
+  // Test case: first config valid, second config invalid
+  pi_direct_res_config_one_t configs[2];
+  configs[0].res_id = ctr0;  // valid
+  configs[0].config = NULL;
+  configs[1].res_id = pi_make_direct_counter_id(99);  // invalid counter ID
+  configs[1].config = NULL;
+
+  pi_direct_res_config_t direct_config;
+  direct_config.num_configs = 2;
+  direct_config.configs = configs;
+  entry.direct_res_config = &direct_config;
+
+  pi_dev_tgt_t dev_tgt = {dev_id, 0xFFFF};
+  pi_entry_handle_t handle;
+
+  // Should reject because second config has invalid resource ID
+  rc = pi_table_entry_add(0, dev_tgt, tid, mkey, &entry, 0, &handle);
+  TEST_ASSERT_EQUAL(PI_STATUS_NOT_A_DIRECT_RES_OF_TABLE, rc);
+
+  pi_action_data_destroy(adata);
+  pi_match_key_destroy(mkey);
+  pi_remove_device(dev_id);
+  pi_destroy_config(p4info);
+  pi_destroy();
+}
+
+TEST_GROUP_RUNNER(FrontendGeneric_DirectResourceValidation) {
+  RUN_TEST_CASE(FrontendGeneric_DirectResourceValidation, Validation);
+}
+
 void test_frontends_generic() {
   RUN_TEST_GROUP(FrontendGeneric_OneExact);
   RUN_TEST_GROUP(FrontendGeneric_OneLPM);
   RUN_TEST_GROUP(FrontendGeneric_OneTernary);
   RUN_TEST_GROUP(FrontendGeneric_OneOptional);
   RUN_TEST_GROUP(FrontendGeneric_Adata);
+  RUN_TEST_GROUP(FrontendGeneric_DirectResourceValidation);
 }
