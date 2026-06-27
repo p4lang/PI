@@ -24,6 +24,7 @@
 #include "PI/p4info.h"
 #include "p4info/actions_int.h"
 #include "p4info/counters_int.h"
+#include "p4info/meters_int.h"
 #include "p4info/p4info_struct.h"
 #include "p4info/tables_int.h"
 
@@ -313,7 +314,8 @@ TEST(FrontendGeneric_DirectResourceValidation, Validation) {
 
   pi_p4info_action_init(p4info, 1);
   pi_p4info_table_init(p4info, 1);
-  pi_p4info_direct_counter_init(p4info, 2);
+  pi_p4info_direct_counter_init(p4info, 1);
+  pi_p4info_direct_meter_init(p4info, 1);
 
   pi_p4_id_t aid = pi_make_action_id(0);
   pi_p4info_action_add(p4info, aid, "action0", 0);
@@ -325,13 +327,14 @@ TEST(FrontendGeneric_DirectResourceValidation, Validation) {
                              PI_P4INFO_ACTION_SCOPE_TABLE_AND_DEFAULT);
 
   pi_p4_id_t ctr0 = pi_make_direct_counter_id(0);
-  pi_p4_id_t ctr1 = pi_make_direct_counter_id(1);
+  pi_p4_id_t mtr0 = pi_make_direct_meter_id(0);
   pi_p4info_direct_counter_add(p4info, ctr0, "counter0",
                                PI_P4INFO_COUNTER_UNIT_BOTH, 0, tid);
-  pi_p4info_direct_counter_add(p4info, ctr1, "counter1",
-                               PI_P4INFO_COUNTER_UNIT_BOTH, 0, tid);
+  pi_p4info_direct_meter_add(p4info, mtr0, "meter0",
+                             PI_P4INFO_METER_UNIT_PACKETS,
+                             PI_P4INFO_METER_TYPE_COLOR_UNAWARE, 0, tid);
   pi_p4info_table_add_direct_resource(p4info, tid, ctr0);
-  pi_p4info_table_add_direct_resource(p4info, tid, ctr1);
+  pi_p4info_table_add_direct_resource(p4info, tid, mtr0);
 
   pi_status_t rc = pi_init(256, NULL);
   TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS, rc);
@@ -355,7 +358,7 @@ TEST(FrontendGeneric_DirectResourceValidation, Validation) {
   pi_direct_res_config_one_t configs[2];
   configs[0].res_id = ctr0;  // valid
   configs[0].config = NULL;
-  configs[1].res_id = pi_make_direct_counter_id(99);  // invalid counter ID
+  configs[1].res_id = pi_make_direct_meter_id(99);  // invalid meter ID
   configs[1].config = NULL;
 
   pi_direct_res_config_t direct_config;
