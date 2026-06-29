@@ -1,3 +1,7 @@
+dnl SPDX-FileCopyrightText: 2016 Barefoot Networks, Inc.
+dnl
+dnl SPDX-License-Identifier: Apache-2.0
+
 dnl adl_RECURSIVE_EVAL(VALUE, RESULT)
 dnl =================================
 dnl Interpolate the VALUE in loop until it doesn't change,

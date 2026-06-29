@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2016 Barefoot Networks, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+
 # a little hacky: the headers are in the parent of the configure subdir
 AM_CPPFLAGS += \
 -I$(top_srcdir)/include

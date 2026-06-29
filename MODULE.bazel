@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 The P4 Language Consortium
+#
+# SPDX-License-Identifier: Apache-2.0
+
 module(
     name = "com_github_p4lang_pi",
     # Fill in concrete versions only on release branches/in the BCR.

@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2016 Barefoot Networks, Inc.
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # PI LIBRARY REPOSITORY
 
 ![Build Status](https://github.com/p4lang/PI/actions/workflows/test.yml/badge.svg?branch=main)
