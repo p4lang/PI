@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2017 Barefoot Networks, Inc.
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # PI Architecture
 
 PI is designed to make the interface to data plane objects that can be

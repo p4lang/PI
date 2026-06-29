@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+
+# SPDX-FileCopyrightText: 2016 Barefoot Networks, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+
 # -*- coding: utf-8 -*-
 
 # Modified from https://github.com/cloderic/clang_format_check

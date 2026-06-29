@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2018 Barefoot Networks, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+
 # https://bazel.build/external/migration#workspace.bzlmod
 #
 # This file is intentionally empty. When bzlmod is enabled and this

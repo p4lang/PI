@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2019 Open Networking Foundation
+#
+# SPDX-License-Identifier: Apache-2.0
+
 # Use Bzlmod (`MODULE.bazel`) instead of `WORKSPACE.bazel`.
 common --enable_bzlmod
 common --noenable_workspace
