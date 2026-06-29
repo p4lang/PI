@@ -26,6 +26,7 @@
 #include <time.h>
 
 extern void test_bmv2_json_reader();
+extern void test_read_file();
 extern void test_getnetv();
 extern void test_p4info();
 extern void test_frontends_generic();
@@ -33,6 +34,9 @@ extern void test_frontends_generic();
 static void run() {
 #ifdef TEST_BMV2_JSON_READER
   test_bmv2_json_reader();
+#endif
+#ifdef TEST_READ_FILE
+  test_read_file();
 #endif
 #ifdef TEST_GETNETV
   test_getnetv();
