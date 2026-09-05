@@ -61,14 +61,14 @@ ENV PI_RUNTIME_DEPS libboost-system1.83.0 \
 COPY proto/sysrepo/docker_entry_point.sh /docker_entry_point.sh
 COPY . /PI/
 WORKDIR /PI/
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends $PI_DEPS $PI_RUNTIME_DEPS && \
-    ./autogen.sh && \
-    ./configure --enable-Werror --with-bmv2 --with-proto --with-cli --with-internal-rpc --with-sysrepo && \
-    ./proto/sysrepo/install_yangs.sh && \
-    make && \
-    make install-strip && \
-    ((test "$IMAGE_TYPE" = "build" && \
+RUN apt-get update
+RUN apt-get install -y --no-install-recommends $PI_DEPS $PI_RUNTIME_DEPS
+RUN ./autogen.sh
+RUN ./configure --enable-Werror --with-bmv2 --with-proto --with-cli --with-internal-rpc --with-sysrepo
+RUN ./proto/sysrepo/install_yangs.sh
+RUN make
+RUN make install-strip
+RUN ((test "$IMAGE_TYPE" = "build" && \
       apt-get purge -y $PI_DEPS && \
       apt-get autoremove --purge -y && \
       rm -rf /PI /var/cache/apt/* /var/lib/apt/lists/* && \
