@@ -55,7 +55,7 @@ jobs:
     - name: Run tests
       run: |
         docker run -w /PI pi bash -c \
-          'make check -j2 || (find . -name "test-suite.log" | xargs cat)'
+          'uv run make check -j2 || (find . -name "test-suite.log" | xargs cat)'
 # Comment this out until and unless we make it pass.
 #    - name: Check style
 #      run: |
