@@ -90,8 +90,9 @@ char *generate_page(WebServer *web_server,
   return answerstring;
 }
 
-int send_page(struct MHD_Connection *connection, const char *page) {
-  int ret;
+enum MHD_Result
+send_page(struct MHD_Connection *connection, const char *page) {
+  enum MHD_Result ret;
   struct MHD_Response *response;
   response = MHD_create_response_from_buffer(strlen(page), (void *)page,
                                              MHD_RESPMEM_PERSISTENT);
@@ -146,8 +147,9 @@ void request_completed(void *cls, struct MHD_Connection *connection,
   *con_cls = NULL;
 }
 
-int perform_requested_ops_and_respond(struct MHD_Connection *connection,
-                                      connection_info_struct *con_info) {
+enum MHD_Result
+perform_requested_ops_and_respond(struct MHD_Connection *connection,
+                                  connection_info_struct *con_info) {
   WebServer *server = con_info->web_server;
   if (con_info->new_json_name != "") {
     std::string *p4info_buffer_ = nullptr;
