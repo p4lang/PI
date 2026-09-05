@@ -68,6 +68,7 @@ RUN apt-get update && \
     ./proto/sysrepo/install_yangs.sh && \
     make && \
     make install-strip && \
+    uv pip install ptf scapy grpcio googleapis-common-protos protobuf==3.20 p4runtime && \
     ((test "$IMAGE_TYPE" = "build" && \
       apt-get purge -y $PI_DEPS && \
       apt-get autoremove --purge -y && \
