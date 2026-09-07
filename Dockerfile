@@ -34,6 +34,7 @@ ARG IMAGE_TYPE=build
 
 ENV PI_DEPS automake \
             build-essential \
+            python3-dev \
             g++ \
             libboost-dev \
             libboost-system-dev \
@@ -50,9 +51,10 @@ WORKDIR /PI/
 RUN apt-get update && \
     apt-get install -y --no-install-recommends $PI_DEPS $PI_RUNTIME_DEPS && \
     ./autogen.sh && \
-    ./configure --enable-Werror --without-bmv2 --without-internal-rpc --without-cli --with-proto --with-sysrepo && \
+    ./configure --enable-Werror --without-bmv2 --without-internal-rpc --without-cli --with-proto --with-sysrepo --with-python-prefix=${VIRTUAL_ENV} && \
     make && \
     make install-strip && \
+    uv pip install ptf scapy grpcio googleapis-common-protos protobuf==3.20 p4runtime && \
     ((test "$IMAGE_TYPE" = "build" && \
       apt-get purge -y $PI_DEPS && \
       apt-get autoremove --purge -y && \
