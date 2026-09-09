@@ -15,7 +15,7 @@
 
 # Antonin Bas (antonin@barefootnetworks.com)
 
-FROM p4lang/third-party:latest-24
+FROM p4lang/third-party:latest
 LABEL maintainer="P4 Developers <p4-dev@lists.p4.org>"
 LABEL description="This Docker image includes only the most widely-used PI \
 artifacts: PI core and P4Runtime. It does not include the Thrift-based PI \
@@ -34,14 +34,15 @@ ARG IMAGE_TYPE=build
 
 ENV PI_DEPS automake \
             build-essential \
+            python3-dev \
             g++ \
             libboost-dev \
             libboost-system-dev \
             libboost-thread-dev \
             libtool \
             pkg-config
-ENV PI_RUNTIME_DEPS libboost-system1.74.0 \
-                    libboost-thread1.74.0 \
+ENV PI_RUNTIME_DEPS libboost-system1.83.0 \
+                    libboost-thread1.83.0 \
                     python3 \
                     python-is-python3
 
@@ -50,13 +51,14 @@ WORKDIR /PI/
 RUN apt-get update && \
     apt-get install -y --no-install-recommends $PI_DEPS $PI_RUNTIME_DEPS && \
     ./autogen.sh && \
-    ./configure --enable-Werror --without-bmv2 --without-internal-rpc --without-cli --with-proto --with-sysrepo && \
+    ./configure --enable-Werror --without-bmv2 --without-internal-rpc --without-cli --with-proto --with-sysrepo --with-python-prefix=${VIRTUAL_ENV} && \
     make && \
     make install-strip && \
-    (test "$IMAGE_TYPE" = "build" && \
+    uv pip install ptf scapy grpcio googleapis-common-protos protobuf==3.20 p4runtime && \
+    ((test "$IMAGE_TYPE" = "build" && \
       apt-get purge -y $PI_DEPS && \
       apt-get autoremove --purge -y && \
       rm -rf /PI /var/cache/apt/* /var/lib/apt/lists/* && \
       echo 'Build image ready') || \
     (test "$IMAGE_TYPE" = "test" && \
-      echo 'Test image ready')
+      echo 'Test image ready'))
