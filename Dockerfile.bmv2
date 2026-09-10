@@ -33,15 +33,14 @@ ARG MAKEFLAGS=-j2
 ARG IMAGE_TYPE=build
 
 # Select the compiler to use.
-# We install the default version of GCC (GCC 9), as well as clang 8 and clang 10.
 ARG CC=gcc
 ARG CXX=g++
 
 ENV PI_DEPS automake \
             build-essential \
-            clang-8 \
-            clang-10 \
-            clang-format-8 \
+            python3-dev \
+            clang \
+            clang-format \
             g++ \
             libboost-dev \
             libboost-system-dev \
@@ -54,8 +53,8 @@ ENV PI_DEPS automake \
             libmicrohttpd-dev \
             doxygen \
             valgrind
-ENV PI_RUNTIME_DEPS libboost-system1.71.0 \
-                    libboost-thread1.71.0 \
+ENV PI_RUNTIME_DEPS libboost-system1.83.0 \
+                    libboost-thread1.83.0 \
                     libpcap0.8 \
                     python3 \
                     python-is-python3
@@ -66,17 +65,18 @@ WORKDIR /PI/
 RUN apt-get update && \
     apt-get install -y --no-install-recommends $PI_DEPS $PI_RUNTIME_DEPS && \
     ./autogen.sh && \
-    ./configure --enable-Werror --with-bmv2 --with-proto --with-cli --with-internal-rpc --with-sysrepo && \
+    ./configure --enable-Werror --with-bmv2 --with-proto --with-cli --with-internal-rpc --with-sysrepo --with-python-prefix=${VIRTUAL_ENV} && \
     ./proto/sysrepo/install_yangs.sh && \
     make && \
     make install-strip && \
-    (test "$IMAGE_TYPE" = "build" && \
+    uv pip install ptf scapy grpcio googleapis-common-protos protobuf==3.20 p4runtime && \
+    ((test "$IMAGE_TYPE" = "build" && \
       apt-get purge -y $PI_DEPS && \
       apt-get autoremove --purge -y && \
       rm -rf /PI /var/cache/apt/* /var/lib/apt/lists/* && \
       echo 'Build image ready') || \
     (test "$IMAGE_TYPE" = "test" && \
-      echo 'Test image ready')
+      echo 'Test image ready'))
 
 # start sysrepo daemon (sysrepod)
 ENTRYPOINT ["/docker_entry_point.sh"]
