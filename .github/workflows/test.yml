@@ -57,8 +57,7 @@ jobs:
           ls -la /usr/local/lib/python3.12/site-packages && \
           echo /usr/lib/python3/dist-packages && \
           ls -la /usr/lib/python3/dist-packages && \
-          find / -name dist-packages -o -name site-packages && apt-get update && apt-get install -y python3-pip && \
-          uv pip install ptf scapy grpcio googleapis-common-protos protobuf==3.20 && \
+          find / -name dist-packages -o -name site-packages && \
           uv run ./proto/ptf/base_test.py'
     - name: Run tests
       run: |
