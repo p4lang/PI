@@ -52,11 +52,11 @@ jobs:
       run: |
         docker run -w /PI pi bash -c \
           'echo /usr/local/lib/python3.12/dist-packages && \
-          ls -la /usr/local/lib/python3.12/dist-packages && \
+          (ls -la /usr/local/lib/python3.12/dist-packages || echo "directory not found") && \
           echo /usr/local/lib/python3.12/site-packages && \
-          ls -la /usr/local/lib/python3.12/site-packages && \
+          (ls -la /usr/local/lib/python3.12/site-packages || echo "directory not found") && \
           echo /usr/lib/python3/dist-packages && \
-          ls -la /usr/lib/python3/dist-packages && \
+          (ls -la /usr/lib/python3/dist-packages || echo "directory not found") && \
           find / -name dist-packages -o -name site-packages && \
           uv run ./proto/ptf/base_test.py'
     - name: Run tests
