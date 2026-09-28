@@ -16,3 +16,5 @@ jobs:
     uses: p4lang/.github/.github/workflows/monthly-release.yml@main
     with:
       reviewers: fruffy, jafingerhut
+    secrets:
+      RELEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
