@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2016 Antonin Bas
+#
+# SPDX-License-Identifier: Apache-2.0
+
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 
 noinst_LTLIBRARIES = libunity.la

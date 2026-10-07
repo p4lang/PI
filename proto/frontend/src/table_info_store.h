@@ -64,7 +64,7 @@ class TableInfoStore {
     uint64_t controller_metadata{0};
     std::string metadata;
     int64_t idle_timeout_ns{0};
-    // wish I could use boost::optional here
+    // wish I could use std::optional here
     bool is_oneshot{false};
     pi_indirect_handle_t oneshot_group_handle{0};
   };

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2016 Barefoot Networks, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+
 # TODO(antonin): move act_prof to some "extern" directory
 
 nobase_include_HEADERS = \

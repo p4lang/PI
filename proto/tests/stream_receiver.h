@@ -19,9 +19,8 @@
 #include <chrono>
 #include <condition_variable>
 #include <mutex>
+#include <optional>
 #include <queue>
-
-#include <boost/optional.hpp>
 
 #include "p4/v1/p4runtime.pb.h"
 
@@ -102,8 +101,8 @@ class StreamReceiver {
   }
 
   template <typename Rep, typename Period>
-  boost::optional<T> get(const std::chrono::duration<Rep, Period> &timeout) {
-        using Clock = std::chrono::steady_clock;
+  std::optional<T> get(const std::chrono::duration<Rep, Period>& timeout) {
+    using Clock = std::chrono::steady_clock;
     Lock lock(mutex);
     // using wait_until and not wait_for to account for spurious awakenings.
     if (cvar.wait_until(lock, Clock::now() + timeout,
@@ -112,7 +111,7 @@ class StreamReceiver {
       msgs.pop();
       return msg;
     }
-    return boost::none;
+    return std::nullopt;
   }
 
  private:

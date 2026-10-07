@@ -21,7 +21,6 @@
  */
 
 #include <gmock/gmock.h>
-
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <google/protobuf/text_format.h>
 
@@ -31,20 +30,17 @@
 #include <fstream>  // std::ifstream
 #include <iterator>  // std::back_inserter
 #include <mutex>
+#include <optional>
 #include <queue>
 #include <string>
 #include <thread>
 #include <vector>
 
-#include <boost/optional.hpp>
-
-#include "src/common.h"
-#include "src/digest_mgr.h"
-
 #include "google/rpc/code.pb.h"
-
 #include "matchers.h"
 #include "mock_switch.h"
+#include "src/common.h"
+#include "src/digest_mgr.h"
 #include "test_proto_fe_base.h"
 
 namespace pi {
@@ -134,9 +130,9 @@ class DigestMgrTest : public DeviceMgrBaseTest {
     return mock->digest_inject(digest_id, ++msg_id, samples_);
   }
 
-  template<typename Rep, typename Period>
-  boost::optional<p4v1::DigestList> digest_receive(
-      const std::chrono::duration<Rep, Period> &timeout) {
+  template <typename Rep, typename Period>
+  std::optional<p4v1::DigestList> digest_receive(
+      const std::chrono::duration<Rep, Period>& timeout) {
     Lock lock(mutex);
     // using wait_until and not wait_for to account for spurious awakenings.
     // if (cvar.wait_for(lock, timeout, [this] { return !digests.empty(); })) {
@@ -146,10 +142,10 @@ class DigestMgrTest : public DeviceMgrBaseTest {
       digests.pop();
       return digest;
     }
-    return boost::none;
+    return std::nullopt;
   }
 
-  boost::optional<p4v1::DigestList> digest_receive() {
+  std::optional<p4v1::DigestList> digest_receive() {
     return digest_receive(defaultTimeout);
   }
 
@@ -221,7 +217,7 @@ TEST_F(DigestMgrTest, Default) {
   EXPECT_CALL(*mock, learn_msg_done(_));
   ASSERT_EQ(digest_inject({s}), PI_STATUS_SUCCESS);
   auto digest = digest_receive();
-  ASSERT_NE(digest, boost::none);
+  ASSERT_NE(digest, std::nullopt);
   EXPECT_EQ(digest->digest_id(), digest_id);
   EXPECT_EQ(digest->data_size(), 1);
   EXPECT_TRUE(s.eq(digest->data(0)));
@@ -235,7 +231,7 @@ TEST_F(DigestMgrTest, DefaultCanonical) {
   EXPECT_CALL(*mock, learn_msg_done(_));
   ASSERT_EQ(digest_inject({s}), PI_STATUS_SUCCESS);
   auto digest = digest_receive();
-  ASSERT_NE(digest, boost::none);
+  ASSERT_NE(digest, std::nullopt);
   EXPECT_EQ(digest->digest_id(), digest_id);
   EXPECT_EQ(digest->data_size(), 1);
   EXPECT_TRUE(s.eq(digest->data(0)));
@@ -253,8 +249,8 @@ TEST_F(DigestMgrTest, Cache) {
 
   ASSERT_EQ(digest_inject({s}), PI_STATUS_SUCCESS);
   ASSERT_EQ(digest_inject({s}), PI_STATUS_SUCCESS);
-  ASSERT_NE(digest_receive(), boost::none);
-  ASSERT_NE(digest_receive(), boost::none);  // default config: no cache
+  ASSERT_NE(digest_receive(), std::nullopt);
+  ASSERT_NE(digest_receive(), std::nullopt);  // default config: no cache
 
   p4v1::DigestEntry config;
   config.set_digest_id(digest_id);
@@ -263,11 +259,11 @@ TEST_F(DigestMgrTest, Cache) {
 
   ASSERT_EQ(digest_inject({s}), PI_STATUS_SUCCESS);
   ASSERT_EQ(digest_inject({s}), PI_STATUS_SUCCESS);
-  ASSERT_NE(digest_receive(), boost::none);
-  ASSERT_EQ(digest_receive(3 * ack_timeout), boost::none);  // cache hit
+  ASSERT_NE(digest_receive(), std::nullopt);
+  ASSERT_EQ(digest_receive(3 * ack_timeout), std::nullopt);  // cache hit
   // we have waited 3 * ack_timeout, cache should be clear
   ASSERT_EQ(digest_inject({s}), PI_STATUS_SUCCESS);
-  ASSERT_NE(digest_receive(), boost::none);
+  ASSERT_NE(digest_receive(), std::nullopt);
 }
 
 TEST_F(DigestMgrTest, Ack) {
@@ -287,9 +283,9 @@ TEST_F(DigestMgrTest, Ack) {
   ASSERT_EQ(digest_inject({s}), PI_STATUS_SUCCESS);
   ASSERT_EQ(digest_inject({s}), PI_STATUS_SUCCESS);
   auto digest = digest_receive();
-  ASSERT_NE(digest, boost::none);
+  ASSERT_NE(digest, std::nullopt);
   // cache hit
-  ASSERT_EQ(digest_receive(std::chrono::milliseconds(200)), boost::none);
+  ASSERT_EQ(digest_receive(std::chrono::milliseconds(200)), std::nullopt);
   p4v1::DigestListAck ack;
   ack.set_digest_id(digest_id);
   ack.set_list_id(digest->list_id());
@@ -297,7 +293,7 @@ TEST_F(DigestMgrTest, Ack) {
   ASSERT_EQ(digest_inject({s}), PI_STATUS_SUCCESS);
   // the ack call is asynchronous and there is no way to get completion
   // information, but we assume that 200ms is long enough for it to complete
-  ASSERT_NE(digest_receive(std::chrono::milliseconds(200)), boost::none);
+  ASSERT_NE(digest_receive(std::chrono::milliseconds(200)), std::nullopt);
 }
 
 TEST_F(DigestMgrTest, MaxListSize) {
@@ -318,7 +314,7 @@ TEST_F(DigestMgrTest, MaxListSize) {
     ASSERT_EQ(digest_inject({s}), PI_STATUS_SUCCESS);
   }
   auto digest = digest_receive(std::chrono::milliseconds(500));
-  ASSERT_NE(digest, boost::none);
+  ASSERT_NE(digest, std::nullopt);
   EXPECT_EQ(digest->data_size(), 2);
 }
 
@@ -334,7 +330,7 @@ TEST_F(DigestMgrTest, MaxTimeout) {
   s << "\x11\x22\x33\x44\x55\x66" << "\x01\x23";
   ASSERT_EQ(digest_inject({s}), PI_STATUS_SUCCESS);
   auto sent_at = Clock::now();
-  ASSERT_NE(digest_receive(std::chrono::milliseconds(1000)), boost::none);
+  ASSERT_NE(digest_receive(std::chrono::milliseconds(1000)), std::nullopt);
   auto received_at = Clock::now();
   auto diff = received_at - sent_at;
   EXPECT_GT(diff, max_timeout / 2);
@@ -358,17 +354,17 @@ TEST_F(DigestMgrTest, Reset) {
   ASSERT_OK(config_write(config, p4v1::Update::INSERT));
 
   ASSERT_EQ(digest_inject({s}), PI_STATUS_SUCCESS);
-  ASSERT_NE(digest_receive(), boost::none);
+  ASSERT_NE(digest_receive(), std::nullopt);
 
   ASSERT_EQ(digest_inject({s}), PI_STATUS_SUCCESS);
-  ASSERT_EQ(digest_receive(), boost::none);  // cache hit
+  ASSERT_EQ(digest_receive(), std::nullopt);  // cache hit
 
   // deleting the config should reset the state of the DigestMgr, so it should
   // clear the cache
   ASSERT_OK(config_delete());
   ASSERT_OK(config_write(config, p4v1::Update::INSERT));
   ASSERT_EQ(digest_inject({s}), PI_STATUS_SUCCESS);
-  ASSERT_NE(digest_receive(), boost::none);
+  ASSERT_NE(digest_receive(), std::nullopt);
 }
 
 }  // namespace

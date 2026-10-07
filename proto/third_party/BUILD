@@ -1,21 +1,29 @@
+# SPDX-FileCopyrightText: 2018 Antonin Bas
+#
+# SPDX-License-Identifier: Apache-2.0
+
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
 package(
     default_visibility = ["//:__subpackages__"],
 )
 
 cc_library(
     name = "fmt",
-    srcs = ["fmt/container.h",
-            "fmt/format.cc",
-            "fmt/ostream.cc",
-            "fmt/ostream.h",
-            "fmt/posix.cc",
-            "fmt/posix.h",
-            "fmt/printf.cc",
-            "fmt/printf.h",
-            "fmt/string.h",
-            "fmt/time.h",
-            "fmt/_assert.h",
-            "fmt/_assert.cc"],
+    srcs = [
+        "fmt/_assert.cc",
+        "fmt/_assert.h",
+        "fmt/container.h",
+        "fmt/format.cc",
+        "fmt/ostream.cc",
+        "fmt/ostream.h",
+        "fmt/posix.cc",
+        "fmt/posix.h",
+        "fmt/printf.cc",
+        "fmt/printf.h",
+        "fmt/string.h",
+        "fmt/time.h",
+    ],
     hdrs = ["fmt/format.h"],
     includes = ["."],
 )

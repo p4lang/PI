@@ -1,6 +1,12 @@
+<!--
+SPDX-FileCopyrightText: 2016 Barefoot Networks, Inc.
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # PI LIBRARY REPOSITORY
 
-![Build Status](https://github.com/p4lang/PI/workflows/Test/badge.svg?branch=main)
+![Build Status](https://github.com/p4lang/PI/actions/workflows/test.yml/badge.svg?branch=main)
 
 **This repository has submodules; after cloning it you should run `git submodule
   update --init --recursive`.**
@@ -39,7 +45,7 @@ to install different dependencies.
   required to run some of the generated binaries uner valgrind
 - valgrind, as some tests use it to check for memory errors
 - Boost library, for some of the C++ tests: we currently require
-  `boost/optional.hpp` and `boost/functional/hash.hpp`
+  `boost/functional/hash.hpp`
 
 ### Installing dependencies from package repositories
 

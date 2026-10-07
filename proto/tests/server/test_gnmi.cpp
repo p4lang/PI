@@ -20,7 +20,6 @@
  */
 
 #include <grpcpp/grpcpp.h>
-
 #include <gtest/gtest.h>
 
 #include <chrono>
@@ -30,17 +29,15 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <thread>
 #include <unordered_map>
 #include <vector>
 
-#include <boost/optional.hpp>
-
-#include "gnmi/gnmi.grpc.pb.h"
-
 #include "gnmi.h"
+#include "gnmi/gnmi.grpc.pb.h"
 
 using grpc::Server;
 using grpc::ServerBuilder;
@@ -191,9 +188,9 @@ std::ostream &operator <<(std::ostream &os, const Event &e) {
   return os;
 }
 
-std::ostream &operator <<(std::ostream &os, const boost::optional<Event> &e) {
-  if (e.is_initialized())
-    os << e.get();
+std::ostream& operator<<(std::ostream& os, const std::optional<Event>& e) {
+  if (e)
+    os << e.value();
   else
     os << "NONE";
   return os;
@@ -559,11 +556,11 @@ class TestGNMISysrepo : public TestGNMI {
     return event_queue.empty();
   }
 
-  boost::optional<Event> wait_for_event(const std::string &xpath) {
+  std::optional<Event> wait_for_event(const std::string& xpath) {
     Event event;
     event.xpath = xpath;
     if (!event_queue.pop_back(&event, std::chrono::milliseconds(500)))
-      return boost::none;
+      return std::nullopt;
     return event;
   }
 
@@ -623,7 +620,7 @@ class TestGNMISysrepo : public TestGNMI {
       auto xpath = gNMI_path_to_XPath(notification.prefix(), update.path());
       if (xpath == expected_xpath) return update.val().string_val();
     }
-    return "";  // use boost::optional instead ?
+    return "";  // use std::optional instead ?
   }
 
   static constexpr char iface_type[] = "iana-if-type:ethernetCsmacd";

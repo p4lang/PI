@@ -1,6 +1,10 @@
+# SPDX-FileCopyrightText: 2016 Barefoot Networks, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS} -I m4
 
-AM_TESTS_ENVIRONMENT = export PI_TEST_WITH_VALGRIND=1;
+AM_TESTS_ENVIRONMENT = unset PI_TEST_WITH_VALGRIND;
 
 TESTS = \
 table_dump.test \

@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2016 Barefoot Networks, Inc.
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
 This demonstrates how to use the PI library.
 
 In example_1, there is no auto-generated code at all. The example refers to P4

@@ -1,2 +1,6 @@
+# SPDX-FileCopyrightText: 2016 Barefoot Networks, Inc.
+#
+# SPDX-License-Identifier: Apache-2.0
+
 pi_rpc_server
 pi_gen_native_json

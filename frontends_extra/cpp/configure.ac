@@ -1,3 +1,7 @@
+dnl SPDX-FileCopyrightText: 2016 Barefoot Networks, Inc.
+dnl
+dnl SPDX-License-Identifier: Apache-2.0
+
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
@@ -16,7 +20,7 @@ AC_CONFIG_MACRO_DIR([m4])
 AC_LANG_PUSH(C)
 AC_LANG_PUSH(C++)
 
-AX_CXX_COMPILE_STDCXX_11([noext],[mandatory])
+AX_CXX_COMPILE_STDCXX([17], [noext], [mandatory])
 
 want_bmv2=no
 AC_ARG_WITH([bmv2],

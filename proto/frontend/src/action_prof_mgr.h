@@ -280,7 +280,7 @@ class ActionProfAccessManual : public ActionProfAccessBase {
   bool get_member_info(const Id &group_id, const Id &member_id,
                        int *weight, WatchPort *watch_port) const;
 
-  // would be nice to be able to use boost::optional for the retrieve functions;
+  // would be nice to be able to use std::optional for the retrieve functions;
   // we cannot return a pointer (that would be null if the key couldn't be
   // found) because some other thread may come in and remove the corresponding
   // group / member, thus invalidating the pointer.

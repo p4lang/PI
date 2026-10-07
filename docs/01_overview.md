@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2017 Barefoot Networks, Inc.
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Overview
 
 Protocol Independent API (PI or P4 Runtime) defines a set of APIs that

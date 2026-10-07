@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2017 Barefoot Networks, Inc.
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # P4 Runtime PTF tests
 
 This directory includes [PTF](https://github.com/p4lang/ptf) tests which can be

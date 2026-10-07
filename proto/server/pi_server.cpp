@@ -26,11 +26,14 @@
 // #include <grpcpp/support/error_details.h>
 
 #include <memory>
+#include <mutex>
 #include <set>
+#include <shared_mutex>
 #include <string>
 #include <thread>
 #include <unordered_map>
 
+#include "PI/proto/pi_server.h"
 #include "gnmi.h"
 #include "gnmi/gnmi.grpc.pb.h"
 #include "google/rpc/code.pb.h"
@@ -39,10 +42,7 @@
 #include "p4/v1/p4runtime.grpc.pb.h"
 #include "pi_server_testing.h"
 #include "server_config/server_config.h"
-#include "shared_mutex.h"
 #include "uint128.h"
-
-#include "PI/proto/pi_server.h"
 
 using grpc::Server;
 using grpc::ServerBuilder;
@@ -305,12 +305,12 @@ class DeviceState {
   }
 
  private:
-  SharedLock shared_lock() const {
-    return ::pi::server::shared_lock(m);
+  std::shared_lock<std::shared_mutex> shared_lock() const {
+    return std::shared_lock<std::shared_mutex>(m);
   }
 
-  UniqueLock unique_lock() const {
-    return ::pi::server::unique_lock(m);
+  std::unique_lock<std::shared_mutex> unique_lock() const {
+    return std::unique_lock<std::shared_mutex>(m);
   }
 
   Connection *get_primary() const {
@@ -352,7 +352,7 @@ class DeviceState {
   static p4serverv1::Config default_server_config;
 
   // protects DeviceMgr, connections, ...
-  mutable SharedMutex m{};
+  mutable std::shared_mutex m{};
   // protects pkt_in_count and ensures sequential writes on the stream
   mutable std::mutex packetin_mutex;
   // protects pkt_out_count

@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2018 Keysight Technologies, Inc.
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # P4Info xform - transformation utilities
 This directory contains utilities and examples for manipulating P4Info protobuf files to enhance the data models with new message elements, to facilitiate control plane API and UI generation, P4 package management, etc. The long-term goal is to establish some new conventions in P4 source code which will result in additional useful metadata to be inserted into the P4Info file. Initially, this can be done solely via new @annotations(), without requiring changes to existing P4 compilers. Later we can choose to modify P4 compilers to recognize annotations or other - possibly new - language constructs; or else establish coding conventions and the compiler will populate the P4Info file accordingly. In the meantime, we can experiment with ways to populate proposed new Message elements without modifying p4c.
 

@@ -80,7 +80,7 @@ static bool check_direct_res_config(
     const pi_direct_res_config_t *direct_res_config) {
   if (!direct_res_config) return true;
   for (size_t i = 0; i < direct_res_config->num_configs; i++) {
-    pi_p4_id_t res_id = direct_res_config->configs[0].res_id;
+    pi_p4_id_t res_id = direct_res_config->configs[i].res_id;
     if (!pi_p4info_table_is_direct_resource_of(p4info, table_id, res_id))
       return false;
   }
@@ -467,8 +467,8 @@ pi_status_t pi_table_idle_timeout_notify(pi_dev_id_t dev_id,
   }
   const cb_data_t *default_cb_data = cb_mgr_get_default(&cb_mgr);
   if (default_cb_data->cb) {
-    ((PIIdleTimeoutCb)(default_cb_data->cb))(dev_id, table_id, match_key,
-                                             entry_handle, cb_data->cookie);
+    PIIdleTimeoutCb cb = (PIIdleTimeoutCb)default_cb_data->cb;
+    cb(dev_id, table_id, match_key, entry_handle, default_cb_data->cookie);
     pthread_mutex_unlock(&cb_mutex);
     return PI_STATUS_SUCCESS;
   }

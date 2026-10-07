@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2017 Barefoot Networks, Inc.
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # P4Runtime
 
 You can find the P4Runtime specification on [p4.org](https://p4.org/specs/).

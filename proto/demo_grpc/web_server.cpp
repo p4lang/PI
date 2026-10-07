@@ -90,8 +90,9 @@ char *generate_page(WebServer *web_server,
   return answerstring;
 }
 
-int send_page(struct MHD_Connection *connection, const char *page) {
-  int ret;
+enum MHD_Result
+send_page(struct MHD_Connection *connection, const char *page) {
+  enum MHD_Result ret;
   struct MHD_Response *response;
   response = MHD_create_response_from_buffer(strlen(page), (void *)page,
                                              MHD_RESPMEM_PERSISTENT);
@@ -101,10 +102,11 @@ int send_page(struct MHD_Connection *connection, const char *page) {
   return ret;
 }
 
-int iterate_post(void *coninfo_cls, enum MHD_ValueKind kind, const char *key,
-                 const char *filename, const char *content_type,
-                 const char *transfer_encoding, const char *data, uint64_t off,
-                 size_t size) {
+enum MHD_Result
+iterate_post(void *coninfo_cls, enum MHD_ValueKind kind, const char *key,
+             const char *filename, const char *content_type,
+             const char *transfer_encoding, const char *data, uint64_t off,
+             size_t size) {
   connection_info_struct *con_info = static_cast<connection_info_struct *>(
       coninfo_cls);
   if (!strncmp(key, "counter_name", sizeof "counter_name")) {
@@ -145,8 +147,9 @@ void request_completed(void *cls, struct MHD_Connection *connection,
   *con_cls = NULL;
 }
 
-int perform_requested_ops_and_respond(struct MHD_Connection *connection,
-                                      connection_info_struct *con_info) {
+enum MHD_Result
+perform_requested_ops_and_respond(struct MHD_Connection *connection,
+                                  connection_info_struct *con_info) {
   WebServer *server = con_info->web_server;
   if (con_info->new_json_name != "") {
     std::string *p4info_buffer_ = nullptr;
@@ -177,10 +180,11 @@ int perform_requested_ops_and_respond(struct MHD_Connection *connection,
   return send_page(connection, generate_page(con_info->web_server, con_info));
 }
 
-int answer_to_connection(void *cls, struct MHD_Connection *connection,
-                         const char *url, const char *method,
-                         const char *version, const char *upload_data,
-                         size_t *upload_data_size, void **con_cls) {
+enum MHD_Result
+answer_to_connection(void *cls, struct MHD_Connection *connection,
+                     const char *url, const char *method,
+                     const char *version, const char *upload_data,
+                     size_t *upload_data_size, void **con_cls) {
   WebServer *server = static_cast<WebServer *>(cls);
   if (!*con_cls) {
     struct connection_info_struct *con_info;
