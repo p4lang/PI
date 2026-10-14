@@ -410,21 +410,24 @@ class P4RuntimeTest(BaseTest):
             mf = mk.add()
             mf.field_id = mf_id
             mf.lpm.prefix_len = self.pLen
-            mf.lpm.value = ''
+            assert isinstance(self.v, bytes)
+            orig_v_list = list(self.v)
+            mod_v_list = []
 
             # P4Runtime now has strict rules regarding ternary matches: in the
             # case of LPM, trailing bits in the value (after prefix) must be set
             # to 0.
-            first_byte_masked = self.pLen / 8
+            first_byte_masked = self.pLen // 8
             for i in range(first_byte_masked):
-                mf.lpm.value += self.v[i]
-            if first_byte_masked == len(self.v):
+                mod_v_list.append(orig_v_list[i])
+            if first_byte_masked == len(orig_v_list):
+                mf.lpm.value = bytes(mod_v_list)
                 return
             r = self.pLen % 8
-            mf.lpm.value += chr(
-                ord(self.v[first_byte_masked]) & (0xff << (8 - r)))
-            for i in range(first_byte_masked + 1, len(self.v)):
-                mf.lpm.value += '\x00'
+            mod_v_list.append(orig_v_list[first_byte_masked] & (0xff << (8 - r)))
+            for i in range(first_byte_masked + 1, len(orig_v_list)):
+                mod_v_list.append(0)
+            mf.lpm.value = bytes(mod_v_list)
 
     class Ternary(MF):
         def __init__(self, name, v, mask):
