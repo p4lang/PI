@@ -1,0 +1,14 @@
+Begin4
+Title:          p4lang-pi
+Version:        0.1.0
+Entered-date:   2021-03-24
+Description:    Protocol Independent API (PI or P4 Runtime) defines a set of
+                APIs that allow interacting with entities defined in a P4
+                program.
+Keywords:       P4, Runtime
+Author:         Antonin Bas <antonin@barefootnetworks.com>
+Primary-site:   https://github.com/p4lang/PI/tags
+Original-site:  https://github.com/p4lang/PI/tags
+Platforms:      Linux
+Copying-policy: Apache
+End
