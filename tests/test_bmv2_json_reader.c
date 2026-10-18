@@ -224,8 +224,60 @@ TEST_GROUP_RUNNER(IdAssignment) {
   RUN_TEST_CASE(IdAssignment, IdCollision);
 }
 
+TEST_GROUP(BadIdAnnotation);
+
+TEST_SETUP(BadIdAnnotation) { pi_init(256, NULL); }
+
+TEST_TEAR_DOWN(BadIdAnnotation) { pi_destroy(); }
+
+TEST(BadIdAnnotation, TooManyIds) {
+  // the reader accepts at most 16 ids per object, this annotation has 17
+  pi_p4info_t *p4info;
+  const char *config =
+      "{\"__meta__\": {\"version\": [2, 0]},"
+      " \"actions\": [{\"name\": \"a\", \"runtime_data\": [],"
+      " \"pragmas\": [\"id 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17\"]}],"
+      " \"headers\": [], \"header_types\": [],"
+      " \"pipelines\": [{\"action_profiles\": [], \"tables\": []}],"
+      " \"counter_arrays\": [], \"meter_arrays\": []}";
+  TEST_ASSERT_EQUAL(PI_STATUS_CONFIG_READER_ERROR,
+                    pi_add_config(config, PI_CONFIG_TYPE_BMV2_JSON, &p4info));
+}
+
+TEST(BadIdAnnotation, MissingName) {
+  pi_p4info_t *p4info;
+  const char *config =
+      "{\"__meta__\": {\"version\": [2, 0]},"
+      " \"actions\": [{\"runtime_data\": [], \"pragmas\": [\"id 5\"]}]}";
+  TEST_ASSERT_EQUAL(PI_STATUS_CONFIG_READER_ERROR,
+                    pi_add_config(config, PI_CONFIG_TYPE_BMV2_JSON, &p4info));
+}
+
+TEST(BadIdAnnotation, IdAlreadyTaken) {
+  // a2 can only get id 5 which a1 has already reserved, so the config must be
+  // rejected instead of silently generating a different id for a2
+  pi_p4info_t *p4info;
+  const char *config =
+      "{\"__meta__\": {\"version\": [2, 0]},"
+      " \"actions\": [{\"name\": \"a1\", \"runtime_data\": [],"
+      " \"pragmas\": [\"id 5\"]},"
+      " {\"name\": \"a2\", \"runtime_data\": [], \"pragmas\": [\"id 5\"]}],"
+      " \"headers\": [], \"header_types\": [],"
+      " \"pipelines\": [{\"action_profiles\": [], \"tables\": []}],"
+      " \"counter_arrays\": [], \"meter_arrays\": []}";
+  TEST_ASSERT_EQUAL(PI_STATUS_CONFIG_READER_ERROR,
+                    pi_add_config(config, PI_CONFIG_TYPE_BMV2_JSON, &p4info));
+}
+
+TEST_GROUP_RUNNER(BadIdAnnotation) {
+  RUN_TEST_CASE(BadIdAnnotation, TooManyIds);
+  RUN_TEST_CASE(BadIdAnnotation, MissingName);
+  RUN_TEST_CASE(BadIdAnnotation, IdAlreadyTaken);
+}
+
 void test_bmv2_json_reader() {
   RUN_TEST_GROUP(SimpleRouter);
   RUN_TEST_GROUP(ReadAndSerialize);
   RUN_TEST_GROUP(IdAssignment);
+  RUN_TEST_GROUP(BadIdAnnotation);
 }
