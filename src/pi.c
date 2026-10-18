@@ -184,6 +184,9 @@ void pi_create_device_config(pi_dev_id_t dev_id) {
 
 pi_status_t pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
                              pi_assign_extra_t *extra) {
+  // targets expect a valid end_of_extras-terminated array
+  pi_assign_extra_t no_extras[1] = {{1, NULL, NULL}};
+  if (!extra) extra = no_extras;
   pi_device_lock();
   if (device_map_exists(&device_map, dev_id)) {
     pi_device_unlock();
