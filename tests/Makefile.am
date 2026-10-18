@@ -24,7 +24,8 @@ test_bmv2_json_reader \
 test_read_file \
 test_getnetv \
 test_p4info \
-test_frontends_generic
+test_frontends_generic \
+test_rpc_server
 
 common_source = main.c utils.c utils.h
 
@@ -42,6 +43,19 @@ test_p4info_CPPFLAGS = $(AM_CPPFLAGS) -DTEST_P4INFO
 
 test_frontends_generic_SOURCES = $(common_source) frontends/generic/test.c
 test_frontends_generic_CPPFLAGS = $(AM_CPPFLAGS) -DTEST_FRONTENDS_GENERIC
+
+test_rpc_server_SOURCES = $(common_source) test_rpc_server.c
+test_rpc_server_CPPFLAGS = $(AM_CPPFLAGS) -DTEST_RPC_SERVER
+# this test starts the RPC server, which needs nanomsg
+test_rpc_server_LDADD = \
+$(top_builddir)/src/libpi.la \
+$(top_builddir)/src/libpifegeneric.la \
+$(top_builddir)/targets/dummy/libpi_dummy.la \
+$(top_builddir)/src/libpip4info.la \
+$(top_builddir)/third_party/unity/libunity.la \
+$(top_builddir)/third_party/cJSON/libpicjson.la \
+$(top_builddir)/lib/libpitoolkit.la \
+-lnanomsg -lpthread
 
 test_all_SOURCES = $(common_source) \
 test_bmv2_json_reader.c \
@@ -72,6 +86,7 @@ test_read_file \
 test_getnetv \
 test_p4info \
 test_frontends_generic \
+test_rpc_server \
 test_all
 
 EXTRA_DIST = \

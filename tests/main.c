@@ -30,6 +30,7 @@ extern void test_read_file();
 extern void test_getnetv();
 extern void test_p4info();
 extern void test_frontends_generic();
+extern void test_rpc_server();
 
 static void run() {
 #ifdef TEST_BMV2_JSON_READER
@@ -46,6 +47,9 @@ static void run() {
 #endif
 #ifdef TEST_FRONTENDS_GENERIC
   test_frontends_generic();
+#endif
+#ifdef TEST_RPC_SERVER
+  test_rpc_server();
 #endif
 }
 
