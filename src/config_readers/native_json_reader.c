@@ -386,41 +386,42 @@ pi_status_t pi_native_json_reader(const char *config, pi_p4info_t *p4info) {
   cJSON *root = cJSON_Parse(config);
   if (!root) return PI_STATUS_CONFIG_READER_ERROR;
 
-  pi_status_t status;
+  pi_status_t status = PI_STATUS_SUCCESS;
 
   if ((status = read_actions(root, p4info)) != PI_STATUS_SUCCESS) {
-    return status;
+    goto cleanup;
   }
 
   if ((status = read_tables(root, p4info)) != PI_STATUS_SUCCESS) {
-    return status;
+    goto cleanup;
   }
 
   if ((status = read_act_profs(root, p4info)) != PI_STATUS_SUCCESS) {
-    return status;
+    goto cleanup;
   }
 
   if ((status = read_counters(root, p4info)) != PI_STATUS_SUCCESS) {
-    return status;
+    goto cleanup;
   }
 
   if ((status = read_direct_counters(root, p4info)) != PI_STATUS_SUCCESS) {
-    return status;
+    goto cleanup;
   }
 
   if ((status = read_meters(root, p4info)) != PI_STATUS_SUCCESS) {
-    return status;
+    goto cleanup;
   }
 
   if ((status = read_direct_meters(root, p4info)) != PI_STATUS_SUCCESS) {
-    return status;
+    goto cleanup;
   }
 
   if ((status = read_digests(root, p4info)) != PI_STATUS_SUCCESS) {
-    return status;
+    goto cleanup;
   }
 
+cleanup:
   cJSON_Delete(root);
 
-  return PI_STATUS_SUCCESS;
+  return status;
 }
