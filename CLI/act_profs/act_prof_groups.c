@@ -86,9 +86,9 @@ pi_cli_status_t do_act_prof_add_member_to_group(char *subcmd) {
   if (act_prof_id == PI_INVALID_ID) return PI_CLI_STATUS_INVALID_TABLE_NAME;
   pi_indirect_handle_t mbr_h, grp_h;
   char *endptr;
-  mbr_h = strtoll(args[1], &endptr, 0);
+  mbr_h = strtoull(args[1], &endptr, 0);
   if (*endptr != '\0') return PI_CLI_STATUS_INVALID_ENTRY_HANDLE;
-  grp_h = strtoll(args[1], &endptr, 0);
+  grp_h = strtoull(args[2], &endptr, 0);
   if (*endptr != '\0') return PI_CLI_STATUS_INVALID_ENTRY_HANDLE;
 
   pi_status_t rc;
