@@ -327,6 +327,7 @@ char *complete_table_and_action(const char *text, int state) {
 pi_cli_status_t get_entry_direct(pi_table_entry_t *t_entry) {
   pi_cli_status_t status = PI_CLI_STATUS_SUCCESS;
   const char *a_name = strtok(NULL, " ");
+  if (!a_name) return PI_CLI_STATUS_INVALID_COMMAND_FORMAT;
 
   pi_p4_id_t a_id = pi_p4info_action_id_from_name(p4info_curr, a_name);
   if (a_id == PI_INVALID_ID) return PI_CLI_STATUS_INVALID_ACTION_NAME;
@@ -347,6 +348,7 @@ pi_cli_status_t get_entry_direct(pi_table_entry_t *t_entry) {
 
 pi_cli_status_t get_entry_indirect(pi_table_entry_t *t_entry) {
   const char *handle_str = strtok(NULL, " ");
+  if (!handle_str) return PI_CLI_STATUS_INVALID_COMMAND_FORMAT;
   char *endptr;
   pi_indirect_handle_t handle = strtoll(handle_str, &endptr, 0);
   if (*endptr != '\0') return PI_CLI_STATUS_INVALID_INDIRECT_HANDLE;
