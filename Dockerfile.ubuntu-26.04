@@ -1,7 +1,7 @@
 # Copyright 2026 The P4 Language Consortium
 # SPDX-License-Identifier: Apache-2.0
 
-FROM p4lang/third-party:latest-ubuntu26
+FROM p4lang/third-party:latest-ubuntu-26.04
 LABEL maintainer="P4 Developers <p4-dev@lists.p4.org>"
 LABEL description="This Docker image includes only the most widely-used PI \
 artifacts: PI core and P4Runtime. It does not include the Thrift-based PI \
@@ -25,8 +25,7 @@ ENV PI_DEPS automake \
             libboost-dev \
             libboost-thread-dev \
             libtool \
-            pkg-config \
-            patch
+            pkg-config
 ENV PI_RUNTIME_DEPS libboost-thread1.90.0 \
                     python3 \
                     python-is-python3
@@ -35,7 +34,6 @@ COPY . /PI/
 WORKDIR /PI/
 RUN apt-get update && \
     apt-get install -y --no-install-recommends $PI_DEPS $PI_RUNTIME_DEPS && \
-    patch -p1 < patches/PI-dont-require-boost-system.patch && \
     ./autogen.sh && \
     # TODO: configure PI using --without-sysrepo for now, as
     # --with-sysrepo fails PI compilation with the newer version of
