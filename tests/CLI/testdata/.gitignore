@@ -4,6 +4,9 @@
 
 *
 !*.in
+!*.in.license
 !*.json
+!*.json.license
 !*.p4
 !*.out
+!*.out.license
