@@ -11,3 +11,21 @@ updates:
       all-actions:
         patterns:
           - "*"
+  - package-ecosystem: "bazel"
+    # MODULE.bazel at the repository root
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    # One PR for all minor and patch updates; majors arrive one per PR
+    groups:
+      bazel-minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    # grpc and protobuf majors ripple through p4runtime and its consumers
+    ignore:
+      - dependency-name: "grpc"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "protobuf"
+        update-types: ["version-update:semver-major"]
