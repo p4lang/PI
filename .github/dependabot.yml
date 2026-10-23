@@ -15,3 +15,25 @@ updates:
       all-actions:
         patterns:
           - "*"
+  - package-ecosystem: "bazel"
+    # MODULE.bazel at the repository root
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      # grpc stays on 1.x and protobuf bumps its major nearly every release,
+      # so neither version number says how risky an update is. They move
+      # together, so they get their own PR.
+      grpc-and-protobuf:
+        patterns:
+          - "grpc"
+          - "protobuf"
+      # One PR for all other minor and patch updates; majors arrive one per PR
+      bazel-minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+        exclude-patterns:
+          - "grpc"
+          - "protobuf"
