@@ -382,10 +382,7 @@ static pi_status_t read_digests(cJSON *root, pi_p4info_t *p4info) {
   return PI_STATUS_SUCCESS;
 }
 
-pi_status_t pi_native_json_reader(const char *config, pi_p4info_t *p4info) {
-  cJSON *root = cJSON_Parse(config);
-  if (!root) return PI_STATUS_CONFIG_READER_ERROR;
-
+static pi_status_t read_config(cJSON *root, pi_p4info_t *p4info) {
   pi_status_t status;
 
   if ((status = read_actions(root, p4info)) != PI_STATUS_SUCCESS) {
@@ -420,7 +417,16 @@ pi_status_t pi_native_json_reader(const char *config, pi_p4info_t *p4info) {
     return status;
   }
 
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_native_json_reader(const char *config, pi_p4info_t *p4info) {
+  cJSON *root = cJSON_Parse(config);
+  if (!root) return PI_STATUS_CONFIG_READER_ERROR;
+
+  pi_status_t status = read_config(root, p4info);
+
   cJSON_Delete(root);
 
-  return PI_STATUS_SUCCESS;
+  return status;
 }

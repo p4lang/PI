@@ -224,8 +224,49 @@ TEST_GROUP_RUNNER(IdAssignment) {
   RUN_TEST_CASE(IdAssignment, IdCollision);
 }
 
+TEST_GROUP(InvalidConfig);
+
+TEST_SETUP(InvalidConfig) { pi_init(256, NULL); }
+
+TEST_TEAR_DOWN(InvalidConfig) { pi_destroy(); }
+
+TEST(InvalidConfig, Bmv2JsonBadVersion) {
+  pi_p4info_t *p4info;
+  const char *config = "{\"__meta__\": {\"version\": [3, 0]}}";
+  TEST_ASSERT_EQUAL(PI_STATUS_CONFIG_READER_ERROR,
+                    pi_add_config(config, PI_CONFIG_TYPE_BMV2_JSON, &p4info));
+}
+
+TEST(InvalidConfig, Bmv2JsonMissingTables) {
+  // parsing stops at the "tables" section, once some ids have already been
+  // reserved by the actions section
+  pi_p4info_t *p4info;
+  const char *config =
+      "{\"__meta__\": {\"version\": [2, 0]},"
+      " \"actions\": [{\"name\": \"a\", \"runtime_data\": []}],"
+      " \"headers\": [], \"header_types\": [],"
+      " \"pipelines\": [{\"action_profiles\": []}]}";
+  TEST_ASSERT_EQUAL(PI_STATUS_CONFIG_READER_ERROR,
+                    pi_add_config(config, PI_CONFIG_TYPE_BMV2_JSON, &p4info));
+}
+
+TEST(InvalidConfig, NativeJsonMissingTables) {
+  pi_p4info_t *p4info;
+  const char *config =
+      "{\"actions\": [{\"name\": \"a\", \"id\": 16777217, \"params\": []}]}";
+  TEST_ASSERT_EQUAL(PI_STATUS_CONFIG_READER_ERROR,
+                    pi_add_config(config, PI_CONFIG_TYPE_NATIVE_JSON, &p4info));
+}
+
+TEST_GROUP_RUNNER(InvalidConfig) {
+  RUN_TEST_CASE(InvalidConfig, Bmv2JsonBadVersion);
+  RUN_TEST_CASE(InvalidConfig, Bmv2JsonMissingTables);
+  RUN_TEST_CASE(InvalidConfig, NativeJsonMissingTables);
+}
+
 void test_bmv2_json_reader() {
   RUN_TEST_GROUP(SimpleRouter);
   RUN_TEST_GROUP(ReadAndSerialize);
   RUN_TEST_GROUP(IdAssignment);
+  RUN_TEST_GROUP(InvalidConfig);
 }

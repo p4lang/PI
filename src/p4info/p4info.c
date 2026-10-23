@@ -69,6 +69,7 @@ pi_status_t pi_add_config(const char *config, pi_config_type_t config_type,
       break;
   }
   if (status != PI_STATUS_SUCCESS) {
+    p4info_struct_destroy(p4info_);
     free(p4info_);
     return status;
   }
