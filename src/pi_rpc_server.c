@@ -188,6 +188,9 @@ static void __pi_init(char *req) {
 
   if (num_devices > 0) {
     assert(p4info_tmp);
+    for (size_t idx = 0; idx < num_devices; idx++) {
+      pi_free_serialized_config(p4info_tmp[idx].json);
+    }
     free(p4info_tmp);
   }
 
