@@ -210,6 +210,9 @@ pi_status_t pi_update_device_start(pi_dev_id_t dev_id,
                                    const pi_p4info_t *p4info,
                                    const char *device_data,
                                    size_t device_data_size) {
+  // an unassigned device has no device info, so this would crash on update
+  if (!pi_is_device_assigned(dev_id)) return PI_STATUS_DEV_NOT_ASSIGNED;
+
   pi_status_t status =
       _pi_update_device_start(dev_id, p4info, device_data, device_data_size);
   if (status == PI_STATUS_SUCCESS) {
