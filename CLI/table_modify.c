@@ -138,7 +138,10 @@ pi_cli_status_t do_table_modify_wkey(char *subcmd) {
   pi_table_entry_t t_entry;
   pi_direct_res_config_t direct_res_config;
   status = get_entry_with_res(t_id, &t_entry, &direct_res_config);
-  if (status != PI_CLI_STATUS_SUCCESS) return status;
+  if (status != PI_CLI_STATUS_SUCCESS) {
+    pi_match_key_destroy(mk);
+    return status;
+  }
 
   pi_status_t rc;
   rc = pi_table_entry_modify_wkey(sess, dev_tgt, t_id, mk, &t_entry);
