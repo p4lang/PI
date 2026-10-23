@@ -24,3 +24,7 @@ jobs:
   publish-release:
     if: ${{ github.repository == 'p4lang/PI' }}
     uses: p4lang/.github/.github/workflows/publish-release.yml@main
+    with:
+      dispatch_package: pi
+    secrets:
+      RELEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
