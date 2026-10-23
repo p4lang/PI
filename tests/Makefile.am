@@ -26,6 +26,7 @@ test_getnetv \
 test_p4info \
 test_frontends_generic \
 test_rpc_server
+test_rpc_target
 
 common_source = main.c utils.c utils.h
 
@@ -55,6 +56,20 @@ $(top_builddir)/src/libpip4info.la \
 $(top_builddir)/third_party/unity/libunity.la \
 $(top_builddir)/third_party/cJSON/libpicjson.la \
 $(top_builddir)/lib/libpitoolkit.la \
+-lnanomsg -lpthread
+test_rpc_target_SOURCES = $(common_source) test_rpc_target.c
+test_rpc_target_CPPFLAGS = $(AM_CPPFLAGS) -DTEST_RPC_TARGET
+# unlike the other tests, this one needs the RPC target instead of the dummy one
+test_rpc_target_LDADD = \
+$(top_builddir)/src/libpi.la \
+$(top_builddir)/src/libpifegeneric.la \
+$(top_builddir)/src/libpip4info.la \
+$(top_builddir)/third_party/unity/libunity.la \
+$(top_builddir)/third_party/cJSON/libpicjson.la \
+$(top_builddir)/lib/libpitoolkit.la \
+$(top_builddir)/targets/rpc/libpi_rpc.la \
+-lnanomsg -lpthread
+$(top_builddir)/targets/rpc/libpi_rpc.la \
 -lnanomsg -lpthread
 
 test_all_SOURCES = $(common_source) \
@@ -87,6 +102,7 @@ test_getnetv \
 test_p4info \
 test_frontends_generic \
 test_rpc_server \
+test_rpc_target \
 test_all
 
 EXTRA_DIST = \

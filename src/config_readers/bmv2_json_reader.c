@@ -492,7 +492,10 @@ static vector_t *extract_from_pipelines(reader_state_t *state, cJSON *root,
   cJSON *pipe;
   cJSON_ArrayForEach(pipe, pipelines) {
     cJSON *entries = cJSON_GetObjectItem(pipe, res_name);
-    if (!entries) return NULL;
+    if (!entries) {
+      vector_destroy(res_vec);
+      return NULL;
+    }
     pre_reserve_ids(state, res_type, entries);
     cJSON_ArrayForEach(entry, entries) {
       vector_push_back(res_vec, (void *)&entry);
@@ -827,10 +830,8 @@ static bool check_json_version(cJSON *root) {
   return true;
 }
 
-pi_status_t pi_bmv2_json_reader(const char *config, pi_p4info_t *p4info) {
-  cJSON *root = cJSON_Parse(config);
-  if (!root) return PI_STATUS_CONFIG_READER_ERROR;
-
+static pi_status_t read_config(cJSON *root, pi_p4info_t *p4info,
+                               reader_state_t *state) {
   pi_status_t status;
 
   if (!check_json_version(root)) {
@@ -838,40 +839,48 @@ pi_status_t pi_bmv2_json_reader(const char *config, pi_p4info_t *p4info) {
     return PI_STATUS_CONFIG_READER_ERROR;
   }
 
+  if ((status = read_actions(state, root, p4info)) != PI_STATUS_SUCCESS) {
+    return status;
+  }
+
+  if ((status = read_fields(state, root)) != PI_STATUS_SUCCESS) {
+    return status;
+  }
+
+  if ((status = read_act_profs(state, root, p4info)) != PI_STATUS_SUCCESS) {
+    return status;
+  }
+
+  if ((status = read_tables(state, root, p4info)) != PI_STATUS_SUCCESS) {
+    return status;
+  }
+
+  if ((status = read_counters(state, root, p4info)) != PI_STATUS_SUCCESS) {
+    return status;
+  }
+
+  if ((status = read_meters(state, root, p4info)) != PI_STATUS_SUCCESS) {
+    return status;
+  }
+
+  if ((status = read_digests(state, root, p4info)) != PI_STATUS_SUCCESS) {
+    return status;
+  }
+
+  return PI_STATUS_SUCCESS;
+}
+
+pi_status_t pi_bmv2_json_reader(const char *config, pi_p4info_t *p4info) {
+  cJSON *root = cJSON_Parse(config);
+  if (!root) return PI_STATUS_CONFIG_READER_ERROR;
+
   reader_state_t state;
   init_reader_state(&state);
 
-  if ((status = read_actions(&state, root, p4info)) != PI_STATUS_SUCCESS) {
-    return status;
-  }
-
-  if ((status = read_fields(&state, root)) != PI_STATUS_SUCCESS) {
-    return status;
-  }
-
-  if ((status = read_act_profs(&state, root, p4info)) != PI_STATUS_SUCCESS) {
-    return status;
-  }
-
-  if ((status = read_tables(&state, root, p4info)) != PI_STATUS_SUCCESS) {
-    return status;
-  }
-
-  if ((status = read_counters(&state, root, p4info)) != PI_STATUS_SUCCESS) {
-    return status;
-  }
-
-  if ((status = read_meters(&state, root, p4info)) != PI_STATUS_SUCCESS) {
-    return status;
-  }
-
-  if ((status = read_digests(&state, root, p4info)) != PI_STATUS_SUCCESS) {
-    return status;
-  }
+  pi_status_t status = read_config(root, p4info, &state);
 
   cJSON_Delete(root);
-
   destroy_reader_state(&state);
 
-  return PI_STATUS_SUCCESS;
+  return status;
 }

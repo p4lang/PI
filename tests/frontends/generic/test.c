@@ -384,6 +384,32 @@ TEST_GROUP_RUNNER(FrontendGeneric_DirectResourceValidation) {
   RUN_TEST_CASE(FrontendGeneric_DirectResourceValidation, Validation);
 }
 
+TEST_GROUP(FrontendGeneric_UpdateDeviceUnassigned);
+
+TEST_SETUP(FrontendGeneric_UpdateDeviceUnassigned) {}
+
+TEST_TEAR_DOWN(FrontendGeneric_UpdateDeviceUnassigned) {}
+
+TEST(FrontendGeneric_UpdateDeviceUnassigned, Start) {
+  // Starting an update for an unassigned device must fail cleanly instead of
+  // corrupting the device info in pi_update_device_config
+  pi_status_t rc = pi_init(256, NULL);
+  TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS, rc);
+
+  pi_p4info_t *p4info;
+  pi_add_config(NULL, PI_CONFIG_TYPE_NONE, &p4info);
+
+  rc = pi_update_device_start(0, p4info, NULL, 0);
+  TEST_ASSERT_EQUAL(PI_STATUS_DEV_NOT_ASSIGNED, rc);
+
+  pi_destroy_config(p4info);
+  pi_destroy();
+}
+
+TEST_GROUP_RUNNER(FrontendGeneric_UpdateDeviceUnassigned) {
+  RUN_TEST_CASE(FrontendGeneric_UpdateDeviceUnassigned, Start);
+}
+
 void test_frontends_generic() {
   RUN_TEST_GROUP(FrontendGeneric_OneExact);
   RUN_TEST_GROUP(FrontendGeneric_OneLPM);
@@ -391,4 +417,5 @@ void test_frontends_generic() {
   RUN_TEST_GROUP(FrontendGeneric_OneOptional);
   RUN_TEST_GROUP(FrontendGeneric_Adata);
   RUN_TEST_GROUP(FrontendGeneric_DirectResourceValidation);
+  RUN_TEST_GROUP(FrontendGeneric_UpdateDeviceUnassigned);
 }

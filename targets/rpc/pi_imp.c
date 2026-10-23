@@ -86,14 +86,21 @@ pi_status_t _pi_init(int *abi_version, void *extra) {
   init_addrs((pi_remote_addr_t *)extra);
   state.s = nn_socket(AF_SP, NN_REQ);
   if (state.s < 0) return PI_STATUS_RPC_CONNECT_ERROR;
-  if (nn_connect(state.s, rpc_addr) < 0) return PI_STATUS_RPC_CONNECT_ERROR;
+  if (nn_connect(state.s, rpc_addr) < 0) {
+    nn_close(state.s);
+    return PI_STATUS_RPC_CONNECT_ERROR;
+  }
   state.init = 1;
 
   pi_status_t status;
 
   if (notifications_addr) {
     status = notifications_start(notifications_addr);
-    if (status != PI_STATUS_SUCCESS) return status;
+    if (status != PI_STATUS_SUCCESS) {
+      nn_close(state.s);
+      state.init = 0;
+      return status;
+    }
   }
 
   req_hdr_t req;
@@ -117,6 +124,8 @@ pi_status_t _pi_init(int *abi_version, void *extra) {
 
   process_state_sync(rep_);
 
+  nn_freemsg(rep);
+
   *abi_version = PI_ABI_VERSION;
 
   return PI_STATUS_SUCCESS;
@@ -129,18 +138,27 @@ pi_status_t _pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
     req_hdr_t hdr;
     s_pi_dev_id_t dev_id;
   } hdr_t;
-  char *p4info_json = strdup("\0");
-  if (p4info) p4info_json = pi_serialize_config(p4info, 0);
+  char *p4info_json;
+  if (p4info)
+    p4info_json = pi_serialize_config(p4info, 0);
+  else
+    p4info_json = strdup("");
   size_t p4info_size = strlen(p4info_json) + 1;
   size_t num_extras = 0;
   size_t extra_size = sizeof(uint32_t);  // for num extras
-  pi_assign_extra_t *extra_ = extra;
-  for (; !extra_->end_of_extras; extra_++) {
-    num_extras++;
-    extra_size += strlen(extra_->key) + 1 + strlen(extra_->v) + 1;
+  if (extra) {
+    for (pi_assign_extra_t *extra_ = extra; !extra_->end_of_extras; extra_++) {
+      num_extras++;
+      extra_size += strlen(extra_->key) + 1 + strlen(extra_->v) + 1;
+    }
   }
   size_t s = sizeof(hdr_t) + p4info_size + extra_size;
   char *req = nn_allocmsg(s, 0);
+  if (!req) {
+    if (p4info) pi_free_serialized_config(p4info_json);
+    else free(p4info_json);
+    return PI_STATUS_ALLOC_ERROR;
+  }
   char *req_ = req;
 
   pi_rpc_id_t req_id = state.req_id++;
@@ -154,8 +172,8 @@ pi_status_t _pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
     free(p4info_json);
   }
   req_ += emit_uint32(req_, num_extras);
-  extra_ = extra;
-  for (; !extra_->end_of_extras; extra_++) {
+  for (pi_assign_extra_t *extra_ = extra;
+       extra_ && !extra_->end_of_extras; extra_++) {
     strcpy(req_, extra_->key);
     req_ = strchr(req_, '\0') + 1;
     strcpy(req_, extra_->v);
@@ -163,7 +181,10 @@ pi_status_t _pi_assign_device(pi_dev_id_t dev_id, const pi_p4info_t *p4info,
   }
 
   int rc = nn_send(state.s, &req, NN_MSG, 0);
-  if ((size_t)rc != s) return PI_STATUS_RPC_TRANSPORT_ERROR;
+  if ((size_t)rc != s) {
+    nn_freemsg(req);
+    return PI_STATUS_RPC_TRANSPORT_ERROR;
+  }
 
   return wait_for_status(req_id);
 }
@@ -181,6 +202,10 @@ pi_status_t _pi_update_device_start(pi_dev_id_t dev_id,
   size_t p4info_size = strlen(p4info_json) + 1;
   size_t s = sizeof(hdr_t) + p4info_size + sizeof(uint32_t) + device_data_size;
   char *req = nn_allocmsg(s, 0);
+  if (!req) {
+    free(p4info_json);
+    return PI_STATUS_ALLOC_ERROR;
+  }
   char *req_ = req;
 
   pi_rpc_id_t req_id = state.req_id++;
@@ -193,7 +218,10 @@ pi_status_t _pi_update_device_start(pi_dev_id_t dev_id,
   memcpy(req_, device_data, device_data_size);
 
   int rc = nn_send(state.s, &req, NN_MSG, 0);
-  if ((size_t)rc != s) return PI_STATUS_RPC_TRANSPORT_ERROR;
+  if ((size_t)rc != s) {
+    nn_freemsg(req);
+    return PI_STATUS_RPC_TRANSPORT_ERROR;
+  }
 
   return wait_for_status(req_id);
 }
@@ -243,9 +271,13 @@ pi_status_t _pi_destroy() {
   int rc = nn_send(state.s, (char *)&req, sizeof(req), 0);
   if (rc != sizeof(req)) return PI_STATUS_RPC_TRANSPORT_ERROR;
 
-  free_addrs();
+  pi_status_t status = wait_for_status(req_id);
 
-  return wait_for_status(req_id);
+  free_addrs();
+  nn_close(state.s);
+  state.init = 0;
+
+  return status;
 }
 
 pi_status_t _pi_session_init(pi_session_handle_t *session_handle) {
@@ -341,6 +373,7 @@ pi_status_t _pi_packetout_send(pi_dev_id_t dev_id, const char *pkt,
   s += size;
 
   char *req = nn_allocmsg(s, 0);
+  if (!req) return PI_STATUS_ALLOC_ERROR;
   char *req_ = req;
   pi_rpc_id_t req_id = state.req_id++;
   req_ += emit_req_hdr(req_, req_id, PI_RPC_PACKETOUT_SEND);
@@ -349,7 +382,10 @@ pi_status_t _pi_packetout_send(pi_dev_id_t dev_id, const char *pkt,
   memcpy(req_, pkt, size);
 
   int rc = nn_send(state.s, &req, NN_MSG, 0);
-  if ((size_t)rc != s) return PI_STATUS_RPC_TRANSPORT_ERROR;
+  if ((size_t)rc != s) {
+    nn_freemsg(req);
+    return PI_STATUS_RPC_TRANSPORT_ERROR;
+  }
 
   return wait_for_status(req_id);
 }
