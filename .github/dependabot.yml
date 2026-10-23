@@ -17,15 +17,19 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
-    # One PR for all minor and patch updates; majors arrive one per PR
     groups:
+      # grpc stays on 1.x and protobuf bumps its major nearly every release,
+      # so neither version number says how risky an update is. They move
+      # together, so they get their own PR.
+      grpc-and-protobuf:
+        patterns:
+          - "grpc"
+          - "protobuf"
+      # One PR for all other minor and patch updates; majors arrive one per PR
       bazel-minor-and-patch:
         update-types:
           - "minor"
           - "patch"
-    # grpc and protobuf majors ripple through p4runtime and its consumers
-    ignore:
-      - dependency-name: "grpc"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "protobuf"
-        update-types: ["version-update:semver-major"]
+        exclude-patterns:
+          - "grpc"
+          - "protobuf"
