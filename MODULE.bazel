@@ -22,4 +22,4 @@ bazel_dep(name = "rules_cc", version = "0.2.17")
 # ```
 # bazel run -- @buildifier_prebuilt//:buildifier -lint=fix -r $(bazel info workspace)
 # ```
-bazel_dep(name = "buildifier_prebuilt", version = "8.5.1.2", dev_dependency = True)
+bazel_dep(name = "buildifier_prebuilt", version = "10.1.0", dev_dependency = True)
