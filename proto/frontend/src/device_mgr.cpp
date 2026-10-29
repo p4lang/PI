@@ -624,10 +624,12 @@ class DeviceMgrImp {
       p4v1::WriteRequest write_request;
       for (auto &entity : *forwarding_state.mutable_entities()) {
         auto *update = write_request.add_updates();
-        // counter and meter cells always exist, so they can only be modified
+        // counter, meter and register cells always exist, so they can only be
+        // modified
         switch (entity.entity_case()) {
           case p4v1::Entity::kCounterEntry:
           case p4v1::Entity::kMeterEntry:
+          case p4v1::Entity::kRegisterEntry:
             update->set_type(p4v1::Update::MODIFY);
             break;
           default:
@@ -3387,7 +3389,26 @@ class DeviceMgrImp {
       auto *entity = request.add_entities();
       entity->mutable_counter_entry();
     }
-    return read_(request, response);
+    RETURN_IF_ERROR(read_(request, response));
+    // Registers are read one at a time, so that registers which cannot be
+    // read are skipped: those whose type is not supported, and those of
+    // targets which do not support registers (UNIMPLEMENTED). Their state
+    // cannot be preserved, but this used to be the case for all registers.
+    for (auto r_id = pi_p4info_register_begin(p4info.get());
+         r_id != pi_p4info_register_end(p4info.get());
+         r_id = pi_p4info_register_next(p4info.get(), r_id)) {
+      if (register_types.count(r_id) == 0) continue;
+      p4v1::ReadRequest register_request;
+      register_request.set_device_id(device_id);
+      register_request.add_entities()->mutable_register_entry()
+          ->set_register_id(r_id);
+      p4v1::ReadResponse register_response;
+      auto status = read_(register_request, &register_response);
+      if (status.code() == Code::UNIMPLEMENTED) continue;
+      RETURN_IF_ERROR(status);
+      response->MergeFrom(register_response);
+    }
+    RETURN_OK_STATUS();
   }
 
   device_id_t device_id;
