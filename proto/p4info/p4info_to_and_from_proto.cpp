@@ -21,8 +21,10 @@
 
 #include <PI/p4info.h>
 
+#include <cstdint>
 #include <exception>
 #include <iostream>
+#include <limits>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -257,49 +259,186 @@ size_t checked_bitwidth(int32_t bitwidth) {
   return static_cast<size_t>(bitwidth);
 }
 
-// Returns the bitwidth of the cells of a register, as stored by the target, or
-// 0 if the type of the cells cannot be represented in p4info: such registers
-// are still imported, so that the P4Info is accepted, but they cannot be read
-// or written. The cells of a register of type bit<W>, int<W> or of a
-// serializable enum with underlying type bit<W> have W bits. p4c represents
-// enums without an underlying type as bit<32>, so we use 32 bits for them.
-size_t register_bitwidth(const p4configv1::P4DataTypeSpec &type_spec,
-                         const p4configv1::P4TypeInfo &type_info,
-                         bool resolve_new_type = true) {
+// P4 types cannot be recursive, but the P4Info could be invalid. The number of
+// types visited is also bounded, as types can be reused many times (e.g. a
+// struct with 2 members of a struct with 2 members of...).
+constexpr int kMaxRegisterTypeDepth = 32;
+constexpr size_t kMaxRegisterTypeNodes = 1 << 16;
+// The bitwidth of a bit<W> type is an int32 in P4Info.
+constexpr uint64_t kMaxRegisterBitwidth = std::numeric_limits<int32_t>::max();
+// The index of enum and error members, and the dynamic bitwidth of varbits.
+constexpr uint64_t kRegisterIndexBitwidth = 32;
+
+// Adds n to *bitwidth, both of which are at most 2^62; returns false if the
+// result is too large.
+bool add_register_bitwidth(uint64_t n, uint64_t *bitwidth) {
+  *bitwidth += n;
+  return *bitwidth <= kMaxRegisterBitwidth;
+}
+
+bool register_header_bitwidth(const std::string &name,
+                              const p4configv1::P4TypeInfo &type_info,
+                              uint64_t *bitwidth) {
+  auto it = type_info.headers().find(name);
+  if (it == type_info.headers().end()) return false;
+  *bitwidth = 1;  // validity bit
+  for (const auto &member : it->second.members()) {
+    const auto &bitstring = member.type_spec();
+    uint64_t field_bitwidth;
+    if (bitstring.has_bit())
+      field_bitwidth = checked_bitwidth(bitstring.bit().bitwidth());
+    else if (bitstring.has_int_())
+      field_bitwidth = checked_bitwidth(bitstring.int_().bitwidth());
+    else  // P4Header cannot represent the dynamic bitwidth of a varbit field
+      return false;
+    if (!add_register_bitwidth(field_bitwidth, bitwidth)) return false;
+  }
+  return true;
+}
+
+bool register_header_union_bitwidth(const std::string &name,
+                                    const p4configv1::P4TypeInfo &type_info,
+                                    uint64_t *bitwidth) {
+  auto it = type_info.header_unions().find(name);
+  if (it == type_info.header_unions().end()) return false;
+  *bitwidth = 0;
+  for (const auto &member : it->second.members()) {
+    uint64_t header_bitwidth;
+    if (!register_header_bitwidth(member.header().name(), type_info,
+                                  &header_bitwidth) ||
+        !add_register_bitwidth(header_bitwidth, bitwidth)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool register_stack_bitwidth(uint64_t element_bitwidth, int32_t size,
+                             uint64_t *bitwidth) {
+  if (size < 0) throw read_proto_exception("Negative size for header stack");
+  *bitwidth = 0;
+  return add_register_bitwidth(element_bitwidth * static_cast<uint64_t>(size),
+                               bitwidth);
+}
+
+// Sets *bitwidth to the number of bits of a value of the given type in a
+// register cell, laid out as described in pi_register.h, or returns false if
+// the type cannot be represented, e.g. because of a @p4runtime_translation
+// annotation, or because a type is missing from type_info.
+bool register_cell_bitwidth(const p4configv1::P4DataTypeSpec &type_spec,
+                            const p4configv1::P4TypeInfo &type_info,
+                            int depth, size_t *nodes, uint64_t *bitwidth) {
+  if (depth > kMaxRegisterTypeDepth || ++*nodes > kMaxRegisterTypeNodes)
+    return false;
+  *bitwidth = 0;
   switch (type_spec.type_spec_case()) {
     case p4configv1::P4DataTypeSpec::kBitstring: {
       const auto &bitstring = type_spec.bitstring();
-      if (bitstring.has_bit())
-        return checked_bitwidth(bitstring.bit().bitwidth());
-      if (bitstring.has_int_())
-        return checked_bitwidth(bitstring.int_().bitwidth());
-      return 0;  // varbit
+      if (bitstring.has_bit()) {
+        *bitwidth = checked_bitwidth(bitstring.bit().bitwidth());
+      } else if (bitstring.has_int_()) {
+        *bitwidth = checked_bitwidth(bitstring.int_().bitwidth());
+      } else if (bitstring.has_varbit()) {
+        *bitwidth = kRegisterIndexBitwidth;
+        return add_register_bitwidth(
+            checked_bitwidth(bitstring.varbit().max_bitwidth()), bitwidth);
+      } else {
+        return false;
+      }
+      return true;
     }
+    case p4configv1::P4DataTypeSpec::kBool:
+      *bitwidth = 1;
+      return true;
+    case p4configv1::P4DataTypeSpec::kTuple:
+      for (const auto &member : type_spec.tuple().members()) {
+        uint64_t member_bitwidth;
+        if (!register_cell_bitwidth(member, type_info, depth + 1, nodes,
+                                    &member_bitwidth) ||
+            !add_register_bitwidth(member_bitwidth, bitwidth)) {
+          return false;
+        }
+      }
+      return true;
+    case p4configv1::P4DataTypeSpec::kStruct: {
+      auto it = type_info.structs().find(type_spec.struct_().name());
+      if (it == type_info.structs().end()) return false;
+      for (const auto &member : it->second.members()) {
+        uint64_t member_bitwidth;
+        if (!register_cell_bitwidth(member.type_spec(), type_info, depth + 1,
+                                    nodes, &member_bitwidth) ||
+            !add_register_bitwidth(member_bitwidth, bitwidth)) {
+          return false;
+        }
+      }
+      return true;
+    }
+    case p4configv1::P4DataTypeSpec::kHeader:
+      return register_header_bitwidth(type_spec.header().name(), type_info,
+                                      bitwidth);
+    case p4configv1::P4DataTypeSpec::kHeaderUnion:
+      return register_header_union_bitwidth(type_spec.header_union().name(),
+                                            type_info, bitwidth);
+    case p4configv1::P4DataTypeSpec::kHeaderStack: {
+      const auto &stack = type_spec.header_stack();
+      uint64_t header_bitwidth;
+      return register_header_bitwidth(stack.header().name(), type_info,
+                                      &header_bitwidth) &&
+          register_stack_bitwidth(header_bitwidth, stack.size(), bitwidth);
+    }
+    case p4configv1::P4DataTypeSpec::kHeaderUnionStack: {
+      const auto &stack = type_spec.header_union_stack();
+      uint64_t header_union_bitwidth;
+      return register_header_union_bitwidth(stack.header_union().name(),
+                                            type_info,
+                                            &header_union_bitwidth) &&
+          register_stack_bitwidth(header_union_bitwidth, stack.size(),
+                                  bitwidth);
+    }
+    case p4configv1::P4DataTypeSpec::kEnum: {
+      auto it = type_info.enums().find(type_spec.enum_().name());
+      if (it == type_info.enums().end() || it->second.members().empty())
+        return false;
+      *bitwidth = kRegisterIndexBitwidth;
+      return true;
+    }
+    case p4configv1::P4DataTypeSpec::kError:
+      if (type_info.error().members().empty()) return false;
+      *bitwidth = kRegisterIndexBitwidth;
+      return true;
     case p4configv1::P4DataTypeSpec::kSerializableEnum: {
       const auto &enums = type_info.serializable_enums();
       auto it = enums.find(type_spec.serializable_enum().name());
-      if (it == enums.end()) return 0;
-      return checked_bitwidth(it->second.underlying_type().bitwidth());
-    }
-    case p4configv1::P4DataTypeSpec::kEnum: {
-      const auto &enums = type_info.enums();
-      auto it = enums.find(type_spec.enum_().name());
-      if (it == enums.end() || it->second.members().empty()) return 0;
-      return 32;
+      if (it == enums.end()) return false;
+      *bitwidth = checked_bitwidth(it->second.underlying_type().bitwidth());
+      return true;
     }
     case p4configv1::P4DataTypeSpec::kNewType: {
-      // original_type is always a built-in type, as p4c follows the chain of
-      // type declarations; values of types with a @p4runtime_translation
-      // annotation (translated_type) would need to be translated by PI
-      if (!resolve_new_type) return 0;
+      // values of types with a @p4runtime_translation annotation
+      // (translated_type) would need to be translated by PI
       const auto &new_types = type_info.new_types();
       auto it = new_types.find(type_spec.new_type().name());
-      if (it == new_types.end() || !it->second.has_original_type()) return 0;
-      return register_bitwidth(it->second.original_type(), type_info, false);
+      if (it == new_types.end() || !it->second.has_original_type())
+        return false;
+      return register_cell_bitwidth(it->second.original_type(), type_info,
+                                    depth + 1, nodes, bitwidth);
     }
     default:
-      return 0;
+      return false;
   }
+}
+
+// Returns the bitwidth of the cells of a register, as stored by the target, or
+// 0 if the type of the cells cannot be represented in p4info: such registers
+// are still imported, so that the P4Info is accepted, but they cannot be read
+// or written.
+size_t register_bitwidth(const p4configv1::P4DataTypeSpec &type_spec,
+                         const p4configv1::P4TypeInfo &type_info) {
+  uint64_t bitwidth;
+  size_t nodes = 0;
+  if (!register_cell_bitwidth(type_spec, type_info, 0, &nodes, &bitwidth))
+    return 0;
+  return static_cast<size_t>(bitwidth);
 }
 
 void read_registers(const p4configv1::P4Info &p4info_proto,

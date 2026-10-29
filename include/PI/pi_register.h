@@ -29,6 +29,30 @@ extern "C" {
 // (bitwidth + 7) / 8, where bitwidth is given by
 // pi_p4info_register_get_bitwidth. This is the same format as the one used for
 // match keys and action data.
+//
+// When the P4Info comes from P4Runtime, the cells of a register can have any
+// P4 type, and the value is laid out in the bitwidth bits of the cell as
+// follows, starting from the most significant bit:
+//  - bit<W>: W bits.
+//  - int<W>: W bits, in 2's complement.
+//  - bool: 1 bit, set for true.
+//  - serializable enum: the value of the underlying type bit<W>.
+//  - enum without an underlying type, error: the index of the member in the
+//    P4Info, as a bit<32>. This is how p4c represents enums, numbering the
+//    members in declaration order.
+//  - varbit<M>: the dynamic bitwidth as a bit<32>, followed by the value on M
+//    bits.
+//  - struct, tuple: the members, in order.
+//  - header: the validity bit (set if the header is valid), followed by the
+//    fields, in order. The fields of an invalid header are written as 0.
+//  - header union: the headers, in order.
+//  - header stack, header union stack: the elements, starting from index 0.
+//  - type declaration (new type): the original type.
+// For example, the cells of a register<h_t>, with
+//   header h_t { bit<8> a; int<4> b; }
+// have 13 bits: the validity bit, followed by a and then by b. Types with a
+// @p4runtime_translation annotation, headers with a varbit field and types
+// whose values have 0 bits are not supported (bitwidth is 0).
 
 //! Reads the cell at the given \p index of a register array. \p value must
 //! point to a buffer large enough to hold one cell.
