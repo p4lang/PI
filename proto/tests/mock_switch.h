@@ -196,6 +196,13 @@ class DummySwitchMock {
                pi_status_t(pi_p4_id_t, pi_entry_handle_t,
                            const pi_counter_data_t *));
 
+  // register cells are exchanged as strings in PI format (one byte array of
+  // size (bitwidth + 7) / 8) to make it easy to write expectations
+  MOCK_METHOD3(register_read,
+               pi_status_t(pi_p4_id_t, size_t, std::string *));
+  MOCK_METHOD3(register_write,
+               pi_status_t(pi_p4_id_t, size_t, const std::string &));
+
   MOCK_METHOD2(packetout_send, pi_status_t(const char *, size_t));
 
   MOCK_METHOD2(mc_grp_create,

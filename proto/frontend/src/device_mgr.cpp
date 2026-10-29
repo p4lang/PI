@@ -1881,6 +1881,103 @@ class DeviceMgrImp {
     return direct_counter_read_one(table_entry, session, response);
   }
 
+  Status register_write(p4v1::Update::Type update,
+                        const p4v1::RegisterEntry &register_entry,
+                        const SessionTemp &session) {
+    auto register_id = register_entry.register_id();
+    if (!check_p4_id(register_id, P4Ids::REGISTER))
+      return make_invalid_p4_id_status();
+    // as for CounterEntry and MeterEntry, only MODIFY is allowed
+    switch (update) {
+      case p4v1::Update::UNSPECIFIED:
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Update type is not set");
+      case p4v1::Update::INSERT:
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                            "INSERT update type not supported for registers");
+      case p4v1::Update::MODIFY:
+        break;
+      case p4v1::Update::DELETE:
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                            "DELETE update type not supported for registers");
+      default:
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid update type");
+    }
+    auto bitwidth = pi_p4info_register_get_bitwidth(p4info.get(), register_id);
+    if (bitwidth == 0) {
+      RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
+                          "Only registers with a bitstring type are supported");
+    }
+    // The target API writes one cell at a time, so a wildcard write would not
+    // be atomic with respect to the data plane, as required by the spec.
+    if (!register_entry.has_index()) {
+      RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
+                          "Wildcard write is not supported for registers yet");
+    }
+    auto size = pi_p4info_register_get_size(p4info.get(), register_id);
+    RETURN_IF_ERROR(validate_register_index(register_entry.index(), size));
+    if (register_entry.data().data_case() != p4v1::P4Data::kBitstring) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "Register data must be a bitstring");
+    }
+    ASSIGN_OR_RETURN(auto value, bytestring_p4rt_to_pi(
+        register_entry.data().bitstring(), bitwidth));
+    auto index = static_cast<size_t>(register_entry.index().index());
+    return register_write_one_index(session, register_id, index, value);
+  }
+
+  Status register_read_one(p4_id_t register_id,
+                           const p4v1::RegisterEntry &register_entry,
+                           const SessionTemp &session,
+                           p4v1::ReadResponse *response) const {
+    auto bitwidth = pi_p4info_register_get_bitwidth(p4info.get(), register_id);
+    if (bitwidth == 0) {
+      RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
+                          "Only registers with a bitstring type are supported");
+    }
+    auto size = pi_p4info_register_get_size(p4info.get(), register_id);
+    if (register_entry.has_index()) {
+      RETURN_IF_ERROR(validate_register_index(register_entry.index(), size));
+      auto entry = response->add_entities()->mutable_register_entry();
+      entry->set_register_id(register_id);
+      entry->mutable_index()->set_index(register_entry.index().index());
+      return register_read_one_index(session, bitwidth, entry);
+    }
+    // default index, read all
+    for (size_t index = 0; index < size; index++) {
+      auto entry = response->add_entities()->mutable_register_entry();
+      entry->set_register_id(register_id);
+      entry->mutable_index()->set_index(index);
+      RETURN_IF_ERROR(register_read_one_index(session, bitwidth, entry));
+    }
+    RETURN_OK_STATUS();
+  }
+
+  Status register_read(const p4v1::RegisterEntry &register_entry,
+                       const SessionTemp &session,
+                       p4v1::ReadResponse *response) const {
+    auto register_id = register_entry.register_id();
+    if (register_id == 0) {  // read all registers
+      // as for CounterEntry, the index (if set) selects the same cell in each
+      // register; registers whose type cannot be represented are skipped, so
+      // that a wildcard read of the whole forwarding state does not fail
+      // because of them
+      for (auto r_id = pi_p4info_register_begin(p4info.get());
+           r_id != pi_p4info_register_end(p4info.get());
+           r_id = pi_p4info_register_next(p4info.get(), r_id)) {
+        if (pi_p4info_register_get_bitwidth(p4info.get(), r_id) == 0)
+          continue;
+        RETURN_IF_ERROR(register_read_one(
+            r_id, register_entry, session, response));
+      }
+    } else {  // read for a single register
+      if (!check_p4_id(register_id, P4Ids::REGISTER))
+        return make_invalid_p4_id_status();
+      RETURN_IF_ERROR(register_read_one(
+          register_id, register_entry, session, response));
+    }
+    RETURN_OK_STATUS();
+  }
+
   Status pre_mc_write(p4v1::Update::Type update,
                       const p4v1::MulticastGroupEntry &mc_group_entry) {
     if (mc_group_entry.multicast_group_id() == 0) {
@@ -2072,8 +2169,7 @@ class DeviceMgrImp {
         RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
                             "ValueSet reads are not supported yet");
       case p4v1::Entity::kRegisterEntry:
-        RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
-                            "Register reads are not supported yet");
+        return register_read(entity.register_entry(), session, response);
       case p4v1::Entity::kDigestEntry:
         return digest_mgr.config_read(entity.digest_entry(), response);
       default:
@@ -2137,8 +2233,8 @@ class DeviceMgrImp {
                                 "ValueSet writes are not supported yet");
           break;
         case p4v1::Entity::kRegisterEntry:
-          status = ERROR_STATUS(Code::UNIMPLEMENTED,
-                                "Register writes are not supported yet");
+          status = register_write(
+              update.type(), entity.register_entry(), session);
           break;
         case p4v1::Entity::kDigestEntry:
           status = digest_mgr.config_write(
@@ -3001,6 +3097,54 @@ class DeviceMgrImp {
     if (!meter_spec_is_default(meter_spec)) {
       meter_spec_pi_to_proto(meter_spec, entry->mutable_config());
     }
+    RETURN_OK_STATUS();
+  }
+
+  static Status validate_register_index(const p4v1::Index &index,
+                                        size_t register_size) {
+    if (index.index() < 0) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "A negative number is not a valid index value");
+    }
+    if (static_cast<uint64_t>(index.index()) >= register_size) {
+      RETURN_ERROR_STATUS(Code::OUT_OF_RANGE,
+                          "Index exceeds the size of the register array");
+    }
+    RETURN_OK_STATUS();
+  }
+
+  static Status register_status_pi_to_proto(pi_status_t pi_status,
+                                            const char *error_msg) {
+    switch (pi_status) {
+      case PI_STATUS_SUCCESS:
+        RETURN_OK_STATUS();
+      case PI_STATUS_NOT_IMPLEMENTED_BY_TARGET:
+        RETURN_ERROR_STATUS(Code::UNIMPLEMENTED, error_msg);
+      default:
+        RETURN_ERROR_STATUS(Code::UNKNOWN, error_msg);
+    }
+  }
+
+  Status register_write_one_index(const SessionTemp &session,
+                                  uint32_t register_id, size_t index,
+                                  const std::string &value) {
+    auto pi_status = pi_register_write(session.get(), device_tgt, register_id,
+                                       index, value.data());
+    return register_status_pi_to_proto(
+        pi_status, "Error when writing register to target");
+  }
+
+  Status register_read_one_index(const SessionTemp &session, size_t bitwidth,
+                                 p4v1::RegisterEntry *entry) const {
+    // checked by caller
+    assert(entry->has_index() && entry->index().index() >= 0);
+    auto index = static_cast<size_t>(entry->index().index());
+    std::string value((bitwidth + 7) / 8, '\0');
+    auto pi_status = pi_register_read(session.get(), device_tgt,
+                                      entry->register_id(), index, &value[0]);
+    RETURN_IF_ERROR(register_status_pi_to_proto(
+        pi_status, "Error when reading register from target"));
+    entry->mutable_data()->set_bitstring(bytestring_pi_to_p4rt(value));
     RETURN_OK_STATUS();
   }
 

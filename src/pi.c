@@ -351,6 +351,10 @@ bool pi_is_direct_meter_id(pi_p4_id_t id) {
   return PI_GET_TYPE_ID(id) == PI_DIRECT_METER_ID;
 }
 
+bool pi_is_register_id(pi_p4_id_t id) {
+  return PI_GET_TYPE_ID(id) == PI_REGISTER_ID;
+}
+
 pi_status_t pi_direct_res_register(pi_res_type_id_t res_type,
                                    PIDirectResMsgSizeFn msg_size_fn,
                                    PIDirectResEmitFn emit_fn, size_t size_of,

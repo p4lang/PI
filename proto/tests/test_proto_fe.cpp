@@ -4018,28 +4018,258 @@ TEST_F(PVSTest, Read) {
   EXPECT_EQ(status.code(), Code::UNIMPLEMENTED);
 }
 
-// Placeholder for Register tests: for now there is no support in DeviceMgr
-class RegisterTest : public DeviceMgrTest { };
+class RegisterTest : public DeviceMgrTest {
+ protected:
+  RegisterTest() {
+    r_id = pi_p4info_register_id_from_name(p4info, "RegisterA");
+    r_size = pi_p4info_register_get_size(p4info, r_id);
+    r_wide_id = pi_p4info_register_id_from_name(p4info, "RegisterWide");
+    r_wide_size = pi_p4info_register_get_size(p4info, r_wide_id);
+  }
 
-TEST_F(RegisterTest, Write) {
-  p4v1::WriteRequest request;
-  auto *update = request.add_updates();
-  update->set_type(p4v1::Update::MODIFY);
-  auto *entity = update->mutable_entity();
-  auto *register_entry = entity->mutable_register_entry();
-  (void) register_entry;
-  auto status = mgr.write(request);
-  EXPECT_EQ(status, OneExpectedError(Code::UNIMPLEMENTED));
+  // sends a read request for a RegisterEntry; returns the RPC status
+  DeviceMgr::Status read_register(p4v1::RegisterEntry *register_entry,
+                                  p4v1::ReadResponse *response) {
+    p4v1::ReadRequest request;
+    auto entity = request.add_entities();
+    entity->unsafe_arena_set_allocated_register_entry(register_entry);
+    auto status = mgr.read(request, response);
+    entity->unsafe_arena_release_register_entry();
+    return status;
+  }
+
+  DeviceMgr::Status write_register(
+      p4v1::RegisterEntry *register_entry,
+      p4v1::Update::Type type = p4v1::Update::MODIFY) {
+    p4v1::WriteRequest request;
+    auto update = request.add_updates();
+    update->set_type(type);
+    auto entity = update->mutable_entity();
+    entity->unsafe_arena_set_allocated_register_entry(register_entry);
+    auto status = mgr.write(request);
+    entity->unsafe_arena_release_register_entry();
+    return status;
+  }
+
+  static p4v1::RegisterEntry make_entry(pi_p4_id_t id, int64_t index,
+                                        const std::string &value) {
+    p4v1::RegisterEntry register_entry;
+    register_entry.set_register_id(id);
+    register_entry.mutable_index()->set_index(index);
+    register_entry.mutable_data()->set_bitstring(value);
+    return register_entry;
+  }
+
+  pi_p4_id_t r_id{0};  // bit<12>
+  size_t r_size{0};
+  pi_p4_id_t r_wide_id{0};  // bit<160>
+  size_t r_wide_size{0};
+};
+
+TEST_F(RegisterTest, WriteAndRead) {
+  int index = 66;
+  const std::string value("\x0a\xbc", 2);
+  auto register_entry = make_entry(r_id, index, value);
+  EXPECT_CALL(*mock, register_write(r_id, index, value));
+  EXPECT_OK(write_register(&register_entry));
+
+  p4v1::ReadResponse response;
+  register_entry.clear_data();
+  EXPECT_CALL(*mock, register_read(r_id, index, _));
+  EXPECT_OK(read_register(&register_entry, &response));
+  const auto &entities = response.entities();
+  ASSERT_EQ(1, entities.size());
+  EXPECT_PROTO_EQ(entities.Get(0).register_entry(),
+                  make_entry(r_id, index, value));
 }
 
-TEST_F(RegisterTest, Read) {
-  p4v1::ReadRequest request;
+TEST_F(RegisterTest, WideRegister) {
+  int index = 3;
+  std::string value(20, '\xab');  // bit<160>
+  auto register_entry = make_entry(r_wide_id, index, value);
+  EXPECT_CALL(*mock, register_write(r_wide_id, index, value));
+  EXPECT_OK(write_register(&register_entry));
+
   p4v1::ReadResponse response;
-  auto *entity = request.add_entities();
-  auto *register_entry = entity->mutable_register_entry();
-  (void) register_entry;
-  auto status = mgr.read(request, &response);
-  EXPECT_EQ(status.code(), Code::UNIMPLEMENTED);
+  register_entry.clear_data();
+  EXPECT_CALL(*mock, register_read(r_wide_id, index, _));
+  EXPECT_OK(read_register(&register_entry, &response));
+  const auto &entities = response.entities();
+  ASSERT_EQ(1, entities.size());
+  EXPECT_PROTO_EQ(entities.Get(0).register_entry(),
+                  make_entry(r_wide_id, index, value));
+}
+
+TEST_F(RegisterTest, Bytestrings) {
+  int index = 1;
+  // bytestrings which are shorter or longer than the type are accepted as
+  // long as the value fits, and reads always return the canonical
+  // representation
+  {
+    auto register_entry = make_entry(
+        r_id, index, std::string("\x00\x00\x01", 3));
+    EXPECT_CALL(*mock,
+                register_write(r_id, index, std::string("\x00\x01", 2)));
+    EXPECT_OK(write_register(&register_entry));
+    p4v1::ReadResponse response;
+    EXPECT_OK(read_register(&register_entry, &response));
+    ASSERT_EQ(1, response.entities().size());
+    EXPECT_EQ(std::string("\x01", 1),
+              response.entities().Get(0).register_entry().data().bitstring());
+  }
+  {  // 13-bit value, does not fit in a bit<12> cell
+    auto register_entry = make_entry(r_id, index, std::string("\x10\x00", 2));
+    EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+    EXPECT_EQ(write_register(&register_entry),
+              OneExpectedError(Code::INVALID_ARGUMENT));
+  }
+}
+
+TEST_F(RegisterTest, MissingData) {
+  p4v1::RegisterEntry register_entry;
+  register_entry.set_register_id(r_id);
+  register_entry.mutable_index()->set_index(0);
+  EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+  EXPECT_EQ(write_register(&register_entry),
+            OneExpectedError(Code::INVALID_ARGUMENT));
+}
+
+TEST_F(RegisterTest, InvalidIndex) {
+  EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+  EXPECT_CALL(*mock, register_read(_, _, _)).Times(0);
+  p4v1::ReadResponse response;
+  {
+    auto register_entry = make_entry(r_id, -1, std::string("\x01", 1));
+    EXPECT_EQ(write_register(&register_entry),
+              OneExpectedError(Code::INVALID_ARGUMENT));
+    EXPECT_EQ(read_register(&register_entry, &response).code(),
+              Code::INVALID_ARGUMENT);
+  }
+  {
+    auto register_entry = make_entry(r_id, r_size, std::string("\x01", 1));
+    EXPECT_EQ(write_register(&register_entry),
+              OneExpectedError(Code::OUT_OF_RANGE));
+    EXPECT_EQ(read_register(&register_entry, &response).code(),
+              Code::OUT_OF_RANGE);
+  }
+}
+
+TEST_F(RegisterTest, InvalidUpdateType) {
+  auto register_entry = make_entry(r_id, 0, std::string("\x01", 1));
+  EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+  EXPECT_EQ(write_register(&register_entry, p4v1::Update::INSERT),
+            OneExpectedError(Code::INVALID_ARGUMENT));
+  EXPECT_EQ(write_register(&register_entry, p4v1::Update::DELETE),
+            OneExpectedError(Code::INVALID_ARGUMENT));
+}
+
+TEST_F(RegisterTest, InvalidId) {
+  auto c_id = pi_p4info_counter_id_from_name(p4info, "CounterA");
+  auto register_entry = make_entry(c_id, 0, std::string("\x01", 1));
+  EXPECT_EQ(write_register(&register_entry),
+            OneExpectedError(Code::INVALID_ARGUMENT, invalid_p4_id_error_str));
+  p4v1::ReadResponse response;
+  EXPECT_EQ(read_register(&register_entry, &response).code(),
+            Code::INVALID_ARGUMENT);
+}
+
+TEST_F(RegisterTest, TargetError) {
+  auto register_entry = make_entry(r_id, 0, std::string("\x01", 1));
+  EXPECT_CALL(*mock, register_write(r_id, 0, _))
+      .WillOnce(Return(PI_STATUS_TARGET_ERROR))
+      .WillOnce(Return(PI_STATUS_NOT_IMPLEMENTED_BY_TARGET));
+  EXPECT_EQ(write_register(&register_entry),
+            OneExpectedError(Code::UNKNOWN));
+  EXPECT_EQ(write_register(&register_entry),
+            OneExpectedError(Code::UNIMPLEMENTED));
+}
+
+TEST_F(RegisterTest, ReadAll) {
+  p4v1::ReadResponse response;
+  p4v1::RegisterEntry register_entry;
+  register_entry.set_register_id(r_id);
+  EXPECT_CALL(*mock, register_read(r_id, _, _)).Times(r_size);
+  EXPECT_OK(read_register(&register_entry, &response));
+  const auto &entities = response.entities();
+  ASSERT_EQ(r_size, static_cast<size_t>(entities.size()));
+  for (size_t i = 0; i < r_size; i++) {
+    EXPECT_PROTO_EQ(entities.Get(i).register_entry(),
+                    make_entry(r_id, i, std::string("\x00", 1)));
+  }
+}
+
+TEST_F(RegisterTest, ReadAllRegisters) {
+  {
+    p4v1::ReadResponse response;
+    p4v1::RegisterEntry register_entry;  // register_id is 0
+    EXPECT_CALL(*mock, register_read(r_id, _, _)).Times(r_size);
+    EXPECT_CALL(*mock, register_read(r_wide_id, _, _)).Times(r_wide_size);
+    EXPECT_OK(read_register(&register_entry, &response));
+    EXPECT_EQ(r_size + r_wide_size,
+              static_cast<size_t>(response.entities().size()));
+  }
+  {  // as for counters, the index selects the same cell in each register
+    p4v1::ReadResponse response;
+    p4v1::RegisterEntry register_entry;
+    register_entry.mutable_index()->set_index(2);
+    EXPECT_CALL(*mock, register_read(r_id, 2, _));
+    EXPECT_CALL(*mock, register_read(r_wide_id, 2, _));
+    EXPECT_OK(read_register(&register_entry, &response));
+    const auto &entities = response.entities();
+    ASSERT_EQ(2, entities.size());
+    EXPECT_EQ(2, entities.Get(0).register_entry().index().index());
+    EXPECT_EQ(2, entities.Get(1).register_entry().index().index());
+  }
+  {  // index too large for RegisterWide
+    p4v1::ReadResponse response;
+    p4v1::RegisterEntry register_entry;
+    register_entry.mutable_index()->set_index(r_wide_size);
+    // depends on the order in which registers are visited
+    EXPECT_CALL(*mock, register_read(r_id, r_wide_size, _)).Times(AtMost(1));
+    EXPECT_CALL(*mock, register_read(r_wide_id, _, _)).Times(0);
+    EXPECT_EQ(read_register(&register_entry, &response).code(),
+              Code::OUT_OF_RANGE);
+  }
+}
+
+// a wildcard write would be done one cell at a time, so it would not be atomic
+// with respect to the data plane
+TEST_F(RegisterTest, WildcardWrite) {
+  p4v1::RegisterEntry register_entry;
+  register_entry.set_register_id(r_id);
+  register_entry.mutable_data()->set_bitstring(std::string("\x01", 1));
+  EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+  EXPECT_EQ(write_register(&register_entry),
+            OneExpectedError(Code::UNIMPLEMENTED));
+}
+
+// PI can only represent registers whose cells are bitstrings; the P4Info is
+// still accepted when other types are used, but these registers cannot be read
+// or written, and they are skipped when reading all registers.
+TEST_F(RegisterTest, UnsupportedType) {
+  p4configv1::P4Info p4info_struct_register(p4info_proto);
+  for (auto &reg : *p4info_struct_register.mutable_registers()) {
+    if (reg.preamble().id() != r_id) continue;
+    reg.mutable_type_spec()->mutable_struct_()->set_name("test_digest_t");
+  }
+  EXPECT_CALL(*mock, table_idle_timeout_config_set(
+      pi_p4info_table_id_from_name(p4info, "IdleTimeoutTable"), _));
+  ASSERT_OK(set_pipeline_config(&p4info_struct_register));
+
+  EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+  auto register_entry = make_entry(r_id, 0, std::string("\x01", 1));
+  EXPECT_EQ(write_register(&register_entry),
+            OneExpectedError(Code::UNIMPLEMENTED));
+  p4v1::ReadResponse response;
+  EXPECT_EQ(read_register(&register_entry, &response).code(),
+            Code::UNIMPLEMENTED);
+
+  response.Clear();
+  p4v1::RegisterEntry all_registers;
+  EXPECT_CALL(*mock, register_read(r_id, _, _)).Times(0);
+  EXPECT_CALL(*mock, register_read(r_wide_id, _, _)).Times(r_wide_size);
+  EXPECT_OK(read_register(&all_registers, &response));
+  EXPECT_EQ(r_wide_size, static_cast<size_t>(response.entities().size()));
 }
 
 // for digest tests, see test_proto_fe_digest.cpp

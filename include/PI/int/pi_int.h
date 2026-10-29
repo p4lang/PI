@@ -32,7 +32,8 @@ extern "C" {
 // Revision history:
 //  * 1 -> 2: support for optional match type
 //  * 2 -> 3: add PI_STATUS_INIT_ALREADY_CALLED error
-#define PI_ABI_VERSION 3
+//  * 3 -> 4: add register read / write functions (pi_register_imp.h)
+#define PI_ABI_VERSION 4
 
 static inline pi_p4_id_t pi_make_action_id(uint16_t index) {
   return (PI_ACTION_ID << 24) | index;
@@ -60,6 +61,10 @@ static inline pi_p4_id_t pi_make_meter_id(uint16_t index) {
 
 static inline pi_p4_id_t pi_make_direct_meter_id(uint16_t index) {
   return (PI_DIRECT_METER_ID << 24) | index;
+}
+
+static inline pi_p4_id_t pi_make_register_id(uint16_t index) {
+  return (PI_REGISTER_ID << 24) | index;
 }
 
 #define PI_GET_TYPE_ID(id) ((id) >> 24)

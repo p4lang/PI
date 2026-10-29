@@ -41,6 +41,7 @@
 #include "PI/pi_mc.h"
 #include "PI/target/pi_imp.h"
 #include "PI/target/pi_learn_imp.h"
+#include "PI/target/pi_register_imp.h"
 #include "PI/target/pi_tables_imp.h"
 #include "boost/functional/hash.hpp"
 
@@ -1041,6 +1042,25 @@ class DummySwitch {
     return counters[counter_id].write(entry_handle, counter_data);
   }
 
+  pi_status_t register_read(pi_p4_id_t register_id, size_t index,
+                            std::string *value) {
+    auto &cells = registers[register_id];
+    auto it = cells.find(index);
+    if (it != cells.end()) {
+      *value = it->second;
+    } else {  // cells are initialized to 0
+      auto bitwidth = pi_p4info_register_get_bitwidth(p4info, register_id);
+      value->assign((bitwidth + 7) / 8, '\0');
+    }
+    return PI_STATUS_SUCCESS;
+  }
+
+  pi_status_t register_write(pi_p4_id_t register_id, size_t index,
+                             const std::string &value) {
+    registers[register_id][index] = value;
+    return PI_STATUS_SUCCESS;
+  }
+
   pi_status_t packetout_send(const char *, size_t) {
     return PI_STATUS_SUCCESS;
   }
@@ -1158,6 +1178,7 @@ class DummySwitch {
     action_profs.clear();
     counters.clear();
     meters.clear();
+    registers.clear();
   }
 
  private:
@@ -1189,6 +1210,8 @@ class DummySwitch {
   std::unordered_map<pi_p4_id_t, DummyActionProf> action_profs{};
   std::unordered_map<pi_p4_id_t, DummyMeter> meters{};
   std::unordered_map<pi_p4_id_t, DummyCounter> counters{};
+  std::unordered_map<pi_p4_id_t, std::unordered_map<size_t, std::string> >
+  registers{};
   std::unordered_map<pi_port_t, pi_port_status_t> ports_status{};
   DummyPRE pre{};
   device_id_t device_id;
@@ -1278,6 +1301,11 @@ DummySwitchMock::DummySwitchMock(device_id_t device_id)
       .WillByDefault(Invoke(sw_, &DummySwitch::counter_read_direct));
   ON_CALL(*this, counter_write_direct(_, _, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::counter_write_direct));
+
+  ON_CALL(*this, register_read(_, _, _))
+      .WillByDefault(Invoke(sw_, &DummySwitch::register_read));
+  ON_CALL(*this, register_write(_, _, _))
+      .WillByDefault(Invoke(sw_, &DummySwitch::register_write));
 
   ON_CALL(*this, packetout_send(_, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::packetout_send));
@@ -1810,6 +1838,25 @@ pi_status_t _pi_counter_hw_sync(pi_session_handle_t,
   (void) counter_id;
   (void) cb_cookie;
   return (cb == NULL) ? PI_STATUS_SUCCESS : PI_STATUS_NOT_IMPLEMENTED_BY_TARGET;
+}
+
+pi_status_t _pi_register_read(pi_session_handle_t,
+                              pi_dev_tgt_t dev_tgt, pi_p4_id_t register_id,
+                              size_t index, char *value) {
+  std::string v;
+  auto status = DeviceResolver::get_switch(dev_tgt.dev_id)->register_read(
+      register_id, index, &v);
+  std::copy(v.begin(), v.end(), value);
+  return status;
+}
+
+pi_status_t _pi_register_write(pi_session_handle_t,
+                               pi_dev_tgt_t dev_tgt, pi_p4_id_t register_id,
+                               size_t index, const char *value) {
+  const auto *p4info = pi_get_device_p4info(dev_tgt.dev_id);
+  auto bitwidth = pi_p4info_register_get_bitwidth(p4info, register_id);
+  return DeviceResolver::get_switch(dev_tgt.dev_id)->register_write(
+      register_id, index, std::string(value, (bitwidth + 7) / 8));
 }
 
 pi_status_t _pi_packetout_send(pi_dev_id_t dev_id, const char *pkt,

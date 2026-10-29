@@ -124,6 +124,43 @@ INSTANTIATE_TEST_SUITE_P(P4Iterate,
                          P4InfoProtoConvertFromProtoTest,
                          ::testing::ValuesIn(input_protos));
 
+// PI can only represent registers whose cells are bitstrings; other registers
+// are imported with a bitwidth of 0, so that the P4Info is still accepted.
+TEST(P4InfoProtoConvertRegistersTest, Convert) {
+  p4::config::v1::P4Info input_proto;
+  auto add_register = [&input_proto](pi_p4_id_t id, const char *name,
+                                     int32_t size) {
+    auto *reg = input_proto.add_registers();
+    reg->mutable_preamble()->set_id(id);
+    reg->mutable_preamble()->set_name(name);
+    reg->set_size(size);
+    return reg;
+  };
+  pi_p4_id_t r_bit_id = (PI_REGISTER_ID << 24) | 1;
+  pi_p4_id_t r_struct_id = (PI_REGISTER_ID << 24) | 2;
+  auto *r_bit = add_register(r_bit_id, "r_bit", 1024);
+  r_bit->mutable_type_spec()->mutable_bitstring()->mutable_bit()
+      ->set_bitwidth(160);
+  auto *r_struct = add_register(r_struct_id, "r_struct", 16);
+  r_struct->mutable_type_spec()->mutable_struct_()->set_name("s_t");
+
+  pi_p4info_t *p4info;
+  ASSERT_TRUE(pi::p4info::p4info_proto_reader(input_proto, &p4info));
+  EXPECT_EQ(r_bit_id, pi_p4info_register_id_from_name(p4info, "r_bit"));
+  EXPECT_EQ(1024u, pi_p4info_register_get_size(p4info, r_bit_id));
+  EXPECT_EQ(160u, pi_p4info_register_get_bitwidth(p4info, r_bit_id));
+  EXPECT_EQ(r_struct_id, pi_p4info_register_id_from_name(p4info, "r_struct"));
+  EXPECT_EQ(16u, pi_p4info_register_get_size(p4info, r_struct_id));
+  EXPECT_EQ(0u, pi_p4info_register_get_bitwidth(p4info, r_struct_id));
+
+  // the type of r_struct is lost when exporting back to Protobuf
+  const auto output_proto = pi::p4info::p4info_serialize_to_proto(p4info);
+  pi_destroy_config(p4info);
+  r_struct->clear_type_spec();
+  using google::protobuf::util::MessageDifferencer;
+  EXPECT_TRUE(MessageDifferencer::Equals(input_proto, output_proto));
+}
+
 }  // namespace
 }  // namespace testing
 }  // namespace proto

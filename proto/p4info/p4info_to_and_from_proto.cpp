@@ -251,6 +251,35 @@ void read_meters(const p4configv1::P4Info &p4info_proto, pi_p4info_t *p4info) {
   }
 }
 
+// Returns 0 if the type of the register cells cannot be represented in p4info:
+// such registers are still imported, so that the P4Info is accepted, but they
+// cannot be read or written.
+size_t register_bitwidth(const p4configv1::P4DataTypeSpec &type_spec) {
+  if (!type_spec.has_bitstring() || !type_spec.bitstring().has_bit())
+    return 0;
+  auto bitwidth = type_spec.bitstring().bit().bitwidth();
+  if (bitwidth < 0)
+    throw read_proto_exception("Negative bitwidth in type spec");
+  return static_cast<size_t>(bitwidth);
+}
+
+void read_registers(const p4configv1::P4Info &p4info_proto,
+                    pi_p4info_t *p4info) {
+  const auto &registers = p4info_proto.registers();
+  pi_p4info_register_init(p4info, registers.size());
+  for (const auto &reg : registers) {
+    const auto &pre = reg.preamble();
+    // p4info stores each resource according to the prefix of its id
+    if ((pre.id() >> 24) != PI_REGISTER_ID)
+      throw read_proto_exception("Invalid id for register");
+    if (reg.size() < 0)
+      throw read_proto_exception("Negative size for register");
+    pi_p4info_register_add(p4info, pre.id(), pre.name().c_str(), reg.size(),
+                           register_bitwidth(reg.type_spec()));
+    import_common(pre, p4info);
+  }
+}
+
 struct DigestField {
   std::string name;
   size_t bitwidth;
@@ -317,6 +346,7 @@ bool p4info_proto_reader(const p4configv1::P4Info &p4info_proto,
     read_act_profs(p4info_proto, *p4info);
     read_counters(p4info_proto, *p4info);
     read_meters(p4info_proto, *p4info);
+    read_registers(p4info_proto, *p4info);
     read_digests(p4info_proto, *p4info);
   } catch (const read_proto_exception &e) {
     std::cerr << e.what() << "\n";
@@ -568,6 +598,24 @@ void p4info_serialize_meters(const pi_p4info_t *p4info,
   }
 }
 
+void p4info_serialize_registers(const pi_p4info_t *p4info,
+                                p4configv1::P4Info *p4info_proto) {
+  for (auto id = pi_p4info_register_begin(p4info);
+       id != pi_p4info_register_end(p4info);
+       id = pi_p4info_register_next(p4info, id)) {
+    auto reg = p4info_proto->add_registers();
+    auto name = pi_p4info_register_name_from_id(p4info, id);
+    set_preamble(reg, id, name, p4info);
+    auto bitwidth = pi_p4info_register_get_bitwidth(p4info, id);
+    // the type of the cells is lost if it is not a bitstring
+    if (bitwidth > 0) {
+      reg->mutable_type_spec()->mutable_bitstring()->mutable_bit()
+          ->set_bitwidth(bitwidth);
+    }
+    reg->set_size(pi_p4info_register_get_size(p4info, id));
+  }
+}
+
 // This method always serializes digests using P4TupleTypeSpec which breaks
 // symmetry if one first converts from P4Info (Protobuf) to pi_p4info_t and then
 // back to P4Info.
@@ -600,6 +648,7 @@ p4configv1::P4Info p4info_serialize_to_proto(const pi_p4info_t *p4info) {
   p4info_serialize_act_profs(p4info, &p4info_proto);
   p4info_serialize_counters(p4info, &p4info_proto);
   p4info_serialize_meters(p4info, &p4info_proto);
+  p4info_serialize_registers(p4info, &p4info_proto);
   p4info_serialize_digests(p4info, &p4info_proto);
   return p4info_proto;
 }
