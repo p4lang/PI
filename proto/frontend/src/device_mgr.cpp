@@ -25,6 +25,7 @@
 #include <PI/pi.h>
 #include <PI/proto/util.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <limits>
 #include <map>
@@ -75,6 +76,8 @@ using Code = ::google::rpc::Code;
 using common::SessionTemp;
 using common::bytestring_p4rt_to_pi;
 using common::bytestring_pi_to_p4rt;
+using common::bytestring_p4rt_to_pi_signed;
+using common::bytestring_pi_to_p4rt_signed;
 using common::make_invalid_p4_id_status;
 using action_profile_set_map =
   std::unordered_map<pi_indirect_handle_t, p4v1::ActionProfileActionSet>;
@@ -90,6 +93,23 @@ auto p4info_deleter = [](pi_p4info_t *p4info) {
   pi_destroy_config(p4info);
 };
 using P4InfoWrapper = std::unique_ptr<pi_p4info_t, decltype(p4info_deleter)>;
+
+// In PI, register cells are always bitstrings of the bitwidth stored in
+// p4info. This describes how they are represented in P4Runtime (P4Data), which
+// depends on the type of the cells in the P4 program.
+struct RegisterType {
+  enum class Kind {
+    BIT,  // bit<W>, as a bitstring
+    INT,  // int<W>, as a 2's complement bitstring
+    SERIALIZABLE_ENUM,  // as an enum_value (the value of the underlying type)
+    ENUM,  // as an enum (the name of the member)
+  };
+  Kind kind{Kind::BIT};
+  size_t bitwidth{0};
+  // for Kind::ENUM, the members in declaration order, which is the order of
+  // the P4Info; p4c numbers them 0, 1, ... in this order
+  std::vector<std::string> enum_members{};
+};
 
 class P4ErrorReporter {
  public:
@@ -460,6 +480,7 @@ class DeviceMgrImp {
 
     // we do this last, so that the ActProfMgr instances never point to an
     // invalid p4info, even though this is not strictly required here
+    register_types = make_register_types(p4info_new, p4info_proto_new);
     p4info.reset(p4info_new);
     p4info_proto.CopyFrom(p4info_proto_new);
     config_cookie.CopyFrom(config_proto_new.cookie());
@@ -516,6 +537,7 @@ class DeviceMgrImp {
       pi_remove_device(device_id);
       table_info_store.reset();
       action_profs.clear();
+      register_types.clear();
       p4info.reset(nullptr);
     };
 
@@ -1902,11 +1924,7 @@ class DeviceMgrImp {
       default:
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid update type");
     }
-    auto bitwidth = pi_p4info_register_get_bitwidth(p4info.get(), register_id);
-    if (bitwidth == 0) {
-      RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
-                          "Only registers with a bitstring type are supported");
-    }
+    ASSIGN_OR_RETURN(const auto *type, get_register_type(register_id));
     // The target API writes one cell at a time, so a wildcard write would not
     // be atomic with respect to the data plane, as required by the spec.
     if (!register_entry.has_index()) {
@@ -1915,12 +1933,8 @@ class DeviceMgrImp {
     }
     auto size = pi_p4info_register_get_size(p4info.get(), register_id);
     RETURN_IF_ERROR(validate_register_index(register_entry.index(), size));
-    if (register_entry.data().data_case() != p4v1::P4Data::kBitstring) {
-      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
-                          "Register data must be a bitstring");
-    }
-    ASSIGN_OR_RETURN(auto value, bytestring_p4rt_to_pi(
-        register_entry.data().bitstring(), bitwidth));
+    ASSIGN_OR_RETURN(auto value,
+                     register_data_p4rt_to_pi(*type, register_entry.data()));
     auto index = static_cast<size_t>(register_entry.index().index());
     return register_write_one_index(session, register_id, index, value);
   }
@@ -1929,25 +1943,21 @@ class DeviceMgrImp {
                            const p4v1::RegisterEntry &register_entry,
                            const SessionTemp &session,
                            p4v1::ReadResponse *response) const {
-    auto bitwidth = pi_p4info_register_get_bitwidth(p4info.get(), register_id);
-    if (bitwidth == 0) {
-      RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
-                          "Only registers with a bitstring type are supported");
-    }
+    ASSIGN_OR_RETURN(const auto *type, get_register_type(register_id));
     auto size = pi_p4info_register_get_size(p4info.get(), register_id);
     if (register_entry.has_index()) {
       RETURN_IF_ERROR(validate_register_index(register_entry.index(), size));
       auto entry = response->add_entities()->mutable_register_entry();
       entry->set_register_id(register_id);
       entry->mutable_index()->set_index(register_entry.index().index());
-      return register_read_one_index(session, bitwidth, entry);
+      return register_read_one_index(session, *type, entry);
     }
     // default index, read all
     for (size_t index = 0; index < size; index++) {
       auto entry = response->add_entities()->mutable_register_entry();
       entry->set_register_id(register_id);
       entry->mutable_index()->set_index(index);
-      RETURN_IF_ERROR(register_read_one_index(session, bitwidth, entry));
+      RETURN_IF_ERROR(register_read_one_index(session, *type, entry));
     }
     RETURN_OK_STATUS();
   }
@@ -1964,8 +1974,7 @@ class DeviceMgrImp {
       for (auto r_id = pi_p4info_register_begin(p4info.get());
            r_id != pi_p4info_register_end(p4info.get());
            r_id = pi_p4info_register_next(p4info.get(), r_id)) {
-        if (pi_p4info_register_get_bitwidth(p4info.get(), r_id) == 0)
-          continue;
+        if (register_types.count(r_id) == 0) continue;
         RETURN_IF_ERROR(register_read_one(
             r_id, register_entry, session, response));
       }
@@ -3113,6 +3122,164 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
+  // Returns UNIMPLEMENTED for registers whose type is not supported, i.e.
+  // which have a bitwidth of 0 in p4info.
+  StatusOr<const RegisterType *> get_register_type(
+      pi_p4_id_t register_id) const {
+    auto it = register_types.find(register_id);
+    if (it == register_types.end()) {
+      RETURN_ERROR_STATUS(
+          Code::UNIMPLEMENTED,
+          "Only registers of type bit<W>, int<W>, enum or serializable enum "
+          "are supported");
+    }
+    return &it->second;
+  }
+
+  // Finds out how the cells of each register are represented in P4Runtime;
+  // only the registers which are supported by p4info (non-zero bitwidth, see
+  // p4info_to_and_from_proto.cpp) are included.
+  static std::unordered_map<pi_p4_id_t, RegisterType> make_register_types(
+      const pi_p4info_t *p4info, const p4configv1::P4Info &p4info_proto) {
+    std::unordered_map<pi_p4_id_t, RegisterType> types;
+    for (const auto &reg : p4info_proto.registers()) {
+      auto register_id = reg.preamble().id();
+      auto bitwidth = pi_p4info_register_get_bitwidth(p4info, register_id);
+      if (bitwidth == 0) continue;
+      RegisterType type;
+      type.bitwidth = bitwidth;
+      if (!resolve_register_type(reg.type_spec(), p4info_proto.type_info(),
+                                 &type)) {
+        continue;
+      }
+      types.emplace(register_id, std::move(type));
+    }
+    return types;
+  }
+
+  static bool resolve_register_type(const p4configv1::P4DataTypeSpec &type_spec,
+                                    const p4configv1::P4TypeInfo &type_info,
+                                    RegisterType *type) {
+    switch (type_spec.type_spec_case()) {
+      case p4configv1::P4DataTypeSpec::kBitstring:
+        if (type_spec.bitstring().has_bit()) {
+          type->kind = RegisterType::Kind::BIT;
+          return true;
+        }
+        if (type_spec.bitstring().has_int_()) {
+          type->kind = RegisterType::Kind::INT;
+          return true;
+        }
+        return false;
+      case p4configv1::P4DataTypeSpec::kSerializableEnum:
+        type->kind = RegisterType::Kind::SERIALIZABLE_ENUM;
+        return true;
+      case p4configv1::P4DataTypeSpec::kEnum: {
+        auto it = type_info.enums().find(type_spec.enum_().name());
+        if (it == type_info.enums().end()) return false;
+        type->kind = RegisterType::Kind::ENUM;
+        for (const auto &member : it->second.members())
+          type->enum_members.push_back(member.name());
+        return true;
+      }
+      case p4configv1::P4DataTypeSpec::kNewType: {
+        auto it = type_info.new_types().find(type_spec.new_type().name());
+        if (it == type_info.new_types().end()) return false;
+        // original_type is always a built-in type; translated types are not
+        // supported
+        if (!it->second.has_original_type() ||
+            it->second.original_type().has_new_type()) {
+          return false;
+        }
+        return resolve_register_type(it->second.original_type(), type_info,
+                                     type);
+      }
+      default:
+        return false;
+    }
+  }
+
+  static StatusOr<std::string> register_data_p4rt_to_pi(
+      const RegisterType &type, const p4v1::P4Data &data) {
+    switch (type.kind) {
+      case RegisterType::Kind::BIT:
+        if (data.data_case() != p4v1::P4Data::kBitstring) {
+          RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                              "Register data must be a bitstring");
+        }
+        return bytestring_p4rt_to_pi(data.bitstring(), type.bitwidth);
+      case RegisterType::Kind::INT:
+        if (data.data_case() != p4v1::P4Data::kBitstring) {
+          RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                              "Register data must be a bitstring");
+        }
+        return bytestring_p4rt_to_pi_signed(data.bitstring(), type.bitwidth);
+      case RegisterType::Kind::SERIALIZABLE_ENUM:
+        // any value of the underlying type is valid, even without a name
+        if (data.data_case() != p4v1::P4Data::kEnumValue) {
+          RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                              "Register data must be an enum_value");
+        }
+        return bytestring_p4rt_to_pi(data.enum_value(), type.bitwidth);
+      case RegisterType::Kind::ENUM: {
+        if (data.data_case() != p4v1::P4Data::kEnum) {
+          RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                              "Register data must be an enum");
+        }
+        const auto &members = type.enum_members;
+        auto it = std::find(members.begin(), members.end(), data.enum_());
+        if (it == members.end()) {
+          RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                              "'{}' is not a member of the enum",
+                              data.enum_());
+        }
+        auto value = static_cast<uint64_t>(it - members.begin());
+        std::string pi_str((type.bitwidth + 7) / 8, '\0');
+        for (auto byte = pi_str.rbegin(); byte != pi_str.rend() && value > 0;
+             ++byte, value >>= 8) {
+          *byte = static_cast<char>(value & 0xff);
+        }
+        return pi_str;
+      }
+    }
+    RETURN_ERROR_STATUS(Code::INTERNAL, "Unknown register type");
+  }
+
+  static Status register_data_pi_to_p4rt(const RegisterType &type,
+                                         const std::string &value,
+                                         p4v1::P4Data *data) {
+    switch (type.kind) {
+      case RegisterType::Kind::BIT:
+        data->set_bitstring(bytestring_pi_to_p4rt(value));
+        RETURN_OK_STATUS();
+      case RegisterType::Kind::INT:
+        data->set_bitstring(bytestring_pi_to_p4rt_signed(value, type.bitwidth));
+        RETURN_OK_STATUS();
+      case RegisterType::Kind::SERIALIZABLE_ENUM:
+        data->set_enum_value(bytestring_pi_to_p4rt(value));
+        RETURN_OK_STATUS();
+      case RegisterType::Kind::ENUM: {
+        const auto &members = type.enum_members;
+        size_t index = 0;
+        for (auto byte : value) {
+          // the value cannot be valid if it does not fit in size_t
+          if (index > (members.size() >> 8)) {
+            index = members.size();
+            break;
+          }
+          index = (index << 8) | static_cast<uint8_t>(byte);
+        }
+        if (index >= members.size()) {
+          RETURN_ERROR_STATUS(Code::INTERNAL,
+                              "Register cell does not hold a valid enum value");
+        }
+        data->set_enum_(members[index]);
+        RETURN_OK_STATUS();
+      }
+    }
+    RETURN_ERROR_STATUS(Code::INTERNAL, "Unknown register type");
+  }
+
   static Status register_status_pi_to_proto(pi_status_t pi_status,
                                             const char *error_msg) {
     switch (pi_status) {
@@ -3134,17 +3301,19 @@ class DeviceMgrImp {
         pi_status, "Error when writing register to target");
   }
 
-  Status register_read_one_index(const SessionTemp &session, size_t bitwidth,
+  Status register_read_one_index(const SessionTemp &session,
+                                 const RegisterType &type,
                                  p4v1::RegisterEntry *entry) const {
     // checked by caller
     assert(entry->has_index() && entry->index().index() >= 0);
     auto index = static_cast<size_t>(entry->index().index());
-    std::string value((bitwidth + 7) / 8, '\0');
+    std::string value((type.bitwidth + 7) / 8, '\0');
     auto pi_status = pi_register_read(session.get(), device_tgt,
                                       entry->register_id(), index, &value[0]);
     RETURN_IF_ERROR(register_status_pi_to_proto(
         pi_status, "Error when reading register from target"));
-    entry->mutable_data()->set_bitstring(bytestring_pi_to_p4rt(value));
+    RETURN_IF_ERROR(register_data_pi_to_p4rt(type, value,
+                                             entry->mutable_data()));
     RETURN_OK_STATUS();
   }
 
@@ -3232,6 +3401,9 @@ class DeviceMgrImp {
   PacketIOMgr packet_io;
 
   DigestMgr digest_mgr;
+
+  // only includes the registers whose type is supported
+  std::unordered_map<pi_p4_id_t, RegisterType> register_types{};
 
   IdleTimeoutBuffer idle_timeout_buffer;
 

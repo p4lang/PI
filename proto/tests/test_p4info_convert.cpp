@@ -124,8 +124,8 @@ INSTANTIATE_TEST_SUITE_P(P4Iterate,
                          P4InfoProtoConvertFromProtoTest,
                          ::testing::ValuesIn(input_protos));
 
-// PI can only represent registers whose cells are bitstrings; other registers
-// are imported with a bitwidth of 0, so that the P4Info is still accepted.
+// Registers whose cells cannot be represented as bitstrings (e.g. structs) are
+// imported with a bitwidth of 0, so that the P4Info is still accepted.
 TEST(P4InfoProtoConvertRegistersTest, Convert) {
   p4::config::v1::P4Info input_proto;
   auto add_register = [&input_proto](pi_p4_id_t id, const char *name,
@@ -159,6 +159,74 @@ TEST(P4InfoProtoConvertRegistersTest, Convert) {
   r_struct->clear_type_spec();
   using google::protobuf::util::MessageDifferencer;
   EXPECT_TRUE(MessageDifferencer::Equals(input_proto, output_proto));
+}
+
+// The bitwidth of the cells for each type of register supported by PI.
+TEST(P4InfoProtoConvertRegistersTest, Types) {
+  p4::config::v1::P4Info input_proto;
+  pi_p4_id_t next_id = PI_REGISTER_ID << 24;
+  auto add_register = [&input_proto, &next_id](const char *name) {
+    auto *reg = input_proto.add_registers();
+    reg->mutable_preamble()->set_id(++next_id);
+    reg->mutable_preamble()->set_name(name);
+    reg->set_size(8);
+    return reg->mutable_type_spec();
+  };
+  auto *type_info = input_proto.mutable_type_info();
+
+  add_register("r_int")->mutable_bitstring()->mutable_int_()->set_bitwidth(12);
+  add_register("r_varbit")->mutable_bitstring()->mutable_varbit()
+      ->set_max_bitwidth(32);
+
+  add_register("r_serializable_enum")->mutable_serializable_enum()
+      ->set_name("color_t");
+  auto &color_t = (*type_info->mutable_serializable_enums())["color_t"];
+  color_t.mutable_underlying_type()->set_bitwidth(8);
+  auto *red = color_t.add_members();
+  red->set_name("RED");
+  red->set_value(std::string("\x01", 1));
+
+  add_register("r_enum")->mutable_enum_()->set_name("shape_t");
+  auto &shape_t = (*type_info->mutable_enums())["shape_t"];
+  shape_t.add_members()->set_name("CIRCLE");
+  shape_t.add_members()->set_name("SQUARE");
+
+  add_register("r_new_type")->mutable_new_type()->set_name("id_t");
+  (*type_info->mutable_new_types())["id_t"].mutable_original_type()
+      ->mutable_bitstring()->mutable_bit()->set_bitwidth(20);
+
+  add_register("r_translated_type")->mutable_new_type()->set_name("port_t");
+  (*type_info->mutable_new_types())["port_t"].mutable_translated_type()
+      ->set_sdn_bitwidth(32);
+
+  // types missing from type_info
+  add_register("r_unknown_enum")->mutable_enum_()->set_name("unknown_t");
+  add_register("r_unknown_new_type")->mutable_new_type()
+      ->set_name("unknown_t");
+
+  pi_p4info_t *p4info;
+  ASSERT_TRUE(pi::p4info::p4info_proto_reader(input_proto, &p4info));
+  auto bitwidth = [p4info](const char *name) {
+    auto id = pi_p4info_register_id_from_name(p4info, name);
+    return pi_p4info_register_get_bitwidth(p4info, id);
+  };
+  EXPECT_EQ(12u, bitwidth("r_int"));
+  EXPECT_EQ(0u, bitwidth("r_varbit"));
+  EXPECT_EQ(8u, bitwidth("r_serializable_enum"));
+  // p4c uses bit<32> for enums without an underlying type
+  EXPECT_EQ(32u, bitwidth("r_enum"));
+  EXPECT_EQ(20u, bitwidth("r_new_type"));
+  EXPECT_EQ(0u, bitwidth("r_translated_type"));
+  EXPECT_EQ(0u, bitwidth("r_unknown_enum"));
+  EXPECT_EQ(0u, bitwidth("r_unknown_new_type"));
+
+  // the cells are exported as bit<W>
+  const auto output_proto = pi::p4info::p4info_serialize_to_proto(p4info);
+  pi_destroy_config(p4info);
+  ASSERT_LT(0, output_proto.registers_size());
+  const auto &r_int = output_proto.registers(0);
+  EXPECT_EQ("r_int", r_int.preamble().name());
+  EXPECT_EQ(12, r_int.type_spec().bitstring().bit().bitwidth());
 }
 
 }  // namespace

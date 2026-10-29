@@ -91,6 +91,7 @@ using ::testing::AnyNumber;
 using ::testing::Args;
 using ::testing::AtLeast;
 using ::testing::AtMost;
+using ::testing::DoAll;
 using ::testing::DoDefault;
 using ::testing::ElementsAre;
 using ::testing::Exactly;
@@ -98,6 +99,7 @@ using ::testing::InvokeWithoutArgs;
 using ::testing::IsEmpty;
 using ::testing::IsNull;
 using ::testing::Return;
+using ::testing::SetArgPointee;
 using ::testing::SizeIs;
 
 using pi::fe::proto::StatusOr;
@@ -4270,6 +4272,235 @@ TEST_F(RegisterTest, UnsupportedType) {
   EXPECT_CALL(*mock, register_read(r_wide_id, _, _)).Times(r_wide_size);
   EXPECT_OK(read_register(&all_registers, &response));
   EXPECT_EQ(r_wide_size, static_cast<size_t>(response.entities().size()));
+}
+
+// RegisterA is a bit<12> register in unittest.p4info.txt; these tests change
+// its type before pushing the P4Info.
+class RegisterTypeTest : public RegisterTest {
+ protected:
+  // sets the type of RegisterA and pushes the modified P4Info
+  DeviceMgr::Status set_register_type(
+      const p4configv1::P4DataTypeSpec &type_spec,
+      const p4configv1::P4TypeInfo &type_info = p4configv1::P4TypeInfo()) {
+    p4configv1::P4Info p4info_new(p4info_proto);
+    for (auto &reg : *p4info_new.mutable_registers()) {
+      if (reg.preamble().id() != r_id) continue;
+      reg.mutable_type_spec()->CopyFrom(type_spec);
+    }
+    p4info_new.mutable_type_info()->MergeFrom(type_info);
+    EXPECT_CALL(*mock, table_idle_timeout_config_set(
+        pi_p4info_table_id_from_name(p4info, "IdleTimeoutTable"), _));
+    return set_pipeline_config(&p4info_new);
+  }
+
+  // writes data to cell 0 of RegisterA, and checks that the target receives
+  // the expected PI bytestring
+  void write_and_check(const p4v1::P4Data &data, const std::string &pi_value) {
+    p4v1::RegisterEntry register_entry;
+    register_entry.set_register_id(r_id);
+    register_entry.mutable_index()->set_index(0);
+    register_entry.mutable_data()->CopyFrom(data);
+    EXPECT_CALL(*mock, register_write(r_id, 0, pi_value));
+    EXPECT_OK(write_register(&register_entry));
+  }
+
+  DeviceMgr::Status write_data(const p4v1::P4Data &data) {
+    p4v1::RegisterEntry register_entry;
+    register_entry.set_register_id(r_id);
+    register_entry.mutable_index()->set_index(0);
+    register_entry.mutable_data()->CopyFrom(data);
+    return write_register(&register_entry);
+  }
+
+  // reads cell 0 of RegisterA
+  StatusOr<p4v1::P4Data> read_data() {
+    p4v1::RegisterEntry register_entry;
+    register_entry.set_register_id(r_id);
+    register_entry.mutable_index()->set_index(0);
+    p4v1::ReadResponse response;
+    auto status = read_register(&register_entry, &response);
+    if (IS_ERROR(status)) return status;
+    if (response.entities().size() != 1) {
+      ADD_FAILURE() << "Expected exactly one entity in read response";
+      status.set_code(Code::UNKNOWN);
+      return status;
+    }
+    return response.entities().Get(0).register_entry().data();
+  }
+
+  static p4v1::P4Data bitstring(const std::string &value) {
+    p4v1::P4Data data;
+    data.set_bitstring(value);
+    return data;
+  }
+
+  static p4v1::P4Data enum_value(const std::string &value) {
+    p4v1::P4Data data;
+    data.set_enum_value(value);
+    return data;
+  }
+
+  static p4v1::P4Data enum_member(const std::string &name) {
+    p4v1::P4Data data;
+    data.set_enum_(name);
+    return data;
+  }
+};
+
+TEST_F(RegisterTypeTest, Int) {
+  p4configv1::P4DataTypeSpec type_spec;
+  type_spec.mutable_bitstring()->mutable_int_()->set_bitwidth(12);
+  ASSERT_OK(set_register_type(type_spec));
+
+  // in PI, the value is the 2's complement on 12 bits, without sign extension
+  struct Value {
+    std::string p4rt;  // canonical bytestring
+    std::string pi;
+  };
+  std::vector<Value> values = {
+    {std::string("\x00", 1), std::string("\x00\x00", 2)},
+    {std::string("\x05", 1), std::string("\x00\x05", 2)},
+    {std::string("\x00\x80", 2), std::string("\x00\x80", 2)},  // 128
+    {std::string("\x07\xff", 2), std::string("\x07\xff", 2)},  // 2047
+    {std::string("\xff", 1), std::string("\x0f\xff", 2)},  // -1
+    {std::string("\x80", 1), std::string("\x0f\x80", 2)},  // -128
+    {std::string("\xff\x7f", 2), std::string("\x0f\x7f", 2)},  // -129
+    {std::string("\xf8\x00", 2), std::string("\x08\x00", 2)},  // -2048
+  };
+  for (const auto &v : values) {
+    write_and_check(bitstring(v.p4rt), v.pi);
+    EXPECT_CALL(*mock, register_read(r_id, 0, _));
+    auto data = read_data();
+    ASSERT_OK(data.status());
+    EXPECT_EQ(v.p4rt, data.ValueOrDie().bitstring());
+  }
+
+  // sign-extended bytestrings are accepted
+  write_and_check(bitstring(std::string("\xff\xff\xff", 3)),
+                  std::string("\x0f\xff", 2));
+  write_and_check(bitstring(std::string("\x00\x00\x05", 3)),
+                  std::string("\x00\x05", 2));
+
+  EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+  // 2048 and -2049 do not fit in an int<12>
+  EXPECT_EQ(write_data(bitstring(std::string("\x08\x00", 2))),
+            OneExpectedError(Code::INVALID_ARGUMENT));
+  EXPECT_EQ(write_data(bitstring(std::string("\xf7\xff", 2))),
+            OneExpectedError(Code::INVALID_ARGUMENT));
+  EXPECT_EQ(write_data(enum_value(std::string("\x01", 1))),
+            OneExpectedError(Code::INVALID_ARGUMENT));
+}
+
+TEST_F(RegisterTypeTest, SerializableEnum) {
+  p4configv1::P4DataTypeSpec type_spec;
+  type_spec.mutable_serializable_enum()->set_name("color_t");
+  p4configv1::P4TypeInfo type_info;
+  auto &color_t = (*type_info.mutable_serializable_enums())["color_t"];
+  color_t.mutable_underlying_type()->set_bitwidth(8);
+  auto *red = color_t.add_members();
+  red->set_name("RED");
+  red->set_value(std::string("\x01", 1));
+  ASSERT_OK(set_register_type(type_spec, type_info));
+
+  write_and_check(enum_value(std::string("\x01", 1)), std::string("\x01", 1));
+  EXPECT_CALL(*mock, register_read(r_id, 0, _));
+  auto data = read_data();
+  ASSERT_OK(data.status());
+  EXPECT_PROTO_EQ(enum_value(std::string("\x01", 1)), data.ValueOrDie());
+
+  // values of the underlying type without a name are valid
+  write_and_check(enum_value(std::string("\x00\x7f", 2)),
+                  std::string("\x7f", 1));
+
+  EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+  EXPECT_EQ(write_data(enum_value(std::string("\x01\x00", 2))),
+            OneExpectedError(Code::INVALID_ARGUMENT));
+  EXPECT_EQ(write_data(bitstring(std::string("\x01", 1))),
+            OneExpectedError(Code::INVALID_ARGUMENT));
+  EXPECT_EQ(write_data(enum_member("RED")),
+            OneExpectedError(Code::INVALID_ARGUMENT));
+}
+
+TEST_F(RegisterTypeTest, Enum) {
+  p4configv1::P4DataTypeSpec type_spec;
+  type_spec.mutable_enum_()->set_name("shape_t");
+  p4configv1::P4TypeInfo type_info;
+  auto &shape_t = (*type_info.mutable_enums())["shape_t"];
+  shape_t.add_members()->set_name("CIRCLE");
+  shape_t.add_members()->set_name("SQUARE");
+  shape_t.add_members()->set_name("TRIANGLE");
+  ASSERT_OK(set_register_type(type_spec, type_info));
+
+  // cells are initialized to 0, i.e. the first member
+  {
+    EXPECT_CALL(*mock, register_read(r_id, 0, _));
+    auto data = read_data();
+    ASSERT_OK(data.status());
+    EXPECT_PROTO_EQ(enum_member("CIRCLE"), data.ValueOrDie());
+  }
+
+  // as in p4c, the members are numbered in declaration order, using 32 bits
+  write_and_check(enum_member("TRIANGLE"),
+                  std::string("\x00\x00\x00\x02", 4));
+  {
+    EXPECT_CALL(*mock, register_read(r_id, 0, _));
+    auto data = read_data();
+    ASSERT_OK(data.status());
+    EXPECT_PROTO_EQ(enum_member("TRIANGLE"), data.ValueOrDie());
+  }
+
+  {
+    EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+    EXPECT_EQ(write_data(enum_member("HEXAGON")),
+              OneExpectedError(Code::INVALID_ARGUMENT));
+    EXPECT_EQ(write_data(bitstring(std::string("\x01", 1))),
+              OneExpectedError(Code::INVALID_ARGUMENT));
+    EXPECT_EQ(write_data(enum_value(std::string("\x01", 1))),
+              OneExpectedError(Code::INVALID_ARGUMENT));
+  }
+
+  // the target holds a value which does not correspond to any member
+  for (const auto &value : {std::string("\x00\x00\x00\x03", 4),
+                            std::string("\xff\xff\xff\xff", 4)}) {
+    EXPECT_CALL(*mock, register_read(r_id, 0, _))
+        .WillOnce(DoAll(SetArgPointee<2>(value), Return(PI_STATUS_SUCCESS)));
+    EXPECT_EQ(read_data().status().code(), Code::INTERNAL);
+  }
+}
+
+TEST_F(RegisterTypeTest, NewType) {
+  p4configv1::P4DataTypeSpec type_spec;
+  type_spec.mutable_new_type()->set_name("id_t");
+  p4configv1::P4TypeInfo type_info;
+  (*type_info.mutable_new_types())["id_t"].mutable_original_type()
+      ->mutable_bitstring()->mutable_int_()->set_bitwidth(12);
+  ASSERT_OK(set_register_type(type_spec, type_info));
+
+  // same as int<12>
+  write_and_check(bitstring(std::string("\xff", 1)),
+                  std::string("\x0f\xff", 2));
+  EXPECT_CALL(*mock, register_read(r_id, 0, _));
+  auto data = read_data();
+  ASSERT_OK(data.status());
+  EXPECT_EQ(std::string("\xff", 1), data.ValueOrDie().bitstring());
+}
+
+// PI does not support @p4runtime_translation
+TEST_F(RegisterTypeTest, TranslatedType) {
+  p4configv1::P4DataTypeSpec type_spec;
+  type_spec.mutable_new_type()->set_name("port_t");
+  p4configv1::P4TypeInfo type_info;
+  auto *translated_type = (*type_info.mutable_new_types())["port_t"]
+      .mutable_translated_type();
+  translated_type->set_uri("p4.org/psa/v1/PortId_t");
+  translated_type->set_sdn_bitwidth(32);
+  ASSERT_OK(set_register_type(type_spec, type_info));
+
+  EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+  EXPECT_CALL(*mock, register_read(r_id, _, _)).Times(0);
+  EXPECT_EQ(write_data(bitstring(std::string("\x01", 1))),
+            OneExpectedError(Code::UNIMPLEMENTED));
+  EXPECT_EQ(read_data().status().code(), Code::UNIMPLEMENTED);
 }
 
 // for digest tests, see test_proto_fe_digest.cpp

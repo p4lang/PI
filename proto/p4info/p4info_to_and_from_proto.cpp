@@ -251,16 +251,55 @@ void read_meters(const p4configv1::P4Info &p4info_proto, pi_p4info_t *p4info) {
   }
 }
 
-// Returns 0 if the type of the register cells cannot be represented in p4info:
-// such registers are still imported, so that the P4Info is accepted, but they
-// cannot be read or written.
-size_t register_bitwidth(const p4configv1::P4DataTypeSpec &type_spec) {
-  if (!type_spec.has_bitstring() || !type_spec.bitstring().has_bit())
-    return 0;
-  auto bitwidth = type_spec.bitstring().bit().bitwidth();
+size_t checked_bitwidth(int32_t bitwidth) {
   if (bitwidth < 0)
     throw read_proto_exception("Negative bitwidth in type spec");
   return static_cast<size_t>(bitwidth);
+}
+
+// Returns the bitwidth of the cells of a register, as stored by the target, or
+// 0 if the type of the cells cannot be represented in p4info: such registers
+// are still imported, so that the P4Info is accepted, but they cannot be read
+// or written. The cells of a register of type bit<W>, int<W> or of a
+// serializable enum with underlying type bit<W> have W bits. p4c represents
+// enums without an underlying type as bit<32>, so we use 32 bits for them.
+size_t register_bitwidth(const p4configv1::P4DataTypeSpec &type_spec,
+                         const p4configv1::P4TypeInfo &type_info,
+                         bool resolve_new_type = true) {
+  switch (type_spec.type_spec_case()) {
+    case p4configv1::P4DataTypeSpec::kBitstring: {
+      const auto &bitstring = type_spec.bitstring();
+      if (bitstring.has_bit())
+        return checked_bitwidth(bitstring.bit().bitwidth());
+      if (bitstring.has_int_())
+        return checked_bitwidth(bitstring.int_().bitwidth());
+      return 0;  // varbit
+    }
+    case p4configv1::P4DataTypeSpec::kSerializableEnum: {
+      const auto &enums = type_info.serializable_enums();
+      auto it = enums.find(type_spec.serializable_enum().name());
+      if (it == enums.end()) return 0;
+      return checked_bitwidth(it->second.underlying_type().bitwidth());
+    }
+    case p4configv1::P4DataTypeSpec::kEnum: {
+      const auto &enums = type_info.enums();
+      auto it = enums.find(type_spec.enum_().name());
+      if (it == enums.end() || it->second.members().empty()) return 0;
+      return 32;
+    }
+    case p4configv1::P4DataTypeSpec::kNewType: {
+      // original_type is always a built-in type, as p4c follows the chain of
+      // type declarations; values of types with a @p4runtime_translation
+      // annotation (translated_type) would need to be translated by PI
+      if (!resolve_new_type) return 0;
+      const auto &new_types = type_info.new_types();
+      auto it = new_types.find(type_spec.new_type().name());
+      if (it == new_types.end() || !it->second.has_original_type()) return 0;
+      return register_bitwidth(it->second.original_type(), type_info, false);
+    }
+    default:
+      return 0;
+  }
 }
 
 void read_registers(const p4configv1::P4Info &p4info_proto,
@@ -274,8 +313,9 @@ void read_registers(const p4configv1::P4Info &p4info_proto,
       throw read_proto_exception("Invalid id for register");
     if (reg.size() < 0)
       throw read_proto_exception("Negative size for register");
-    pi_p4info_register_add(p4info, pre.id(), pre.name().c_str(), reg.size(),
-                           register_bitwidth(reg.type_spec()));
+    pi_p4info_register_add(
+        p4info, pre.id(), pre.name().c_str(), reg.size(),
+        register_bitwidth(reg.type_spec(), p4info_proto.type_info()));
     import_common(pre, p4info);
   }
 }
@@ -607,7 +647,8 @@ void p4info_serialize_registers(const pi_p4info_t *p4info,
     auto name = pi_p4info_register_name_from_id(p4info, id);
     set_preamble(reg, id, name, p4info);
     auto bitwidth = pi_p4info_register_get_bitwidth(p4info, id);
-    // the type of the cells is lost if it is not a bitstring
+    // as for digests, only the bitwidth of the cells is known, so the original
+    // type (int<W>, enum, ...) is lost and the cells are exported as bit<W>
     if (bitwidth > 0) {
       reg->mutable_type_spec()->mutable_bitstring()->mutable_bit()
           ->set_bitwidth(bitwidth);
