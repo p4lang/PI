@@ -23,6 +23,7 @@
 
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <google/protobuf/text_format.h>
+#include <google/protobuf/util/message_differencer.h>
 
 #include <fstream>  // std::ifstream
 #include <string>
@@ -48,6 +49,7 @@ namespace proto {
 namespace testing {
 namespace {
 
+using google::protobuf::util::MessageDifferencer;
 using pi::fe::proto::DeviceMgr;
 using Code = ::google::rpc::Code;
 
@@ -149,6 +151,60 @@ TEST_F(DeviceMgrSetPipelineConfigTest, Reconcile) {
         &p4info_proto_3,
         p4v1::SetForwardingPipelineConfigRequest_Action_RECONCILE_AND_COMMIT);
     ASSERT_NE(status.code(), Code::OK);
+  }
+}
+
+// Counters and meters are part of the forwarding state which is preserved by
+// RECONCILE_AND_COMMIT; since their cells always exist, they must be replayed
+// with MODIFY updates.
+TEST_F(DeviceMgrSetPipelineConfigTest, ReconcileCountersMeters) {
+  constexpr const char *p4info_path = TESTDATADIR "/" "unittest.p4info.txt";
+  auto p4info_proto = read_p4info(p4info_path);
+  pi_p4info_t *p4info;
+  pi::p4info::p4info_proto_reader(p4info_proto, &p4info);
+  auto c_id = pi_p4info_counter_id_from_name(p4info, "CounterA");
+  auto m_id = pi_p4info_meter_id_from_name(p4info, "MeterA");
+  pi_destroy_config(p4info);
+
+  EXPECT_CALL(*mock, table_idle_timeout_config_set(_, _)).Times(AnyNumber());
+  ASSERT_OK(set_pipeline_config(
+      &p4info_proto,
+      p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT));
+
+  p4v1::Entity counter_entity;
+  auto *counter_entry = counter_entity.mutable_counter_entry();
+  counter_entry->set_counter_id(c_id);
+  counter_entry->mutable_index()->set_index(3);
+  counter_entry->mutable_data()->set_packet_count(10);
+  p4v1::Entity meter_entity;
+  auto *meter_entry = meter_entity.mutable_meter_entry();
+  meter_entry->set_meter_id(m_id);
+  meter_entry->mutable_index()->set_index(4);
+  auto *meter_config = meter_entry->mutable_config();
+  meter_config->set_cir(10);
+  meter_config->set_cburst(5);
+  meter_config->set_pir(100);
+  meter_config->set_pburst(50);
+  {
+    p4v1::WriteRequest request;
+    for (const auto *entity : {&counter_entity, &meter_entity}) {
+      auto *update = request.add_updates();
+      update->set_type(p4v1::Update::MODIFY);
+      update->mutable_entity()->CopyFrom(*entity);
+    }
+    ASSERT_OK(mgr.write(request));
+  }
+
+  ASSERT_OK(set_pipeline_config(
+      &p4info_proto,
+      p4v1::SetForwardingPipelineConfigRequest_Action_RECONCILE_AND_COMMIT));
+
+  for (const auto *entity : {&counter_entity, &meter_entity}) {
+    p4v1::ReadResponse response;
+    ASSERT_OK(mgr.read_one(*entity, &response));
+    ASSERT_EQ(1, response.entities_size());
+    EXPECT_TRUE(MessageDifferencer::Equals(*entity, response.entities(0)))
+        << response.entities(0).DebugString();
   }
 }
 

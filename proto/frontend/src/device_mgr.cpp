@@ -624,7 +624,16 @@ class DeviceMgrImp {
       p4v1::WriteRequest write_request;
       for (auto &entity : *forwarding_state.mutable_entities()) {
         auto *update = write_request.add_updates();
-        update->set_type(p4v1::Update::INSERT);
+        // counter and meter cells always exist, so they can only be modified
+        switch (entity.entity_case()) {
+          case p4v1::Entity::kCounterEntry:
+          case p4v1::Entity::kMeterEntry:
+            update->set_type(p4v1::Update::MODIFY);
+            break;
+          default:
+            update->set_type(p4v1::Update::INSERT);
+            break;
+        }
         update->unsafe_arena_set_allocated_entity(&entity);
       }
       auto status = write_(write_request);
