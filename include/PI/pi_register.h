@@ -41,6 +41,13 @@ pi_status_t pi_register_write(pi_session_handle_t session_handle,
                               pi_dev_tgt_t dev_tgt, pi_p4_id_t register_id,
                               size_t index, const char *value);
 
+//! Writes the same value to all the cells of a register array. The write is
+//! atomic with respect to the data plane: an action which accesses the register
+//! array sees either the old value or the new one in all the cells.
+pi_status_t pi_register_write_all(pi_session_handle_t session_handle,
+                                  pi_dev_tgt_t dev_tgt, pi_p4_id_t register_id,
+                                  const char *value);
+
 #ifdef __cplusplus
 }
 #endif

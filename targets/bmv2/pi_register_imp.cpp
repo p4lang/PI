@@ -119,4 +119,31 @@ pi_status_t _pi_register_write(pi_session_handle_t session_handle,
   return PI_STATUS_SUCCESS;
 }
 
+// bmv2 holds the lock of the register array while writing the range, so the
+// write is atomic with respect to the data plane
+pi_status_t _pi_register_write_all(pi_session_handle_t session_handle,
+                                   pi_dev_tgt_t dev_tgt,
+                                   pi_p4_id_t register_id, const char *value) {
+  (void)session_handle;
+
+  pibmv2::device_info_t *d_info = pibmv2::get_device_info(dev_tgt.dev_id);
+  assert(d_info->assigned);
+  const pi_p4info_t *p4info = d_info->p4info;
+  std::string r_name(pi_p4info_register_name_from_id(p4info, register_id));
+  size_t bitwidth = pi_p4info_register_get_bitwidth(p4info, register_id);
+  if (bitwidth > kMaxBitwidth) return PI_STATUS_NOT_IMPLEMENTED_BY_TARGET;
+  size_t size = pi_p4info_register_get_size(p4info, register_id);
+
+  auto v = static_cast<BmRegisterValue>(
+      value_from_bytes(value, (bitwidth + 7) / 8));
+  auto client = conn_mgr_client(pibmv2::conn_mgr_state, dev_tgt.dev_id);
+  try {
+    client.c->bm_register_write_range(0, r_name, 0, size, v);
+  } catch (InvalidRegisterOperation &iro) {
+    return print_error(r_name, iro);
+  }
+
+  return PI_STATUS_SUCCESS;
+}
+
 }

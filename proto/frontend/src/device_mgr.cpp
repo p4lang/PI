@@ -1925,11 +1925,15 @@ class DeviceMgrImp {
         RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid update type");
     }
     ASSIGN_OR_RETURN(const auto *type, get_register_type(register_id));
-    // The target API writes one cell at a time, so a wildcard write would not
-    // be atomic with respect to the data plane, as required by the spec.
     if (!register_entry.has_index()) {
-      RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
-                          "Wildcard write is not supported for registers yet");
+      // wildcard write: the data is written to every cell, atomically with
+      // respect to the data plane as required by the spec
+      ASSIGN_OR_RETURN(auto value,
+                       register_data_p4rt_to_pi(*type, register_entry.data()));
+      auto pi_status = pi_register_write_all(session.get(), device_tgt,
+                                             register_id, value.data());
+      return register_status_pi_to_proto(
+          pi_status, "Error when writing register to target");
     }
     auto size = pi_p4info_register_get_size(p4info.get(), register_id);
     RETURN_IF_ERROR(validate_register_index(register_entry.index(), size));

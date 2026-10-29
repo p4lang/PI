@@ -4234,15 +4234,37 @@ TEST_F(RegisterTest, ReadAllRegisters) {
   }
 }
 
-// a wildcard write would be done one cell at a time, so it would not be atomic
-// with respect to the data plane
+// a wildcard write writes the data to every cell, with a single call to the
+// target so that the write is atomic with respect to the data plane
 TEST_F(RegisterTest, WildcardWrite) {
   p4v1::RegisterEntry register_entry;
   register_entry.set_register_id(r_id);
   register_entry.mutable_data()->set_bitstring(std::string("\x01", 1));
   EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+  EXPECT_CALL(*mock, register_write_all(r_id, std::string("\x00\x01", 2)))
+      .WillOnce(DoDefault())
+      .WillOnce(Return(PI_STATUS_NOT_IMPLEMENTED_BY_TARGET));
+  EXPECT_OK(write_register(&register_entry));
+
+  p4v1::ReadResponse response;
+  p4v1::RegisterEntry read_entry;
+  read_entry.set_register_id(r_id);
+  EXPECT_CALL(*mock, register_read(r_id, _, _)).Times(r_size);
+  EXPECT_OK(read_register(&read_entry, &response));
+  const auto &entities = response.entities();
+  ASSERT_EQ(r_size, static_cast<size_t>(entities.size()));
+  for (size_t i = 0; i < r_size; i++) {
+    EXPECT_PROTO_EQ(entities.Get(i).register_entry(),
+                    make_entry(r_id, i, std::string("\x01", 1)));
+  }
+
   EXPECT_EQ(write_register(&register_entry),
             OneExpectedError(Code::UNIMPLEMENTED));
+
+  // 13-bit value, does not fit in a bit<12> cell
+  register_entry.mutable_data()->set_bitstring(std::string("\x10\x00", 2));
+  EXPECT_EQ(write_register(&register_entry),
+            OneExpectedError(Code::INVALID_ARGUMENT));
 }
 
 // PI can only represent registers whose cells are bitstrings; the P4Info is

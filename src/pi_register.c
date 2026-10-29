@@ -19,8 +19,8 @@
 #include <PI/pi_register.h>
 #include <PI/target/pi_register_imp.h>
 
-static pi_status_t check_register_access(pi_dev_tgt_t dev_tgt,
-                                         pi_p4_id_t register_id, size_t index) {
+static pi_status_t check_register(pi_dev_tgt_t dev_tgt,
+                                  pi_p4_id_t register_id) {
   const pi_p4info_t *p4info = pi_get_device_p4info(dev_tgt.dev_id);
   if (!p4info) return PI_STATUS_DEV_NOT_ASSIGNED;
   if (!pi_is_register_id(register_id) ||
@@ -28,6 +28,14 @@ static pi_status_t check_register_access(pi_dev_tgt_t dev_tgt,
     return PI_STATUS_NETV_INVALID_OBJ_ID;
   if (pi_p4info_register_get_bitwidth(p4info, register_id) == 0)
     return PI_STATUS_NOT_IMPLEMENTED_BY_TARGET;
+  return PI_STATUS_SUCCESS;
+}
+
+static pi_status_t check_register_access(pi_dev_tgt_t dev_tgt,
+                                         pi_p4_id_t register_id, size_t index) {
+  pi_status_t status = check_register(dev_tgt, register_id);
+  if (status != PI_STATUS_SUCCESS) return status;
+  const pi_p4info_t *p4info = pi_get_device_p4info(dev_tgt.dev_id);
   if (index >= pi_p4info_register_get_size(p4info, register_id))
     return PI_STATUS_OUT_OF_BOUND_IDX;
   return PI_STATUS_SUCCESS;
@@ -47,4 +55,12 @@ pi_status_t pi_register_write(pi_session_handle_t session_handle,
   pi_status_t status = check_register_access(dev_tgt, register_id, index);
   if (status != PI_STATUS_SUCCESS) return status;
   return _pi_register_write(session_handle, dev_tgt, register_id, index, value);
+}
+
+pi_status_t pi_register_write_all(pi_session_handle_t session_handle,
+                                  pi_dev_tgt_t dev_tgt, pi_p4_id_t register_id,
+                                  const char *value) {
+  pi_status_t status = check_register(dev_tgt, register_id);
+  if (status != PI_STATUS_SUCCESS) return status;
+  return _pi_register_write_all(session_handle, dev_tgt, register_id, value);
 }

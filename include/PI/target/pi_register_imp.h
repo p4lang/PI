@@ -35,6 +35,13 @@ pi_status_t _pi_register_write(pi_session_handle_t session_handle,
                                pi_dev_tgt_t dev_tgt, pi_p4_id_t register_id,
                                size_t index, const char *value);
 
+// Must write all the cells atomically with respect to the data plane (see
+// pi_register_write_all); targets which cannot do it should return
+// PI_STATUS_NOT_IMPLEMENTED_BY_TARGET.
+pi_status_t _pi_register_write_all(pi_session_handle_t session_handle,
+                                   pi_dev_tgt_t dev_tgt, pi_p4_id_t register_id,
+                                   const char *value);
+
 #ifdef __cplusplus
 }
 #endif

@@ -1061,6 +1061,14 @@ class DummySwitch {
     return PI_STATUS_SUCCESS;
   }
 
+  pi_status_t register_write_all(pi_p4_id_t register_id,
+                                 const std::string &value) {
+    auto size = pi_p4info_register_get_size(p4info, register_id);
+    auto &cells = registers[register_id];
+    for (size_t index = 0; index < size; index++) cells[index] = value;
+    return PI_STATUS_SUCCESS;
+  }
+
   pi_status_t packetout_send(const char *, size_t) {
     return PI_STATUS_SUCCESS;
   }
@@ -1306,6 +1314,8 @@ DummySwitchMock::DummySwitchMock(device_id_t device_id)
       .WillByDefault(Invoke(sw_, &DummySwitch::register_read));
   ON_CALL(*this, register_write(_, _, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::register_write));
+  ON_CALL(*this, register_write_all(_, _))
+      .WillByDefault(Invoke(sw_, &DummySwitch::register_write_all));
 
   ON_CALL(*this, packetout_send(_, _))
       .WillByDefault(Invoke(sw_, &DummySwitch::packetout_send));
@@ -1857,6 +1867,15 @@ pi_status_t _pi_register_write(pi_session_handle_t,
   auto bitwidth = pi_p4info_register_get_bitwidth(p4info, register_id);
   return DeviceResolver::get_switch(dev_tgt.dev_id)->register_write(
       register_id, index, std::string(value, (bitwidth + 7) / 8));
+}
+
+pi_status_t _pi_register_write_all(pi_session_handle_t,
+                                   pi_dev_tgt_t dev_tgt,
+                                   pi_p4_id_t register_id, const char *value) {
+  const auto *p4info = pi_get_device_p4info(dev_tgt.dev_id);
+  auto bitwidth = pi_p4info_register_get_bitwidth(p4info, register_id);
+  return DeviceResolver::get_switch(dev_tgt.dev_id)->register_write_all(
+      register_id, std::string(value, (bitwidth + 7) / 8));
 }
 
 pi_status_t _pi_packetout_send(pi_dev_id_t dev_id, const char *pkt,

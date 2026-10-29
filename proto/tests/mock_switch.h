@@ -202,6 +202,8 @@ class DummySwitchMock {
                pi_status_t(pi_p4_id_t, size_t, std::string *));
   MOCK_METHOD3(register_write,
                pi_status_t(pi_p4_id_t, size_t, const std::string &));
+  MOCK_METHOD2(register_write_all,
+               pi_status_t(pi_p4_id_t, const std::string &));
 
   MOCK_METHOD2(packetout_send, pi_status_t(const char *, size_t));
 

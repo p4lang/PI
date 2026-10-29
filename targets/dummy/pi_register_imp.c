@@ -41,3 +41,14 @@ pi_status_t _pi_register_write(pi_session_handle_t session_handle,
   func_counter_increment(__func__);
   return PI_STATUS_SUCCESS;
 }
+
+pi_status_t _pi_register_write_all(pi_session_handle_t session_handle,
+                                   pi_dev_tgt_t dev_tgt, pi_p4_id_t register_id,
+                                   const char *value) {
+  (void)session_handle;
+  (void)dev_tgt;
+  (void)register_id;
+  (void)value;
+  func_counter_increment(__func__);
+  return PI_STATUS_SUCCESS;
+}
