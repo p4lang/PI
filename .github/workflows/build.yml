@@ -54,3 +54,11 @@ jobs:
         tags: p4lang/pi:${{ steps.get-tag.outputs.tag }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
+    - name: Build and push Dockerfile.ubuntu-26.04 image if needed
+      if: ${{ github.repository == 'p4lang/third-party' && github.ref_name == 'main' && github.event_name != 'pull_request' }}
+      uses: docker/build-push-action@v7
+      with:
+        context: .
+        file: Dockerfile.ubuntu-26.04
+        push: true
+        tags: p4lang/pi:${{ steps.get-tag.outputs.tag }}-ubuntu-26.04
