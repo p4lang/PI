@@ -100,6 +100,63 @@ std::string bytestring_pi_to_p4rt(const char *str, size_t n) {
   return std::string(str + i, n - i);
 }
 
+StatusOr<std::string> bytestring_p4rt_to_pi_signed(const std::string &str,
+                                                   size_t nbits) {
+  size_t nbytes = (nbits + 7) / 8;
+  // as for unsigned values, an empty bytestring is accepted as 0
+  if (str.empty()) return std::string(nbytes, 0);
+  bool negative = (static_cast<uint8_t>(str[0]) & 0x80) != 0;
+  char sign_byte = negative ? '\xff' : '\x00';
+  // undo sign extension to find out how many bits are needed for the value,
+  // including the sign bit
+  size_t i = 0;
+  for (; i < str.size(); i++) {
+    if (str[i] != sign_byte) break;
+  }
+  size_t nbits_needed = 1;  // for 0 and -1
+  if (i < str.size()) {
+    auto byte = static_cast<uint8_t>(str[i]);
+    if (negative) byte = static_cast<uint8_t>(~byte);
+    nbits_needed = (str.size() - i) * 8 - clz(byte) + 1;
+  }
+  if (nbits_needed > nbits) {
+    RETURN_ERROR_STATUS(
+        Code::INVALID_ARGUMENT,
+        "Bytestring provided does not fit within {} bits (signed)", nbits);
+  }
+  std::string pi_str;
+  if (str.size() < nbytes) {
+    pi_str = str;
+    pi_str.insert(0, nbytes - str.size(), sign_byte);
+  } else {
+    pi_str = str.substr(str.size() - nbytes);
+  }
+  if (nbits % 8 != 0)
+    pi_str[0] = static_cast<char>(pi_str[0] & ((1 << (nbits % 8)) - 1));
+  return pi_str;
+}
+
+std::string bytestring_pi_to_p4rt_signed(const std::string &str,
+                                         size_t nbits) {
+  if (str.empty()) return std::string(1, 0);
+  std::string p4rt_str(str);
+  // sign-extend the value from bit nbits - 1 to the whole first byte
+  if (nbits % 8 != 0) {
+    int mask = (1 << (nbits % 8)) - 1;
+    int byte = p4rt_str[0] & mask;
+    if (byte & (1 << (nbits % 8 - 1))) byte |= ~mask;
+    p4rt_str[0] = static_cast<char>(byte);
+  }
+  char sign_byte = (static_cast<uint8_t>(p4rt_str[0]) & 0x80) ? '\xff' : '\x00';
+  // remove the bytes which only repeat the sign bit of the next byte
+  size_t i = 0;
+  for (; i + 1 < p4rt_str.size(); i++) {
+    if (p4rt_str[i] != sign_byte) break;
+    if ((p4rt_str[i + 1] & 0x80) != (sign_byte & 0x80)) break;
+  }
+  return p4rt_str.substr(i);
+}
+
 Status bytestring_to_pi_port(const std::string &str, pi_port_t* result) {
   if (str.empty()) {
     RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,

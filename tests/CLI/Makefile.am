@@ -18,6 +18,7 @@ meter.test \
 meter_direct.test \
 counter_and_meter_direct.test \
 direct_res_reset.test \
+register.test \
 device_update.test \
 act_prof.test
 
@@ -66,7 +67,10 @@ testdata/counter_and_meter_direct.in \
 testdata/counter_and_meter_direct.out \
 direct_res_reset.test \
 testdata/direct_res_reset.in \
-testdata/direct_res_reset.out
+testdata/direct_res_reset.out \
+register.test \
+testdata/register.in \
+testdata/register.out
 
 EXTRA_DIST += \
 device_update.test \

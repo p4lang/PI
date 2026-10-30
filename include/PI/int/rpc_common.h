@@ -79,6 +79,11 @@ typedef enum {
   // packet in/out
   PI_RPC_PACKETOUT_SEND,
 
+  // registers
+  PI_RPC_REGISTER_READ,
+  PI_RPC_REGISTER_WRITE,
+  PI_RPC_REGISTER_WRITE_ALL,
+
   // rpc management
   // retrieve state for sync-up when rpc client is started
   PI_RPC_INT_GET_STATE = 256,
