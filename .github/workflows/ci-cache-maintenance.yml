@@ -18,6 +18,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Keep main caches and clean up PR caches
-        uses: p4lang/.github/CI/cache-retention@aa84700f4be097d9464c99946e5459815becbffe
+        uses: p4lang/.github/CI/cache-retention@3755e1d9912f7777eaffae6380a1ebdd224ccda3
         with:
           key-prefixes: bazel-v2-
