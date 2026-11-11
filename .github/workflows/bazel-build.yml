@@ -14,7 +14,10 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # As of 2026-Nov, Github CI uses ubuntu-26.04 for ubuntu-latest,
+    # which this test as written now is failing on.  Revert to
+    # ubuntu-24.04 until the issue is fixed.
+    runs-on: ubuntu-24.04
     env:
       BAZEL: bazelisk-linux-amd64
       BUILDIFIER: buildifier-linux-amd64
