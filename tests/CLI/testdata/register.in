@@ -1,0 +1,15 @@
+register_read RegisterA 9
+register_write RegisterA 9 0xab
+register_read RegisterA 9
+register_write RegisterA 10 1234abcd
+register_read RegisterA 10
+register_write_all RegisterA 0x7
+register_read RegisterA 0
+register_read RegisterA 10
+register_read RegisterA 1023
+register_reset RegisterA
+register_read RegisterA 9
+register_read RegisterA 10
+register_read RegisterA 1024
+register_write RegisterA 9 0x100000000
+register_read RegisterB 0

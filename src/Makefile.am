@@ -22,6 +22,8 @@ p4info/counters.c \
 p4info/counters_int.h \
 p4info/meters.c \
 p4info/meters_int.h \
+p4info/registers.c \
+p4info/registers_int.h \
 p4info/digests.c \
 p4info/digests_int.h \
 config_readers/bmv2_json_reader.c \
@@ -47,6 +49,7 @@ pi_tables.c \
 pi_act_prof.c \
 pi_counter.c \
 pi_meter.c \
+pi_register.c \
 pi_learn.c \
 pi_value.c \
 pi_mc.c \

@@ -141,6 +141,7 @@ typedef enum {
 #define PI_DIRECT_COUNTER_ID 0x13
 #define PI_METER_ID 0x14
 #define PI_DIRECT_METER_ID 0x15
+#define PI_REGISTER_ID 0x16
 #define PI_DIGEST_ID 0x17
 
 #define PI_RES_TYPE_MAX 0x100
@@ -157,6 +158,8 @@ bool pi_is_counter_id(pi_p4_id_t id);
 bool pi_is_direct_counter_id(pi_p4_id_t id);
 bool pi_is_meter_id(pi_p4_id_t id);
 bool pi_is_direct_meter_id(pi_p4_id_t id);
+
+bool pi_is_register_id(pi_p4_id_t id);
 
 #ifdef __cplusplus
 }

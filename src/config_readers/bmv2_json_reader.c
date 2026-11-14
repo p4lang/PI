@@ -806,6 +806,45 @@ static pi_status_t read_meters(reader_state_t *state, cJSON *root,
   return PI_STATUS_SUCCESS;
 }
 
+static pi_status_t read_registers(reader_state_t *state, cJSON *root,
+                                  pi_p4info_t *p4info) {
+  assert(root);
+  cJSON *registers = cJSON_GetObjectItem(root, "register_arrays");
+  // PI used to ignore registers, so JSON files without them were accepted
+  if (!registers) {
+    pi_p4info_register_init(p4info, 0);
+    return PI_STATUS_SUCCESS;
+  }
+  size_t num_registers = cJSON_GetArraySize(registers);
+  pre_reserve_ids(state, PI_REGISTER_ID, registers);
+  pi_p4info_register_init(p4info, num_registers);
+
+  sort_json_array(registers);
+  cJSON *reg;
+  cJSON_ArrayForEach(reg, registers) {
+    const cJSON *item;
+    item = cJSON_GetObjectItem(reg, "name");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    const char *name = item->valuestring;
+
+    item = cJSON_GetObjectItem(reg, "size");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    size_t size = item->valueint;
+
+    item = cJSON_GetObjectItem(reg, "bitwidth");
+    if (!item) return PI_STATUS_CONFIG_READER_ERROR;
+    size_t bitwidth = item->valueint;
+
+    pi_p4_id_t pi_id = request_id(state, reg, PI_REGISTER_ID);
+    PI_LOG_DEBUG("Adding register '%s'\n", name);
+    pi_p4info_register_add(p4info, pi_id, name, size, bitwidth);
+
+    import_pragmas(reg, p4info, pi_id);
+  }
+
+  return PI_STATUS_SUCCESS;
+}
+
 static pi_status_t read_digests(reader_state_t *state, cJSON *root,
                                 pi_p4info_t *p4info) {
   (void)state;
@@ -860,6 +899,10 @@ static pi_status_t read_config(cJSON *root, pi_p4info_t *p4info,
   }
 
   if ((status = read_meters(state, root, p4info)) != PI_STATUS_SUCCESS) {
+    return status;
+  }
+
+  if ((status = read_registers(state, root, p4info)) != PI_STATUS_SUCCESS) {
     return status;
   }
 

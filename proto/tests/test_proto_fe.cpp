@@ -91,6 +91,7 @@ using ::testing::AnyNumber;
 using ::testing::Args;
 using ::testing::AtLeast;
 using ::testing::AtMost;
+using ::testing::DoAll;
 using ::testing::DoDefault;
 using ::testing::ElementsAre;
 using ::testing::Exactly;
@@ -98,6 +99,7 @@ using ::testing::InvokeWithoutArgs;
 using ::testing::IsEmpty;
 using ::testing::IsNull;
 using ::testing::Return;
+using ::testing::SetArgPointee;
 using ::testing::SizeIs;
 
 using pi::fe::proto::StatusOr;
@@ -4018,28 +4020,992 @@ TEST_F(PVSTest, Read) {
   EXPECT_EQ(status.code(), Code::UNIMPLEMENTED);
 }
 
-// Placeholder for Register tests: for now there is no support in DeviceMgr
-class RegisterTest : public DeviceMgrTest { };
+class RegisterTest : public DeviceMgrTest {
+ protected:
+  RegisterTest() {
+    r_id = pi_p4info_register_id_from_name(p4info, "RegisterA");
+    r_size = pi_p4info_register_get_size(p4info, r_id);
+    r_wide_id = pi_p4info_register_id_from_name(p4info, "RegisterWide");
+    r_wide_size = pi_p4info_register_get_size(p4info, r_wide_id);
+  }
 
-TEST_F(RegisterTest, Write) {
-  p4v1::WriteRequest request;
-  auto *update = request.add_updates();
-  update->set_type(p4v1::Update::MODIFY);
-  auto *entity = update->mutable_entity();
-  auto *register_entry = entity->mutable_register_entry();
-  (void) register_entry;
-  auto status = mgr.write(request);
-  EXPECT_EQ(status, OneExpectedError(Code::UNIMPLEMENTED));
+  // sends a read request for a RegisterEntry; returns the RPC status
+  DeviceMgr::Status read_register(p4v1::RegisterEntry *register_entry,
+                                  p4v1::ReadResponse *response) {
+    p4v1::ReadRequest request;
+    auto entity = request.add_entities();
+    entity->unsafe_arena_set_allocated_register_entry(register_entry);
+    auto status = mgr.read(request, response);
+    entity->unsafe_arena_release_register_entry();
+    return status;
+  }
+
+  DeviceMgr::Status write_register(
+      p4v1::RegisterEntry *register_entry,
+      p4v1::Update::Type type = p4v1::Update::MODIFY) {
+    p4v1::WriteRequest request;
+    auto update = request.add_updates();
+    update->set_type(type);
+    auto entity = update->mutable_entity();
+    entity->unsafe_arena_set_allocated_register_entry(register_entry);
+    auto status = mgr.write(request);
+    entity->unsafe_arena_release_register_entry();
+    return status;
+  }
+
+  static p4v1::RegisterEntry make_entry(pi_p4_id_t id, int64_t index,
+                                        const std::string &value) {
+    p4v1::RegisterEntry register_entry;
+    register_entry.set_register_id(id);
+    register_entry.mutable_index()->set_index(index);
+    register_entry.mutable_data()->set_bitstring(value);
+    return register_entry;
+  }
+
+  pi_p4_id_t r_id{0};  // bit<12>
+  size_t r_size{0};
+  pi_p4_id_t r_wide_id{0};  // bit<160>
+  size_t r_wide_size{0};
+};
+
+TEST_F(RegisterTest, WriteAndRead) {
+  int index = 66;
+  const std::string value("\x0a\xbc", 2);
+  auto register_entry = make_entry(r_id, index, value);
+  EXPECT_CALL(*mock, register_write(r_id, index, value));
+  EXPECT_OK(write_register(&register_entry));
+
+  p4v1::ReadResponse response;
+  register_entry.clear_data();
+  EXPECT_CALL(*mock, register_read(r_id, index, _));
+  EXPECT_OK(read_register(&register_entry, &response));
+  const auto &entities = response.entities();
+  ASSERT_EQ(1, entities.size());
+  EXPECT_PROTO_EQ(entities.Get(0).register_entry(),
+                  make_entry(r_id, index, value));
 }
 
-TEST_F(RegisterTest, Read) {
-  p4v1::ReadRequest request;
+TEST_F(RegisterTest, WideRegister) {
+  int index = 3;
+  std::string value(20, '\xab');  // bit<160>
+  auto register_entry = make_entry(r_wide_id, index, value);
+  EXPECT_CALL(*mock, register_write(r_wide_id, index, value));
+  EXPECT_OK(write_register(&register_entry));
+
   p4v1::ReadResponse response;
-  auto *entity = request.add_entities();
-  auto *register_entry = entity->mutable_register_entry();
-  (void) register_entry;
-  auto status = mgr.read(request, &response);
-  EXPECT_EQ(status.code(), Code::UNIMPLEMENTED);
+  register_entry.clear_data();
+  EXPECT_CALL(*mock, register_read(r_wide_id, index, _));
+  EXPECT_OK(read_register(&register_entry, &response));
+  const auto &entities = response.entities();
+  ASSERT_EQ(1, entities.size());
+  EXPECT_PROTO_EQ(entities.Get(0).register_entry(),
+                  make_entry(r_wide_id, index, value));
+}
+
+TEST_F(RegisterTest, Bytestrings) {
+  int index = 1;
+  // bytestrings which are shorter or longer than the type are accepted as
+  // long as the value fits, and reads always return the canonical
+  // representation
+  {
+    auto register_entry = make_entry(
+        r_id, index, std::string("\x00\x00\x01", 3));
+    EXPECT_CALL(*mock,
+                register_write(r_id, index, std::string("\x00\x01", 2)));
+    EXPECT_OK(write_register(&register_entry));
+    p4v1::ReadResponse response;
+    EXPECT_OK(read_register(&register_entry, &response));
+    ASSERT_EQ(1, response.entities().size());
+    EXPECT_EQ(std::string("\x01", 1),
+              response.entities().Get(0).register_entry().data().bitstring());
+  }
+  {  // 13-bit value, does not fit in a bit<12> cell
+    auto register_entry = make_entry(r_id, index, std::string("\x10\x00", 2));
+    EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+    EXPECT_EQ(write_register(&register_entry),
+              OneExpectedError(Code::INVALID_ARGUMENT));
+  }
+}
+
+TEST_F(RegisterTest, MissingData) {
+  p4v1::RegisterEntry register_entry;
+  register_entry.set_register_id(r_id);
+  register_entry.mutable_index()->set_index(0);
+  EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+  EXPECT_EQ(write_register(&register_entry),
+            OneExpectedError(Code::INVALID_ARGUMENT));
+}
+
+TEST_F(RegisterTest, InvalidIndex) {
+  EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+  EXPECT_CALL(*mock, register_read(_, _, _)).Times(0);
+  p4v1::ReadResponse response;
+  {
+    auto register_entry = make_entry(r_id, -1, std::string("\x01", 1));
+    EXPECT_EQ(write_register(&register_entry),
+              OneExpectedError(Code::INVALID_ARGUMENT));
+    EXPECT_EQ(read_register(&register_entry, &response).code(),
+              Code::INVALID_ARGUMENT);
+  }
+  {
+    auto register_entry = make_entry(r_id, r_size, std::string("\x01", 1));
+    EXPECT_EQ(write_register(&register_entry),
+              OneExpectedError(Code::OUT_OF_RANGE));
+    EXPECT_EQ(read_register(&register_entry, &response).code(),
+              Code::OUT_OF_RANGE);
+  }
+}
+
+TEST_F(RegisterTest, InvalidUpdateType) {
+  auto register_entry = make_entry(r_id, 0, std::string("\x01", 1));
+  EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+  EXPECT_EQ(write_register(&register_entry, p4v1::Update::INSERT),
+            OneExpectedError(Code::INVALID_ARGUMENT));
+  EXPECT_EQ(write_register(&register_entry, p4v1::Update::DELETE),
+            OneExpectedError(Code::INVALID_ARGUMENT));
+}
+
+TEST_F(RegisterTest, InvalidId) {
+  auto c_id = pi_p4info_counter_id_from_name(p4info, "CounterA");
+  auto register_entry = make_entry(c_id, 0, std::string("\x01", 1));
+  EXPECT_EQ(write_register(&register_entry),
+            OneExpectedError(Code::INVALID_ARGUMENT, invalid_p4_id_error_str));
+  p4v1::ReadResponse response;
+  EXPECT_EQ(read_register(&register_entry, &response).code(),
+            Code::INVALID_ARGUMENT);
+}
+
+TEST_F(RegisterTest, TargetError) {
+  auto register_entry = make_entry(r_id, 0, std::string("\x01", 1));
+  EXPECT_CALL(*mock, register_write(r_id, 0, _))
+      .WillOnce(Return(PI_STATUS_TARGET_ERROR))
+      .WillOnce(Return(PI_STATUS_NOT_IMPLEMENTED_BY_TARGET));
+  EXPECT_EQ(write_register(&register_entry),
+            OneExpectedError(Code::UNKNOWN));
+  EXPECT_EQ(write_register(&register_entry),
+            OneExpectedError(Code::UNIMPLEMENTED));
+}
+
+TEST_F(RegisterTest, ReadAll) {
+  p4v1::ReadResponse response;
+  p4v1::RegisterEntry register_entry;
+  register_entry.set_register_id(r_id);
+  EXPECT_CALL(*mock, register_read(r_id, _, _)).Times(r_size);
+  EXPECT_OK(read_register(&register_entry, &response));
+  const auto &entities = response.entities();
+  ASSERT_EQ(r_size, static_cast<size_t>(entities.size()));
+  for (size_t i = 0; i < r_size; i++) {
+    EXPECT_PROTO_EQ(entities.Get(i).register_entry(),
+                    make_entry(r_id, i, std::string("\x00", 1)));
+  }
+}
+
+TEST_F(RegisterTest, ReadAllRegisters) {
+  {
+    p4v1::ReadResponse response;
+    p4v1::RegisterEntry register_entry;  // register_id is 0
+    EXPECT_CALL(*mock, register_read(r_id, _, _)).Times(r_size);
+    EXPECT_CALL(*mock, register_read(r_wide_id, _, _)).Times(r_wide_size);
+    EXPECT_OK(read_register(&register_entry, &response));
+    EXPECT_EQ(r_size + r_wide_size,
+              static_cast<size_t>(response.entities().size()));
+  }
+  {  // as for counters, the index selects the same cell in each register
+    p4v1::ReadResponse response;
+    p4v1::RegisterEntry register_entry;
+    register_entry.mutable_index()->set_index(2);
+    EXPECT_CALL(*mock, register_read(r_id, 2, _));
+    EXPECT_CALL(*mock, register_read(r_wide_id, 2, _));
+    EXPECT_OK(read_register(&register_entry, &response));
+    const auto &entities = response.entities();
+    ASSERT_EQ(2, entities.size());
+    EXPECT_EQ(2, entities.Get(0).register_entry().index().index());
+    EXPECT_EQ(2, entities.Get(1).register_entry().index().index());
+  }
+  {  // index too large for RegisterWide
+    p4v1::ReadResponse response;
+    p4v1::RegisterEntry register_entry;
+    register_entry.mutable_index()->set_index(r_wide_size);
+    // depends on the order in which registers are visited
+    EXPECT_CALL(*mock, register_read(r_id, r_wide_size, _)).Times(AtMost(1));
+    EXPECT_CALL(*mock, register_read(r_wide_id, _, _)).Times(0);
+    EXPECT_EQ(read_register(&register_entry, &response).code(),
+              Code::OUT_OF_RANGE);
+  }
+}
+
+// a wildcard write writes the data to every cell, with a single call to the
+// target so that the write is atomic with respect to the data plane
+TEST_F(RegisterTest, WildcardWrite) {
+  p4v1::RegisterEntry register_entry;
+  register_entry.set_register_id(r_id);
+  register_entry.mutable_data()->set_bitstring(std::string("\x01", 1));
+  EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+  EXPECT_CALL(*mock, register_write_all(r_id, std::string("\x00\x01", 2)))
+      .WillOnce(DoDefault())
+      .WillOnce(Return(PI_STATUS_NOT_IMPLEMENTED_BY_TARGET));
+  EXPECT_OK(write_register(&register_entry));
+
+  p4v1::ReadResponse response;
+  p4v1::RegisterEntry read_entry;
+  read_entry.set_register_id(r_id);
+  EXPECT_CALL(*mock, register_read(r_id, _, _)).Times(r_size);
+  EXPECT_OK(read_register(&read_entry, &response));
+  const auto &entities = response.entities();
+  ASSERT_EQ(r_size, static_cast<size_t>(entities.size()));
+  for (size_t i = 0; i < r_size; i++) {
+    EXPECT_PROTO_EQ(entities.Get(i).register_entry(),
+                    make_entry(r_id, i, std::string("\x01", 1)));
+  }
+
+  EXPECT_EQ(write_register(&register_entry),
+            OneExpectedError(Code::UNIMPLEMENTED));
+
+  // 13-bit value, does not fit in a bit<12> cell
+  register_entry.mutable_data()->set_bitstring(std::string("\x10\x00", 2));
+  EXPECT_EQ(write_register(&register_entry),
+            OneExpectedError(Code::INVALID_ARGUMENT));
+}
+
+// PI can only represent registers whose cells are bitstrings; the P4Info is
+// still accepted when other types are used, but these registers cannot be read
+// or written, and they are skipped when reading all registers.
+TEST_F(RegisterTest, UnsupportedType) {
+  // P4Header cannot represent the dynamic bitwidth of a varbit field
+  p4configv1::P4Info p4info_varbit_register(p4info_proto);
+  for (auto &reg : *p4info_varbit_register.mutable_registers()) {
+    if (reg.preamble().id() != r_id) continue;
+    reg.mutable_type_spec()->mutable_header()->set_name("varbit_h_t");
+  }
+  auto &varbit_h_t = (*p4info_varbit_register.mutable_type_info()
+                      ->mutable_headers())["varbit_h_t"];
+  auto *field = varbit_h_t.add_members();
+  field->set_name("f");
+  field->mutable_type_spec()->mutable_varbit()->set_max_bitwidth(32);
+  EXPECT_CALL(*mock, table_idle_timeout_config_set(
+      pi_p4info_table_id_from_name(p4info, "IdleTimeoutTable"), _));
+  ASSERT_OK(set_pipeline_config(&p4info_varbit_register));
+
+  EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+  auto register_entry = make_entry(r_id, 0, std::string("\x01", 1));
+  EXPECT_EQ(write_register(&register_entry),
+            OneExpectedError(Code::UNIMPLEMENTED));
+  p4v1::ReadResponse response;
+  EXPECT_EQ(read_register(&register_entry, &response).code(),
+            Code::UNIMPLEMENTED);
+
+  response.Clear();
+  p4v1::RegisterEntry all_registers;
+  EXPECT_CALL(*mock, register_read(r_id, _, _)).Times(0);
+  EXPECT_CALL(*mock, register_read(r_wide_id, _, _)).Times(r_wide_size);
+  EXPECT_OK(read_register(&all_registers, &response));
+  EXPECT_EQ(r_wide_size, static_cast<size_t>(response.entities().size()));
+}
+
+// RegisterA is a bit<12> register in unittest.p4info.txt; these tests change
+// its type before pushing the P4Info.
+class RegisterTypeTest : public RegisterTest {
+ protected:
+  // sets the type of RegisterA and pushes the modified P4Info
+  DeviceMgr::Status set_register_type(
+      const p4configv1::P4DataTypeSpec &type_spec,
+      const p4configv1::P4TypeInfo &type_info = p4configv1::P4TypeInfo()) {
+    p4configv1::P4Info p4info_new(p4info_proto);
+    for (auto &reg : *p4info_new.mutable_registers()) {
+      if (reg.preamble().id() != r_id) continue;
+      reg.mutable_type_spec()->CopyFrom(type_spec);
+    }
+    p4info_new.mutable_type_info()->MergeFrom(type_info);
+    EXPECT_CALL(*mock, table_idle_timeout_config_set(
+        pi_p4info_table_id_from_name(p4info, "IdleTimeoutTable"), _));
+    return set_pipeline_config(&p4info_new);
+  }
+
+  // writes data to cell 0 of RegisterA, and checks that the target receives
+  // the expected PI bytestring
+  void write_and_check(const p4v1::P4Data &data, const std::string &pi_value) {
+    p4v1::RegisterEntry register_entry;
+    register_entry.set_register_id(r_id);
+    register_entry.mutable_index()->set_index(0);
+    register_entry.mutable_data()->CopyFrom(data);
+    EXPECT_CALL(*mock, register_write(r_id, 0, pi_value));
+    EXPECT_OK(write_register(&register_entry));
+  }
+
+  DeviceMgr::Status write_data(const p4v1::P4Data &data) {
+    p4v1::RegisterEntry register_entry;
+    register_entry.set_register_id(r_id);
+    register_entry.mutable_index()->set_index(0);
+    register_entry.mutable_data()->CopyFrom(data);
+    return write_register(&register_entry);
+  }
+
+  // reads cell 0 of RegisterA
+  StatusOr<p4v1::P4Data> read_data() {
+    p4v1::RegisterEntry register_entry;
+    register_entry.set_register_id(r_id);
+    register_entry.mutable_index()->set_index(0);
+    p4v1::ReadResponse response;
+    auto status = read_register(&register_entry, &response);
+    if (IS_ERROR(status)) return status;
+    if (response.entities().size() != 1) {
+      ADD_FAILURE() << "Expected exactly one entity in read response";
+      status.set_code(Code::UNKNOWN);
+      return status;
+    }
+    return response.entities().Get(0).register_entry().data();
+  }
+
+  static p4v1::P4Data bitstring(const std::string &value) {
+    p4v1::P4Data data;
+    data.set_bitstring(value);
+    return data;
+  }
+
+  static p4v1::P4Data enum_value(const std::string &value) {
+    p4v1::P4Data data;
+    data.set_enum_value(value);
+    return data;
+  }
+
+  static p4v1::P4Data enum_member(const std::string &name) {
+    p4v1::P4Data data;
+    data.set_enum_(name);
+    return data;
+  }
+
+  static p4v1::P4Data bool_data(bool value) {
+    p4v1::P4Data data;
+    data.set_bool_(value);
+    return data;
+  }
+
+  static p4v1::P4Header header(std::vector<std::string> bitstrings) {
+    p4v1::P4Header header;
+    header.set_is_valid(true);
+    for (const auto &bitstring : bitstrings) header.add_bitstrings(bitstring);
+    return header;
+  }
+
+  static p4v1::P4Header invalid_header() {
+    return p4v1::P4Header();
+  }
+
+  static p4v1::P4HeaderUnion header_union(const std::string &name,
+                                          const p4v1::P4Header &header) {
+    p4v1::P4HeaderUnion header_union;
+    header_union.set_valid_header_name(name);
+    header_union.mutable_valid_header()->CopyFrom(header);
+    return header_union;
+  }
+
+  // converts a string of '0' and '1', starting from the most significant bit,
+  // to a PI bytestring, to show how values are laid out in the cell
+  static std::string bits(const std::string &b) {
+    std::string value((b.size() + 7) / 8, '\0');
+    size_t pos = value.size() * 8 - b.size();
+    for (auto c : b) {
+      if (c == '1') {
+        value[pos / 8] = static_cast<char>(
+            value[pos / 8] | (0x80 >> (pos % 8)));
+      }
+      pos++;
+    }
+    return value;
+  }
+
+  // writes data to cell 0, checks the value received by the target, and checks
+  // that data is read back
+  void check_round_trip(const p4v1::P4Data &data, const std::string &pi_value) {
+    write_and_check(data, pi_value);
+    EXPECT_CALL(*mock, register_read(r_id, 0, _));
+    auto read = read_data();
+    ASSERT_OK(read.status());
+    EXPECT_PROTO_EQ(read.ValueOrDie(), data);
+  }
+
+  // the target holds value in cell 0
+  StatusOr<p4v1::P4Data> read_target_value(const std::string &value) {
+    EXPECT_CALL(*mock, register_read(r_id, 0, _))
+        .WillOnce(DoAll(SetArgPointee<2>(value), Return(PI_STATUS_SUCCESS)));
+    return read_data();
+  }
+
+  static void add_header(p4configv1::P4TypeInfo *type_info,
+                         const std::string &name,
+                         std::vector<std::pair<std::string, int>> fields) {
+    auto &header = (*type_info->mutable_headers())[name];
+    for (const auto &f : fields) {
+      auto *member = header.add_members();
+      member->set_name(f.first);
+      // negative bitwidths stand for int<W>
+      if (f.second < 0)
+        member->mutable_type_spec()->mutable_int_()->set_bitwidth(-f.second);
+      else
+        member->mutable_type_spec()->mutable_bit()->set_bitwidth(f.second);
+    }
+  }
+
+  // header_union u_t { a_t a; b_t b; }, with header a_t { bit<8> x; } and
+  // header b_t { bit<16> y; }
+  static p4configv1::P4TypeInfo union_type_info() {
+    p4configv1::P4TypeInfo type_info;
+    add_header(&type_info, "a_t", {{"x", 8}});
+    add_header(&type_info, "b_t", {{"y", 16}});
+    auto &u_t = (*type_info.mutable_header_unions())["u_t"];
+    auto *a = u_t.add_members();
+    a->set_name("a");
+    a->mutable_header()->set_name("a_t");
+    auto *b = u_t.add_members();
+    b->set_name("b");
+    b->mutable_header()->set_name("b_t");
+    return type_info;
+  }
+};
+
+TEST_F(RegisterTypeTest, Int) {
+  p4configv1::P4DataTypeSpec type_spec;
+  type_spec.mutable_bitstring()->mutable_int_()->set_bitwidth(12);
+  ASSERT_OK(set_register_type(type_spec));
+
+  // in PI, the value is the 2's complement on 12 bits, without sign extension
+  struct Value {
+    std::string p4rt;  // canonical bytestring
+    std::string pi;
+  };
+  std::vector<Value> values = {
+    {std::string("\x00", 1), std::string("\x00\x00", 2)},
+    {std::string("\x05", 1), std::string("\x00\x05", 2)},
+    {std::string("\x00\x80", 2), std::string("\x00\x80", 2)},  // 128
+    {std::string("\x07\xff", 2), std::string("\x07\xff", 2)},  // 2047
+    {std::string("\xff", 1), std::string("\x0f\xff", 2)},  // -1
+    {std::string("\x80", 1), std::string("\x0f\x80", 2)},  // -128
+    {std::string("\xff\x7f", 2), std::string("\x0f\x7f", 2)},  // -129
+    {std::string("\xf8\x00", 2), std::string("\x08\x00", 2)},  // -2048
+  };
+  for (const auto &v : values) {
+    write_and_check(bitstring(v.p4rt), v.pi);
+    EXPECT_CALL(*mock, register_read(r_id, 0, _));
+    auto data = read_data();
+    ASSERT_OK(data.status());
+    EXPECT_EQ(v.p4rt, data.ValueOrDie().bitstring());
+  }
+
+  // sign-extended bytestrings are accepted
+  write_and_check(bitstring(std::string("\xff\xff\xff", 3)),
+                  std::string("\x0f\xff", 2));
+  write_and_check(bitstring(std::string("\x00\x00\x05", 3)),
+                  std::string("\x00\x05", 2));
+
+  EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+  // 2048 and -2049 do not fit in an int<12>
+  EXPECT_EQ(write_data(bitstring(std::string("\x08\x00", 2))),
+            OneExpectedError(Code::INVALID_ARGUMENT));
+  EXPECT_EQ(write_data(bitstring(std::string("\xf7\xff", 2))),
+            OneExpectedError(Code::INVALID_ARGUMENT));
+  EXPECT_EQ(write_data(enum_value(std::string("\x01", 1))),
+            OneExpectedError(Code::INVALID_ARGUMENT));
+}
+
+TEST_F(RegisterTypeTest, SerializableEnum) {
+  p4configv1::P4DataTypeSpec type_spec;
+  type_spec.mutable_serializable_enum()->set_name("color_t");
+  p4configv1::P4TypeInfo type_info;
+  auto &color_t = (*type_info.mutable_serializable_enums())["color_t"];
+  color_t.mutable_underlying_type()->set_bitwidth(8);
+  auto *red = color_t.add_members();
+  red->set_name("RED");
+  red->set_value(std::string("\x01", 1));
+  ASSERT_OK(set_register_type(type_spec, type_info));
+
+  write_and_check(enum_value(std::string("\x01", 1)), std::string("\x01", 1));
+  EXPECT_CALL(*mock, register_read(r_id, 0, _));
+  auto data = read_data();
+  ASSERT_OK(data.status());
+  EXPECT_PROTO_EQ(enum_value(std::string("\x01", 1)), data.ValueOrDie());
+
+  // values of the underlying type without a name are valid
+  write_and_check(enum_value(std::string("\x00\x7f", 2)),
+                  std::string("\x7f", 1));
+
+  EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+  EXPECT_EQ(write_data(enum_value(std::string("\x01\x00", 2))),
+            OneExpectedError(Code::INVALID_ARGUMENT));
+  EXPECT_EQ(write_data(bitstring(std::string("\x01", 1))),
+            OneExpectedError(Code::INVALID_ARGUMENT));
+  EXPECT_EQ(write_data(enum_member("RED")),
+            OneExpectedError(Code::INVALID_ARGUMENT));
+}
+
+TEST_F(RegisterTypeTest, Enum) {
+  p4configv1::P4DataTypeSpec type_spec;
+  type_spec.mutable_enum_()->set_name("shape_t");
+  p4configv1::P4TypeInfo type_info;
+  auto &shape_t = (*type_info.mutable_enums())["shape_t"];
+  shape_t.add_members()->set_name("CIRCLE");
+  shape_t.add_members()->set_name("SQUARE");
+  shape_t.add_members()->set_name("TRIANGLE");
+  ASSERT_OK(set_register_type(type_spec, type_info));
+
+  // cells are initialized to 0, i.e. the first member
+  {
+    EXPECT_CALL(*mock, register_read(r_id, 0, _));
+    auto data = read_data();
+    ASSERT_OK(data.status());
+    EXPECT_PROTO_EQ(enum_member("CIRCLE"), data.ValueOrDie());
+  }
+
+  // as in p4c, the members are numbered in declaration order, using 32 bits
+  write_and_check(enum_member("TRIANGLE"),
+                  std::string("\x00\x00\x00\x02", 4));
+  {
+    EXPECT_CALL(*mock, register_read(r_id, 0, _));
+    auto data = read_data();
+    ASSERT_OK(data.status());
+    EXPECT_PROTO_EQ(enum_member("TRIANGLE"), data.ValueOrDie());
+  }
+
+  {
+    EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+    EXPECT_EQ(write_data(enum_member("HEXAGON")),
+              OneExpectedError(Code::INVALID_ARGUMENT));
+    EXPECT_EQ(write_data(bitstring(std::string("\x01", 1))),
+              OneExpectedError(Code::INVALID_ARGUMENT));
+    EXPECT_EQ(write_data(enum_value(std::string("\x01", 1))),
+              OneExpectedError(Code::INVALID_ARGUMENT));
+  }
+
+  // the target holds a value which does not correspond to any member
+  for (const auto &value : {std::string("\x00\x00\x00\x03", 4),
+                            std::string("\xff\xff\xff\xff", 4)}) {
+    EXPECT_CALL(*mock, register_read(r_id, 0, _))
+        .WillOnce(DoAll(SetArgPointee<2>(value), Return(PI_STATUS_SUCCESS)));
+    EXPECT_EQ(read_data().status().code(), Code::INTERNAL);
+  }
+}
+
+TEST_F(RegisterTypeTest, NewType) {
+  p4configv1::P4DataTypeSpec type_spec;
+  type_spec.mutable_new_type()->set_name("id_t");
+  p4configv1::P4TypeInfo type_info;
+  (*type_info.mutable_new_types())["id_t"].mutable_original_type()
+      ->mutable_bitstring()->mutable_int_()->set_bitwidth(12);
+  ASSERT_OK(set_register_type(type_spec, type_info));
+
+  // same as int<12>
+  write_and_check(bitstring(std::string("\xff", 1)),
+                  std::string("\x0f\xff", 2));
+  EXPECT_CALL(*mock, register_read(r_id, 0, _));
+  auto data = read_data();
+  ASSERT_OK(data.status());
+  EXPECT_EQ(std::string("\xff", 1), data.ValueOrDie().bitstring());
+
+  // a type declared from another one
+  type_spec.mutable_new_type()->set_name("other_id_t");
+  (*type_info.mutable_new_types())["other_id_t"].mutable_original_type()
+      ->mutable_new_type()->set_name("id_t");
+  ASSERT_OK(set_register_type(type_spec, type_info));
+  check_round_trip(bitstring(std::string("\xff", 1)),
+                   std::string("\x0f\xff", 2));
+}
+
+// PI does not support @p4runtime_translation
+TEST_F(RegisterTypeTest, TranslatedType) {
+  p4configv1::P4DataTypeSpec type_spec;
+  type_spec.mutable_new_type()->set_name("port_t");
+  p4configv1::P4TypeInfo type_info;
+  auto *translated_type = (*type_info.mutable_new_types())["port_t"]
+      .mutable_translated_type();
+  translated_type->set_uri("p4.org/psa/v1/PortId_t");
+  translated_type->set_sdn_bitwidth(32);
+  ASSERT_OK(set_register_type(type_spec, type_info));
+
+  EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+  EXPECT_CALL(*mock, register_read(r_id, _, _)).Times(0);
+  EXPECT_EQ(write_data(bitstring(std::string("\x01", 1))),
+            OneExpectedError(Code::UNIMPLEMENTED));
+  EXPECT_EQ(read_data().status().code(), Code::UNIMPLEMENTED);
+}
+
+TEST_F(RegisterTypeTest, Bool) {
+  p4configv1::P4DataTypeSpec type_spec;
+  type_spec.mutable_bool_();
+  ASSERT_OK(set_register_type(type_spec));
+
+  check_round_trip(bool_data(true), std::string("\x01", 1));
+  check_round_trip(bool_data(false), std::string("\x00", 1));
+
+  EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+  EXPECT_EQ(write_data(bitstring(std::string("\x01", 1))),
+            OneExpectedError(Code::INVALID_ARGUMENT));
+}
+
+TEST_F(RegisterTypeTest, Error) {
+  p4configv1::P4DataTypeSpec type_spec;
+  type_spec.mutable_error();
+  p4configv1::P4TypeInfo type_info;
+  type_info.mutable_error()->add_members("NoError");
+  type_info.mutable_error()->add_members("PacketTooShort");
+  ASSERT_OK(set_register_type(type_spec, type_info));
+
+  // as for enums, the index of the member, using 32 bits
+  p4v1::P4Data data;
+  data.set_error("PacketTooShort");
+  check_round_trip(data, std::string("\x00\x00\x00\x01", 4));
+
+  {
+    EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+    data.set_error("NoMatch");
+    EXPECT_EQ(write_data(data), OneExpectedError(Code::INVALID_ARGUMENT));
+    EXPECT_EQ(write_data(enum_member("NoError")),
+              OneExpectedError(Code::INVALID_ARGUMENT));
+  }
+
+  EXPECT_EQ(read_target_value(std::string("\x00\x00\x00\x02", 4))
+            .status().code(), Code::INTERNAL);
+}
+
+TEST_F(RegisterTypeTest, Varbit) {
+  p4configv1::P4DataTypeSpec type_spec;
+  type_spec.mutable_bitstring()->mutable_varbit()->set_max_bitwidth(12);
+  ASSERT_OK(set_register_type(type_spec));
+
+  // the dynamic bitwidth on 32 bits, followed by the value on 12 bits
+  auto varbit = [](const std::string &value, int bitwidth) {
+    p4v1::P4Data data;
+    data.mutable_varbit()->set_bitstring(value);
+    data.mutable_varbit()->set_bitwidth(bitwidth);
+    return data;
+  };
+  check_round_trip(varbit(std::string("\xab", 1), 8),
+                   bits(std::string(28, '0') + "1000" + "000010101011"));
+  check_round_trip(varbit(std::string("\x0f\xff", 2), 12),
+                   bits(std::string(28, '0') + "1100" + "111111111111"));
+  check_round_trip(varbit(std::string("\x00", 1), 0),
+                   bits(std::string(44, '0')));
+
+  {
+    EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+    // dynamic bitwidth larger than the maximum, or negative
+    EXPECT_EQ(write_data(varbit(std::string("\x01", 1), 13)),
+              OneExpectedError(Code::INVALID_ARGUMENT));
+    EXPECT_EQ(write_data(varbit(std::string("\x01", 1), -1)),
+              OneExpectedError(Code::INVALID_ARGUMENT));
+    // value which does not fit in the dynamic bitwidth
+    EXPECT_EQ(write_data(varbit(std::string("\xab", 1), 4)),
+              OneExpectedError(Code::INVALID_ARGUMENT));
+    EXPECT_EQ(write_data(bitstring(std::string("\x01", 1))),
+              OneExpectedError(Code::INVALID_ARGUMENT));
+  }
+
+  // the target holds an invalid dynamic bitwidth, or a value which does not
+  // fit in it
+  EXPECT_EQ(read_target_value(bits(std::string(28, '0') + "1101" +
+                                   "000000000000")).status().code(),
+            Code::INTERNAL);
+  EXPECT_EQ(read_target_value(bits(std::string(28, '0') + "0100" +
+                                   "000010101011")).status().code(),
+            Code::INTERNAL);
+}
+
+TEST_F(RegisterTypeTest, Struct) {
+  // struct inner_t { bit<2> x; }
+  // struct s_t {
+  //   bit<3> a; int<5> b; bool c; shape_t d; id_t e;
+  //   tuple<color_t, inner_t> f;
+  // }
+  // with enum shape_t { CIRCLE, SQUARE }, type bit<4> id_t and
+  // enum bit<8> color_t { RED = 1 }
+  p4configv1::P4TypeInfo type_info;
+  auto &shape_t = (*type_info.mutable_enums())["shape_t"];
+  shape_t.add_members()->set_name("CIRCLE");
+  shape_t.add_members()->set_name("SQUARE");
+  (*type_info.mutable_new_types())["id_t"].mutable_original_type()
+      ->mutable_bitstring()->mutable_bit()->set_bitwidth(4);
+  auto &color_t = (*type_info.mutable_serializable_enums())["color_t"];
+  color_t.mutable_underlying_type()->set_bitwidth(8);
+  auto *red = color_t.add_members();
+  red->set_name("RED");
+  red->set_value(std::string("\x01", 1));
+  auto &inner_t = (*type_info.mutable_structs())["inner_t"];
+  auto *x = inner_t.add_members();
+  x->set_name("x");
+  x->mutable_type_spec()->mutable_bitstring()->mutable_bit()->set_bitwidth(2);
+  auto &s_t = (*type_info.mutable_structs())["s_t"];
+  auto add_member = [&s_t](const std::string &name) {
+    auto *member = s_t.add_members();
+    member->set_name(name);
+    return member->mutable_type_spec();
+  };
+  add_member("a")->mutable_bitstring()->mutable_bit()->set_bitwidth(3);
+  add_member("b")->mutable_bitstring()->mutable_int_()->set_bitwidth(5);
+  add_member("c")->mutable_bool_();
+  add_member("d")->mutable_enum_()->set_name("shape_t");
+  add_member("e")->mutable_new_type()->set_name("id_t");
+  auto *f = add_member("f")->mutable_tuple();
+  f->add_members()->mutable_serializable_enum()->set_name("color_t");
+  f->add_members()->mutable_struct_()->set_name("inner_t");
+
+  p4configv1::P4DataTypeSpec type_spec;
+  type_spec.mutable_struct_()->set_name("s_t");
+  ASSERT_OK(set_register_type(type_spec, type_info));
+
+  p4v1::P4Data data;
+  auto *members = data.mutable_struct_();
+  members->add_members()->set_bitstring("\x05");
+  members->add_members()->set_bitstring("\xfd");  // -3
+  members->add_members()->set_bool_(true);
+  members->add_members()->set_enum_("SQUARE");
+  members->add_members()->set_bitstring("\x0a");
+  auto *tuple = members->add_members()->mutable_tuple();
+  tuple->add_members()->set_enum_value("\x03");
+  tuple->add_members()->mutable_struct_()->add_members()->set_bitstring("\x02");
+  // 55 bits
+  check_round_trip(data, bits("101" "11101" "1" + std::string(31, '0') + "1" +
+                              "1010" "00000011" "10"));
+
+  EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+  {  // wrong number of members
+    auto wrong_data = data;
+    wrong_data.mutable_struct_()->mutable_members()->RemoveLast();
+    EXPECT_EQ(write_data(wrong_data), OneExpectedError(Code::INVALID_ARGUMENT));
+  }
+  {  // a member of the wrong type
+    auto wrong_data = data;
+    wrong_data.mutable_struct_()->mutable_members(2)->set_bitstring("\x01");
+    EXPECT_EQ(write_data(wrong_data), OneExpectedError(Code::INVALID_ARGUMENT));
+  }
+  {  // a member which does not fit in its type
+    auto wrong_data = data;
+    wrong_data.mutable_struct_()->mutable_members(0)->set_bitstring("\x08");
+    EXPECT_EQ(write_data(wrong_data), OneExpectedError(Code::INVALID_ARGUMENT));
+  }
+  {  // a nested member of the wrong type
+    auto wrong_data = data;
+    wrong_data.mutable_struct_()->mutable_members(5)->mutable_tuple()
+        ->mutable_members(0)->set_bitstring("\x03");
+    EXPECT_EQ(write_data(wrong_data), OneExpectedError(Code::INVALID_ARGUMENT));
+  }
+  EXPECT_EQ(write_data(bitstring("\x01")),
+            OneExpectedError(Code::INVALID_ARGUMENT));
+}
+
+TEST_F(RegisterTypeTest, Tuple) {
+  p4configv1::P4DataTypeSpec type_spec;
+  auto *tuple_spec = type_spec.mutable_tuple();
+  tuple_spec->add_members()->mutable_bitstring()->mutable_bit()
+      ->set_bitwidth(4);
+  tuple_spec->add_members()->mutable_bool_();
+  ASSERT_OK(set_register_type(type_spec));
+
+  p4v1::P4Data data;
+  data.mutable_tuple()->add_members()->set_bitstring("\x09");
+  data.mutable_tuple()->add_members()->set_bool_(true);
+  check_round_trip(data, bits("1001" "1"));
+
+  EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+  p4v1::P4Data struct_data;
+  struct_data.mutable_struct_()->CopyFrom(data.tuple());
+  EXPECT_EQ(write_data(struct_data), OneExpectedError(Code::INVALID_ARGUMENT));
+}
+
+TEST_F(RegisterTypeTest, Header) {
+  // header h_t { bit<8> x; int<4> y; }
+  p4configv1::P4TypeInfo type_info;
+  add_header(&type_info, "h_t", {{"x", 8}, {"y", -4}});
+  p4configv1::P4DataTypeSpec type_spec;
+  type_spec.mutable_header()->set_name("h_t");
+  ASSERT_OK(set_register_type(type_spec, type_info));
+
+  // the validity bit, followed by the fields
+  p4v1::P4Data data;
+  data.mutable_header()->CopyFrom(header({"\xab", "\xff"}));
+  check_round_trip(data, bits("1" "10101011" "1111"));
+  data.mutable_header()->CopyFrom(invalid_header());
+  check_round_trip(data, bits("0" "00000000" "0000"));
+
+  // the fields of an invalid header are not returned
+  {
+    auto read = read_target_value(bits("0" "10101011" "1111"));
+    ASSERT_OK(read.status());
+    EXPECT_PROTO_EQ(read.ValueOrDie(), data);
+  }
+
+  EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+  {  // invalid header with fields
+    auto wrong_data = data;
+    wrong_data.mutable_header()->add_bitstrings("\x01");
+    EXPECT_EQ(write_data(wrong_data), OneExpectedError(Code::INVALID_ARGUMENT));
+  }
+  {  // wrong number of fields
+    p4v1::P4Data wrong_data;
+    wrong_data.mutable_header()->CopyFrom(header({"\xab"}));
+    EXPECT_EQ(write_data(wrong_data), OneExpectedError(Code::INVALID_ARGUMENT));
+  }
+  {  // field which does not fit in int<4>
+    p4v1::P4Data wrong_data;
+    wrong_data.mutable_header()->CopyFrom(header({"\xab", "\x08"}));
+    EXPECT_EQ(write_data(wrong_data), OneExpectedError(Code::INVALID_ARGUMENT));
+  }
+}
+
+TEST_F(RegisterTypeTest, HeaderUnion) {
+  p4configv1::P4DataTypeSpec type_spec;
+  type_spec.mutable_header_union()->set_name("u_t");
+  ASSERT_OK(set_register_type(type_spec, union_type_info()));
+
+  // the headers, in order, each with its validity bit
+  p4v1::P4Data data;
+  data.mutable_header_union()->CopyFrom(
+      header_union("b", header({"\x12\x34"})));
+  check_round_trip(data, bits("0" "00000000" "1" "0001001000110100"));
+  data.mutable_header_union()->CopyFrom(header_union("a", header({"\x07"})));
+  check_round_trip(data, bits("1" "00000111" "0" "0000000000000000"));
+  // no valid header
+  data.mutable_header_union()->Clear();
+  check_round_trip(data, bits(std::string(26, '0')));
+
+  {
+    EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+    p4v1::P4Data wrong_data;
+    // not a member
+    wrong_data.mutable_header_union()->CopyFrom(
+        header_union("c", header({"\x07"})));
+    EXPECT_EQ(write_data(wrong_data), OneExpectedError(Code::INVALID_ARGUMENT));
+    // valid_header must be valid
+    wrong_data.mutable_header_union()->CopyFrom(
+        header_union("a", invalid_header()));
+    EXPECT_EQ(write_data(wrong_data), OneExpectedError(Code::INVALID_ARGUMENT));
+    // valid_header must be unset if no header is valid
+    wrong_data.mutable_header_union()->CopyFrom(
+        header_union("", header({"\x07"})));
+    EXPECT_EQ(write_data(wrong_data), OneExpectedError(Code::INVALID_ARGUMENT));
+    // wrong fields
+    wrong_data.mutable_header_union()->CopyFrom(
+        header_union("a", header({"\x12\x34"})));
+    EXPECT_EQ(write_data(wrong_data), OneExpectedError(Code::INVALID_ARGUMENT));
+  }
+
+  // the target holds a header union with two valid headers
+  EXPECT_EQ(read_target_value(bits("1" "00000111" "1" "0001001000110100"))
+            .status().code(), Code::INTERNAL);
+}
+
+TEST_F(RegisterTypeTest, HeaderStack) {
+  // a_t[3]
+  p4configv1::P4DataTypeSpec type_spec;
+  type_spec.mutable_header_stack()->mutable_header()->set_name("a_t");
+  type_spec.mutable_header_stack()->set_size(3);
+  ASSERT_OK(set_register_type(type_spec, union_type_info()));
+
+  // the elements, starting from index 0
+  p4v1::P4Data data;
+  auto *entries = data.mutable_header_stack()->mutable_entries();
+  *entries->Add() = header({"\x01"});
+  *entries->Add() = invalid_header();
+  *entries->Add() = header({"\xff"});
+  check_round_trip(data, bits("1" "00000001" "0" "00000000" "1" "11111111"));
+
+  EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+  entries->RemoveLast();
+  EXPECT_EQ(write_data(data), OneExpectedError(Code::INVALID_ARGUMENT));
+}
+
+TEST_F(RegisterTypeTest, HeaderUnionStack) {
+  // u_t[2]
+  p4configv1::P4DataTypeSpec type_spec;
+  type_spec.mutable_header_union_stack()->mutable_header_union()
+      ->set_name("u_t");
+  type_spec.mutable_header_union_stack()->set_size(2);
+  ASSERT_OK(set_register_type(type_spec, union_type_info()));
+
+  p4v1::P4Data data;
+  auto *entries = data.mutable_header_union_stack()->mutable_entries();
+  *entries->Add() = header_union("a", header({"\x07"}));
+  entries->Add();  // no valid header
+  check_round_trip(data, bits("1" "00000111" + std::string(17, '0') +
+                              std::string(26, '0')));
+
+  {
+    EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+    entries->RemoveLast();
+    EXPECT_EQ(write_data(data), OneExpectedError(Code::INVALID_ARGUMENT));
+  }
+
+  // the second element holds two valid headers
+  EXPECT_EQ(read_target_value(bits(std::string(26, '0') + "1" "00000111" "1" +
+                                   std::string(16, '0'))).status().code(),
+            Code::INTERNAL);
+}
+
+// Types which cannot be represented in a register cell.
+TEST_F(RegisterTypeTest, UnsupportedTypes) {
+  std::vector<std::pair<p4configv1::P4DataTypeSpec, p4configv1::P4TypeInfo>>
+      types;
+  {  // a struct with a member with a @p4runtime_translation annotation
+    p4configv1::P4DataTypeSpec type_spec;
+    type_spec.mutable_struct_()->set_name("s_t");
+    p4configv1::P4TypeInfo type_info;
+    auto *member = (*type_info.mutable_structs())["s_t"].add_members();
+    member->set_name("port");
+    member->mutable_type_spec()->mutable_new_type()->set_name("port_t");
+    (*type_info.mutable_new_types())["port_t"].mutable_translated_type()
+        ->set_sdn_bitwidth(32);
+    types.emplace_back(type_spec, type_info);
+  }
+  {  // a struct missing from type_info
+    p4configv1::P4DataTypeSpec type_spec;
+    type_spec.mutable_struct_()->set_name("unknown_t");
+    types.emplace_back(type_spec, p4configv1::P4TypeInfo());
+  }
+  {  // an empty struct, whose values have 0 bits
+    p4configv1::P4DataTypeSpec type_spec;
+    type_spec.mutable_struct_()->set_name("empty_t");
+    p4configv1::P4TypeInfo type_info;
+    (*type_info.mutable_structs())["empty_t"];
+    types.emplace_back(type_spec, type_info);
+  }
+  {  // error, without errors in type_info
+    p4configv1::P4DataTypeSpec type_spec;
+    type_spec.mutable_error();
+    types.emplace_back(type_spec, p4configv1::P4TypeInfo());
+  }
+  {  // a struct with 2^20 bit<1> leaves, too many types to visit: structs
+     // fan_<i> { fan_<i+1> a; fan_<i+1> b; }, fan_19 having 2 bit<1> members
+    p4configv1::P4DataTypeSpec type_spec;
+    type_spec.mutable_struct_()->set_name("fan_0");
+    p4configv1::P4TypeInfo type_info;
+    for (int i = 0; i < 20; i++) {
+      auto &fan = (*type_info.mutable_structs())["fan_" + std::to_string(i)];
+      for (const char *name : {"a", "b"}) {
+        auto *member = fan.add_members();
+        member->set_name(name);
+        auto *member_type = member->mutable_type_spec();
+        if (i == 19) {
+          member_type->mutable_bitstring()->mutable_bit()->set_bitwidth(1);
+        } else {
+          member_type->mutable_struct_()->set_name(
+              "fan_" + std::to_string(i + 1));
+        }
+      }
+    }
+    types.emplace_back(type_spec, type_info);
+  }
+  {  // a header stack of an unknown header
+    p4configv1::P4DataTypeSpec type_spec;
+    type_spec.mutable_header_stack()->mutable_header()->set_name("unknown_t");
+    type_spec.mutable_header_stack()->set_size(2);
+    types.emplace_back(type_spec, p4configv1::P4TypeInfo());
+  }
+
+  for (const auto &type : types) {
+    ASSERT_OK(set_register_type(type.first, type.second));
+    EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
+    EXPECT_CALL(*mock, register_read(r_id, _, _)).Times(0);
+    EXPECT_EQ(write_data(bitstring(std::string("\x01", 1))),
+              OneExpectedError(Code::UNIMPLEMENTED));
+    EXPECT_EQ(read_data().status().code(), Code::UNIMPLEMENTED);
+  }
 }
 
 // for digest tests, see test_proto_fe_digest.cpp

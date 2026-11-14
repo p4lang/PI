@@ -71,6 +71,7 @@ struct pi_p4info_s {
   pi_p4info_res_t *direct_counters;
   pi_p4info_res_t *meters;
   pi_p4info_res_t *direct_meters;
+  pi_p4info_res_t *registers;
   pi_p4info_res_t *digests;
 };
 

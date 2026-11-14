@@ -193,6 +193,16 @@ static void init_cmd_map() {
   register_cmd("meter_set", do_meter_set, meter_set_hs, complete_meter_set,
                PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
 
+  register_cmd("register_read", do_register_read, register_read_hs,
+               complete_register_read, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
+  register_cmd("register_write", do_register_write, register_write_hs,
+               complete_register_write, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
+  register_cmd("register_write_all", do_register_write_all,
+               register_write_all_hs, complete_register_write_all,
+               PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
+  register_cmd("register_reset", do_register_reset, register_reset_hs,
+               complete_register_reset, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
+
   register_cmd("direct_res_reset", do_direct_res_reset, direct_res_reset_hs,
                NULL, PI_CLI_CMD_FLAGS_REQUIRES_DEVICE);
 }

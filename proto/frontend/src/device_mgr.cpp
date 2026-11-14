@@ -25,6 +25,7 @@
 #include <PI/pi.h>
 #include <PI/proto/util.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <limits>
 #include <map>
@@ -75,6 +76,8 @@ using Code = ::google::rpc::Code;
 using common::SessionTemp;
 using common::bytestring_p4rt_to_pi;
 using common::bytestring_pi_to_p4rt;
+using common::bytestring_p4rt_to_pi_signed;
+using common::bytestring_pi_to_p4rt_signed;
 using common::make_invalid_p4_id_status;
 using action_profile_set_map =
   std::unordered_map<pi_indirect_handle_t, p4v1::ActionProfileActionSet>;
@@ -90,6 +93,663 @@ auto p4info_deleter = [](pi_p4info_t *p4info) {
   pi_destroy_config(p4info);
 };
 using P4InfoWrapper = std::unique_ptr<pi_p4info_t, decltype(p4info_deleter)>;
+
+// Builds the value of a register cell (a PI bytestring), starting from the most
+// significant bit.
+class CellWriter {
+ public:
+  explicit CellWriter(size_t bitwidth)
+      : cell((bitwidth + 7) / 8, '\0'), bitwidth(bitwidth),
+        pos(cell.size() * 8 - bitwidth) { }
+
+  // appends a value of nbits bits, given as a PI bytestring
+  void append(const std::string &value, size_t nbits) {
+    if (nbits == bitwidth) {  // the value is the whole cell
+      cell = value;
+      pos += nbits;
+      return;
+    }
+    size_t src = value.size() * 8 - nbits;
+    for (size_t i = 0; i < nbits; i++, src++, pos++) {
+      if (static_cast<uint8_t>(value[src / 8]) & (0x80u >> (src % 8)))
+        cell[pos / 8] = static_cast<char>(cell[pos / 8] | (0x80u >> (pos % 8)));
+    }
+  }
+
+  // appends nbits bits set to 0
+  void append_zeros(size_t nbits) { pos += nbits; }
+
+  const std::string &get() const { return cell; }
+
+ private:
+  std::string cell;
+  size_t bitwidth;
+  size_t pos;
+};
+
+// Reads the value of a register cell (a PI bytestring), starting from the most
+// significant bit.
+class CellReader {
+ public:
+  CellReader(const std::string &cell, size_t bitwidth)
+      : cell(cell), bitwidth(bitwidth), pos(cell.size() * 8 - bitwidth) { }
+
+  // returns the next nbits bits as a PI bytestring
+  std::string read(size_t nbits) {
+    if (nbits == bitwidth) {  // the value is the whole cell
+      pos += nbits;
+      return cell;
+    }
+    std::string value((nbits + 7) / 8, '\0');
+    size_t dst = value.size() * 8 - nbits;
+    for (size_t i = 0; i < nbits; i++, dst++, pos++) {
+      if (static_cast<uint8_t>(cell[pos / 8]) & (0x80u >> (pos % 8))) {
+        value[dst / 8] = static_cast<char>(
+            value[dst / 8] | (0x80u >> (dst % 8)));
+      }
+    }
+    return value;
+  }
+
+  void skip(size_t nbits) { pos += nbits; }
+
+ private:
+  const std::string &cell;
+  size_t bitwidth;
+  size_t pos;
+};
+
+// In PI, register cells are always bitstrings of the bitwidth stored in
+// p4info. RegisterType describes how they are represented in P4Runtime
+// (P4Data), which depends on the type of the cells in the P4 program, and
+// converts the values between the two representations. The values of types
+// other than bit<W> are laid out in the cells as described in pi_register.h.
+class RegisterType {
+ public:
+  // Returns UNIMPLEMENTED if the cells of this type cannot be represented, e.g.
+  // because of a @p4runtime_translation annotation. The error is not logged,
+  // as the P4Info is still accepted.
+  static StatusOr<RegisterType> make(
+      const p4configv1::P4DataTypeSpec &type_spec,
+      const p4configv1::P4TypeInfo &type_info) {
+    RegisterType type;
+    size_t nodes = 0;
+    RETURN_IF_ERROR(type.init(type_spec, type_info, 0, &nodes));
+    if (type.bitwidth == 0)
+      return unsupported("Registers whose cells have 0 bits are not supported");
+    return type;
+  }
+
+  template <typename... Args>
+  static Status unsupported(const char *fmt, const Args &... args) {
+    Status status;
+    status.set_code(Code::UNIMPLEMENTED);
+    status.set_message(fmt::format(fmt, args...));
+    return status;
+  }
+
+  size_t get_bitwidth() const { return bitwidth; }
+
+  StatusOr<std::string> p4rt_to_pi(const p4v1::P4Data &data) const {
+    CellWriter writer(bitwidth);
+    RETURN_IF_ERROR(write(data, &writer));
+    return writer.get();
+  }
+
+  Status pi_to_p4rt(const std::string &cell, p4v1::P4Data *data) const {
+    CellReader reader(cell, bitwidth);
+    return read(&reader, data);
+  }
+
+ private:
+  enum class Kind {
+    BIT,  // bitstring
+    INT,  // bitstring, in 2's complement
+    BOOL,
+    SERIALIZABLE_ENUM,  // enum_value (the value of the underlying type)
+    ENUM,  // enum (the name of the member)
+    ERROR,  // error (the name of the member)
+    VARBIT,
+    STRUCT,
+    TUPLE,
+    HEADER,
+    HEADER_UNION,
+    HEADER_STACK,
+    HEADER_UNION_STACK,
+  };
+
+  // same limits as in p4info_to_and_from_proto.cpp
+  static constexpr int kMaxDepth = 32;
+  static constexpr size_t kMaxNodes = 1 << 16;
+  static constexpr size_t kMaxBitwidth = std::numeric_limits<int32_t>::max();
+  // for the index of enum and error members and the dynamic bitwidth of
+  // varbits
+  static constexpr size_t kIndexBitwidth = 32;
+
+  static Status type_not_found(const char *what, const std::string &name) {
+    return unsupported("{} '{}' is not defined in the P4Info type_info", what,
+                       name);
+  }
+
+  Status check_bitwidth() const {
+    if (bitwidth > kMaxBitwidth)
+      return unsupported("Register cells are too wide");
+    RETURN_OK_STATUS();
+  }
+
+  Status set_bitwidth(int32_t w) {
+    if (w < 0) return unsupported("Negative bitwidth in register type");
+    bitwidth = static_cast<size_t>(w);
+    RETURN_OK_STATUS();
+  }
+
+  Status add_member(RegisterType member) {
+    bitwidth += member.bitwidth;  // both are at most kMaxBitwidth
+    members.push_back(std::move(member));
+    return check_bitwidth();
+  }
+
+  Status add_member(const p4configv1::P4DataTypeSpec &type_spec,
+                    const p4configv1::P4TypeInfo &type_info, int depth,
+                    size_t *nodes) {
+    RegisterType member;
+    RETURN_IF_ERROR(member.init(type_spec, type_info, depth + 1, nodes));
+    return add_member(std::move(member));
+  }
+
+  // nodes counts the types visited, as types can be reused many times
+  Status init(const p4configv1::P4DataTypeSpec &type_spec,
+              const p4configv1::P4TypeInfo &type_info, int depth,
+              size_t *nodes) {
+    if (depth > kMaxDepth)
+      return unsupported("Register type is nested too deeply");
+    if (++*nodes > kMaxNodes)
+      return unsupported("Register type is too complex");
+    switch (type_spec.type_spec_case()) {
+      case p4configv1::P4DataTypeSpec::kBitstring:
+        return init_bitstring(type_spec.bitstring());
+      case p4configv1::P4DataTypeSpec::kBool:
+        kind = Kind::BOOL;
+        bitwidth = 1;
+        RETURN_OK_STATUS();
+      case p4configv1::P4DataTypeSpec::kTuple:
+        kind = Kind::TUPLE;
+        for (const auto &member : type_spec.tuple().members())
+          RETURN_IF_ERROR(add_member(member, type_info, depth, nodes));
+        RETURN_OK_STATUS();
+      case p4configv1::P4DataTypeSpec::kStruct: {
+        const auto &name = type_spec.struct_().name();
+        auto it = type_info.structs().find(name);
+        if (it == type_info.structs().end())
+          return type_not_found("Struct", name);
+        kind = Kind::STRUCT;
+        for (const auto &member : it->second.members())
+          RETURN_IF_ERROR(
+              add_member(member.type_spec(), type_info, depth, nodes));
+        RETURN_OK_STATUS();
+      }
+      case p4configv1::P4DataTypeSpec::kHeader:
+        return init_header(type_spec.header().name(), type_info);
+      case p4configv1::P4DataTypeSpec::kHeaderUnion:
+        return init_header_union(type_spec.header_union().name(), type_info);
+      case p4configv1::P4DataTypeSpec::kHeaderStack: {
+        const auto &stack = type_spec.header_stack();
+        RegisterType header;
+        RETURN_IF_ERROR(header.init_header(stack.header().name(), type_info));
+        return init_stack(Kind::HEADER_STACK, std::move(header), stack.size());
+      }
+      case p4configv1::P4DataTypeSpec::kHeaderUnionStack: {
+        const auto &stack = type_spec.header_union_stack();
+        RegisterType header_union;
+        RETURN_IF_ERROR(header_union.init_header_union(
+            stack.header_union().name(), type_info));
+        return init_stack(Kind::HEADER_UNION_STACK, std::move(header_union),
+                          stack.size());
+      }
+      case p4configv1::P4DataTypeSpec::kEnum: {
+        const auto &name = type_spec.enum_().name();
+        auto it = type_info.enums().find(name);
+        if (it == type_info.enums().end()) return type_not_found("Enum", name);
+        if (it->second.members().empty())
+          return unsupported("Enum '{}' has no members", name);
+        kind = Kind::ENUM;
+        bitwidth = kIndexBitwidth;
+        for (const auto &member : it->second.members())
+          names.push_back(member.name());
+        RETURN_OK_STATUS();
+      }
+      case p4configv1::P4DataTypeSpec::kError: {
+        const auto &members = type_info.error().members();
+        if (members.empty())
+          return unsupported("The P4Info type_info does not define errors");
+        kind = Kind::ERROR;
+        bitwidth = kIndexBitwidth;
+        names.assign(members.begin(), members.end());
+        RETURN_OK_STATUS();
+      }
+      case p4configv1::P4DataTypeSpec::kSerializableEnum: {
+        const auto &name = type_spec.serializable_enum().name();
+        auto it = type_info.serializable_enums().find(name);
+        if (it == type_info.serializable_enums().end())
+          return type_not_found("Serializable enum", name);
+        kind = Kind::SERIALIZABLE_ENUM;
+        return set_bitwidth(it->second.underlying_type().bitwidth());
+      }
+      case p4configv1::P4DataTypeSpec::kNewType: {
+        const auto &name = type_spec.new_type().name();
+        auto it = type_info.new_types().find(name);
+        if (it == type_info.new_types().end())
+          return type_not_found("Type", name);
+        if (!it->second.has_original_type()) {
+          return unsupported(
+              "Type '{}' has a @p4runtime_translation annotation, which is not "
+              "supported for registers", name);
+        }
+        return init(it->second.original_type(), type_info, depth + 1, nodes);
+      }
+      default:
+        return unsupported("Unknown register type");
+    }
+  }
+
+  Status init_bitstring(const p4configv1::P4BitstringLikeTypeSpec &bitstring) {
+    if (bitstring.has_bit()) {
+      kind = Kind::BIT;
+      return set_bitwidth(bitstring.bit().bitwidth());
+    }
+    if (bitstring.has_int_()) {
+      kind = Kind::INT;
+      return set_bitwidth(bitstring.int_().bitwidth());
+    }
+    if (bitstring.has_varbit()) {
+      kind = Kind::VARBIT;
+      RETURN_IF_ERROR(set_bitwidth(bitstring.varbit().max_bitwidth()));
+      max_bitwidth = bitwidth;
+      bitwidth += kIndexBitwidth;
+      return check_bitwidth();
+    }
+    return unsupported("Unknown bitstring type");
+  }
+
+  Status init_header(const std::string &name,
+                     const p4configv1::P4TypeInfo &type_info) {
+    auto it = type_info.headers().find(name);
+    if (it == type_info.headers().end()) return type_not_found("Header", name);
+    kind = Kind::HEADER;
+    bitwidth = 1;  // validity bit
+    for (const auto &member : it->second.members()) {
+      if (member.type_spec().has_varbit()) {
+        return unsupported(
+            "Header '{}' has a varbit field, whose bitwidth cannot be "
+            "represented in a P4Header", name);
+      }
+      RegisterType field;
+      RETURN_IF_ERROR(field.init_bitstring(member.type_spec()));
+      RETURN_IF_ERROR(add_member(std::move(field)));
+    }
+    RETURN_OK_STATUS();
+  }
+
+  Status init_header_union(const std::string &name,
+                           const p4configv1::P4TypeInfo &type_info) {
+    auto it = type_info.header_unions().find(name);
+    if (it == type_info.header_unions().end())
+      return type_not_found("Header union", name);
+    kind = Kind::HEADER_UNION;
+    for (const auto &member : it->second.members()) {
+      RegisterType header;
+      RETURN_IF_ERROR(header.init_header(member.header().name(), type_info));
+      names.push_back(member.name());
+      RETURN_IF_ERROR(add_member(std::move(header)));
+    }
+    RETURN_OK_STATUS();
+  }
+
+  Status init_stack(Kind stack_kind, RegisterType element, int32_t size) {
+    if (size < 0) return unsupported("Negative size for header stack");
+    kind = stack_kind;
+    stack_size = static_cast<size_t>(size);
+    if (element.bitwidth > 0 && stack_size > kMaxBitwidth / element.bitwidth)
+      return unsupported("Register cells are too wide");
+    bitwidth = element.bitwidth * stack_size;
+    members.push_back(std::move(element));
+    RETURN_OK_STATUS();
+  }
+
+  static Status wrong_data(const char *expected) {
+    RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Register data must be {}",
+                        expected);
+  }
+
+  static Status check_size(const char *what, int size, size_t expected_size) {
+    if (static_cast<size_t>(size) != expected_size) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "Expected {} {} in register data but got {}",
+                          expected_size, what, size);
+    }
+    RETURN_OK_STATUS();
+  }
+
+  static std::string uint32_to_pi(uint32_t v) {
+    std::string value(4, '\0');
+    for (auto byte = value.rbegin(); byte != value.rend(); ++byte, v >>= 8)
+      *byte = static_cast<char>(v & 0xff);
+    return value;
+  }
+
+  static uint32_t pi_to_uint32(const std::string &value) {
+    uint32_t v = 0;
+    for (auto byte : value) v = (v << 8) | static_cast<uint8_t>(byte);
+    return v;
+  }
+
+  // for BIT and INT
+  StatusOr<std::string> bitstring_p4rt_to_pi(const std::string &str) const {
+    if (kind == Kind::INT) return bytestring_p4rt_to_pi_signed(str, bitwidth);
+    return bytestring_p4rt_to_pi(str, bitwidth);
+  }
+
+  std::string bitstring_pi_to_p4rt(const std::string &value) const {
+    if (kind == Kind::INT) return bytestring_pi_to_p4rt_signed(value, bitwidth);
+    return bytestring_pi_to_p4rt(value);
+  }
+
+  Status write(const p4v1::P4Data &data, CellWriter *writer) const {
+    switch (kind) {
+      case Kind::BIT:
+      case Kind::INT: {
+        if (data.data_case() != p4v1::P4Data::kBitstring)
+          return wrong_data("a bitstring");
+        ASSIGN_OR_RETURN(auto value, bitstring_p4rt_to_pi(data.bitstring()));
+        writer->append(value, bitwidth);
+        RETURN_OK_STATUS();
+      }
+      case Kind::BOOL:
+        if (data.data_case() != p4v1::P4Data::kBool)
+          return wrong_data("a bool");
+        writer->append(std::string(1, data.bool_() ? '\x01' : '\x00'), 1);
+        RETURN_OK_STATUS();
+      case Kind::SERIALIZABLE_ENUM: {
+        // any value of the underlying type is valid, even without a name
+        if (data.data_case() != p4v1::P4Data::kEnumValue)
+          return wrong_data("an enum_value");
+        ASSIGN_OR_RETURN(auto value,
+                         bytestring_p4rt_to_pi(data.enum_value(), bitwidth));
+        writer->append(value, bitwidth);
+        RETURN_OK_STATUS();
+      }
+      case Kind::ENUM:
+        if (data.data_case() != p4v1::P4Data::kEnum)
+          return wrong_data("an enum");
+        return write_index(data.enum_(), "the enum", writer);
+      case Kind::ERROR:
+        if (data.data_case() != p4v1::P4Data::kError)
+          return wrong_data("an error");
+        return write_index(data.error(), "error", writer);
+      case Kind::VARBIT:
+        if (data.data_case() != p4v1::P4Data::kVarbit)
+          return wrong_data("a varbit");
+        return write_varbit(data.varbit(), writer);
+      case Kind::STRUCT:
+        if (data.data_case() != p4v1::P4Data::kStruct)
+          return wrong_data("a struct");
+        return write_members(data.struct_(), writer);
+      case Kind::TUPLE:
+        if (data.data_case() != p4v1::P4Data::kTuple)
+          return wrong_data("a tuple");
+        return write_members(data.tuple(), writer);
+      case Kind::HEADER:
+        if (data.data_case() != p4v1::P4Data::kHeader)
+          return wrong_data("a header");
+        return write_header(data.header(), writer);
+      case Kind::HEADER_UNION:
+        if (data.data_case() != p4v1::P4Data::kHeaderUnion)
+          return wrong_data("a header_union");
+        return write_header_union(data.header_union(), writer);
+      case Kind::HEADER_STACK: {
+        if (data.data_case() != p4v1::P4Data::kHeaderStack)
+          return wrong_data("a header_stack");
+        const auto &entries = data.header_stack().entries();
+        RETURN_IF_ERROR(check_size("entries", entries.size(), stack_size));
+        for (const auto &entry : entries)
+          RETURN_IF_ERROR(members[0].write_header(entry, writer));
+        RETURN_OK_STATUS();
+      }
+      case Kind::HEADER_UNION_STACK: {
+        if (data.data_case() != p4v1::P4Data::kHeaderUnionStack)
+          return wrong_data("a header_union_stack");
+        const auto &entries = data.header_union_stack().entries();
+        RETURN_IF_ERROR(check_size("entries", entries.size(), stack_size));
+        for (const auto &entry : entries)
+          RETURN_IF_ERROR(members[0].write_header_union(entry, writer));
+        RETURN_OK_STATUS();
+      }
+    }
+    RETURN_ERROR_STATUS(Code::INTERNAL, "Unknown register type");
+  }
+
+  Status write_index(const std::string &name, const char *what,
+                     CellWriter *writer) const {
+    auto it = std::find(names.begin(), names.end(), name);
+    if (it == names.end()) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "'{}' is not a member of {}",
+                          name, what);
+    }
+    writer->append(uint32_to_pi(static_cast<uint32_t>(it - names.begin())),
+                   kIndexBitwidth);
+    RETURN_OK_STATUS();
+  }
+
+  Status write_varbit(const p4v1::P4Varbit &varbit, CellWriter *writer) const {
+    if (varbit.bitwidth() < 0 ||
+        static_cast<size_t>(varbit.bitwidth()) > max_bitwidth) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "Varbit bitwidth must be between 0 and {}",
+                          max_bitwidth);
+    }
+    // the value must fit in the dynamic bitwidth
+    RETURN_IF_ERROR(
+        bytestring_p4rt_to_pi(varbit.bitstring(), varbit.bitwidth()).status());
+    ASSIGN_OR_RETURN(auto value,
+                     bytestring_p4rt_to_pi(varbit.bitstring(), max_bitwidth));
+    writer->append(uint32_to_pi(static_cast<uint32_t>(varbit.bitwidth())),
+                   kIndexBitwidth);
+    writer->append(value, max_bitwidth);
+    RETURN_OK_STATUS();
+  }
+
+  Status write_members(const p4v1::P4StructLike &struct_like,
+                       CellWriter *writer) const {
+    RETURN_IF_ERROR(check_size("members", struct_like.members_size(),
+                               members.size()));
+    for (size_t i = 0; i < members.size(); i++)
+      RETURN_IF_ERROR(members[i].write(struct_like.members(i), writer));
+    RETURN_OK_STATUS();
+  }
+
+  Status write_header(const p4v1::P4Header &header, CellWriter *writer) const {
+    if (!header.is_valid()) {
+      if (header.bitstrings_size() != 0) {
+        RETURN_ERROR_STATUS(
+            Code::INVALID_ARGUMENT,
+            "The bitstrings of an invalid header must be empty");
+      }
+      writer->append_zeros(bitwidth);
+      RETURN_OK_STATUS();
+    }
+    RETURN_IF_ERROR(check_size("header fields", header.bitstrings_size(),
+                               members.size()));
+    writer->append(std::string(1, '\x01'), 1);
+    for (size_t i = 0; i < members.size(); i++) {
+      ASSIGN_OR_RETURN(auto value,
+                       members[i].bitstring_p4rt_to_pi(header.bitstrings(i)));
+      writer->append(value, members[i].bitwidth);
+    }
+    RETURN_OK_STATUS();
+  }
+
+  Status write_header_union(const p4v1::P4HeaderUnion &header_union,
+                            CellWriter *writer) const {
+    const auto &name = header_union.valid_header_name();
+    if (name.empty()) {
+      if (header_union.has_valid_header()) {
+        RETURN_ERROR_STATUS(
+            Code::INVALID_ARGUMENT,
+            "valid_header must be unset when valid_header_name is empty");
+      }
+      writer->append_zeros(bitwidth);
+      RETURN_OK_STATUS();
+    }
+    auto it = std::find(names.begin(), names.end(), name);
+    if (it == names.end()) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "'{}' is not a member of the header union", name);
+    }
+    if (!header_union.valid_header().is_valid()) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "valid_header must be a valid header");
+    }
+    auto valid_index = static_cast<size_t>(it - names.begin());
+    for (size_t i = 0; i < members.size(); i++) {
+      if (i == valid_index) {
+        RETURN_IF_ERROR(members[i].write_header(header_union.valid_header(),
+                                                writer));
+      } else {
+        writer->append_zeros(members[i].bitwidth);
+      }
+    }
+    RETURN_OK_STATUS();
+  }
+
+  Status read(CellReader *reader, p4v1::P4Data *data) const {
+    switch (kind) {
+      case Kind::BIT:
+      case Kind::INT:
+        data->set_bitstring(bitstring_pi_to_p4rt(reader->read(bitwidth)));
+        RETURN_OK_STATUS();
+      case Kind::BOOL:
+        data->set_bool_((reader->read(1)[0] & 1) != 0);
+        RETURN_OK_STATUS();
+      case Kind::SERIALIZABLE_ENUM:
+        data->set_enum_value(bytestring_pi_to_p4rt(reader->read(bitwidth)));
+        RETURN_OK_STATUS();
+      case Kind::ENUM: {
+        ASSIGN_OR_RETURN(auto name, read_index(reader, "enum"));
+        data->set_enum_(name);
+        RETURN_OK_STATUS();
+      }
+      case Kind::ERROR: {
+        ASSIGN_OR_RETURN(auto name, read_index(reader, "error"));
+        data->set_error(name);
+        RETURN_OK_STATUS();
+      }
+      case Kind::VARBIT:
+        return read_varbit(reader, data->mutable_varbit());
+      case Kind::STRUCT:
+        return read_members(reader, data->mutable_struct_());
+      case Kind::TUPLE:
+        return read_members(reader, data->mutable_tuple());
+      case Kind::HEADER:
+        read_header(reader, data->mutable_header());
+        RETURN_OK_STATUS();
+      case Kind::HEADER_UNION:
+        return read_header_union(reader, data->mutable_header_union());
+      case Kind::HEADER_STACK: {
+        auto *header_stack = data->mutable_header_stack();
+        for (size_t i = 0; i < stack_size; i++)
+          members[0].read_header(reader, header_stack->add_entries());
+        RETURN_OK_STATUS();
+      }
+      case Kind::HEADER_UNION_STACK: {
+        auto *header_union_stack = data->mutable_header_union_stack();
+        for (size_t i = 0; i < stack_size; i++) {
+          RETURN_IF_ERROR(members[0].read_header_union(
+              reader, header_union_stack->add_entries()));
+        }
+        RETURN_OK_STATUS();
+      }
+    }
+    RETURN_ERROR_STATUS(Code::INTERNAL, "Unknown register type");
+  }
+
+  StatusOr<std::string> read_index(CellReader *reader, const char *what) const {
+    auto index = pi_to_uint32(reader->read(kIndexBitwidth));
+    if (index >= names.size()) {
+      RETURN_ERROR_STATUS(Code::INTERNAL,
+                          "Register cell does not hold a valid {} value", what);
+    }
+    return names[index];
+  }
+
+  Status read_varbit(CellReader *reader, p4v1::P4Varbit *varbit) const {
+    auto dynamic_bitwidth = pi_to_uint32(reader->read(kIndexBitwidth));
+    auto value = bytestring_pi_to_p4rt(reader->read(max_bitwidth));
+    if (dynamic_bitwidth > max_bitwidth ||
+        !bytestring_p4rt_to_pi(value, dynamic_bitwidth).ok()) {
+      RETURN_ERROR_STATUS(Code::INTERNAL,
+                          "Register cell does not hold a valid varbit value");
+    }
+    varbit->set_bitstring(value);
+    varbit->set_bitwidth(static_cast<int32_t>(dynamic_bitwidth));
+    RETURN_OK_STATUS();
+  }
+
+  Status read_members(CellReader *reader,
+                      p4v1::P4StructLike *struct_like) const {
+    for (const auto &member : members)
+      RETURN_IF_ERROR(member.read(reader, struct_like->add_members()));
+    RETURN_OK_STATUS();
+  }
+
+  // the fields of an invalid header are not meaningful and are not returned
+  void read_header(CellReader *reader, p4v1::P4Header *header) const {
+    bool is_valid = (reader->read(1)[0] & 1) != 0;
+    header->set_is_valid(is_valid);
+    if (!is_valid) {
+      reader->skip(bitwidth - 1);
+      return;
+    }
+    for (const auto &field : members) {
+      header->add_bitstrings(
+          field.bitstring_pi_to_p4rt(reader->read(field.bitwidth)));
+    }
+  }
+
+  Status read_header_union(CellReader *reader,
+                           p4v1::P4HeaderUnion *header_union) const {
+    bool found_valid_header = false;
+    for (size_t i = 0; i < members.size(); i++) {
+      p4v1::P4Header header;
+      members[i].read_header(reader, &header);
+      if (!header.is_valid()) continue;
+      if (found_valid_header) {
+        RETURN_ERROR_STATUS(
+            Code::INTERNAL,
+            "Register cell holds a header union with more than one valid "
+            "header");
+      }
+      found_valid_header = true;
+      header_union->set_valid_header_name(names[i]);
+      header_union->mutable_valid_header()->Swap(&header);
+    }
+    RETURN_OK_STATUS();
+  }
+
+  Kind kind{Kind::BIT};
+  // the bitwidth of the whole value
+  size_t bitwidth{0};
+  // for VARBIT, the maximum bitwidth of the value
+  size_t max_bitwidth{0};
+  // for ENUM and ERROR, the members in the order of the P4Info; for
+  // HEADER_UNION, the names of the headers
+  std::vector<std::string> names{};
+  // for STRUCT and TUPLE, the members; for HEADER, the fields; for
+  // HEADER_UNION, the headers; for HEADER_STACK and HEADER_UNION_STACK, the
+  // type of the elements
+  std::vector<RegisterType> members{};
+  // for HEADER_STACK and HEADER_UNION_STACK
+  size_t stack_size{0};
+};
 
 class P4ErrorReporter {
  public:
@@ -460,6 +1120,7 @@ class DeviceMgrImp {
 
     // we do this last, so that the ActProfMgr instances never point to an
     // invalid p4info, even though this is not strictly required here
+    register_types = make_register_types(p4info_new, p4info_proto_new);
     p4info.reset(p4info_new);
     p4info_proto.CopyFrom(p4info_proto_new);
     config_cookie.CopyFrom(config_proto_new.cookie());
@@ -516,6 +1177,7 @@ class DeviceMgrImp {
       pi_remove_device(device_id);
       table_info_store.reset();
       action_profs.clear();
+      register_types.clear();
       p4info.reset(nullptr);
     };
 
@@ -602,7 +1264,18 @@ class DeviceMgrImp {
       p4v1::WriteRequest write_request;
       for (auto &entity : *forwarding_state.mutable_entities()) {
         auto *update = write_request.add_updates();
-        update->set_type(p4v1::Update::INSERT);
+        // counter, meter and register cells always exist, so they can only be
+        // modified
+        switch (entity.entity_case()) {
+          case p4v1::Entity::kCounterEntry:
+          case p4v1::Entity::kMeterEntry:
+          case p4v1::Entity::kRegisterEntry:
+            update->set_type(p4v1::Update::MODIFY);
+            break;
+          default:
+            update->set_type(p4v1::Update::INSERT);
+            break;
+        }
         update->unsafe_arena_set_allocated_entity(&entity);
       }
       auto status = write_(write_request);
@@ -1881,6 +2554,93 @@ class DeviceMgrImp {
     return direct_counter_read_one(table_entry, session, response);
   }
 
+  Status register_write(p4v1::Update::Type update,
+                        const p4v1::RegisterEntry &register_entry,
+                        const SessionTemp &session) {
+    auto register_id = register_entry.register_id();
+    if (!check_p4_id(register_id, P4Ids::REGISTER))
+      return make_invalid_p4_id_status();
+    // as for CounterEntry and MeterEntry, only MODIFY is allowed
+    switch (update) {
+      case p4v1::Update::UNSPECIFIED:
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Update type is not set");
+      case p4v1::Update::INSERT:
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                            "INSERT update type not supported for registers");
+      case p4v1::Update::MODIFY:
+        break;
+      case p4v1::Update::DELETE:
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                            "DELETE update type not supported for registers");
+      default:
+        RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid update type");
+    }
+    ASSIGN_OR_RETURN(const auto *type, get_register_type(register_id));
+    if (!register_entry.has_index()) {
+      // wildcard write: the data is written to every cell, atomically with
+      // respect to the data plane as required by the spec
+      ASSIGN_OR_RETURN(auto value, type->p4rt_to_pi(register_entry.data()));
+      auto pi_status = pi_register_write_all(session.get(), device_tgt,
+                                             register_id, value.data());
+      return register_status_pi_to_proto(
+          pi_status, "Error when writing register to target");
+    }
+    auto size = pi_p4info_register_get_size(p4info.get(), register_id);
+    RETURN_IF_ERROR(validate_register_index(register_entry.index(), size));
+    ASSIGN_OR_RETURN(auto value, type->p4rt_to_pi(register_entry.data()));
+    auto index = static_cast<size_t>(register_entry.index().index());
+    return register_write_one_index(session, register_id, index, value);
+  }
+
+  Status register_read_one(p4_id_t register_id,
+                           const p4v1::RegisterEntry &register_entry,
+                           const SessionTemp &session,
+                           p4v1::ReadResponse *response) const {
+    ASSIGN_OR_RETURN(const auto *type, get_register_type(register_id));
+    auto size = pi_p4info_register_get_size(p4info.get(), register_id);
+    if (register_entry.has_index()) {
+      RETURN_IF_ERROR(validate_register_index(register_entry.index(), size));
+      auto entry = response->add_entities()->mutable_register_entry();
+      entry->set_register_id(register_id);
+      entry->mutable_index()->set_index(register_entry.index().index());
+      return register_read_one_index(session, *type, entry);
+    }
+    // default index, read all
+    for (size_t index = 0; index < size; index++) {
+      auto entry = response->add_entities()->mutable_register_entry();
+      entry->set_register_id(register_id);
+      entry->mutable_index()->set_index(index);
+      RETURN_IF_ERROR(register_read_one_index(session, *type, entry));
+    }
+    RETURN_OK_STATUS();
+  }
+
+  Status register_read(const p4v1::RegisterEntry &register_entry,
+                       const SessionTemp &session,
+                       p4v1::ReadResponse *response) const {
+    auto register_id = register_entry.register_id();
+    if (register_id == 0) {  // read all registers
+      // as for CounterEntry, the index (if set) selects the same cell in each
+      // register; registers whose type cannot be represented are skipped, so
+      // that a wildcard read of the whole forwarding state does not fail
+      // because of them
+      for (auto r_id = pi_p4info_register_begin(p4info.get());
+           r_id != pi_p4info_register_end(p4info.get());
+           r_id = pi_p4info_register_next(p4info.get(), r_id)) {
+        auto it = register_types.find(r_id);
+        if (it == register_types.end() || !it->second.ok()) continue;
+        RETURN_IF_ERROR(register_read_one(
+            r_id, register_entry, session, response));
+      }
+    } else {  // read for a single register
+      if (!check_p4_id(register_id, P4Ids::REGISTER))
+        return make_invalid_p4_id_status();
+      RETURN_IF_ERROR(register_read_one(
+          register_id, register_entry, session, response));
+    }
+    RETURN_OK_STATUS();
+  }
+
   Status pre_mc_write(p4v1::Update::Type update,
                       const p4v1::MulticastGroupEntry &mc_group_entry) {
     if (mc_group_entry.multicast_group_id() == 0) {
@@ -2072,8 +2832,7 @@ class DeviceMgrImp {
         RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
                             "ValueSet reads are not supported yet");
       case p4v1::Entity::kRegisterEntry:
-        RETURN_ERROR_STATUS(Code::UNIMPLEMENTED,
-                            "Register reads are not supported yet");
+        return register_read(entity.register_entry(), session, response);
       case p4v1::Entity::kDigestEntry:
         return digest_mgr.config_read(entity.digest_entry(), response);
       default:
@@ -2137,8 +2896,8 @@ class DeviceMgrImp {
                                 "ValueSet writes are not supported yet");
           break;
         case p4v1::Entity::kRegisterEntry:
-          status = ERROR_STATUS(Code::UNIMPLEMENTED,
-                                "Register writes are not supported yet");
+          status = register_write(
+              update.type(), entity.register_entry(), session);
           break;
         case p4v1::Entity::kDigestEntry:
           status = digest_mgr.config_write(
@@ -3004,6 +3763,87 @@ class DeviceMgrImp {
     RETURN_OK_STATUS();
   }
 
+  static Status validate_register_index(const p4v1::Index &index,
+                                        size_t register_size) {
+    if (index.index() < 0) {
+      RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
+                          "A negative number is not a valid index value");
+    }
+    if (static_cast<uint64_t>(index.index()) >= register_size) {
+      RETURN_ERROR_STATUS(Code::OUT_OF_RANGE,
+                          "Index exceeds the size of the register array");
+    }
+    RETURN_OK_STATUS();
+  }
+
+  // Returns UNIMPLEMENTED for registers whose type is not supported.
+  StatusOr<const RegisterType *> get_register_type(
+      pi_p4_id_t register_id) const {
+    auto it = register_types.find(register_id);
+    if (it == register_types.end()) return make_invalid_p4_id_status();
+    if (!it->second.ok()) {
+      const auto &status = it->second.status();
+      RETURN_ERROR_STATUS(static_cast<Code>(status.code()), status.message());
+    }
+    return &it->second.ValueOrDie();
+  }
+
+  // Finds out how the cells of each register are represented in P4Runtime.
+  static std::unordered_map<pi_p4_id_t, StatusOr<RegisterType> >
+  make_register_types(const pi_p4info_t *p4info,
+                      const p4configv1::P4Info &p4info_proto) {
+    std::unordered_map<pi_p4_id_t, StatusOr<RegisterType> > types;
+    for (const auto &reg : p4info_proto.registers()) {
+      auto register_id = reg.preamble().id();
+      auto type = RegisterType::make(reg.type_spec(),
+                                     p4info_proto.type_info());
+      // the target uses the bitwidth stored in p4info, computed in
+      // p4info_to_and_from_proto.cpp
+      if (type.ok() && type.ValueOrDie().get_bitwidth() !=
+          pi_p4info_register_get_bitwidth(p4info, register_id)) {
+        type = RegisterType::unsupported(
+            "The bitwidth of the cells does not match p4info");
+      }
+      types.emplace(register_id, type);
+    }
+    return types;
+  }
+
+  static Status register_status_pi_to_proto(pi_status_t pi_status,
+                                            const char *error_msg) {
+    switch (pi_status) {
+      case PI_STATUS_SUCCESS:
+        RETURN_OK_STATUS();
+      case PI_STATUS_NOT_IMPLEMENTED_BY_TARGET:
+        RETURN_ERROR_STATUS(Code::UNIMPLEMENTED, error_msg);
+      default:
+        RETURN_ERROR_STATUS(Code::UNKNOWN, error_msg);
+    }
+  }
+
+  Status register_write_one_index(const SessionTemp &session,
+                                  uint32_t register_id, size_t index,
+                                  const std::string &value) {
+    auto pi_status = pi_register_write(session.get(), device_tgt, register_id,
+                                       index, value.data());
+    return register_status_pi_to_proto(
+        pi_status, "Error when writing register to target");
+  }
+
+  Status register_read_one_index(const SessionTemp &session,
+                                 const RegisterType &type,
+                                 p4v1::RegisterEntry *entry) const {
+    // checked by caller
+    assert(entry->has_index() && entry->index().index() >= 0);
+    auto index = static_cast<size_t>(entry->index().index());
+    std::string value((type.get_bitwidth() + 7) / 8, '\0');
+    auto pi_status = pi_register_read(session.get(), device_tgt,
+                                      entry->register_id(), index, &value[0]);
+    RETURN_IF_ERROR(register_status_pi_to_proto(
+        pi_status, "Error when reading register from target"));
+    return type.pi_to_p4rt(value, entry->mutable_data());
+  }
+
   void idle_timeout_register_cb(StreamMessageResponseCb cb, void *cookie) {
     idle_timeout_buffer.stream_message_response_register_cb(cb, cookie);
     pi_table_idle_timeout_register_cb(
@@ -3061,7 +3901,27 @@ class DeviceMgrImp {
       auto *entity = request.add_entities();
       entity->mutable_counter_entry();
     }
-    return read_(request, response);
+    RETURN_IF_ERROR(read_(request, response));
+    // Registers are read one at a time, so that registers which cannot be
+    // read are skipped: those whose type is not supported, and those of
+    // targets which do not support registers (UNIMPLEMENTED). Their state
+    // cannot be preserved, but this used to be the case for all registers.
+    for (auto r_id = pi_p4info_register_begin(p4info.get());
+         r_id != pi_p4info_register_end(p4info.get());
+         r_id = pi_p4info_register_next(p4info.get(), r_id)) {
+      auto it = register_types.find(r_id);
+      if (it == register_types.end() || !it->second.ok()) continue;
+      p4v1::ReadRequest register_request;
+      register_request.set_device_id(device_id);
+      register_request.add_entities()->mutable_register_entry()
+          ->set_register_id(r_id);
+      p4v1::ReadResponse register_response;
+      auto status = read_(register_request, &register_response);
+      if (status.code() == Code::UNIMPLEMENTED) continue;
+      RETURN_IF_ERROR(status);
+      response->MergeFrom(register_response);
+    }
+    RETURN_OK_STATUS();
   }
 
   device_id_t device_id;
@@ -3088,6 +3948,9 @@ class DeviceMgrImp {
   PacketIOMgr packet_io;
 
   DigestMgr digest_mgr;
+
+  // only includes the registers whose type is supported
+  std::unordered_map<pi_p4_id_t, StatusOr<RegisterType> > register_types{};
 
   IdleTimeoutBuffer idle_timeout_buffer;
 

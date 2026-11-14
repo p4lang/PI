@@ -49,6 +49,8 @@ resource_type_from_id(p4_id_t p4_id) {
       return P4Ids::METER;
     case static_cast<p4_id_t>(P4Ids::DIRECT_METER):
       return P4Ids::DIRECT_METER;
+    case static_cast<p4_id_t>(P4Ids::REGISTER):
+      return P4Ids::REGISTER;
     default:
       return P4Ids::UNSPECIFIED;
   }

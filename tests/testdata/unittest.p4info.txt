@@ -474,6 +474,36 @@ direct_meters {
   }
   direct_table_id: 33582705
 }
+registers {
+  preamble {
+    id: 375164098
+    name: "RegisterA"
+    alias: "RegisterA"
+  }
+  type_spec {
+    bitstring {
+      bit {
+        bitwidth: 12
+      }
+    }
+  }
+  size: 128
+}
+registers {
+  preamble {
+    id: 376971001
+    name: "RegisterWide"
+    alias: "RegisterWide"
+  }
+  type_spec {
+    bitstring {
+      bit {
+        bitwidth: 160
+      }
+    }
+  }
+  size: 4
+}
 digests {
   preamble {
     id: 385901477

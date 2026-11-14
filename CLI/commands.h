@@ -113,6 +113,22 @@ extern char meter_set_hs[];
 pi_cli_status_t do_meter_set(char *subcmd);
 char *complete_meter_set(const char *text, int state);
 
+extern char register_read_hs[];
+pi_cli_status_t do_register_read(char *subcmd);
+char *complete_register_read(const char *text, int state);
+
+extern char register_write_hs[];
+pi_cli_status_t do_register_write(char *subcmd);
+char *complete_register_write(const char *text, int state);
+
+extern char register_write_all_hs[];
+pi_cli_status_t do_register_write_all(char *subcmd);
+char *complete_register_write_all(const char *text, int state);
+
+extern char register_reset_hs[];
+pi_cli_status_t do_register_reset(char *subcmd);
+char *complete_register_reset(const char *text, int state);
+
 extern char direct_res_reset_hs[];
 pi_cli_status_t do_direct_res_reset(char *subcmd);
 
