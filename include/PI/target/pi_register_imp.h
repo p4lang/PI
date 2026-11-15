@@ -24,8 +24,9 @@ extern "C" {
 #endif
 
 // The PI library checks that the register id is valid, that the index is in
-// range and that the register has a bitstring type before calling these
-// functions.
+// range and that the type of the cells is supported (i.e. that their bitwidth
+// is not 0) before calling these functions. The value of a cell is a byte array
+// in the format described in PI/pi_register.h.
 
 pi_status_t _pi_register_read(pi_session_handle_t session_handle,
                               pi_dev_tgt_t dev_tgt, pi_p4_id_t register_id,

@@ -37,7 +37,8 @@ size_t pi_p4info_register_get_size(const pi_p4info_t *p4info,
                                    pi_p4_id_t register_id);
 
 //! Returns the bitwidth of one cell of the register array, or 0 if the type of
-//! the cells cannot be represented in p4info (only bitstrings are supported).
+//! the cells is not supported. See PI/pi_register.h for the supported types and
+//! for how their values are laid out in the cells.
 size_t pi_p4info_register_get_bitwidth(const pi_p4info_t *p4info,
                                        pi_p4_id_t register_id);
 
