@@ -1,7 +1,7 @@
 <!--
 SPDX-FileCopyrightText: 2016 Barefoot Networks, Inc.
 
-SPDX-License-Identifier: Apache-2.0
+SPDX-License-Identifier: CC-BY-4.0
 -->
 
 This demonstrates how to use the PI library.
