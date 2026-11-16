@@ -223,14 +223,22 @@ TEST(P4InfoProtoConvertRegistersTest, Types) {
   add_field(&varbit_h_t, "a")->mutable_varbit()->set_max_bitwidth(8);
   add_register("r_varbit_header")->mutable_header()->set_name("varbit_h_t");
 
-  // header_union u_t { h_t h1; h_t h2; }
-  auto &u_t = (*type_info->mutable_header_unions())["u_t"];
-  for (const char *name : {"h1", "h2"}) {
-    auto *member = u_t.add_members();
-    member->set_name(name);
-    member->mutable_header()->set_name("h_t");
-  }
+  // header_union u_t { h_t h1; h_t h2; }, u1_t { h_t h1; } and
+  // u3_t { h_t h1; h_t h2; h_t h3; }
+  auto add_union = [type_info](const char *name, int num_headers) {
+    auto &u = (*type_info->mutable_header_unions())[name];
+    for (int i = 1; i <= num_headers; i++) {
+      auto *member = u.add_members();
+      member->set_name("h" + std::to_string(i));
+      member->mutable_header()->set_name("h_t");
+    }
+  };
+  add_union("u_t", 2);
+  add_union("u1_t", 1);
+  add_union("u3_t", 3);
   add_register("r_header_union")->mutable_header_union()->set_name("u_t");
+  add_register("r_header_union_1")->mutable_header_union()->set_name("u1_t");
+  add_register("r_header_union_3")->mutable_header_union()->set_name("u3_t");
 
   auto *stack = add_register("r_header_stack")->mutable_header_stack();
   stack->mutable_header()->set_name("h_t");
@@ -318,9 +326,12 @@ TEST(P4InfoProtoConvertRegistersTest, Types) {
   // the validity bit, followed by the fields
   EXPECT_EQ(13u, bitwidth("r_header"));
   EXPECT_EQ(0u, bitwidth("r_varbit_header"));
-  EXPECT_EQ(26u, bitwidth("r_header_union"));
+  // the index of the valid header, followed by the widest header
+  EXPECT_EQ(1u + 13u, bitwidth("r_header_union"));
+  EXPECT_EQ(13u, bitwidth("r_header_union_1"));
+  EXPECT_EQ(2u + 13u, bitwidth("r_header_union_3"));
   EXPECT_EQ(52u, bitwidth("r_header_stack"));
-  EXPECT_EQ(78u, bitwidth("r_header_union_stack"));
+  EXPECT_EQ(3u * 14u, bitwidth("r_header_union_stack"));
   EXPECT_EQ(1u + 13u + 8u + 20u, bitwidth("r_struct"));
   EXPECT_EQ(0u, bitwidth("r_bad_struct"));
   EXPECT_EQ(0u, bitwidth("r_empty_struct"));

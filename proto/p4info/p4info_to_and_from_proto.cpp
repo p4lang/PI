@@ -21,6 +21,7 @@
 
 #include <PI/p4info.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <exception>
 #include <iostream>
@@ -276,6 +277,15 @@ bool add_register_bitwidth(uint64_t n, uint64_t *bitwidth) {
   return *bitwidth <= kMaxRegisterBitwidth;
 }
 
+// The number of bits of the index of the valid header of a header union, i.e.
+// the smallest number of bits which can hold num_headers - 1.
+uint64_t register_union_index_bitwidth(int num_headers) {
+  uint64_t bitwidth = 0;
+  while ((uint64_t{1} << bitwidth) < static_cast<uint64_t>(num_headers))
+    bitwidth++;
+  return bitwidth;
+}
+
 bool register_header_bitwidth(const std::string &name,
                               const p4configv1::P4TypeInfo &type_info,
                               uint64_t *bitwidth) {
@@ -301,16 +311,19 @@ bool register_header_union_bitwidth(const std::string &name,
                                     uint64_t *bitwidth) {
   auto it = type_info.header_unions().find(name);
   if (it == type_info.header_unions().end()) return false;
-  *bitwidth = 0;
-  for (const auto &member : it->second.members()) {
+  const auto &members = it->second.members();
+  // the index of the valid header, followed by the widest header
+  uint64_t max_header_bitwidth = 0;
+  for (const auto &member : members) {
     uint64_t header_bitwidth;
     if (!register_header_bitwidth(member.header().name(), type_info,
-                                  &header_bitwidth) ||
-        !add_register_bitwidth(header_bitwidth, bitwidth)) {
+                                  &header_bitwidth)) {
       return false;
     }
+    max_header_bitwidth = std::max(max_header_bitwidth, header_bitwidth);
   }
-  return true;
+  *bitwidth = register_union_index_bitwidth(members.size());
+  return add_register_bitwidth(max_header_bitwidth, bitwidth);
 }
 
 bool register_stack_bitwidth(uint64_t element_bitwidth, int32_t size,

@@ -4446,19 +4446,23 @@ class RegisterTypeTest : public RegisterTest {
     }
   }
 
-  // header_union u_t { a_t a; b_t b; }, with header a_t { bit<8> x; } and
-  // header b_t { bit<16> y; }
+  // header_union u_t { a_t a; b_t b; c_t c; }, with header a_t { bit<8> x; },
+  // header b_t { bit<16> y; } and header c_t { bit<4> z; }
   static p4configv1::P4TypeInfo union_type_info() {
     p4configv1::P4TypeInfo type_info;
     add_header(&type_info, "a_t", {{"x", 8}});
     add_header(&type_info, "b_t", {{"y", 16}});
+    add_header(&type_info, "c_t", {{"z", 4}});
     auto &u_t = (*type_info.mutable_header_unions())["u_t"];
-    auto *a = u_t.add_members();
+    for (const char *name : {"a", "b", "c"}) {
+      auto *member = u_t.add_members();
+      member->set_name(name);
+      member->mutable_header()->set_name(std::string(name) + "_t");
+    }
+    // header_union u1_t { a_t a; }
+    auto *a = (*type_info.mutable_header_unions())["u1_t"].add_members();
     a->set_name("a");
     a->mutable_header()->set_name("a_t");
-    auto *b = u_t.add_members();
-    b->set_name("b");
-    b->mutable_header()->set_name("b_t");
     return type_info;
   }
 };
@@ -4854,23 +4858,26 @@ TEST_F(RegisterTypeTest, HeaderUnion) {
   type_spec.mutable_header_union()->set_name("u_t");
   ASSERT_OK(set_register_type(type_spec, union_type_info()));
 
-  // the headers, in order, each with its validity bit
+  // the index of the valid header on 2 bits, followed by that header, padded
+  // to the 17 bits of b_t
   p4v1::P4Data data;
   data.mutable_header_union()->CopyFrom(
       header_union("b", header({"\x12\x34"})));
-  check_round_trip(data, bits("0" "00000000" "1" "0001001000110100"));
+  check_round_trip(data, bits("01" "1" "0001001000110100"));
   data.mutable_header_union()->CopyFrom(header_union("a", header({"\x07"})));
-  check_round_trip(data, bits("1" "00000111" "0" "0000000000000000"));
+  check_round_trip(data, bits("00" "1" "00000111" "00000000"));
+  data.mutable_header_union()->CopyFrom(header_union("c", header({"\x05"})));
+  check_round_trip(data, bits("10" "1" "0101" "000000000000"));
   // no valid header
   data.mutable_header_union()->Clear();
-  check_round_trip(data, bits(std::string(26, '0')));
+  check_round_trip(data, bits(std::string(19, '0')));
 
   {
     EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
     p4v1::P4Data wrong_data;
     // not a member
     wrong_data.mutable_header_union()->CopyFrom(
-        header_union("c", header({"\x07"})));
+        header_union("d", header({"\x07"})));
     EXPECT_EQ(write_data(wrong_data), OneExpectedError(Code::INVALID_ARGUMENT));
     // valid_header must be valid
     wrong_data.mutable_header_union()->CopyFrom(
@@ -4886,9 +4893,29 @@ TEST_F(RegisterTypeTest, HeaderUnion) {
     EXPECT_EQ(write_data(wrong_data), OneExpectedError(Code::INVALID_ARGUMENT));
   }
 
-  // the target holds a header union with two valid headers
-  EXPECT_EQ(read_target_value(bits("1" "00000111" "1" "0001001000110100"))
+  // the target holds a header union whose index is out of range
+  EXPECT_EQ(read_target_value(bits("11" "1" "0001001000110100"))
             .status().code(), Code::INTERNAL);
+  {  // the index and the fields are not meaningful if no header is valid
+    auto read = read_target_value(bits("10" "0" "0101" "000000000001"));
+    ASSERT_OK(read.status());
+    p4v1::P4Data expected;
+    expected.mutable_header_union();
+    EXPECT_PROTO_EQ(read.ValueOrDie(), expected);
+  }
+}
+
+TEST_F(RegisterTypeTest, HeaderUnionWithOneHeader) {
+  p4configv1::P4DataTypeSpec type_spec;
+  type_spec.mutable_header_union()->set_name("u1_t");
+  ASSERT_OK(set_register_type(type_spec, union_type_info()));
+
+  // the index has 0 bits
+  p4v1::P4Data data;
+  data.mutable_header_union()->CopyFrom(header_union("a", header({"\x07"})));
+  check_round_trip(data, bits("1" "00000111"));
+  data.mutable_header_union()->Clear();
+  check_round_trip(data, bits("0" "00000000"));
 }
 
 TEST_F(RegisterTypeTest, HeaderStack) {
@@ -4923,8 +4950,8 @@ TEST_F(RegisterTypeTest, HeaderUnionStack) {
   auto *entries = data.mutable_header_union_stack()->mutable_entries();
   *entries->Add() = header_union("a", header({"\x07"}));
   entries->Add();  // no valid header
-  check_round_trip(data, bits("1" "00000111" + std::string(17, '0') +
-                              std::string(26, '0')));
+  check_round_trip(data, bits("00" "1" "00000111" "00000000" +
+                              std::string(19, '0')));
 
   {
     EXPECT_CALL(*mock, register_write(_, _, _)).Times(0);
@@ -4932,8 +4959,8 @@ TEST_F(RegisterTypeTest, HeaderUnionStack) {
     EXPECT_EQ(write_data(data), OneExpectedError(Code::INVALID_ARGUMENT));
   }
 
-  // the second element holds two valid headers
-  EXPECT_EQ(read_target_value(bits(std::string(26, '0') + "1" "00000111" "1" +
+  // the index of the second element is out of range
+  EXPECT_EQ(read_target_value(bits(std::string(19, '0') + "11" "1" +
                                    std::string(16, '0'))).status().code(),
             Code::INTERNAL);
 }

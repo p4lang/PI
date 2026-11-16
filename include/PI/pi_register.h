@@ -45,14 +45,26 @@ extern "C" {
 //  - struct, tuple: the members, in order.
 //  - header: the validity bit (set if the header is valid), followed by the
 //    fields, in order. The fields of an invalid header are written as 0.
-//  - header union: the headers, in order.
+//  - header union: the index of the valid header in the P4Info, on the smallest
+//    number of bits which can hold the index of the last header (0 bits if
+//    there is only one header), followed by the valid header, padded with 0s
+//    to the bitwidth of the widest header. If no header is valid, all the bits
+//    are written as 0.
 //  - header stack, header union stack: the elements, starting from index 0.
 //  - type declaration (new type): the original type.
 // For example, the cells of a register<h_t>, with
 //   header h_t { bit<8> a; int<4> b; }
-// have 13 bits: the validity bit, followed by a and then by b. Types with a
-// @p4runtime_translation annotation, headers with a varbit field and types
-// whose values have 0 bits are not supported (bitwidth is 0).
+// have 13 bits: the validity bit, followed by a and then by b. The cells of a
+// register<u_t>, with
+//   header_union u_t { h_t h1; h_t h2; }
+// have 14 bits: the index of the valid header on 1 bit (0 for h1, 1 for h2),
+// followed by that header. Types with a @p4runtime_translation annotation,
+// headers with a varbit field and types whose values have 0 bits are not
+// supported (bitwidth is 0).
+//
+// This is the format of the values passed to and from the target, which may
+// store the cells in another format and convert the values in its
+// implementation of the functions of PI/target/pi_register_imp.h.
 
 //! Reads the cell at the given \p index of a register array. \p value must
 //! point to a buffer large enough to hold one cell.

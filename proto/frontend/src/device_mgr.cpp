@@ -390,19 +390,32 @@ class RegisterType {
     RETURN_OK_STATUS();
   }
 
+  // the number of bits of the index of the valid header of a header union,
+  // i.e. the smallest number of bits which can hold num_headers - 1
+  static size_t union_index_bitwidth(size_t num_headers) {
+    size_t bitwidth = 0;
+    while ((size_t{1} << bitwidth) < num_headers) bitwidth++;
+    return bitwidth;
+  }
+
   Status init_header_union(const std::string &name,
                            const p4configv1::P4TypeInfo &type_info) {
     auto it = type_info.header_unions().find(name);
     if (it == type_info.header_unions().end())
       return type_not_found("Header union", name);
     kind = Kind::HEADER_UNION;
+    // the index of the valid header, followed by the widest header
+    size_t max_header_bitwidth = 0;
     for (const auto &member : it->second.members()) {
       RegisterType header;
       RETURN_IF_ERROR(header.init_header(member.header().name(), type_info));
+      max_header_bitwidth = std::max(max_header_bitwidth, header.bitwidth);
       names.push_back(member.name());
-      RETURN_IF_ERROR(add_member(std::move(header)));
+      members.push_back(std::move(header));
     }
-    RETURN_OK_STATUS();
+    index_bitwidth = union_index_bitwidth(members.size());
+    bitwidth = index_bitwidth + max_header_bitwidth;
+    return check_bitwidth();
   }
 
   Status init_stack(Kind stack_kind, RegisterType element, int32_t size) {
@@ -609,15 +622,11 @@ class RegisterType {
       RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT,
                           "valid_header must be a valid header");
     }
-    auto valid_index = static_cast<size_t>(it - names.begin());
-    for (size_t i = 0; i < members.size(); i++) {
-      if (i == valid_index) {
-        RETURN_IF_ERROR(members[i].write_header(header_union.valid_header(),
-                                                writer));
-      } else {
-        writer->append_zeros(members[i].bitwidth);
-      }
-    }
+    auto index = static_cast<size_t>(it - names.begin());
+    const auto &header = members[index];
+    writer->append(uint32_to_pi(static_cast<uint32_t>(index)), index_bitwidth);
+    RETURN_IF_ERROR(header.write_header(header_union.valid_header(), writer));
+    writer->append_zeros(bitwidth - index_bitwidth - header.bitwidth);
     RETURN_OK_STATUS();
   }
 
@@ -701,37 +710,48 @@ class RegisterType {
     RETURN_OK_STATUS();
   }
 
-  // the fields of an invalid header are not meaningful and are not returned
-  void read_header(CellReader *reader, p4v1::P4Header *header) const {
-    bool is_valid = (reader->read(1)[0] & 1) != 0;
-    header->set_is_valid(is_valid);
-    if (!is_valid) {
-      reader->skip(bitwidth - 1);
-      return;
-    }
+  static bool read_validity_bit(CellReader *reader) {
+    return (reader->read(1)[0] & 1) != 0;
+  }
+
+  // reads the fields of a valid header, after the validity bit
+  void read_header_fields(CellReader *reader, p4v1::P4Header *header) const {
+    header->set_is_valid(true);
     for (const auto &field : members) {
       header->add_bitstrings(
           field.bitstring_pi_to_p4rt(reader->read(field.bitwidth)));
     }
   }
 
+  // the fields of an invalid header are not meaningful and are not returned
+  void read_header(CellReader *reader, p4v1::P4Header *header) const {
+    if (read_validity_bit(reader)) {
+      read_header_fields(reader, header);
+    } else {
+      header->set_is_valid(false);
+      reader->skip(bitwidth - 1);
+    }
+  }
+
+  // all the headers start with the validity bit; if it is not set, no header
+  // is valid and the index is not meaningful either
   Status read_header_union(CellReader *reader,
                            p4v1::P4HeaderUnion *header_union) const {
-    bool found_valid_header = false;
-    for (size_t i = 0; i < members.size(); i++) {
-      p4v1::P4Header header;
-      members[i].read_header(reader, &header);
-      if (!header.is_valid()) continue;
-      if (found_valid_header) {
-        RETURN_ERROR_STATUS(
-            Code::INTERNAL,
-            "Register cell holds a header union with more than one valid "
-            "header");
-      }
-      found_valid_header = true;
-      header_union->set_valid_header_name(names[i]);
-      header_union->mutable_valid_header()->Swap(&header);
+    if (members.empty()) RETURN_OK_STATUS();  // no headers, so no bits
+    auto index = pi_to_uint32(reader->read(index_bitwidth));
+    if (!read_validity_bit(reader)) {
+      reader->skip(bitwidth - index_bitwidth - 1);
+      RETURN_OK_STATUS();
     }
+    if (index >= members.size()) {
+      RETURN_ERROR_STATUS(
+          Code::INTERNAL,
+          "Register cell does not hold a valid header union value");
+    }
+    const auto &header = members[index];
+    header.read_header_fields(reader, header_union->mutable_valid_header());
+    header_union->set_valid_header_name(names[index]);
+    reader->skip(bitwidth - index_bitwidth - header.bitwidth);
     RETURN_OK_STATUS();
   }
 
@@ -740,6 +760,8 @@ class RegisterType {
   size_t bitwidth{0};
   // for VARBIT, the maximum bitwidth of the value
   size_t max_bitwidth{0};
+  // for HEADER_UNION, the bitwidth of the index of the valid header
+  size_t index_bitwidth{0};
   // for ENUM and ERROR, the members in the order of the P4Info; for
   // HEADER_UNION, the names of the headers
   std::vector<std::string> names{};
