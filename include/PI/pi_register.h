@@ -47,9 +47,13 @@ extern "C" {
 //    fields, in order. The fields of an invalid header are written as 0.
 //  - header union: the index of the valid header in the P4Info, on the smallest
 //    number of bits which can hold the index of the last header (0 bits if
-//    there is only one header), followed by the valid header, padded with 0s
-//    to the bitwidth of the widest header. If no header is valid, all the bits
-//    are written as 0.
+//    there is only one header), followed by the valid header laid out as
+//    above, i.e. starting with its validity bit, which is set, and padded with
+//    0s to the bitwidth of the widest header. If no header is valid, all the
+//    bits are written as 0. The validity bit after the index tells the two
+//    cases apart: it is set if a header is valid, even if all its fields are 0,
+//    and not set if no header is valid, in which case the index and the fields
+//    are ignored when reading.
 //  - header stack, header union stack: the elements, starting from index 0.
 //  - type declaration (new type): the original type.
 // For example, the cells of a register<h_t>, with
@@ -58,9 +62,11 @@ extern "C" {
 // register<u_t>, with
 //   header_union u_t { h_t h1; h_t h2; }
 // have 14 bits: the index of the valid header on 1 bit (0 for h1, 1 for h2),
-// followed by that header. Types with a @p4runtime_translation annotation,
-// headers with a varbit field and types whose values have 0 bits are not
-// supported (bitwidth is 0).
+// followed by that header, starting with its validity bit. If h1 is valid and
+// all its fields are 0, the cell holds 0 (the index), 1 (the validity bit) and
+// then 12 bits set to 0; if no header is valid, all the 14 bits are 0. Types
+// with a @p4runtime_translation annotation, headers with a varbit field and
+// types whose values have 0 bits are not supported (bitwidth is 0).
 //
 // This is the format of the values passed to and from the target, which may
 // store the cells in another format and convert the values in its
