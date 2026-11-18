@@ -1971,8 +1971,15 @@ class DeviceMgrImp {
       case PreEntry::kCloneSessionEntry:
         return pre_clone_read(
             pre_entry.clone_session_entry(), session, response);
-      default:
-        break;
+      case PreEntry::TYPE_NOT_SET: {
+        // If neither kCloneSessionEntry nor kMulticastGroupEntry is set,
+        // assume a wildcard read.
+        RETURN_IF_ERROR(
+            pre_mc_read(pre_entry.multicast_group_entry(), response));
+        RETURN_IF_ERROR(
+            pre_clone_read(pre_entry.clone_session_entry(), session, response));
+        RETURN_OK_STATUS();
+      }
     }
     RETURN_ERROR_STATUS(Code::INVALID_ARGUMENT, "Invalid PRE operation");
   }
