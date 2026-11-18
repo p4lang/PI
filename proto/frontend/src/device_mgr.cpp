@@ -2246,7 +2246,7 @@ class DeviceMgrImp {
           "omit match field instead of using a prefix length of 0");
     }
     // makes sure that value ends with zeros
-    if (!common::check_prefix_trailing_zeros(value, pLen)) {
+    if (!common::check_prefix_trailing_zeros(value, pLen, bitwidth)) {
       RETURN_ERROR_STATUS(
           Code::INVALID_ARGUMENT,
           "Invalid LPM value, incorrect number of trailing zeros");

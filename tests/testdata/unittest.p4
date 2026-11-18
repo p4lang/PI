@@ -94,6 +94,15 @@ control ingress(inout headers_t hdr, inout metadata_t meta, inout standard_metad
         size = 512;
     }
 
+    @name(".LpmNonByte")
+    table LpmNonByte {
+        key = {
+            hdr.header_test.field20 : lpm;
+        }
+        actions = { actionA; }
+        size = 512;
+    }
+
     @name(".TernaryOne")
     table TernaryOne {
         key = {
