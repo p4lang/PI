@@ -152,6 +152,17 @@ StatusOr<std::string> bytestring_p4rt_to_pi(const std::string &str,
 std::string bytestring_pi_to_p4rt(const std::string &str);
 std::string bytestring_pi_to_p4rt(const char *, size_t n);
 
+// Same as bytestring_p4rt_to_pi, but for a signed value (int<nbits>): the
+// P4Runtime bytestring may be sign-extended, and the PI bytestring is the 2's
+// complement representation of the value on nbits bits, with the padding bits
+// (if nbits is not a multiple of 8) set to 0.
+StatusOr<std::string> bytestring_p4rt_to_pi_signed(const std::string &str,
+                                                   size_t nbits);
+
+// Converts a PI bytestring for a signed value (see above) to a canonical
+// P4Runtime bytestring, i.e. the shortest 2's complement representation.
+std::string bytestring_pi_to_p4rt_signed(const std::string &str, size_t nbits);
+
 // Converts the given bytestring to the given `pi_port_t` and return OK if
 // the bytestring fits into the port, or returns INVALID_ARGUMENT otherwise.
 Status bytestring_to_pi_port(const std::string &str, pi_port_t* result);

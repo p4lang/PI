@@ -27,6 +27,7 @@
 #include "PI/target/pi_imp.h"
 #include "PI/target/pi_learn_imp.h"
 #include "PI/target/pi_meter_imp.h"
+#include "PI/target/pi_register_imp.h"
 #include "PI/target/pi_tables_imp.h"
 
 #include <nanomsg/nn.h>
@@ -1045,6 +1046,90 @@ static void __pi_packetout_send(char *req) {
   send_status(status);
 }
 
+// returns 0 if the device or the register is unknown
+static size_t register_cell_size(pi_dev_id_t dev_id, pi_p4_id_t register_id) {
+  const pi_p4info_t *p4info = pi_get_device_p4info(dev_id);
+  if (!p4info || !pi_p4info_is_valid_id(p4info, register_id)) return 0;
+  return (pi_p4info_register_get_bitwidth(p4info, register_id) + 7) / 8;
+}
+
+static void __pi_register_read(char *req) {
+  printf("RPC: _pi_register_read\n");
+  pi_session_handle_t sess;
+  req += retrieve_session_handle(req, &sess);
+  pi_dev_tgt_t dev_tgt;
+  req += retrieve_dev_tgt(req, &dev_tgt);
+  pi_p4_id_t register_id;
+  req += retrieve_p4_id(req, &register_id);
+  uint64_t index;
+  req += retrieve_uint64(req, &index);
+  uint32_t size;
+  req += retrieve_uint32(req, &size);
+  // the client has the same p4info, so the size of the cell is the same
+  if (size == 0 || size != register_cell_size(dev_tgt.dev_id, register_id)) {
+    send_status(PI_STATUS_BUFFER_ERROR);
+    return;
+  }
+
+  // the reply header is followed by the value of the cell
+  size_t s = sizeof(rep_hdr_t) + size;
+  char *rep = malloc(s);
+  char *value = rep + sizeof(rep_hdr_t);
+  memset(value, 0, size);
+  pi_status_t status =
+      _pi_register_read(sess, dev_tgt, register_id, index, value);
+  // only the header in case of error
+  if (status != PI_STATUS_SUCCESS) s = sizeof(rep_hdr_t);
+  emit_rep_hdr(rep, status);
+
+  int bytes = nn_send(state.s, rep, s, 0);
+  _PI_UNUSED(bytes);
+  assert((size_t)bytes == s);
+  free(rep);
+}
+
+static void register_write(char *req, pi_rpc_type_t type) {
+  pi_session_handle_t sess;
+  req += retrieve_session_handle(req, &sess);
+  pi_dev_tgt_t dev_tgt;
+  req += retrieve_dev_tgt(req, &dev_tgt);
+  pi_p4_id_t register_id;
+  req += retrieve_p4_id(req, &register_id);
+  uint64_t index;
+  req += retrieve_uint64(req, &index);
+  uint32_t size;
+  req += retrieve_uint32(req, &size);
+  // req now points to the value of the cell
+  if (size == 0 || size != register_cell_size(dev_tgt.dev_id, register_id)) {
+    send_status(PI_STATUS_BUFFER_ERROR);
+    return;
+  }
+
+  pi_status_t status;
+  switch (type) {
+    case PI_RPC_REGISTER_WRITE:
+      status = _pi_register_write(sess, dev_tgt, register_id, index, req);
+      break;
+    case PI_RPC_REGISTER_WRITE_ALL:
+      status = _pi_register_write_all(sess, dev_tgt, register_id, req);
+      break;
+    default:
+      _PI_UNREACHABLE("Invalid switch case");
+  }
+
+  send_status(status);
+}
+
+static void __pi_register_write(char *req) {
+  printf("RPC: _pi_register_write\n");
+  register_write(req, PI_RPC_REGISTER_WRITE);
+}
+
+static void __pi_register_write_all(char *req) {
+  printf("RPC: _pi_register_write_all\n");
+  register_write(req, PI_RPC_REGISTER_WRITE_ALL);
+}
+
 static void learn_cb(pi_learn_msg_t *msg, void *cb_cookie) {
   (void)cb_cookie;
   pi_notifications_pub_learn(msg);
@@ -1203,6 +1288,16 @@ pi_status_t pi_rpc_server_run(const pi_remote_addr_t *remote_addr) {
 
       case PI_RPC_PACKETOUT_SEND:
         __pi_packetout_send(req_);
+        break;
+
+      case PI_RPC_REGISTER_READ:
+        __pi_register_read(req_);
+        break;
+      case PI_RPC_REGISTER_WRITE:
+        __pi_register_write(req_);
+        break;
+      case PI_RPC_REGISTER_WRITE_ALL:
+        __pi_register_write_all(req_);
         break;
 
       default:

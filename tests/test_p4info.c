@@ -28,6 +28,8 @@
 
 #include "unity/unity_fixture.h"
 
+#include <cJSON/cJSON.h>
+#include <stdlib.h>
 #include <string.h>
 #include <uthash.h>
 
@@ -445,6 +447,7 @@ static void add_one_of_each() {
   pi_p4info_act_prof_init(p4info, 1);
   pi_p4info_counter_init(p4info, 1);
   pi_p4info_meter_init(p4info, 1);
+  pi_p4info_register_init(p4info, 1);
 
   pi_p4info_action_add(p4info, pi_make_action_id(0), "action0", 0);
   pi_p4info_table_add(p4info, pi_make_table_id(0), "table0", 0, 0, 128,
@@ -455,13 +458,14 @@ static void add_one_of_each() {
   pi_p4info_meter_add(p4info, pi_make_meter_id(0), "meter0",
                       PI_P4INFO_METER_UNIT_PACKETS,
                       PI_P4INFO_METER_TYPE_COLOR_UNAWARE, 128);
+  pi_p4info_register_add(p4info, pi_make_register_id(0), "register0", 128, 32);
 }
 
 TEST(P4Info, Generic) {
   add_one_of_each();
 
-  pi_res_type_id_t types[] = {PI_ACTION_ID, PI_TABLE_ID, PI_ACT_PROF_ID,
-                              PI_COUNTER_ID, PI_METER_ID};
+  pi_res_type_id_t types[] = {PI_ACTION_ID,  PI_TABLE_ID, PI_ACT_PROF_ID,
+                              PI_COUNTER_ID, PI_METER_ID, PI_REGISTER_ID};
   size_t num_types = sizeof(types) / sizeof(types[0]);
 
   for (size_t i = 0; i < num_types; i++) {
@@ -484,6 +488,97 @@ TEST(P4Info, Generic) {
     TEST_ASSERT_EQUAL(PI_STATUS_ALIAS_ALREADY_EXISTS,
                       pi_p4info_add_alias(p4info, id, "alias"));
   }
+}
+
+TEST(P4Info, Registers) {
+  // the native JSON reader expects all the other resource types to be present
+  pi_p4info_action_init(p4info, 0);
+  pi_p4info_table_init(p4info, 0);
+  pi_p4info_act_prof_init(p4info, 0);
+  pi_p4info_counter_init(p4info, 0);
+  pi_p4info_direct_counter_init(p4info, 0);
+  pi_p4info_meter_init(p4info, 0);
+  pi_p4info_direct_meter_init(p4info, 0);
+  pi_p4info_digest_init(p4info, 0);
+  pi_p4info_register_init(p4info, 2);
+  pi_p4_id_t r0 = pi_make_register_id(0);
+  pi_p4_id_t r1 = pi_make_register_id(1);
+  pi_p4info_register_add(p4info, r0, "r0", 1024, 12);
+  // a bitwidth of 0 is used for registers which are not bitstrings
+  pi_p4info_register_add(p4info, r1, "r1", 16, 0);
+
+  TEST_ASSERT_EQUAL_UINT(r0, pi_p4info_register_id_from_name(p4info, "r0"));
+  TEST_ASSERT_EQUAL_UINT(r1, pi_p4info_register_id_from_name(p4info, "r1"));
+  TEST_ASSERT_EQUAL_STRING("r0", pi_p4info_register_name_from_id(p4info, r0));
+  TEST_ASSERT_EQUAL_UINT(1024, pi_p4info_register_get_size(p4info, r0));
+  TEST_ASSERT_EQUAL_UINT(12, pi_p4info_register_get_bitwidth(p4info, r0));
+  TEST_ASSERT_EQUAL_UINT(16, pi_p4info_register_get_size(p4info, r1));
+  TEST_ASSERT_EQUAL_UINT(0, pi_p4info_register_get_bitwidth(p4info, r1));
+
+  size_t cnt = 0;
+  for (pi_p4_id_t id = pi_p4info_register_begin(p4info);
+       id != pi_p4info_register_end(p4info);
+       id = pi_p4info_register_next(p4info, id)) {
+    TEST_ASSERT_TRUE(pi_is_register_id(id));
+    cnt++;
+  }
+  TEST_ASSERT_EQUAL_UINT(2, cnt);
+
+  // round trip through the native JSON format
+  char *dump = pi_serialize_config(p4info, 0);
+  TEST_ASSERT_NOT_NULL(dump);
+  pi_p4info_t *p4info_new;
+  TEST_ASSERT_EQUAL(
+      PI_STATUS_SUCCESS,
+      pi_add_config(dump, PI_CONFIG_TYPE_NATIVE_JSON, &p4info_new));
+  TEST_ASSERT_EQUAL_UINT(1024, pi_p4info_register_get_size(p4info_new, r0));
+  TEST_ASSERT_EQUAL_UINT(12, pi_p4info_register_get_bitwidth(p4info_new, r0));
+  TEST_ASSERT_EQUAL_UINT(0, pi_p4info_register_get_bitwidth(p4info_new, r1));
+  char *dump_new = pi_serialize_config(p4info_new, 0);
+  TEST_ASSERT_TRUE(cmp_cJSON(dump, dump_new));
+
+  TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS, pi_destroy_config(p4info_new));
+  pi_free_serialized_config(dump);
+  pi_free_serialized_config(dump_new);
+}
+
+// configs from before registers were supported by PI may not include them
+TEST(P4Info, RegistersMissing) {
+  char *config = read_file(TESTDATADIR
+                           "/"
+                           "simple_router.json");
+  cJSON *root = cJSON_Parse(config);
+  TEST_ASSERT_NOT_NULL(root);
+  cJSON_DeleteItemFromObject(root, "register_arrays");
+  char *config_no_registers = cJSON_PrintUnformatted(root);
+  cJSON_Delete(root);
+  pi_p4info_t *p4info_bmv2;
+  TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS,
+                    pi_add_config(config_no_registers, PI_CONFIG_TYPE_BMV2_JSON,
+                                  &p4info_bmv2));
+  TEST_ASSERT_EQUAL_UINT(pi_p4info_register_end(p4info_bmv2),
+                         pi_p4info_register_begin(p4info_bmv2));
+
+  char *dump = pi_serialize_config(p4info_bmv2, 0);
+  TEST_ASSERT_NOT_NULL(dump);
+  root = cJSON_Parse(dump);
+  TEST_ASSERT_NOT_NULL(root);
+  cJSON_DeleteItemFromObject(root, "registers");
+  char *dump_no_registers = cJSON_PrintUnformatted(root);
+  cJSON_Delete(root);
+  pi_p4info_t *p4info_native;
+  TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS,
+                    pi_add_config(dump_no_registers, PI_CONFIG_TYPE_NATIVE_JSON,
+                                  &p4info_native));
+  TEST_ASSERT_EQUAL_UINT(pi_p4info_register_end(p4info_native),
+                         pi_p4info_register_begin(p4info_native));
+
+  TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS, pi_destroy_config(p4info_bmv2));
+  TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS, pi_destroy_config(p4info_native));
+  pi_free_serialized_config(dump);
+  free(dump_no_registers);
+  free(config_no_registers);
+  free(config);
 }
 
 TEST(P4Info, ActProfsStress) {
@@ -514,6 +609,8 @@ TEST_GROUP_RUNNER(P4Info) {
   RUN_TEST_CASE(P4Info, TablesIterator);
   RUN_TEST_CASE(P4Info, Serialize);
   RUN_TEST_CASE(P4Info, Generic);
+  RUN_TEST_CASE(P4Info, Registers);
+  RUN_TEST_CASE(P4Info, RegistersMissing);
   RUN_TEST_CASE(P4Info, ActProfsStress);
 }
 

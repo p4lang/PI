@@ -35,6 +35,7 @@ extern "C" {
 #include "p4info/counters.h"
 #include "p4info/digests.h"
 #include "p4info/meters.h"
+#include "p4info/registers.h"
 #include "p4info/tables.h"
 #include "pi_base.h"
 
