@@ -81,6 +81,36 @@ class DeviceMgrSetPipelineConfigTest : public DeviceMgrBaseTest {
     config.unsafe_arena_release_p4info();
     return status;
   }
+
+  // Returns a copy of p4info_proto in which the register RegisterA has only 8
+  // cells, and from which the register RegisterWide has been removed.
+  static p4configv1::P4Info shrink_registers(
+      const p4configv1::P4Info &p4info_proto) {
+    auto p4info_proto_new = p4info_proto;
+    auto *registers = p4info_proto_new.mutable_registers();
+    for (int i = registers->size() - 1; i >= 0; i--) {
+      const auto &name = registers->Get(i).preamble().name();
+      if (name == "RegisterA")
+        registers->Mutable(i)->set_size(8);
+      else if (name == "RegisterWide")
+        registers->DeleteSubrange(i, 1);
+    }
+    return p4info_proto_new;
+  }
+
+  void write_register_cell(pi_p4_id_t register_id, int64_t index,
+                           const std::string &value,
+                           p4v1::Entity *register_entity) {
+    auto *register_entry = register_entity->mutable_register_entry();
+    register_entry->set_register_id(register_id);
+    register_entry->mutable_index()->set_index(index);
+    register_entry->mutable_data()->set_bitstring(value);
+    p4v1::WriteRequest request;
+    auto *update = request.add_updates();
+    update->set_type(p4v1::Update::MODIFY);
+    update->mutable_entity()->CopyFrom(*register_entity);
+    ASSERT_OK(mgr.write(request));
+  }
 };
 
 TEST_F(DeviceMgrSetPipelineConfigTest, Reconcile) {
@@ -256,6 +286,64 @@ TEST_F(DeviceMgrSetPipelineConfigTest, ReconcileTargetWithoutRegisters) {
   ASSERT_EQ(1, response.entities_size());
   EXPECT_TRUE(MessageDifferencer::Equals(counter_entity, response.entities(0)))
       << response.entities(0).DebugString();
+}
+
+// Only the register cells which are not 0 are replayed, since the cells of the
+// new config start at 0, so the new config can remove a register or make it
+// smaller as long as the cells which are lost are 0.
+TEST_F(DeviceMgrSetPipelineConfigTest, ReconcileRegistersRemovedOrSmaller) {
+  constexpr const char *p4info_path = TESTDATADIR "/" "unittest.p4info.txt";
+  auto p4info_proto = read_p4info(p4info_path);
+  pi_p4info_t *p4info;
+  pi::p4info::p4info_proto_reader(p4info_proto, &p4info);
+  auto r_id = pi_p4info_register_id_from_name(p4info, "RegisterA");
+  pi_destroy_config(p4info);
+
+  EXPECT_CALL(*mock, table_idle_timeout_config_set(_, _)).Times(AnyNumber());
+  ASSERT_OK(set_pipeline_config(
+      &p4info_proto,
+      p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT));
+  const std::string value("\x0a\xbc", 2);
+  p4v1::Entity register_entity;
+  write_register_cell(r_id, 5, value, &register_entity);
+
+  // RegisterA[5] is the only cell which is not 0, in RegisterA and in
+  // RegisterWide
+  auto p4info_proto_new = shrink_registers(p4info_proto);
+  EXPECT_CALL(*mock, register_write(r_id, 5, value));
+  ASSERT_OK(set_pipeline_config(
+      &p4info_proto_new,
+      p4v1::SetForwardingPipelineConfigRequest_Action_RECONCILE_AND_COMMIT));
+
+  p4v1::ReadResponse response;
+  ASSERT_OK(mgr.read_one(register_entity, &response));
+  ASSERT_EQ(1, response.entities_size());
+  EXPECT_TRUE(MessageDifferencer::Equals(register_entity, response.entities(0)))
+      << response.entities(0).DebugString();
+}
+
+// A register cell which is not 0 cannot be preserved if the new config makes
+// the register too small for it, so the reconciliation fails.
+TEST_F(DeviceMgrSetPipelineConfigTest, ReconcileRegisterCellLost) {
+  constexpr const char *p4info_path = TESTDATADIR "/" "unittest.p4info.txt";
+  auto p4info_proto = read_p4info(p4info_path);
+  pi_p4info_t *p4info;
+  pi::p4info::p4info_proto_reader(p4info_proto, &p4info);
+  auto r_id = pi_p4info_register_id_from_name(p4info, "RegisterA");
+  pi_destroy_config(p4info);
+
+  EXPECT_CALL(*mock, table_idle_timeout_config_set(_, _)).Times(AnyNumber());
+  ASSERT_OK(set_pipeline_config(
+      &p4info_proto,
+      p4v1::SetForwardingPipelineConfigRequest_Action_VERIFY_AND_COMMIT));
+  p4v1::Entity register_entity;
+  write_register_cell(r_id, 100, std::string("\x0a\xbc", 2), &register_entity);
+
+  auto p4info_proto_new = shrink_registers(p4info_proto);
+  auto status = set_pipeline_config(
+      &p4info_proto_new,
+      p4v1::SetForwardingPipelineConfigRequest_Action_RECONCILE_AND_COMMIT);
+  EXPECT_NE(status.code(), Code::OK);
 }
 
 }  // namespace

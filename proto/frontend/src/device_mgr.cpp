@@ -3852,18 +3852,46 @@ class DeviceMgrImp {
         pi_status, "Error when writing register to target");
   }
 
+  // Reads a cell in the format of PI/pi_register.h.
+  Status register_read_cell(const SessionTemp &session,
+                            pi_p4_id_t register_id, const RegisterType &type,
+                            size_t index, std::string *value) const {
+    value->assign((type.get_bitwidth() + 7) / 8, '\0');
+    auto pi_status = pi_register_read(session.get(), device_tgt, register_id,
+                                      index, &(*value)[0]);
+    return register_status_pi_to_proto(
+        pi_status, "Error when reading register from target");
+  }
+
   Status register_read_one_index(const SessionTemp &session,
                                  const RegisterType &type,
                                  p4v1::RegisterEntry *entry) const {
     // checked by caller
     assert(entry->has_index() && entry->index().index() >= 0);
     auto index = static_cast<size_t>(entry->index().index());
-    std::string value((type.get_bitwidth() + 7) / 8, '\0');
-    auto pi_status = pi_register_read(session.get(), device_tgt,
-                                      entry->register_id(), index, &value[0]);
-    RETURN_IF_ERROR(register_status_pi_to_proto(
-        pi_status, "Error when reading register from target"));
+    std::string value;
+    RETURN_IF_ERROR(register_read_cell(session, entry->register_id(), type,
+                                       index, &value));
     return type.pi_to_p4rt(value, entry->mutable_data());
+  }
+
+  // Adds to response the cells of a register which are not 0, for
+  // save_forwarding_state.
+  Status save_register_cells(const SessionTemp &session,
+                             pi_p4_id_t register_id, const RegisterType &type,
+                             p4v1::ReadResponse *response) const {
+    auto size = pi_p4info_register_get_size(p4info.get(), register_id);
+    std::string value;
+    for (size_t index = 0; index < size; index++) {
+      RETURN_IF_ERROR(register_read_cell(session, register_id, type, index,
+                                         &value));
+      if (value.find_first_not_of('\0') == std::string::npos) continue;
+      auto *entry = response->add_entities()->mutable_register_entry();
+      entry->set_register_id(register_id);
+      entry->mutable_index()->set_index(index);
+      RETURN_IF_ERROR(type.pi_to_p4rt(value, entry->mutable_data()));
+    }
+    RETURN_OK_STATUS();
   }
 
   void idle_timeout_register_cb(StreamMessageResponseCb cb, void *cookie) {
@@ -3924,21 +3952,22 @@ class DeviceMgrImp {
       entity->mutable_counter_entry();
     }
     RETURN_IF_ERROR(read_(request, response));
-    // Registers are read one at a time, so that registers which cannot be
-    // read are skipped: those whose type is not supported, and those of
-    // targets which do not support registers (UNIMPLEMENTED). Their state
-    // cannot be preserved, but this used to be the case for all registers.
+    // Only the register cells which are not 0 are saved: the cells of the new
+    // config start at 0, so the others do not need to be replayed, and the new
+    // config can remove a register or make it smaller as long as the cells
+    // which are lost are 0. Registers which cannot be read are skipped: those
+    // whose type is not supported, and those of targets which do not support
+    // registers (UNIMPLEMENTED). Their state cannot be preserved, but this
+    // used to be the case for all registers.
+    SessionTemp session(false  /* = batch */);
     for (auto r_id = pi_p4info_register_begin(p4info.get());
          r_id != pi_p4info_register_end(p4info.get());
          r_id = pi_p4info_register_next(p4info.get(), r_id)) {
       auto it = register_types.find(r_id);
       if (it == register_types.end() || !it->second.ok()) continue;
-      p4v1::ReadRequest register_request;
-      register_request.set_device_id(device_id);
-      register_request.add_entities()->mutable_register_entry()
-          ->set_register_id(r_id);
       p4v1::ReadResponse register_response;
-      auto status = read_(register_request, &register_response);
+      auto status = save_register_cells(session, r_id, it->second.ValueOrDie(),
+                                        &register_response);
       if (status.code() == Code::UNIMPLEMENTED) continue;
       RETURN_IF_ERROR(status);
       response->MergeFrom(register_response);
