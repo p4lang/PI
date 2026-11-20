@@ -86,7 +86,8 @@ pi_cli_status_t do_register_read(char *subcmd) {
 
   size_t bitwidth = pi_p4info_register_get_bitwidth(p4info_curr, r_id);
   size_t nbytes = (bitwidth + 7) / 8;
-  char *value = malloc(nbytes);
+  // zeroed in case the target does not write the value (dummy target)
+  char *value = calloc(1, nbytes);
   pi_status_t rc = pi_register_read(sess, dev_tgt, r_id, index, value);
   if (rc != PI_STATUS_SUCCESS) {
     printf("Error when trying to read register\n");

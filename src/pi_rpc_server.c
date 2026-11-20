@@ -1049,7 +1049,9 @@ static void __pi_packetout_send(char *req) {
 // returns 0 if the device or the register is unknown
 static size_t register_cell_size(pi_dev_id_t dev_id, pi_p4_id_t register_id) {
   const pi_p4info_t *p4info = pi_get_device_p4info(dev_id);
-  if (!p4info || !pi_p4info_is_valid_id(p4info, register_id)) return 0;
+  if (!p4info || !pi_is_register_id(register_id) ||
+      !pi_p4info_is_valid_id(p4info, register_id))
+    return 0;
   return (pi_p4info_register_get_bitwidth(p4info, register_id) + 7) / 8;
 }
 

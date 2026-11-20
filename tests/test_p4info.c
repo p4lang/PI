@@ -504,7 +504,7 @@ TEST(P4Info, Registers) {
   pi_p4_id_t r0 = pi_make_register_id(0);
   pi_p4_id_t r1 = pi_make_register_id(1);
   pi_p4info_register_add(p4info, r0, "r0", 1024, 12);
-  // a bitwidth of 0 is used for registers which are not bitstrings
+  // a bitwidth of 0 is used for registers whose type is not supported
   pi_p4info_register_add(p4info, r1, "r1", 16, 0);
 
   TEST_ASSERT_EQUAL_UINT(r0, pi_p4info_register_id_from_name(p4info, "r0"));

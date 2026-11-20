@@ -163,6 +163,22 @@ TEST(P4InfoProtoConvertRegistersTest, Convert) {
   EXPECT_TRUE(MessageDifferencer::Equals(input_proto, output_proto));
 }
 
+// p4info stores each resource according to the prefix of its id, so a register
+// whose id does not have the prefix of registers is rejected.
+TEST(P4InfoProtoConvertRegistersTest, InvalidId) {
+  p4::config::v1::P4Info input_proto;
+  auto *reg = input_proto.add_registers();
+  reg->mutable_preamble()->set_id((PI_COUNTER_ID << 24) | 1);
+  reg->mutable_preamble()->set_name("r");
+  reg->set_size(16);
+  reg->mutable_type_spec()->mutable_bitstring()->mutable_bit()
+      ->set_bitwidth(8);
+
+  pi_p4info_t *p4info;
+  EXPECT_FALSE(pi::p4info::p4info_proto_reader(input_proto, &p4info));
+  pi_destroy_config(p4info);
+}
+
 // The bitwidth of the cells for each type of register supported by PI.
 TEST(P4InfoProtoConvertRegistersTest, Types) {
   p4::config::v1::P4Info input_proto;
