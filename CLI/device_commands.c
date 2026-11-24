@@ -229,8 +229,8 @@ pi_cli_status_t do_update_device_start(char *subcmd) {
 }
 
 char update_device_end_hs[] =
-    "End the P4 config update sequence on the selected device, "
-    "update_device_start";
+    "End the P4 config update sequence on the selected device: "
+    "update_device_end";
 
 pi_cli_status_t do_update_device_end(char *subcmd) {
   // better way of doing this?

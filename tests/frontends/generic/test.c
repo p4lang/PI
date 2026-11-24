@@ -406,8 +406,19 @@ TEST(FrontendGeneric_UpdateDeviceUnassigned, Start) {
   pi_destroy();
 }
 
+TEST(FrontendGeneric_UpdateDeviceUnassigned, End) {
+  pi_status_t rc = pi_init(256, NULL);
+  TEST_ASSERT_EQUAL(PI_STATUS_SUCCESS, rc);
+
+  rc = pi_update_device_end(0);
+  TEST_ASSERT_EQUAL(PI_STATUS_DEV_NOT_ASSIGNED, rc);
+
+  pi_destroy();
+}
+
 TEST_GROUP_RUNNER(FrontendGeneric_UpdateDeviceUnassigned) {
   RUN_TEST_CASE(FrontendGeneric_UpdateDeviceUnassigned, Start);
+  RUN_TEST_CASE(FrontendGeneric_UpdateDeviceUnassigned, End);
 }
 
 void test_frontends_generic() {
