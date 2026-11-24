@@ -190,6 +190,12 @@ control ingress(inout headers_t hdr, inout metadata_t meta, inout standard_metad
     @name(".MeterA")
     meter(32w1024, MeterType.packets) MeterA;
 
+    @name(".RegisterA")
+    register<bit<12>>(32w128) RegisterA;
+
+    @name(".RegisterWide")
+    register<bit<160>>(32w4) RegisterWide;
+
     @name(".ConstTable")
     table ConstTable {
         key = {

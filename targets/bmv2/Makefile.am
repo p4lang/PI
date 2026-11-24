@@ -17,6 +17,7 @@ pi_tables_imp.cpp \
 pi_act_prof_imp.cpp \
 pi_counter_imp.cpp \
 pi_meter_imp.cpp \
+pi_register_imp.cpp \
 pi_learn_imp.cpp \
 pi_mc_imp.cpp \
 pi_clone_imp.cpp \
