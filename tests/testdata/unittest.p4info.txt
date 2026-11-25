@@ -52,6 +52,28 @@ tables {
 }
 tables {
   preamble {
+    id: 33567651
+    name: "LpmNonByte"
+    alias: "LpmNonByte"
+  }
+  match_fields {
+    id: 1
+    name: "header_test.field20"
+    bitwidth: 20
+    match_type: LPM
+  }
+  action_refs {
+    id: 16783703
+  }
+  action_refs {
+    id: 16800567
+    annotations: "@defaultonly"
+    scope: DEFAULT_ONLY
+  }
+  size: 512
+}
+tables {
+  preamble {
     id: 33584148
     name: "TernaryOne"
     alias: "TernaryOne"
