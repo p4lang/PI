@@ -25,7 +25,8 @@ test_read_file \
 test_getnetv \
 test_p4info \
 test_frontends_generic \
-test_rpc_target
+test_rpc_target \
+test_param_to_bytes
 
 common_source = main.c utils.c utils.h
 
@@ -46,6 +47,7 @@ test_frontends_generic_CPPFLAGS = $(AM_CPPFLAGS) -DTEST_FRONTENDS_GENERIC
 
 test_rpc_target_SOURCES = $(common_source) test_rpc_target.c
 test_rpc_target_CPPFLAGS = $(AM_CPPFLAGS) -DTEST_RPC_TARGET
+
 # unlike the other tests, this one needs the RPC target instead of the dummy one
 test_rpc_target_LDADD = \
 $(top_builddir)/src/libpi.la \
@@ -56,6 +58,10 @@ $(top_builddir)/third_party/cJSON/libpicjson.la \
 $(top_builddir)/lib/libpitoolkit.la \
 $(top_builddir)/targets/rpc/libpi_rpc.la \
 -lnanomsg -lpthread
+
+test_param_to_bytes_SOURCES = $(common_source) test_param_to_bytes.c $(top_srcdir)/CLI/utils.c
+test_param_to_bytes_CPPFLAGS = $(AM_CPPFLAGS) -DTEST_PARAM_TO_BYTES -I$(top_srcdir)
+test_param_to_bytes_LDADD = $(LDADD) -lreadline
 
 test_all_SOURCES = $(common_source) \
 test_bmv2_json_reader.c \
@@ -87,6 +93,7 @@ test_getnetv \
 test_p4info \
 test_frontends_generic \
 test_rpc_target \
+test_param_to_bytes \
 test_all
 
 EXTRA_DIST = \
