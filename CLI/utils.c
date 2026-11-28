@@ -179,6 +179,8 @@ static int hexstr_to_bytes(char *param, char *bytes, size_t max_s) {
   if (s >= 2 && param[idx] == '0' && param[idx + 1] == 'x') idx += 2;
 
   memset(bytes, 0, max_s);
+  // no digits at all (empty string or bare "0x" prefix) is not a valid number
+  if (s - idx == 0) return 1;
   if (((s - idx) + 1) / 2 > max_s) return 1;
 
   bytes += max_s - (((s - idx) + 1) / 2);
@@ -203,17 +205,29 @@ static int hexstr_to_bytes(char *param, char *bytes, size_t max_s) {
 int param_to_bytes(const char *param, char *bytes, size_t bitwidth) {
   size_t s = (bitwidth + 7) / 8;
   // making a copy, so that we can call strtok on it
-  char param_copy[128] = {'\0'};
-  strncpy(param_copy, param, sizeof(param_copy) - 1);
-  if (param_copy[sizeof(param_copy) - 1] != '\0') return 1;
+  // size the buffer to the input: a fixed-size buffer would silently truncate
+  // long inputs instead of rejecting them
+  char *param_copy = strdup(param);
+  if (param_copy == NULL) return 1;
   if (bitwidth == 32) {
-    if (!try_to_parse_ipv4(param_copy, bytes)) return 0;
+    if (!try_to_parse_ipv4(param_copy, bytes)) {
+      free(param_copy);
+      return 0;
+    }
   } else if (bitwidth == 48) {
-    if (!try_to_parse_macAddr(param_copy, bytes)) return 0;
+    if (!try_to_parse_macAddr(param_copy, bytes)) {
+      free(param_copy);
+      return 0;
+    }
   } else if (bitwidth == 128) {
-    if (!try_to_parse_ipv6(param_copy, bytes)) return 0;
+    if (!try_to_parse_ipv6(param_copy, bytes)) {
+      free(param_copy);
+      return 0;
+    }
   }
-  return hexstr_to_bytes(param_copy, bytes, s);
+  int ret = hexstr_to_bytes(param_copy, bytes, s);
+  free(param_copy);
+  return ret;
 }
 
 static char *complete_p4_res(const char *text, int len, int state,
