@@ -283,6 +283,11 @@ static void __pi_update_device_end(char *req) {
   pi_dev_id_t dev_id;
   retrieve_dev_id(req, &dev_id);
 
+  if (!pi_is_device_assigned(dev_id)) {
+    send_status(PI_STATUS_DEV_NOT_ASSIGNED);
+    return;
+  }
+
   pi_status_t status = _pi_update_device_end(dev_id);
 
   send_status(status);

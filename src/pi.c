@@ -225,6 +225,8 @@ pi_status_t pi_update_device_start(pi_dev_id_t dev_id,
 }
 
 pi_status_t pi_update_device_end(pi_dev_id_t dev_id) {
+  if (!pi_is_device_assigned(dev_id)) return PI_STATUS_DEV_NOT_ASSIGNED;
+
   return _pi_update_device_end(dev_id);
 }
 
